@@ -37,6 +37,7 @@ Proxied endpoints:
 - `GET /api/cloudflare/overview`
 - `GET /api/cloudflare/events-by-type`
 - `GET /api/cloudflare/daily?days=30`
+- `GET /api/cloudflare/workers`
 
 Weather on overview is fetched from Open-Meteo (Berlin, DE) every 15 minutes.
 

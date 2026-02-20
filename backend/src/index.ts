@@ -1,4 +1,4 @@
-import { handleAdminDaily, handleAdminEventsByType, handleAdminOverview } from './handlers/admin';
+import { handleAdminDaily, handleAdminEventsByType, handleAdminOverview, handleAdminWorkers } from './handlers/admin';
 import { handleTelemetryEvent } from './handlers/telemetry';
 import { corsHeaders, jsonResponse } from './lib/http';
 import type { WorkerEnv } from './types/telemetry';
@@ -33,6 +33,10 @@ export default {
 
 		if (request.method === 'GET' && url.pathname === '/v1/admin/daily') {
 			return handleAdminDaily(request, runtimeEnv);
+		}
+
+		if (request.method === 'GET' && url.pathname === '/v1/admin/workers') {
+			return handleAdminWorkers(request, runtimeEnv);
 		}
 
 		return jsonResponse(404, {

@@ -72,6 +72,25 @@ type DonutPanel = {
 	delay: number;
 };
 
+type WorkerHealthState = 'healthy' | 'degraded' | 'stale' | 'unknown';
+
+type WorkerMonitorRow = {
+	id: string;
+	name: string;
+	totalEvents: number;
+	uniqueInstalls: number;
+	share: number;
+	lastSeenUtc: string | null;
+	status: WorkerHealthState;
+	minutesSinceLastSeen?: number;
+};
+
+type WorkerAlert = {
+	id: string;
+	severity: 'critical' | 'warning' | 'info';
+	message: string;
+};
+
 type ChartTooltipPayloadItem = {
 	color?: string;
 	fill?: string;
@@ -182,7 +201,7 @@ function DonutTooltip({ active, payload, total }: DonutTooltipProps) {
 			<div className="cp-chart-tooltip-row">
 				<div className="cp-chart-tooltip-series">
 					<span className="cp-chart-tooltip-dot" style={{ color: getTooltipDotColor(entry) }}>
-						●
+						&#9679;
 					</span>
 					<span className="cp-chart-tooltip-name">{String(entry.name ?? 'Value')}</span>
 				</div>
@@ -211,7 +230,7 @@ function TrafficTooltip({ active, label, payload }: TrafficTooltipProps) {
 				<div className="cp-chart-tooltip-row" key={`traffic-tooltip-${String(entry.name ?? index)}`}>
 					<div className="cp-chart-tooltip-series">
 						<span className="cp-chart-tooltip-dot" style={{ color: getTooltipDotColor(entry) }}>
-							●
+							&#9679;
 						</span>
 						<span className="cp-chart-tooltip-name">{String(entry.name ?? 'Value')}</span>
 					</div>
@@ -250,6 +269,52 @@ const compactNumber = (value?: number): string => {
 		notation: 'compact',
 		maximumFractionDigits: 1,
 	}).format(value);
+};
+
+const parseUtcTime = (value?: string | null): number | undefined => {
+	if (!value) {
+		return undefined;
+	}
+
+	const parsed = new Date(value).getTime();
+	return Number.isFinite(parsed) ? parsed : undefined;
+};
+
+const getMinutesSinceUtc = (value?: string | null): number | undefined => {
+	const parsedMs = parseUtcTime(value);
+	if (parsedMs === undefined) {
+		return undefined;
+	}
+
+	const delta = Math.floor((Date.now() - parsedMs) / 60_000);
+	return delta >= 0 ? delta : 0;
+};
+
+const getWorkerHealthState = (value?: string | null): WorkerHealthState => {
+	const minutesSince = getMinutesSinceUtc(value);
+	if (minutesSince === undefined) {
+		return 'unknown';
+	}
+	if (minutesSince <= 15) {
+		return 'healthy';
+	}
+	if (minutesSince <= 120) {
+		return 'degraded';
+	}
+	return 'stale';
+};
+
+const workerHealthLabel = (value: WorkerHealthState): string => {
+	if (value === 'healthy') {
+		return 'Healthy';
+	}
+	if (value === 'degraded') {
+		return 'Degraded';
+	}
+	if (value === 'stale') {
+		return 'Stale';
+	}
+	return 'Unknown';
 };
 
 const percentDelta = (current?: number, previous?: number): { text: string; trend: TrendDirection } => {
@@ -456,6 +521,7 @@ function App() {
 		const overview = cloudflare.overview;
 		const events = cloudflare.eventsByType?.items ?? [];
 		const daily = cloudflare.daily?.items ?? [];
+		const workersPayload = cloudflare.workers?.items ?? [];
 
 		const latestDay = daily.at(-1);
 		const previousDay = daily.at(-2);
@@ -517,6 +583,77 @@ function App() {
 			lastSeen,
 		}));
 
+		const fallbackWorkerTotalEvents = totalRequests;
+		const normalizedWorkers =
+			workersPayload.length > 0
+				? workersPayload
+				: [
+					{
+						worker_name: backendName,
+						total_events: fallbackWorkerTotalEvents,
+						unique_installs: overview?.active_installs_24h ?? 0,
+						latest_received_utc: overview?.latest_received_utc ?? cloudflare.fetchedAtUtc ?? null,
+					},
+				];
+
+		const workersTotalEvents = normalizedWorkers.reduce((sum, item) => sum + item.total_events, 0);
+		const workersEventDenominator = totalRequests > 0 ? totalRequests : workersTotalEvents;
+		const workerRows: WorkerMonitorRow[] = normalizedWorkers
+			.map((item, index) => {
+				const share = workersEventDenominator > 0 ? (item.total_events / workersEventDenominator) * 100 : 0;
+				const status = getWorkerHealthState(item.latest_received_utc);
+				return {
+					id: `${item.worker_name}-${index}`,
+					name: item.worker_name,
+					totalEvents: item.total_events,
+					uniqueInstalls: item.unique_installs,
+					share,
+					lastSeenUtc: item.latest_received_utc,
+					status,
+					minutesSinceLastSeen: getMinutesSinceUtc(item.latest_received_utc),
+				};
+			})
+			.sort((a, b) => b.totalEvents - a.totalEvents);
+
+		const unknownWorkerEvents = workerRows
+			.filter((row) => row.name.trim().toLowerCase() === 'unknown')
+			.reduce((sum, row) => sum + row.totalEvents, 0);
+		const unknownWorkerShare = workersEventDenominator > 0 ? (unknownWorkerEvents / workersEventDenominator) * 100 : 0;
+		const staleWorkersCount = workerRows.filter((row) => row.status === 'stale').length;
+		const knownWorkersCount = workerRows.filter((row) => row.name.trim().toLowerCase() !== 'unknown').length;
+		const workerCoverage = Math.max(0, 100 - unknownWorkerShare);
+		const busiestWorker = workerRows[0];
+
+		const workerAlerts: WorkerAlert[] = [];
+		if (workersPayload.length === 0) {
+			workerAlerts.push({
+				id: 'workers-inferred',
+				severity: 'info',
+				message: 'Worker identities are inferred from backend host because no worker_name telemetry was received.',
+			});
+		}
+		if (unknownWorkerShare >= 35) {
+			workerAlerts.push({
+				id: 'workers-unknown-share',
+				severity: 'warning',
+				message: `${unknownWorkerShare.toFixed(1)}% of events are missing worker identifiers.`,
+			});
+		}
+		if (staleWorkersCount > 0) {
+			workerAlerts.push({
+				id: 'workers-stale',
+				severity: 'critical',
+				message: `${staleWorkersCount} worker${staleWorkersCount === 1 ? '' : 's'} have stale telemetry (>120 min).`,
+			});
+		}
+		if (workerAlerts.length === 0) {
+			workerAlerts.push({
+				id: 'workers-ok',
+				severity: 'info',
+				message: 'No worker-specific alerts right now.',
+			});
+		}
+
 		const donutPanels: DonutPanel[] = [
 			{
 				title: 'Event Type Split',
@@ -552,6 +689,16 @@ function App() {
 			syncText,
 			trafficSeries,
 			lastSeen,
+			workersData: {
+				workerRows,
+				workerAlerts,
+				workerCount: workerRows.length,
+				knownWorkersCount,
+				workerCoverage,
+				totalWorkerEvents: workersTotalEvents,
+				staleWorkersCount,
+				busiestWorker,
+			},
 		};
 	}, [cloudflare]);
 
@@ -687,13 +834,7 @@ function App() {
 					)}
 					{cloudflare.loading && <div className="cp-banner">Syncing Cloudflare data...</div>}
 
-					{activeView !== 'Overview' ? (
-						<section className="cp-placeholder cp-fade-in">
-							<BarChart3 className="icon-lg" />
-							<h2>{activeView}</h2>
-							<p>This section is intentionally left as a placeholder in the reference design.</p>
-						</section>
-					) : (
+					{activeView === 'Overview' ? (
 						<>
 							<section className="cp-kpi-grid">
 								{dashboardData.kpis.map((item, index) => {
@@ -864,6 +1005,95 @@ function App() {
 								})}
 							</section>
 						</>
+					) : activeView === 'Workers' ? (
+						<section className="cp-workers-grid cp-fade-in">
+							<article className="cp-panel">
+								<div className="cp-panel-head">
+									<div>
+										<h2>Workers Monitoring</h2>
+										<p>Realtime posture for observed worker identities</p>
+									</div>
+								</div>
+
+								<div className="cp-workers-summary">
+									<div className="cp-workers-summary-item">
+										<span>Workers Observed</span>
+										<strong>{dashboardData.workersData.workerCount}</strong>
+									</div>
+									<div className="cp-workers-summary-item">
+										<span>Coverage</span>
+										<strong>{dashboardData.workersData.workerCoverage.toFixed(1)}%</strong>
+									</div>
+									<div className="cp-workers-summary-item">
+										<span>Stale Workers</span>
+										<strong>{dashboardData.workersData.staleWorkersCount}</strong>
+									</div>
+									<div className="cp-workers-summary-item">
+										<span>Busiest Worker</span>
+										<strong>{dashboardData.workersData.busiestWorker?.name ?? '--'}</strong>
+									</div>
+								</div>
+
+								<div className="cp-workers-alerts">
+									{dashboardData.workersData.workerAlerts.map((alert) => (
+										<div className={`cp-workers-alert is-${alert.severity}`} key={alert.id}>
+											<AlertTriangle className="icon-xs" />
+											<span>{alert.message}</span>
+										</div>
+									))}
+								</div>
+							</article>
+
+							<article className="cp-panel">
+								<div className="cp-panel-head">
+									<div>
+										<h2>Workers Inventory</h2>
+										<p>Per-worker volume, activity freshness, and install reach</p>
+									</div>
+								</div>
+
+								<div className="cp-workers-table-wrap">
+									<table className="cp-workers-table">
+										<thead>
+											<tr>
+												<th>Worker</th>
+												<th className="is-right">Events</th>
+												<th className="is-right">Share</th>
+												<th className="is-right">Unique Installs</th>
+												<th>Last Seen</th>
+												<th>Status</th>
+											</tr>
+										</thead>
+										<tbody>
+											{dashboardData.workersData.workerRows.map((worker) => (
+												<tr key={worker.id}>
+													<td>{worker.name}</td>
+													<td className="is-right">{worker.totalEvents.toLocaleString()}</td>
+													<td className="is-right">{worker.share.toFixed(1)}%</td>
+													<td className="is-right">{worker.uniqueInstalls.toLocaleString()}</td>
+													<td>
+														{worker.lastSeenUtc
+															? `${toTimeLabel(worker.lastSeenUtc)}${typeof worker.minutesSinceLastSeen === 'number' ? ` (${worker.minutesSinceLastSeen}m ago)` : ''}`
+															: '--'}
+													</td>
+													<td>
+														<span className={`cp-worker-status is-${worker.status}`}>
+															{workerHealthLabel(worker.status)}
+														</span>
+													</td>
+												</tr>
+											))}
+										</tbody>
+									</table>
+								</div>
+							</article>
+						</section>
+					) : (
+						<section className="cp-placeholder cp-fade-in">
+							<BarChart3 className="icon-lg" />
+							<h2>{activeView}</h2>
+							<p>This section is intentionally left as a placeholder in the reference design.</p>
+						</section>
 					)}
 				</main>
 			</div>

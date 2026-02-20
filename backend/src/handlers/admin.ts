@@ -124,3 +124,46 @@ export async function handleAdminDaily(request: Request, env: WorkerEnv): Promis
 
 	return jsonResponse(200, { days, items });
 }
+
+export async function handleAdminWorkers(request: Request, env: WorkerEnv): Promise<Response> {
+	const authError = getAdminAuthError(request, env.ADMIN_API_KEY);
+	if (authError) {
+		return authError;
+	}
+
+	const queryResult = await env.razorreaper_telemetry_prod
+		.prepare(
+			`SELECT
+				COALESCE(
+					NULLIF(json_extract(properties_json, '$.worker_name'), ''),
+					NULLIF(json_extract(properties_json, '$.workerName'), ''),
+					NULLIF(json_extract(properties_json, '$.worker'), ''),
+					NULLIF(json_extract(properties_json, '$.service'), ''),
+					'unknown'
+				) AS worker_name,
+				COUNT(*) AS total_events,
+				COUNT(DISTINCT install_id_hash) AS unique_installs,
+				MAX(received_utc) AS latest_received_utc
+			FROM telemetry_events
+			GROUP BY worker_name
+			ORDER BY total_events DESC, worker_name ASC
+			LIMIT 100`
+		)
+		.all<{
+			worker_name: string;
+			total_events: number;
+			unique_installs: number;
+			latest_received_utc: string | null;
+		}>();
+
+	const items = queryResult.results.map((row) => ({
+		worker_name: row.worker_name,
+		total_events: row.total_events,
+		unique_installs: row.unique_installs,
+		latest_received_utc: row.latest_received_utc,
+	}));
+
+	return jsonResponse(200, {
+		items,
+	});
+}

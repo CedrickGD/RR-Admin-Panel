@@ -1,4 +1,4 @@
-import type { CloudflareDaily, CloudflareEventsByType, CloudflareOverview, CloudflareSnapshot } from '@/shared/types/dashboard';
+import type { CloudflareDaily, CloudflareEventsByType, CloudflareOverview, CloudflareSnapshot, CloudflareWorkers } from '@/shared/types/dashboard';
 
 type FetchCloudflareArgs = {
 	backendUrl: string;
@@ -101,36 +101,43 @@ export async function fetchCloudflareSnapshot({
 	const dailyEndpoint = localApi
 		? endpointFor(baseUrl, '/cloudflare/daily?days=30')
 		: endpointFor(baseUrl, '/v1/admin/daily?days=30');
+	const workersEndpoint = localApi
+		? endpointFor(baseUrl, '/cloudflare/workers')
+		: endpointFor(baseUrl, '/v1/admin/workers');
 
 	try {
-		const [overviewResult, eventsResult, dailyResult] = await Promise.allSettled([
+		const [overviewResult, eventsResult, dailyResult, workersResult] = await Promise.allSettled([
 			fetchJson<CloudflareOverview>(overviewEndpoint, defaultHeaders),
 			fetchJson<CloudflareEventsByType>(eventsEndpoint, defaultHeaders),
 			fetchJson<CloudflareDaily>(dailyEndpoint, defaultHeaders),
+			fetchJson<CloudflareWorkers>(workersEndpoint, defaultHeaders),
 		]);
 
 		const overview = overviewResult.status === 'fulfilled' ? overviewResult.value.data : undefined;
 		const eventsByType = eventsResult.status === 'fulfilled' ? eventsResult.value.data : undefined;
 		const daily = dailyResult.status === 'fulfilled' ? dailyResult.value.data : undefined;
+		const workers = workersResult.status === 'fulfilled' ? workersResult.value.data : undefined;
 
-		const endpointStatuses = [
+		const requiredEndpointStatuses = [
 			overviewResult.status === 'fulfilled' ? overviewResult.value.status : undefined,
 			eventsResult.status === 'fulfilled' ? eventsResult.value.status : undefined,
 			dailyResult.status === 'fulfilled' ? dailyResult.value.status : undefined,
 		];
-		const endpointErrors = [
+		const requiredEndpointErrors = [
 			overviewResult.status === 'fulfilled' ? overviewResult.value.error : undefined,
 			eventsResult.status === 'fulfilled' ? eventsResult.value.error : undefined,
 			dailyResult.status === 'fulfilled' ? dailyResult.value.error : undefined,
 		].filter((error): error is string => typeof error === 'string' && error.trim().length > 0);
+		const workersEndpointError = workersResult.status === 'fulfilled' ? workersResult.value.error : undefined;
 
 		const connectedBackendName =
 			(overviewResult.status === 'fulfilled' ? overviewResult.value.connectedBackendName : undefined) ??
 			(eventsResult.status === 'fulfilled' ? eventsResult.value.connectedBackendName : undefined) ??
 			(dailyResult.status === 'fulfilled' ? dailyResult.value.connectedBackendName : undefined) ??
+			(workersResult.status === 'fulfilled' ? workersResult.value.connectedBackendName : undefined) ??
 			(localApi ? 'Cloudflare upstream' : baseHost);
 
-		const failedCount = [overviewResult, eventsResult, dailyResult].filter(
+		const requiredFailedCount = [overviewResult, eventsResult, dailyResult].filter(
 			(result) => result.status === 'rejected',
 		).length;
 
@@ -138,27 +145,30 @@ export async function fetchCloudflareSnapshot({
 		let error: string | undefined;
 
 		if (noPayload) {
-			if (endpointStatuses.some((status) => status === 401)) {
+			if (requiredEndpointStatuses.some((status) => status === 401)) {
 				error = 'Cloudflare rejected the admin key (401). Enter a valid X-Admin-Key.';
-			} else if (endpointStatuses.some((status) => status === 503)) {
+			} else if (requiredEndpointStatuses.some((status) => status === 503)) {
 				error = 'Cloudflare proxy is disabled on this host. Enable CloudflareAdmin or provide X-Admin-Key.';
-			} else if (endpointErrors.length > 0) {
-				error = endpointErrors[0];
+			} else if (requiredEndpointErrors.length > 0) {
+				error = requiredEndpointErrors[0];
+			} else if (typeof workersEndpointError === 'string' && workersEndpointError.trim().length > 0) {
+				error = workersEndpointError;
 			} else {
 				error = 'Cloudflare admin endpoints unavailable. No backend data returned.';
 			}
-		} else if (endpointErrors.length > 0) {
-			error = `Partial backend data loaded. ${endpointErrors[0]}`;
+		} else if (requiredEndpointErrors.length > 0) {
+			error = `Partial backend data loaded. ${requiredEndpointErrors[0]}`;
 		}
 
 		return {
 			overview,
 			eventsByType,
 			daily,
+			workers,
 			connectedBackendName,
 			fetchedAtUtc,
 			error:
-				failedCount > 0 && noPayload && !error
+				requiredFailedCount > 0 && noPayload && !error
 					? 'Cloudflare admin endpoints unavailable. No backend data returned.'
 					: error,
 			loading: false,

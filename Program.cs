@@ -44,6 +44,13 @@ app.MapGet("/api/cloudflare/daily", (
 	return ForwardCloudflareRequestAsync(httpContext, httpClientFactory, configuration, logger, $"/v1/admin/daily?days={safeDays}");
 });
 
+app.MapGet("/api/cloudflare/workers", (
+	HttpContext httpContext,
+	IHttpClientFactory httpClientFactory,
+	IConfiguration configuration,
+	ILogger<Program> logger) =>
+	ForwardCloudflareRequestAsync(httpContext, httpClientFactory, configuration, logger, "/v1/admin/workers"));
+
 app.MapFallbackToFile("index.html");
 
 app.Run();

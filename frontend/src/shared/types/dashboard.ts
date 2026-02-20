@@ -196,10 +196,20 @@ export type CloudflareDaily = {
 	}>;
 };
 
+export type CloudflareWorkers = {
+	items: Array<{
+		worker_name: string;
+		total_events: number;
+		unique_installs: number;
+		latest_received_utc: string | null;
+	}>;
+};
+
 export type CloudflareSnapshot = {
 	overview?: CloudflareOverview;
 	eventsByType?: CloudflareEventsByType;
 	daily?: CloudflareDaily;
+	workers?: CloudflareWorkers;
 	connectedBackendName?: string;
 	error?: string;
 	loading: boolean;

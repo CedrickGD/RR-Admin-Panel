@@ -676,6 +676,99 @@ input::placeholder {
 	font-weight: 650;
 }
 
+.cp-chart-tooltip {
+	display: grid;
+	gap: 0.35rem;
+	min-width: 9.5rem;
+	padding: 0.5rem 0.6rem;
+	border-radius: 0.65rem;
+	border: 1px solid hsl(var(--border));
+	background: hsl(var(--card));
+	color: hsl(var(--foreground));
+	box-shadow: var(--shadow-card);
+}
+
+.cp-chart-tooltip-label {
+	font-size: 0.72rem;
+	font-weight: 600;
+	color: hsl(var(--muted-foreground));
+}
+
+.cp-chart-tooltip-row {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 0.5rem;
+	font-size: 0.74rem;
+	line-height: 1.2;
+}
+
+.cp-chart-tooltip-series {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.42rem;
+	min-width: 0;
+}
+
+.cp-chart-tooltip-dot {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 0.7rem;
+	min-width: 0.7rem;
+	height: 0.7rem;
+	line-height: 1;
+	font-size: 0.75rem;
+	flex-shrink: 0;
+}
+
+.cp-chart-tooltip-name {
+	color: inherit;
+	font-weight: 600;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.cp-chart-tooltip-value {
+	font-size: 0.74rem;
+	font-variant-numeric: tabular-nums;
+	color: inherit;
+	white-space: nowrap;
+}
+
+.dark .cp-chart-tooltip {
+	background: hsl(260 22% 13% / 0.98);
+	border-color: hsl(260 18% 28%);
+	color: hsl(260 12% 95%);
+	box-shadow: 0 14px 30px -14px rgba(0, 0, 0, 0.85);
+}
+
+.dark .cp-chart-tooltip-label {
+	color: hsl(260 10% 78%);
+}
+
+/* Fallback: force readable default Recharts tooltip in dark mode. */
+.dark .recharts-default-tooltip {
+	background: hsl(260 22% 13% / 0.98) !important;
+	border: 1px solid hsl(260 18% 28%) !important;
+	border-radius: 0.65rem !important;
+	color: hsl(260 12% 95%) !important;
+	box-shadow: 0 14px 30px -14px rgba(0, 0, 0, 0.85) !important;
+}
+
+.dark .recharts-default-tooltip .recharts-tooltip-label {
+	color: hsl(260 10% 78%) !important;
+}
+
+.dark .recharts-default-tooltip .recharts-tooltip-item {
+	color: hsl(260 12% 95%) !important;
+}
+
+.dark .recharts-default-tooltip * {
+	color: hsl(260 12% 95%) !important;
+}
+
 .cp-event-list {
 	display: grid;
 	gap: 0.5rem;

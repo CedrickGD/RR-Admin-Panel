@@ -71,3 +71,9 @@ export default defineConfig([
   },
 ])
 ```
+
+## Project Note
+
+`npm run dev`, `npm run build`, `npm run lint`, and `npm run preview` now include a dependency guard (`scripts/ensure-deps.mjs`).
+
+If local dependencies are missing (for example on a fresh clone), it automatically runs `npm ci --include=dev` before compiling.

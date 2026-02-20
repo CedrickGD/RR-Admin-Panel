@@ -72,6 +72,31 @@ type DonutPanel = {
 	delay: number;
 };
 
+type ChartTooltipPayloadItem = {
+	color?: string;
+	fill?: string;
+	stroke?: string;
+	name?: string;
+	value?: number | string;
+	payload?: {
+		color?: string;
+		fill?: string;
+		stroke?: string;
+	};
+};
+
+type DonutTooltipProps = {
+	active?: boolean;
+	payload?: ChartTooltipPayloadItem[];
+	total: number;
+};
+
+type TrafficTooltipProps = {
+	active?: boolean;
+	label?: string | number;
+	payload?: ChartTooltipPayloadItem[];
+};
+
 const THEME_STORAGE_KEY = 'cf_dashboard_theme';
 
 const DEFAULT_BACKEND_URL = 'http://localhost:5035/api';
@@ -87,6 +112,115 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 const DONUT_COLORS = ['hsl(270 95% 60%)', 'hsl(200 95% 55%)', 'hsl(150 80% 50%)', 'hsl(40 95% 55%)', 'hsl(220 15% 50%)'];
+
+const formatTooltipNumber = (value: number | string | undefined): string => {
+	const parsed = typeof value === 'number' ? value : Number(value ?? 0);
+	const numericValue = Number.isFinite(parsed) ? parsed : 0;
+	return numericValue.toLocaleString();
+};
+
+const isTooltipEntry = (value: unknown): value is ChartTooltipPayloadItem =>
+	Boolean(value) && typeof value === 'object';
+
+const normalizeTooltipColor = (value: unknown): string | undefined => {
+	if (typeof value !== 'string') {
+		return undefined;
+	}
+
+	const trimmed = value.trim();
+	if (trimmed.length === 0) {
+		return undefined;
+	}
+
+	const normalized = trimmed.toLowerCase();
+	if (
+		normalized === 'currentcolor' ||
+		normalized === 'inherit' ||
+		normalized === 'initial' ||
+		normalized === 'unset' ||
+		normalized === 'revert'
+	) {
+		return undefined;
+	}
+
+	return trimmed;
+};
+
+const getTooltipDotColor = (entry: unknown): string => {
+	if (!isTooltipEntry(entry)) {
+		return 'hsl(var(--primary))';
+	}
+
+	const nestedPayload = isTooltipEntry(entry.payload) ? entry.payload : undefined;
+	const colorCandidate =
+		normalizeTooltipColor(nestedPayload?.color) ??
+		normalizeTooltipColor(nestedPayload?.fill) ??
+		normalizeTooltipColor(nestedPayload?.stroke) ??
+		normalizeTooltipColor(entry.fill) ??
+		normalizeTooltipColor(entry.stroke) ??
+		normalizeTooltipColor(entry.color);
+
+	return colorCandidate ?? 'hsl(var(--primary))';
+};
+
+function DonutTooltip({ active, payload, total }: DonutTooltipProps) {
+	if (!active || !payload || payload.length === 0) {
+		return null;
+	}
+
+	const entry = payload.find(isTooltipEntry);
+	if (!entry) {
+		return null;
+	}
+
+	const parsedValue = typeof entry.value === 'number' ? entry.value : Number(entry.value ?? 0);
+	const numericValue = Number.isFinite(parsedValue) ? parsedValue : 0;
+	const share = total > 0 ? (numericValue / total) * 100 : 0;
+
+	return (
+		<div className="cp-chart-tooltip" role="presentation">
+			<div className="cp-chart-tooltip-row">
+				<div className="cp-chart-tooltip-series">
+					<span className="cp-chart-tooltip-dot" style={{ color: getTooltipDotColor(entry) }}>
+						●
+					</span>
+					<span className="cp-chart-tooltip-name">{String(entry.name ?? 'Value')}</span>
+				</div>
+				<span className="cp-chart-tooltip-value">
+					{formatTooltipNumber(numericValue)} ({share.toFixed(1)}%)
+				</span>
+			</div>
+		</div>
+	);
+}
+
+function TrafficTooltip({ active, label, payload }: TrafficTooltipProps) {
+	if (!active || !payload || payload.length === 0) {
+		return null;
+	}
+
+	const rows = payload.filter(isTooltipEntry);
+	if (rows.length === 0) {
+		return null;
+	}
+
+	return (
+		<div className="cp-chart-tooltip" role="presentation">
+			{label !== undefined && label !== null && <div className="cp-chart-tooltip-label">{String(label)}</div>}
+			{rows.map((entry, index) => (
+				<div className="cp-chart-tooltip-row" key={`traffic-tooltip-${String(entry.name ?? index)}`}>
+					<div className="cp-chart-tooltip-series">
+						<span className="cp-chart-tooltip-dot" style={{ color: getTooltipDotColor(entry) }}>
+							●
+						</span>
+						<span className="cp-chart-tooltip-name">{String(entry.name ?? 'Value')}</span>
+					</div>
+					<span className="cp-chart-tooltip-value">{formatTooltipNumber(entry.value)}</span>
+				</div>
+			))}
+		</div>
+	);
+}
 
 const EVENT_META: Record<EventType, { icon: LucideIcon; className: string }> = {
 	blocked: { icon: ShieldX, className: 'is-blocked' },
@@ -625,14 +759,8 @@ function App() {
 													tickLine={false}
 												/>
 												<Tooltip
-													contentStyle={{
-														background: 'hsl(var(--card))',
-														border: '1px solid hsl(var(--border))',
-														borderRadius: '10px',
-														fontSize: '12px',
-													}}
+													content={<TrafficTooltip />}
 													cursor={{ stroke: 'hsl(var(--border))', strokeWidth: 1 }}
-													formatter={(value: number | string | undefined) => Number(value ?? 0).toLocaleString()}
 												/>
 												<Area dataKey="requests" fill="url(#requestsGradient)" isAnimationActive={false} name="Requests" stroke="hsl(270 95% 60%)" strokeWidth={2} type="monotone" />
 												<Area dataKey="installs" fill="url(#installsGradient)" isAnimationActive={false} name="Unique Installs" stroke="hsl(200 95% 55%)" strokeWidth={2} type="monotone" />
@@ -710,17 +838,7 @@ function App() {
 																))}
 															</Pie>
 															<Tooltip
-																contentStyle={{
-																	background: 'hsl(var(--card))',
-																	border: '1px solid hsl(var(--border))',
-																	borderRadius: '10px',
-																	fontSize: '12px',
-																}}
-																formatter={(value: number | string | undefined) => {
-																	const numericValue = Number(value ?? 0);
-																	const share = total > 0 ? (numericValue / total) * 100 : 0;
-																	return `${numericValue.toLocaleString()} (${share.toFixed(1)}%)`;
-																}}
+																content={<DonutTooltip total={total} />}
 															/>
 														</PieChart>
 													</ResponsiveContainer>

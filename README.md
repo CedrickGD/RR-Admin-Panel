@@ -65,3 +65,7 @@ npm install
 npm run build
 Copy-Item -Path dist\* -Destination ..\wwwroot -Recurse -Force
 ```
+
+Frontend npm commands are self-healing for dependencies:
+- `npm run dev`, `npm run build`, `npm run lint`, and `npm run preview` in `frontend` auto-install missing deps (including `typescript`) before running.
+- For deterministic setup on a fresh machine, you can still run `npm ci` first.

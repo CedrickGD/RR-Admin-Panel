@@ -1,7 +1,0 @@
-# Build and dependency artifacts
-admin-panel/node_modules/
-admin-panel/bin/
-admin-panel/obj/
-
-# Local Cloudflare Wrangler state/cache
-backend/.wrangler/

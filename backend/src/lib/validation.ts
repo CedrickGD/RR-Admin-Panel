@@ -1,4 +1,10 @@
-import { allowedEventNames, uuidRegex } from '../constants';
+import {
+	allowedEventNames,
+	maxPropertiesCount,
+	maxPropertyNameLength,
+	maxPropertyValueLength,
+	uuidRegex,
+} from '../constants';
 import type { TelemetryEventName, TelemetryRequestBody } from '../types/telemetry';
 
 export function validatePayload(body: TelemetryRequestBody): string | null {
@@ -27,6 +33,35 @@ export function validatePayload(body: TelemetryRequestBody): string | null {
 		return 'timestamp_utc must be an ISO-8601 date.';
 	}
 
+	if (body.properties == null) {
+		return null;
+	}
+
+	if (typeof body.properties !== 'object' || Array.isArray(body.properties)) {
+		return 'properties must be an object when provided.';
+	}
+
+	const keys = Object.keys(body.properties);
+	if (keys.length > maxPropertiesCount) {
+		return `properties cannot contain more than ${maxPropertiesCount} keys.`;
+	}
+
+	for (const key of keys) {
+		const trimmedKey = key.trim();
+		if (trimmedKey.length === 0 || trimmedKey.length > maxPropertyNameLength) {
+			return `property names must be 1-${maxPropertyNameLength} chars.`;
+		}
+
+		const value = body.properties[key];
+		if (typeof value !== 'string') {
+			return 'property values must be strings.';
+		}
+
+		const trimmedValue = value.trim();
+		if (trimmedValue.length === 0 || trimmedValue.length > maxPropertyValueLength) {
+			return `property values must be 1-${maxPropertyValueLength} chars.`;
+		}
+	}
+
 	return null;
 }
-

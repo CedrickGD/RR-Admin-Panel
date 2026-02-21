@@ -43,6 +43,7 @@ export async function handleTelemetryEvent(request: Request, env: WorkerEnv): Pr
 	const platform = body.platform!.trim().toLowerCase();
 	const eventUtc = new Date(body.timestamp_utc!.trim()).toISOString();
 	const receivedUtc = new Date().toISOString();
+	const propertiesJson = serializeProperties(body.properties);
 	const installIdHash = await hashInstallId(installId, env.INSTALL_ID_PEPPER);
 
 	await env.razorreaper_telemetry_prod
@@ -53,12 +54,35 @@ export async function handleTelemetryEvent(request: Request, env: WorkerEnv): Pr
 				app_version,
 				platform,
 				event_utc,
-				received_utc
-			) VALUES (?, ?, ?, ?, ?, ?)`
+				received_utc,
+				properties_json
+			) VALUES (?, ?, ?, ?, ?, ?, ?)`
 		)
-		.bind(installIdHash, eventName, appVersion, platform, eventUtc, receivedUtc)
+		.bind(installIdHash, eventName, appVersion, platform, eventUtc, receivedUtc, propertiesJson)
 		.run();
 
 	return jsonResponse(202, { accepted: true });
 }
 
+function serializeProperties(properties: TelemetryRequestBody['properties']): string | null {
+	if (!properties || typeof properties !== 'object') {
+		return null;
+	}
+
+	const normalized: Record<string, string> = {};
+	for (const [key, value] of Object.entries(properties)) {
+		const trimmedKey = key.trim();
+		const trimmedValue = value.trim();
+		if (trimmedKey.length === 0 || trimmedValue.length === 0) {
+			continue;
+		}
+
+		normalized[trimmedKey] = trimmedValue;
+	}
+
+	if (Object.keys(normalized).length === 0) {
+		return null;
+	}
+
+	return JSON.stringify(normalized);
+}

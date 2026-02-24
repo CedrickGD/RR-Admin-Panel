@@ -146,6 +146,8 @@ const THEME_STORAGE_KEY = 'cf_dashboard_theme';
 
 const DEFAULT_BACKEND_URL = 'http://localhost:5035/api';
 const CLOUDFLARE_POLL_MS = 15_000;
+const WORKER_HEALTHY_MAX_MINUTES = 24 * 60;
+const WORKER_STALE_MINUTES = 72 * 60;
 
 const NAV_ITEMS: NavItem[] = [
 	{ icon: LayoutDashboard, label: 'Overview' },
@@ -321,10 +323,10 @@ const getWorkerHealthState = (value?: string | null): WorkerHealthState => {
 	if (minutesSince === undefined) {
 		return 'unknown';
 	}
-	if (minutesSince <= 15) {
+	if (minutesSince <= WORKER_HEALTHY_MAX_MINUTES) {
 		return 'healthy';
 	}
-	if (minutesSince <= 120) {
+	if (minutesSince <= WORKER_STALE_MINUTES) {
 		return 'degraded';
 	}
 	return 'stale';
@@ -826,7 +828,7 @@ function App() {
 			workerAlerts.push({
 				id: 'workers-stale',
 				severity: 'critical',
-				message: `${staleWorkersCount} worker${staleWorkersCount === 1 ? '' : 's'} have stale telemetry (>120 min).`,
+				message: `${staleWorkersCount} worker${staleWorkersCount === 1 ? '' : 's'} have stale telemetry (>${Math.round(WORKER_STALE_MINUTES / 60)}h).`,
 			});
 		}
 		if (workerAlerts.length === 0) {

@@ -30,6 +30,14 @@ Set in `appsettings.Development.json`:
 }
 ```
 
+Main proxied telemetry endpoints:
+- `/api/cloudflare/overview`
+- `/api/cloudflare/events-by-type`
+- `/api/cloudflare/daily?days=30`
+- `/api/cloudflare/app-opens?days=30`
+- `/api/cloudflare/workers`
+- `/api/cloudflare/sessions?days=7&limit=25`
+
 ## Publish frontend to host
 
 ```powershell

@@ -205,11 +205,58 @@ export type CloudflareWorkers = {
 	}>;
 };
 
+export type CloudflareAppOpens = {
+	days: number;
+	opens_24h: number;
+	opens_7d: number;
+	opens_30d: number;
+	opens_all_time: number;
+	unique_installs_24h: number;
+	unique_installs_7d: number;
+	unique_installs_30d: number;
+	unique_installs_all_time: number;
+	latest_received_utc: string | null;
+	items: Array<{
+		day_utc: string;
+		opens: number;
+		unique_installs: number;
+	}>;
+};
+
+export type CloudflareSessions = {
+	days: number;
+	limit: number;
+	latest_app_start_utc: string | null;
+	latest_session_end_utc: string | null;
+	active_sessions: number;
+	sessions_started_24h: number;
+	sessions_started_7d: number;
+	sessions_started_30d: number;
+	sessions_started_all_time: number;
+	sessions_ended_all_time: number;
+	avg_duration_seconds_24h: number | null;
+	avg_duration_seconds_7d: number | null;
+	avg_duration_seconds_30d: number | null;
+	avg_duration_seconds_all_time: number | null;
+	items: Array<{
+		session_id: string;
+		install_id_hash: string;
+		started_utc: string;
+		started_received_utc: string;
+		ended_utc: string | null;
+		ended_received_utc: string | null;
+		duration_seconds: number | null;
+		is_active: boolean;
+	}>;
+};
+
 export type CloudflareSnapshot = {
 	overview?: CloudflareOverview;
 	eventsByType?: CloudflareEventsByType;
 	daily?: CloudflareDaily;
 	workers?: CloudflareWorkers;
+	appOpens?: CloudflareAppOpens;
+	sessions?: CloudflareSessions;
 	connectedBackendName?: string;
 	error?: string;
 	loading: boolean;

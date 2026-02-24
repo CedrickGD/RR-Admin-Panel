@@ -934,6 +934,10 @@ input::placeholder {
 	overflow-x: auto;
 }
 
+.cp-session-duration-table {
+	margin-top: 0.9rem;
+}
+
 .cp-workers-table {
 	width: 100%;
 	border-collapse: collapse;
@@ -992,6 +996,18 @@ input::placeholder {
 	color: hsl(var(--muted-foreground));
 	background: hsl(var(--secondary));
 	border-color: hsl(var(--border));
+}
+
+.cp-worker-status.is-active {
+	color: hsl(var(--info));
+	background: hsl(var(--info) / 0.12);
+	border-color: hsl(var(--info) / 0.3);
+}
+
+.cp-worker-status.is-ended {
+	color: hsl(var(--success));
+	background: hsl(var(--success) / 0.12);
+	border-color: hsl(var(--success) / 0.3);
 }
 
 .cp-placeholder {

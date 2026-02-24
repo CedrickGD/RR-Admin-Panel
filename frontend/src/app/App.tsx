@@ -91,6 +91,32 @@ type WorkerAlert = {
 	message: string;
 };
 
+type AppOpenTrendRow = {
+	time: string;
+	opens: number;
+	uniqueInstalls: number;
+};
+
+type AppOpenWindowRow = {
+	label: string;
+	opens: number;
+	shareOfLifetime: number;
+	uniqueInstalls: number | null;
+};
+
+type SessionDurationWindowRow = {
+	label: string;
+	averageSeconds: number | null;
+};
+
+type SessionMonitorRow = {
+	id: string;
+	startedUtc: string;
+	endedUtc: string | null;
+	durationSeconds: number | null;
+	isActive: boolean;
+};
+
 type ChartTooltipPayloadItem = {
 	color?: string;
 	fill?: string;
@@ -365,6 +391,49 @@ const toTimeLabel = (value?: string): string => {
 	return parsed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
+const toDateTimeLabel = (value?: string | null): string => {
+	if (!value) {
+		return '--';
+	}
+
+	const parsed = new Date(value);
+	if (Number.isNaN(parsed.getTime())) {
+		return '--';
+	}
+
+	return parsed.toLocaleString([], {
+		month: 'short',
+		day: '2-digit',
+		hour: '2-digit',
+		minute: '2-digit',
+	});
+};
+
+const formatDuration = (value?: number | null): string => {
+	if (typeof value !== 'number' || Number.isNaN(value) || value < 0) {
+		return '--';
+	}
+
+	if (value < 60) {
+		return `${value}s`;
+	}
+
+	const totalMinutes = Math.floor(value / 60);
+	const hours = Math.floor(totalMinutes / 60);
+	const minutes = totalMinutes % 60;
+	const seconds = value % 60;
+
+	if (hours > 0) {
+		return `${hours}h ${minutes}m`;
+	}
+
+	if (minutes > 0) {
+		return `${minutes}m ${seconds}s`;
+	}
+
+	return `${value}s`;
+};
+
 const buildEventTypeSlices = (items: Array<{ event_name: string; total: number }>): DonutSlice[] => {
 	if (items.length === 0) {
 		return [{ name: 'No Data', value: 1, color: 'hsl(220 15% 50%)' }];
@@ -522,6 +591,9 @@ function App() {
 		const events = cloudflare.eventsByType?.items ?? [];
 		const daily = cloudflare.daily?.items ?? [];
 		const workersPayload = cloudflare.workers?.items ?? [];
+		const appOpensPayload = cloudflare.appOpens;
+		const sessionsPayload = cloudflare.sessions;
+		const appOpenDailyItems = appOpensPayload?.items ?? [];
 
 		const latestDay = daily.at(-1);
 		const previousDay = daily.at(-2);
@@ -581,6 +653,117 @@ function App() {
 			total: item.total.toLocaleString(),
 			share: totalEventRows > 0 ? `${((item.total / totalEventRows) * 100).toFixed(1)}%` : '0.0%',
 			lastSeen,
+		}));
+
+		const appStartEventTotal = events.find((item) => item.event_name === 'app_start')?.total ?? 0;
+		const appOpenLatestDay = appOpenDailyItems.at(-1);
+		const appOpenPreviousDay = appOpenDailyItems.at(-2);
+		const appOpensRecent7 = appOpenDailyItems.slice(-7).reduce((sum, item) => sum + item.opens, 0);
+		const appOpensPrevious7 = appOpenDailyItems.slice(-14, -7).reduce((sum, item) => sum + item.opens, 0);
+		const appOpensRecent30 = appOpenDailyItems.slice(-30).reduce((sum, item) => sum + item.opens, 0);
+		const appOpenDailyDelta = percentDelta(appOpenLatestDay?.opens, appOpenPreviousDay?.opens);
+		const appOpen7dDelta = percentDelta(appOpensRecent7, appOpensPrevious7);
+
+		const appOpens24h = appOpensPayload?.opens_24h ?? appOpenLatestDay?.opens ?? 0;
+		const appOpens7d = appOpensPayload?.opens_7d ?? appOpensRecent7;
+		const appOpens30d = appOpensPayload?.opens_30d ?? appOpensRecent30;
+		const appOpensAllTime = appOpensPayload?.opens_all_time ?? appStartEventTotal;
+
+		const analyticsKpis: KpiCardItem[] = [
+			{
+				title: 'App Opens (24h)',
+				value: compactNumber(appOpens24h),
+				change: appOpenDailyDelta.text,
+				trend: appOpenDailyDelta.trend,
+				icon: Activity,
+			},
+			{
+				title: 'App Opens (7d)',
+				value: compactNumber(appOpens7d),
+				change: appOpen7dDelta.text,
+				trend: appOpen7dDelta.trend,
+				icon: Gauge,
+			},
+			{
+				title: 'App Opens (30d)',
+				value: compactNumber(appOpens30d),
+				change: appOpensPayload
+					? `${(appOpensPayload.unique_installs_30d ?? 0).toLocaleString()} installs`
+					: 'Install split unavailable',
+				trend: 'neutral',
+				icon: Shield,
+			},
+			{
+				title: 'App Opens (Lifetime)',
+				value: compactNumber(appOpensAllTime),
+				change: appOpensPayload
+					? `${appOpensPayload.unique_installs_all_time.toLocaleString()} installs opened app`
+					: `${appStartEventTotal.toLocaleString()} app_start events`,
+				trend: 'up',
+				icon: Globe,
+			},
+		];
+
+		const appOpenTrendSeries: AppOpenTrendRow[] = appOpenDailyItems.map((item) => ({
+			time: item.day_utc.slice(5),
+			opens: item.opens,
+			uniqueInstalls: item.unique_installs,
+		}));
+
+		const appOpenWindows: AppOpenWindowRow[] = [
+			{
+				label: 'Last 24h',
+				opens: appOpens24h,
+				shareOfLifetime: appOpensAllTime > 0 ? (appOpens24h / appOpensAllTime) * 100 : 0,
+				uniqueInstalls: appOpensPayload ? appOpensPayload.unique_installs_24h : null,
+			},
+			{
+				label: 'Last 7 days',
+				opens: appOpens7d,
+				shareOfLifetime: appOpensAllTime > 0 ? (appOpens7d / appOpensAllTime) * 100 : 0,
+				uniqueInstalls: appOpensPayload ? appOpensPayload.unique_installs_7d : null,
+			},
+			{
+				label: 'Last 30 days',
+				opens: appOpens30d,
+				shareOfLifetime: appOpensAllTime > 0 ? (appOpens30d / appOpensAllTime) * 100 : 0,
+				uniqueInstalls: appOpensPayload ? appOpensPayload.unique_installs_30d : null,
+			},
+			{
+				label: 'Lifetime',
+				opens: appOpensAllTime,
+				shareOfLifetime: appOpensAllTime > 0 ? 100 : 0,
+				uniqueInstalls: appOpensPayload ? appOpensPayload.unique_installs_all_time : null,
+			},
+		];
+
+		const sessionDurationWindows: SessionDurationWindowRow[] = [
+			{
+				label: 'Last 24h',
+				averageSeconds: sessionsPayload?.avg_duration_seconds_24h ?? null,
+			},
+			{
+				label: 'Last 7 days',
+				averageSeconds: sessionsPayload?.avg_duration_seconds_7d ?? null,
+			},
+			{
+				label: 'Last 30 days',
+				averageSeconds: sessionsPayload?.avg_duration_seconds_30d ?? null,
+			},
+			{
+				label: 'Lifetime',
+				averageSeconds: sessionsPayload?.avg_duration_seconds_all_time ?? null,
+			},
+		];
+
+		const latestLaunchUtc = sessionsPayload?.latest_app_start_utc ?? appOpensPayload?.latest_received_utc ?? null;
+		const latestSessionEndUtc = sessionsPayload?.latest_session_end_utc ?? null;
+		const sessionRows: SessionMonitorRow[] = (sessionsPayload?.items ?? []).map((item, index) => ({
+			id: `${item.session_id}-${index}`,
+			startedUtc: item.started_utc,
+			endedUtc: item.ended_utc,
+			durationSeconds: item.duration_seconds,
+			isActive: item.is_active,
 		}));
 
 		const fallbackWorkerTotalEvents = totalRequests;
@@ -689,6 +872,24 @@ function App() {
 			syncText,
 			trafficSeries,
 			lastSeen,
+			analyticsData: {
+				kpis: analyticsKpis,
+				trendSeries: appOpenTrendSeries,
+				windows: appOpenWindows,
+				hasDetailedMetrics: Boolean(appOpensPayload),
+				latestReceivedUtc: appOpensPayload?.latest_received_utc ?? null,
+				hasSessionMetrics: Boolean(sessionsPayload),
+				latestLaunchUtc,
+				latestSessionEndUtc,
+				activeSessions: sessionsPayload?.active_sessions ?? 0,
+				sessionsStarted24h: sessionsPayload?.sessions_started_24h ?? appOpens24h,
+				sessionsStarted7d: sessionsPayload?.sessions_started_7d ?? appOpens7d,
+				sessionsStarted30d: sessionsPayload?.sessions_started_30d ?? appOpens30d,
+				sessionsStartedAllTime: sessionsPayload?.sessions_started_all_time ?? appOpensAllTime,
+				sessionsEndedAllTime: sessionsPayload?.sessions_ended_all_time ?? 0,
+				sessionDurationWindows,
+				sessionRows,
+			},
 			workersData: {
 				workerRows,
 				workerAlerts,
@@ -1003,6 +1204,236 @@ function App() {
 										</article>
 									);
 								})}
+							</section>
+						</>
+					) : activeView === 'Analytics' ? (
+						<>
+							<section className="cp-kpi-grid">
+								{dashboardData.analyticsData.kpis.map((item, index) => {
+									const ItemIcon = item.icon;
+									const TrendIcon = item.trend === 'down' ? ArrowDown : ArrowUp;
+									return (
+										<article className="cp-kpi-card cp-fade-in" key={item.title} style={{ animationDelay: `${index * 50}ms` }}>
+											<div className="cp-kpi-head">
+												<span>{item.title}</span>
+												<div className="cp-kpi-icon">
+													<ItemIcon className="icon-sm" />
+												</div>
+											</div>
+											<strong>{item.value}</strong>
+											<div className={`cp-kpi-trend is-${item.trend}`}>
+												<TrendIcon className="icon-xs" />
+												{item.change}
+												<span>vs baseline</span>
+											</div>
+										</article>
+									);
+								})}
+							</section>
+
+							<section className="cp-overview-grid">
+								<article className="cp-panel cp-fade-in" style={{ animationDelay: '200ms' }}>
+									<div className="cp-panel-head">
+										<div>
+											<h2>App Open Trend</h2>
+											<p>Daily app launch volume from `app_start` telemetry</p>
+										</div>
+										<div className="cp-legend-inline">
+											<span>
+												<i className="dot dot-primary" />
+												App Opens
+											</span>
+											<span>
+												<i className="dot dot-info" />
+												Unique Installs
+											</span>
+										</div>
+									</div>
+
+									{dashboardData.analyticsData.trendSeries.length > 0 ? (
+										<div className="cp-chart-wrap">
+											<ResponsiveContainer height="100%" width="100%">
+												<AreaChart data={dashboardData.analyticsData.trendSeries}>
+													<defs>
+														<linearGradient id="appOpensGradient" x1="0" x2="0" y1="0" y2="1">
+															<stop offset="0%" stopColor="hsl(270 95% 60%)" stopOpacity={0.32} />
+															<stop offset="100%" stopColor="hsl(270 95% 60%)" stopOpacity={0} />
+														</linearGradient>
+														<linearGradient id="appOpenInstallsGradient" x1="0" x2="0" y1="0" y2="1">
+															<stop offset="0%" stopColor="hsl(200 95% 55%)" stopOpacity={0.24} />
+															<stop offset="100%" stopColor="hsl(200 95% 55%)" stopOpacity={0} />
+														</linearGradient>
+													</defs>
+													<CartesianGrid stroke="hsl(var(--border) / 0.55)" strokeDasharray="3 3" vertical={false} />
+													<XAxis axisLine={false} dataKey="time" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} tickLine={false} />
+													<YAxis
+														axisLine={false}
+														tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
+														tickFormatter={(value: number) => `${Math.round(value / 1000)}k`}
+														tickLine={false}
+													/>
+													<Tooltip
+														content={<TrafficTooltip />}
+														cursor={{ stroke: 'hsl(var(--border))', strokeWidth: 1 }}
+													/>
+													<Area dataKey="opens" fill="url(#appOpensGradient)" isAnimationActive={false} name="App Opens" stroke="hsl(270 95% 60%)" strokeWidth={2} type="monotone" />
+													<Area dataKey="uniqueInstalls" fill="url(#appOpenInstallsGradient)" isAnimationActive={false} name="Unique Installs" stroke="hsl(200 95% 55%)" strokeWidth={2} type="monotone" />
+												</AreaChart>
+											</ResponsiveContainer>
+										</div>
+									) : (
+										<div className="cp-event-empty">No app open trend data returned yet.</div>
+									)}
+								</article>
+
+								<article className="cp-panel cp-fade-in" style={{ animationDelay: '260ms' }}>
+									<div className="cp-panel-head">
+										<div>
+											<h2>App Open Windows</h2>
+											<p>Timespan summary including lifetime totals</p>
+										</div>
+									</div>
+
+									{!dashboardData.analyticsData.hasDetailedMetrics && (
+										<div className="cp-workers-alert is-info">
+											<AlertTriangle className="icon-xs" />
+											<span>
+												Detailed app-open windows require `/api/cloudflare/app-opens`. Using event totals fallback where possible.
+											</span>
+										</div>
+									)}
+
+									<div className="cp-workers-table-wrap">
+										<table className="cp-workers-table">
+											<thead>
+												<tr>
+													<th>Timespan</th>
+													<th className="is-right">App Opens</th>
+													<th className="is-right">Share of Lifetime</th>
+													<th className="is-right">Unique Installs</th>
+												</tr>
+											</thead>
+											<tbody>
+												{dashboardData.analyticsData.windows.map((item) => (
+													<tr key={item.label}>
+														<td>{item.label}</td>
+														<td className="is-right">{item.opens.toLocaleString()}</td>
+														<td className="is-right">{item.shareOfLifetime.toFixed(1)}%</td>
+														<td className="is-right">
+															{typeof item.uniqueInstalls === 'number' ? item.uniqueInstalls.toLocaleString() : '--'}
+														</td>
+													</tr>
+												))}
+											</tbody>
+										</table>
+									</div>
+								</article>
+							</section>
+
+							<section className="cp-overview-grid">
+								<article className="cp-panel cp-fade-in" style={{ animationDelay: '320ms' }}>
+									<div className="cp-panel-head">
+										<div>
+											<h2>Session Monitoring</h2>
+											<p>Latest launch visibility and average runtime</p>
+										</div>
+									</div>
+
+									{!dashboardData.analyticsData.hasSessionMetrics && (
+										<div className="cp-workers-alert is-info">
+											<AlertTriangle className="icon-xs" />
+											<span>
+												Live session metrics require `/api/cloudflare/sessions` and `app_session_end` telemetry from the app.
+											</span>
+										</div>
+									)}
+
+									<div className="cp-workers-summary">
+										<div className="cp-workers-summary-item">
+											<span>Latest Launch</span>
+											<strong>{toDateTimeLabel(dashboardData.analyticsData.latestLaunchUtc)}</strong>
+										</div>
+										<div className="cp-workers-summary-item">
+											<span>Latest Session End</span>
+											<strong>{toDateTimeLabel(dashboardData.analyticsData.latestSessionEndUtc)}</strong>
+										</div>
+										<div className="cp-workers-summary-item">
+											<span>Active Sessions</span>
+											<strong>{dashboardData.analyticsData.activeSessions.toLocaleString()}</strong>
+										</div>
+										<div className="cp-workers-summary-item">
+											<span>Sessions (24h)</span>
+											<strong>{dashboardData.analyticsData.sessionsStarted24h.toLocaleString()}</strong>
+										</div>
+										<div className="cp-workers-summary-item">
+											<span>Sessions (7d)</span>
+											<strong>{dashboardData.analyticsData.sessionsStarted7d.toLocaleString()}</strong>
+										</div>
+										<div className="cp-workers-summary-item">
+											<span>Sessions (Lifetime)</span>
+											<strong>{dashboardData.analyticsData.sessionsStartedAllTime.toLocaleString()}</strong>
+										</div>
+									</div>
+
+									<div className="cp-workers-table-wrap cp-session-duration-table">
+										<table className="cp-workers-table">
+											<thead>
+												<tr>
+													<th>Duration Window</th>
+													<th className="is-right">Avg Runtime</th>
+												</tr>
+											</thead>
+											<tbody>
+												{dashboardData.analyticsData.sessionDurationWindows.map((item) => (
+													<tr key={item.label}>
+														<td>{item.label}</td>
+														<td className="is-right">{formatDuration(item.averageSeconds)}</td>
+													</tr>
+												))}
+											</tbody>
+										</table>
+									</div>
+								</article>
+
+								<article className="cp-panel cp-fade-in" style={{ animationDelay: '360ms' }}>
+									<div className="cp-panel-head">
+										<div>
+											<h2>Recent Sessions</h2>
+											<p>Most recent launches with runtime status</p>
+										</div>
+									</div>
+
+									{dashboardData.analyticsData.sessionRows.length === 0 ? (
+										<div className="cp-event-empty">No session rows returned yet.</div>
+									) : (
+										<div className="cp-workers-table-wrap">
+											<table className="cp-workers-table">
+												<thead>
+													<tr>
+														<th>Started</th>
+														<th>Ended</th>
+														<th className="is-right">Duration</th>
+														<th>Status</th>
+													</tr>
+												</thead>
+												<tbody>
+													{dashboardData.analyticsData.sessionRows.map((item) => (
+														<tr key={item.id}>
+															<td>{toDateTimeLabel(item.startedUtc)}</td>
+															<td>{toDateTimeLabel(item.endedUtc)}</td>
+															<td className="is-right">{formatDuration(item.durationSeconds)}</td>
+															<td>
+																<span className={`cp-worker-status ${item.isActive ? 'is-active' : 'is-ended'}`}>
+																	{item.isActive ? 'Active' : 'Ended'}
+																</span>
+															</td>
+														</tr>
+													))}
+												</tbody>
+											</table>
+										</div>
+									)}
+								</article>
 							</section>
 						</>
 					) : activeView === 'Workers' ? (

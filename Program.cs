@@ -44,12 +44,36 @@ app.MapGet("/api/cloudflare/daily", (
 	return ForwardCloudflareRequestAsync(httpContext, httpClientFactory, configuration, logger, $"/v1/admin/daily?days={safeDays}");
 });
 
+app.MapGet("/api/cloudflare/app-opens", (
+	HttpContext httpContext,
+	IHttpClientFactory httpClientFactory,
+	IConfiguration configuration,
+	ILogger<Program> logger,
+	int? days) =>
+{
+	var safeDays = Math.Clamp(days ?? 30, 7, 365);
+	return ForwardCloudflareRequestAsync(httpContext, httpClientFactory, configuration, logger, $"/v1/admin/app-opens?days={safeDays}");
+});
+
 app.MapGet("/api/cloudflare/workers", (
 	HttpContext httpContext,
 	IHttpClientFactory httpClientFactory,
 	IConfiguration configuration,
 	ILogger<Program> logger) =>
 	ForwardCloudflareRequestAsync(httpContext, httpClientFactory, configuration, logger, "/v1/admin/workers"));
+
+app.MapGet("/api/cloudflare/sessions", (
+	HttpContext httpContext,
+	IHttpClientFactory httpClientFactory,
+	IConfiguration configuration,
+	ILogger<Program> logger,
+	int? days,
+	int? limit) =>
+{
+	var safeDays = Math.Clamp(days ?? 7, 1, 365);
+	var safeLimit = Math.Clamp(limit ?? 25, 1, 100);
+	return ForwardCloudflareRequestAsync(httpContext, httpClientFactory, configuration, logger, $"/v1/admin/sessions?days={safeDays}&limit={safeLimit}");
+});
 
 app.MapFallbackToFile("index.html");
 

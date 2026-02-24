@@ -125,6 +125,120 @@ export async function handleAdminDaily(request: Request, env: WorkerEnv): Promis
 	return jsonResponse(200, { days, items });
 }
 
+export async function handleAdminAppOpens(request: Request, env: WorkerEnv): Promise<Response> {
+	const authError = getAdminAuthError(request, env.ADMIN_API_KEY);
+	if (authError) {
+		return authError;
+	}
+
+	const url = new URL(request.url);
+	const rawDays = url.searchParams.get('days');
+	const parsedDays = rawDays ? Number.parseInt(rawDays, 10) : 30;
+	const days = Number.isNaN(parsedDays) ? 30 : Math.min(Math.max(parsedDays, 7), 365);
+	const dayOffset = `-${days - 1} day`;
+
+	const totals = await env.razorreaper_telemetry_prod
+		.prepare(
+			`SELECT
+				(SELECT COUNT(*)
+					FROM telemetry_events
+					WHERE event_name = 'app_start'
+					AND julianday(received_utc) >= julianday('now', '-1 day')) AS opens_24h,
+				(SELECT COUNT(*)
+					FROM telemetry_events
+					WHERE event_name = 'app_start'
+					AND julianday(received_utc) >= julianday('now', '-7 day')) AS opens_7d,
+				(SELECT COUNT(*)
+					FROM telemetry_events
+					WHERE event_name = 'app_start'
+					AND julianday(received_utc) >= julianday('now', '-30 day')) AS opens_30d,
+				(SELECT COUNT(*)
+					FROM telemetry_events
+					WHERE event_name = 'app_start') AS opens_all_time,
+				(SELECT COUNT(DISTINCT install_id_hash)
+					FROM telemetry_events
+					WHERE event_name = 'app_start'
+					AND julianday(received_utc) >= julianday('now', '-1 day')) AS unique_installs_24h,
+				(SELECT COUNT(DISTINCT install_id_hash)
+					FROM telemetry_events
+					WHERE event_name = 'app_start'
+					AND julianday(received_utc) >= julianday('now', '-7 day')) AS unique_installs_7d,
+				(SELECT COUNT(DISTINCT install_id_hash)
+					FROM telemetry_events
+					WHERE event_name = 'app_start'
+					AND julianday(received_utc) >= julianday('now', '-30 day')) AS unique_installs_30d,
+				(SELECT COUNT(DISTINCT install_id_hash)
+					FROM telemetry_events
+					WHERE event_name = 'app_start') AS unique_installs_all_time,
+				(SELECT MAX(received_utc)
+					FROM telemetry_events
+					WHERE event_name = 'app_start') AS latest_received_utc`
+		)
+		.first<{
+			opens_24h: number;
+			opens_7d: number;
+			opens_30d: number;
+			opens_all_time: number;
+			unique_installs_24h: number;
+			unique_installs_7d: number;
+			unique_installs_30d: number;
+			unique_installs_all_time: number;
+			latest_received_utc: string | null;
+		}>();
+
+	const queryResult = await env.razorreaper_telemetry_prod
+		.prepare(
+			`SELECT
+				date(event_utc) AS day_utc,
+				COUNT(*) AS opens,
+				COUNT(DISTINCT install_id_hash) AS unique_installs
+			FROM telemetry_events
+			WHERE event_name = 'app_start'
+			AND date(event_utc) >= date('now', ?)
+			GROUP BY day_utc
+			ORDER BY day_utc ASC`
+		)
+		.bind(dayOffset)
+		.all<{ day_utc: string; opens: number; unique_installs: number }>();
+
+	const rowsByDay = new Map<string, { opens: number; unique_installs: number }>();
+	for (const row of queryResult.results) {
+		rowsByDay.set(row.day_utc, {
+			opens: row.opens,
+			unique_installs: row.unique_installs,
+		});
+	}
+
+	const todayUtc = truncateToUtcDate(new Date());
+	const startUtc = addUtcDays(todayUtc, -(days - 1));
+	const items: Array<{ day_utc: string; opens: number; unique_installs: number }> = [];
+
+	for (let index = 0; index < days; index++) {
+		const day = addUtcDays(startUtc, index);
+		const key = toUtcDateString(day);
+		const row = rowsByDay.get(key);
+		items.push({
+			day_utc: key,
+			opens: row?.opens ?? 0,
+			unique_installs: row?.unique_installs ?? 0,
+		});
+	}
+
+	return jsonResponse(200, {
+		days,
+		opens_24h: totals?.opens_24h ?? 0,
+		opens_7d: totals?.opens_7d ?? 0,
+		opens_30d: totals?.opens_30d ?? 0,
+		opens_all_time: totals?.opens_all_time ?? 0,
+		unique_installs_24h: totals?.unique_installs_24h ?? 0,
+		unique_installs_7d: totals?.unique_installs_7d ?? 0,
+		unique_installs_30d: totals?.unique_installs_30d ?? 0,
+		unique_installs_all_time: totals?.unique_installs_all_time ?? 0,
+		latest_received_utc: totals?.latest_received_utc ?? null,
+		items,
+	});
+}
+
 export async function handleAdminWorkers(request: Request, env: WorkerEnv): Promise<Response> {
 	const authError = getAdminAuthError(request, env.ADMIN_API_KEY);
 	if (authError) {

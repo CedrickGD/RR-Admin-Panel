@@ -87,5 +87,5 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
 }
 
 function resolveAuthMode(env: RuntimeEnv): "app" | "access" {
-  return (env.AUTH_MODE ?? "app").toLowerCase() === "access" ? "access" : "app";
+  return (env.AUTH_MODE ?? "access").toLowerCase() === "app" ? "app" : "access";
 }

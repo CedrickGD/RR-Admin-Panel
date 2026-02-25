@@ -102,7 +102,7 @@ let currentUser: AuthUser | null = null;
 let requiresBootstrap = false;
 let authErrorMessage: string | null = null;
 let authBusy = false;
-let authMode: AuthMode = "app";
+let authMode: AuthMode = "access";
 
 let viewMode: ViewMode = "status";
 let summary: SummaryPayload | null = null;
@@ -120,7 +120,7 @@ void bootstrap();
 
 async function bootstrap(): Promise<void> {
   const session = await fetchSessionState();
-  authMode = session.authMode ?? "app";
+  authMode = session.authMode ?? "access";
 
   if (session.authenticated && session.user) {
     currentUser = session.user;
@@ -149,7 +149,7 @@ async function fetchSessionState(): Promise<SessionPayload> {
         ok: false,
         authenticated: false,
         hasUsers: true,
-        authMode: "app"
+        authMode: "access"
       };
     }
 
@@ -159,7 +159,7 @@ async function fetchSessionState(): Promise<SessionPayload> {
       ok: false,
       authenticated: false,
       hasUsers: true,
-      authMode: "app"
+      authMode: "access"
     };
   }
 }
@@ -452,7 +452,7 @@ async function handleSessionExpired(): Promise<void> {
   dashboardErrorMessage = null;
   settingsMessage = null;
   const session = await fetchSessionState();
-  authMode = session.authMode ?? authMode;
+  authMode = session.authMode ?? "access";
 
   if (authMode === "access") {
     authErrorMessage = null;

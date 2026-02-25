@@ -1,6 +1,4 @@
 INGEST_TOKEN=replace-with-local-ingest-token
-ADMIN_KEY_HASH=replace-with-generated-hash
-JWT_SECRET=replace-with-long-random-secret
 STORAGE_BACKEND=d1
 ACCESS_ENFORCEMENT=off
 ACCESS_ALLOWED_EMAIL=

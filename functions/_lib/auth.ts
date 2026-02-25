@@ -2,6 +2,8 @@ import type { RuntimeEnv, SessionClaims } from "./types";
 
 const encoder = new TextEncoder();
 const SESSION_TTL_SECONDS = 8 * 60 * 60;
+const MIN_PBKDF2_ITERATIONS = 50_000;
+const MAX_PBKDF2_ITERATIONS = 100_000;
 
 interface ParsedAdminHash {
   iterations: number;
@@ -14,13 +16,17 @@ export async function verifyAdminKey(adminKey: string, storedHash: string | unde
     return false;
   }
 
-  const parsed = parseAdminHash(storedHash);
+  const parsed = parseAdminHash(storedHash.trim());
   if (!parsed) {
     return false;
   }
 
-  const candidate = await derivePbkdf2(adminKey, parsed.salt, parsed.iterations);
-  return timingSafeEqualBytes(candidate, parsed.digest);
+  try {
+    const candidate = await derivePbkdf2(adminKey, parsed.salt, parsed.iterations);
+    return timingSafeEqualBytes(candidate, parsed.digest);
+  } catch {
+    return false;
+  }
 }
 
 export async function createAdminSessionToken(secret: string | undefined, email: string | null): Promise<{ token: string; expiresAt: string }> {
@@ -96,13 +102,16 @@ function parseAdminHash(raw: string): ParsedAdminHash | null {
   }
 
   const iterations = Number.parseInt(parts[2], 10);
-  if (!Number.isFinite(iterations) || iterations < 50_000) {
+  if (!Number.isFinite(iterations) || iterations < MIN_PBKDF2_ITERATIONS || iterations > MAX_PBKDF2_ITERATIONS) {
     return null;
   }
 
   const salt = base64Decode(parts[3]);
   const digest = base64Decode(parts[4]);
   if (!salt || !digest) {
+    return null;
+  }
+  if (salt.length < 8 || digest.length !== 32) {
     return null;
   }
 

@@ -6,7 +6,7 @@ RR-Admin-Panel is now a Cloudflare Pages full-stack app:
 - Backend API: Pages Functions (`/functions/api/*`)
 - Storage: D1 primary, KV fallback
 - Security layer 1: Cloudflare Access (edge)
-- Security layer 2: Admin Key session (app-level token, 8-hour TTL)
+- App auth: Cloudflare Access only (no additional admin key prompt)
 
 ## MANUAL SETUP REQUIRED
 
@@ -16,9 +16,6 @@ Complete every checkbox yourself. These steps cannot be automated from this repo
   - Command: `npm install -g wrangler`
 - [ ] Install project dependencies.
   - Command: `npm install`
-- [ ] Generate your `ADMIN_KEY_HASH` from an admin passphrase (never store raw admin key in repo).
-  - Command: `npm run hash:admin -- "your-very-strong-admin-key"`
-  - Save the output hash value for Cloudflare secret `ADMIN_KEY_HASH`.
 - [ ] Create a Cloudflare D1 database (primary storage).
   - Command: `npx wrangler d1 create rr_admin_panel`
   - Copy returned `database_id` into `wrangler.toml` (`[[d1_databases]]` block).
@@ -45,18 +42,14 @@ Complete every checkbox yourself. These steps cannot be automated from this repo
 - [ ] Add required secrets/variables in Pages project settings (Production + Preview as needed).
   - Cloudflare Pages project -> `Settings` -> `Variables and Secrets`.
   - Secrets:
-  - `ADMIN_KEY_HASH` = output of `npm run hash:admin`
   - `INGEST_TOKEN` = long random bearer token for device ingestion
-  - `JWT_SECRET` = long random signing secret for admin sessions
   - Variables:
   - `STORAGE_BACKEND` = `d1`
   - `ACCESS_ENFORCEMENT` = `strict`
   - `ACCESS_ALLOWED_EMAIL` = `cedrickgrabe@outlook.de` (optional code-level lock to your exact Access identity)
   - `BUILD_SHA` = optional commit marker (or leave unset to use `CF_PAGES_COMMIT_SHA`)
 - [ ] (Alternative to dashboard) Set Pages secrets via Wrangler CLI.
-  - Command: `npx wrangler pages secret put ADMIN_KEY_HASH --project-name <your-pages-project>`
   - Command: `npx wrangler pages secret put INGEST_TOKEN --project-name <your-pages-project>`
-  - Command: `npx wrangler pages secret put JWT_SECRET --project-name <your-pages-project>`
 - [ ] Configure Cloudflare Access for the Pages domain (edge auth).
   - Zero Trust Dashboard -> `Access` -> `Applications` -> `Add an application`.
   - Create app `RR Admin UI` as `Self-hosted`.
@@ -78,8 +71,7 @@ Complete every checkbox yourself. These steps cannot be automated from this repo
 - [ ] Verify live deployment from a different network/device.
   - Open `https://<your-domain>` and confirm:
   - Access login challenge appears first.
-  - Admin Key overlay appears second.
-  - Dashboard data loads only after both checks pass.
+  - Dashboard data loads after Access authentication.
 
 ## Repository Layout
 
@@ -119,13 +111,8 @@ Complete every checkbox yourself. These steps cannot be automated from this repo
 ## Security Model
 
 1. Cloudflare Access controls the site at edge (identity policy).
-2. App-level Admin Key is required after Access.
-3. `POST /api/admin/verify` validates Admin Key against `ADMIN_KEY_HASH` (PBKDF2 SHA-256).
-4. On success, API returns signed bearer session token (8-hour expiry).
-5. `GET /api/admin/data` requires:
-   - Cloudflare Access identity header, and
-   - `Authorization: Bearer <session_token>`
-6. `POST /api/ingest` requires `Authorization: Bearer <INGEST_TOKEN>`.
+2. `GET /api/admin/data` requires a Cloudflare Access identity header.
+3. `POST /api/ingest` requires `Authorization: Bearer <INGEST_TOKEN>`.
 
 ## Local Development
 
@@ -148,12 +135,8 @@ Complete every checkbox yourself. These steps cannot be automated from this repo
   - Returns latest status + recent events + counts.
 - `GET /api/health`
   - Returns API/storage state, last ingest, event count, build info.
-- `POST /api/admin/verify`
-  - Auth: Cloudflare Access identity required.
-  - Body: `{ "key": "<admin-plaintext>" }`
-  - Returns short-lived admin session token.
 - `GET /api/admin/data`
-  - Auth: Cloudflare Access identity + admin bearer token.
+  - Auth: Cloudflare Access identity.
   - Returns protected summary + health payload.
 
 ## curl Examples
@@ -176,19 +159,7 @@ curl -X POST "https://<your-domain>/api/ingest" \
   }'
 ```
 
-### 2) Verify Admin Key
-
-```bash
-curl -X POST "https://<your-domain>/api/admin/verify" \
-  -H "CF-Access-Client-Id: <ACCESS_SERVICE_CLIENT_ID>" \
-  -H "CF-Access-Client-Secret: <ACCESS_SERVICE_CLIENT_SECRET>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "key": "<ADMIN_KEY_PLAINTEXT>"
-  }'
-```
-
-### 3) Read Summary
+### 2) Read Summary
 
 ```bash
 curl "https://<your-domain>/api/summary" \

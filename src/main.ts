@@ -50,16 +50,8 @@ interface AdminDataPayload {
   summary: SummaryPayload;
   health: HealthPayload;
   accessIdentity: string | null;
-  sessionExpiresAt: string | null;
 }
 
-interface VerifyResponse {
-  token: string;
-  expiresAt: string;
-  expiresInSeconds: number;
-}
-
-const TOKEN_KEY = "rr_admin_session_token";
 const REFRESH_MS = 30_000;
 
 const appRoot = document.querySelector<HTMLDivElement>("#app");
@@ -89,42 +81,19 @@ appRoot.innerHTML = `
 
     <main id="viewMount"></main>
   </div>
-
-  <div id="loginOverlay" class="overlay active">
-    <section class="glass panel login-card">
-      <p class="eyebrow">Second Factor</p>
-      <h2>Enter Admin Key</h2>
-      <p class="login-copy">
-        Cloudflare Access already authenticated this session. Enter the Admin Key to unlock protected telemetry.
-      </p>
-      <form id="loginForm">
-        <label for="adminKey">Admin Key</label>
-        <input id="adminKey" type="password" autocomplete="current-password" placeholder="****************" required />
-        <button id="loginButton" type="submit">Unlock Dashboard</button>
-      </form>
-      <p id="loginError" class="error-text"></p>
-    </section>
-  </div>
 `;
 
 const viewMount = mustFind("#viewMount");
 const tabs = mustFind("#tabs");
 const overallBadge = mustFind("#overallBadge");
 const lastRefreshLabel = mustFind("#lastRefresh");
-const overlay = mustFind("#loginOverlay");
-const loginForm = mustFind<HTMLFormElement>("#loginForm");
-const adminKeyInput = mustFind<HTMLInputElement>("#adminKey");
-const loginButton = mustFind<HTMLButtonElement>("#loginButton");
-const loginError = mustFind("#loginError");
 
 let viewMode: ViewMode = "status";
 let summary: SummaryPayload | null = null;
 let health: HealthPayload | null = null;
 let accessIdentity: string | null = null;
-let sessionExpiresAt: string | null = null;
 let telemetrySearch = "";
 let telemetryFilter: TelemetryStatus | "all" = "all";
-let sessionToken = sessionStorage.getItem(TOKEN_KEY) ?? "";
 let refreshTimer: number | null = null;
 
 tabs.addEventListener("click", (event) => {
@@ -143,81 +112,17 @@ tabs.addEventListener("click", (event) => {
   renderView();
 });
 
-loginForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const key = adminKeyInput.value.trim();
-  if (!key) {
-    setLoginError("Admin Key is required.");
-    return;
-  }
-
-  setLoginPending(true);
-  setLoginError("");
-
-  try {
-    const payload = await verifyAdminKey(key);
-    sessionToken = payload.token;
-    sessionStorage.setItem(TOKEN_KEY, sessionToken);
-    sessionExpiresAt = payload.expiresAt;
-    adminKeyInput.value = "";
-    hideOverlay();
-    await fetchProtectedData(false);
-  } catch (error) {
-    setLoginError(error instanceof Error ? error.message : "Unable to verify Admin Key.");
-  } finally {
-    setLoginPending(false);
-  }
-});
-
 void bootstrap();
 
 async function bootstrap(): Promise<void> {
   updateTabState();
   renderView();
-
-  if (!sessionToken) {
-    showOverlay();
-    return;
-  }
-
   await fetchProtectedData(false);
 }
 
-async function verifyAdminKey(key: string): Promise<VerifyResponse> {
-  const response = await fetch("/api/admin/verify", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ key })
-  });
-
-  const body = await parseJson<VerifyResponse & { error?: string }>(response);
-  if (!response.ok || !body?.token) {
-    throw new Error(body?.error ?? "Admin key verification failed.");
-  }
-
-  return body;
-}
-
 async function fetchProtectedData(silent: boolean): Promise<void> {
-  if (!sessionToken) {
-    showOverlay();
-    return;
-  }
-
   try {
-    const response = await fetch("/api/admin/data", {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${sessionToken}`
-      }
-    });
-
-    if (response.status === 401) {
-      expireSession("Session expired. Enter Admin Key again.");
-      return;
-    }
+    const response = await fetch("/api/admin/data", { method: "GET" });
 
     const body = await parseJson<AdminDataPayload & { error?: string }>(response);
     if (!response.ok || !body?.summary || !body?.health) {
@@ -227,16 +132,13 @@ async function fetchProtectedData(silent: boolean): Promise<void> {
     summary = body.summary;
     health = body.health;
     accessIdentity = body.accessIdentity;
-    sessionExpiresAt = body.sessionExpiresAt;
-    hideOverlay();
     setOverallBadge(summary.overallStatus);
     lastRefreshLabel.textContent = `Last synced ${formatDateTime(summary.generatedAt)}`;
     renderView();
     ensureRefreshLoop();
   } catch (error) {
     if (!silent) {
-      setLoginError(error instanceof Error ? error.message : "Unable to fetch dashboard data.");
-      showOverlay();
+      lastRefreshLabel.textContent = error instanceof Error ? error.message : "Unable to fetch dashboard data.";
     }
   }
 }
@@ -256,7 +158,7 @@ function renderView(): void {
     viewMount.innerHTML = `
       <section class="glass panel empty-state">
         <h2>Dashboard Locked</h2>
-        <p>Authenticate with your Admin Key to load status and telemetry data.</p>
+        <p>Cloudflare Access authentication is required to load protected status and telemetry data.</p>
       </section>
     `;
     return;
@@ -414,15 +316,13 @@ function renderTelemetryView(nextSummary: SummaryPayload): void {
 }
 
 function renderSettingsView(nextSummary: SummaryPayload, nextHealth: HealthPayload): void {
-  const expires = sessionExpiresAt ? formatDateTime(sessionExpiresAt) : "Unknown";
   const identity = accessIdentity ?? "No identity header detected";
   viewMount.innerHTML = `
     <section class="settings-grid">
       <article class="glass panel settings-card">
-        <h2>Session</h2>
+        <h2>Access</h2>
         <p>Cloudflare Access Identity: <b>${escapeHtml(identity)}</b></p>
-        <p>Admin Session Expires: <b>${escapeHtml(expires)}</b></p>
-        <button id="logoutButton" type="button">Logout</button>
+        <p>Admin session layer: <b>Disabled (Access-only mode)</b></p>
       </article>
 
       <article class="glass panel settings-card">
@@ -434,11 +334,6 @@ function renderSettingsView(nextSummary: SummaryPayload, nextHealth: HealthPaylo
       </article>
     </section>
   `;
-
-  const logoutButton = mustFind<HTMLButtonElement>("#logoutButton");
-  logoutButton.addEventListener("click", () => {
-    expireSession("Signed out. Enter Admin Key to continue.");
-  });
 }
 
 function calculateUptime(entry: TelemetryEvent, recent: TelemetryEvent[]): string {
@@ -462,45 +357,6 @@ function updateTabState(): void {
   for (const button of buttons) {
     button.classList.toggle("active", button.dataset.view === viewMode);
   }
-}
-
-function setLoginPending(pending: boolean): void {
-  loginButton.disabled = pending;
-  loginButton.textContent = pending ? "Verifying..." : "Unlock Dashboard";
-}
-
-function setLoginError(message: string): void {
-  loginError.textContent = message;
-}
-
-function showOverlay(): void {
-  overlay.classList.add("active");
-  adminKeyInput.focus();
-}
-
-function hideOverlay(): void {
-  overlay.classList.remove("active");
-  setLoginError("");
-}
-
-function expireSession(message: string): void {
-  sessionToken = "";
-  summary = null;
-  health = null;
-  accessIdentity = null;
-  sessionExpiresAt = null;
-  sessionStorage.removeItem(TOKEN_KEY);
-  if (refreshTimer !== null) {
-    clearInterval(refreshTimer);
-    refreshTimer = null;
-  }
-  setOverallBadge("unknown");
-  lastRefreshLabel.textContent = "Session expired";
-  viewMode = "status";
-  updateTabState();
-  renderView();
-  setLoginError(message);
-  showOverlay();
 }
 
 function renderFilterOption(value: string, label: string, current: string): string {

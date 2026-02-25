@@ -1,0 +1,499 @@
+@import url("https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;700&display=swap");
+
+:root {
+  --bg-base: #07050f;
+  --bg-deep: #10091e;
+  --bg-accent: #2a1047;
+  --text-main: #f7ecff;
+  --text-muted: #bca9d2;
+  --border: rgba(215, 172, 255, 0.24);
+  --glass-bg: rgba(20, 11, 38, 0.62);
+  --accent: #b65fff;
+  --accent-bright: #e6c5ff;
+  --ok: #5df6c4;
+  --warn: #ffc966;
+  --down: #ff6b96;
+  --unknown: #9e8bb6;
+  --shadow: 0 24px 55px rgba(0, 0, 0, 0.5);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: "Sora", "Space Grotesk", "Trebuchet MS", sans-serif;
+  color: var(--text-main);
+  background:
+    radial-gradient(1200px 700px at 10% -20%, rgba(137, 75, 255, 0.32), transparent 65%),
+    radial-gradient(900px 500px at 100% 0%, rgba(89, 21, 150, 0.28), transparent 70%),
+    linear-gradient(160deg, var(--bg-base), var(--bg-deep) 45%, #08040f 100%);
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(125deg, transparent 0%, rgba(255, 255, 255, 0.03) 32%, transparent 50%),
+    repeating-linear-gradient(
+      120deg,
+      rgba(255, 255, 255, 0.012) 0 2px,
+      transparent 2px 14px
+    );
+  mix-blend-mode: screen;
+  opacity: 0.55;
+}
+
+#app {
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.app-shell {
+  max-width: 1220px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.panel {
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: var(--shadow);
+}
+
+.glass {
+  backdrop-filter: blur(22px);
+  background:
+    linear-gradient(145deg, rgba(201, 164, 255, 0.14), rgba(55, 24, 93, 0.08)),
+    var(--glass-bg);
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: flex-start;
+  padding: 22px;
+}
+
+.topbar h1 {
+  margin: 8px 0 0;
+  font-size: clamp(1.4rem, 1.9vw, 2rem);
+  letter-spacing: 0.03em;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.72rem;
+  color: var(--accent-bright);
+  margin: 0;
+}
+
+.top-meta {
+  text-align: right;
+}
+
+.meta-label {
+  margin: 12px 0 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.tabs {
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+}
+
+.tab {
+  flex: 1;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  padding: 12px 16px;
+  color: var(--text-main);
+  font-weight: 600;
+  background: rgba(94, 58, 138, 0.2);
+  cursor: pointer;
+  transition: transform 150ms ease, border-color 150ms ease, background-color 150ms ease;
+}
+
+.tab:hover {
+  transform: translateY(-1px);
+  border-color: rgba(232, 192, 255, 0.5);
+}
+
+.tab.active {
+  background: linear-gradient(130deg, rgba(182, 95, 255, 0.35), rgba(82, 36, 130, 0.35));
+  border-color: rgba(232, 192, 255, 0.72);
+}
+
+.status-pill {
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 7px 12px;
+  border: 1px solid transparent;
+}
+
+.status-ok {
+  color: #011914;
+  border-color: rgba(93, 246, 196, 0.6);
+  background: rgba(93, 246, 196, 0.86);
+}
+
+.status-degraded {
+  color: #241800;
+  border-color: rgba(255, 201, 102, 0.6);
+  background: rgba(255, 201, 102, 0.84);
+}
+
+.status-down {
+  color: #2b0015;
+  border-color: rgba(255, 107, 150, 0.65);
+  background: rgba(255, 107, 150, 0.86);
+}
+
+.status-unknown {
+  color: #130c1f;
+  border-color: rgba(190, 167, 220, 0.65);
+  background: rgba(190, 167, 220, 0.82);
+}
+
+.empty-state {
+  padding: 26px;
+  text-align: center;
+}
+
+.empty-state h2 {
+  margin: 0 0 10px;
+}
+
+.empty-state p {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.kpi-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
+}
+
+.kpi {
+  padding: 18px;
+}
+
+.kpi p {
+  margin: 0;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.72rem;
+}
+
+.kpi h3 {
+  margin: 10px 0 0;
+  font-size: 1.12rem;
+  line-height: 1.35;
+}
+
+.health-strip {
+  margin-top: 12px;
+  padding: 16px 18px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+}
+
+.health-strip p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.84rem;
+}
+
+.status-grid {
+  margin-top: 12px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.tile {
+  padding: 16px;
+}
+
+.tile-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
+.tile-head p {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.tile-sub {
+  margin: 10px 0;
+  color: var(--accent-bright);
+  font-size: 0.86rem;
+}
+
+.tile-meta {
+  margin: 6px 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.tile-message {
+  margin: 10px 0 0;
+  font-size: 0.84rem;
+  color: #efdefe;
+  line-height: 1.45;
+}
+
+.empty-inline {
+  margin: 0;
+  color: var(--text-muted);
+  padding: 14px;
+}
+
+.telemetry-controls {
+  display: grid;
+  grid-template-columns: 1fr 220px;
+  gap: 12px;
+  padding: 16px;
+}
+
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.control-group label {
+  font-size: 0.78rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+input,
+select,
+button {
+  border-radius: 12px;
+  border: 1px solid rgba(218, 186, 255, 0.28);
+  background: rgba(22, 12, 40, 0.9);
+  color: var(--text-main);
+  font: inherit;
+}
+
+input,
+select {
+  padding: 11px 12px;
+}
+
+input:focus,
+select:focus,
+button:focus {
+  outline: 2px solid rgba(181, 95, 255, 0.55);
+  outline-offset: 1px;
+}
+
+.table-wrap {
+  margin-top: 12px;
+  overflow: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(184, 142, 230, 0.22);
+  font-size: 0.84rem;
+  vertical-align: top;
+}
+
+th {
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-weight: 500;
+  font-size: 0.72rem;
+}
+
+.metrics-cell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: 300px;
+}
+
+.metrics-cell span {
+  border: 1px solid rgba(183, 147, 229, 0.34);
+  border-radius: 8px;
+  padding: 3px 8px;
+  color: #efe5ff;
+  background: rgba(111, 66, 169, 0.22);
+}
+
+.no-rows {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 20px 14px;
+}
+
+.settings-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(240px, 1fr));
+}
+
+.settings-card {
+  padding: 20px;
+}
+
+.settings-card h2 {
+  margin: 0 0 14px;
+}
+
+.settings-card p {
+  margin: 8px 0;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.settings-card b {
+  color: var(--text-main);
+}
+
+button {
+  cursor: pointer;
+  padding: 11px 14px;
+  font-weight: 600;
+}
+
+button:hover {
+  border-color: rgba(230, 197, 255, 0.58);
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(3, 1, 8, 0.72);
+  backdrop-filter: blur(12px);
+  padding: 20px;
+}
+
+.overlay.active {
+  display: flex;
+}
+
+.login-card {
+  width: min(460px, 100%);
+  padding: 24px;
+}
+
+.login-card h2 {
+  margin: 10px 0;
+}
+
+.login-copy {
+  margin: 0 0 16px;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+#loginForm {
+  display: grid;
+  gap: 10px;
+}
+
+#loginForm label {
+  font-size: 0.78rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+#loginButton {
+  margin-top: 8px;
+  background: linear-gradient(120deg, rgba(190, 115, 255, 0.52), rgba(109, 48, 171, 0.55));
+}
+
+.error-text {
+  margin: 14px 0 0;
+  color: #ffc5d9;
+  min-height: 1.2em;
+}
+
+@media (max-width: 980px) {
+  #app {
+    padding: 14px;
+  }
+
+  .kpi-grid {
+    grid-template-columns: repeat(2, minmax(150px, 1fr));
+  }
+
+  .telemetry-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .topbar {
+    flex-direction: column;
+  }
+
+  .top-meta {
+    width: 100%;
+    text-align: left;
+  }
+
+  .tabs {
+    flex-direction: column;
+  }
+
+  .kpi-grid {
+    grid-template-columns: 1fr;
+  }
+
+  th,
+  td {
+    padding: 10px 10px;
+  }
+}

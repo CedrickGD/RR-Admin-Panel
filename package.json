@@ -1,0 +1,21 @@
+{
+  "name": "rr-admin-panel",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "pages:dev": "wrangler pages dev dist --compatibility-date 2026-02-25 --kv KV",
+    "dev:pages": "npm run build && npm run pages:dev",
+    "typecheck": "tsc --noEmit",
+    "hash:admin": "node tools/generate-admin-hash.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.18",
+    "typescript": "^5.7.3",
+    "vite": "^6.2.0",
+    "wrangler": "^4.6.0"
+  }
+}

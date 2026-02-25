@@ -14,17 +14,43 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
     return error(405, "Method not allowed. Use GET.");
   }
 
-  if (!context.env.JWT_SECRET) {
-    return error(500, "Server is missing JWT_SECRET.");
-  }
-
-  const sessionToken = getSessionTokenFromCookie(context.request, context.env.AUTH_SESSION_COOKIE);
-  const claims = await verifyAppSessionToken(sessionToken, context.env);
-  if (!claims) {
-    return error(401, "Login required.");
-  }
+  const authMode = resolveAuthMode(context.env);
 
   try {
+    const accessIdentity = getAccessIdentity(context.request, context.env);
+    if (authMode === "access") {
+      if (!accessIdentity) {
+        return error(401, "Cloudflare Access identity is required.");
+      }
+      if (!isAllowedAccessIdentity(accessIdentity, context.env)) {
+        return error(403, "Access identity is not allowed.");
+      }
+
+      const [summary, health] = await Promise.all([loadSummary(context.env), loadHealth(context.env)]);
+      return json({
+        ok: true,
+        summary,
+        health,
+        user: {
+          email: accessIdentity,
+          role: "admin"
+        },
+        accessIdentity,
+        authMode,
+        sessionExpiresAt: null
+      });
+    }
+
+    if (!context.env.JWT_SECRET) {
+      return error(500, "Server is missing JWT_SECRET.");
+    }
+
+    const sessionToken = getSessionTokenFromCookie(context.request, context.env.AUTH_SESSION_COOKIE);
+    const claims = await verifyAppSessionToken(sessionToken, context.env);
+    if (!claims) {
+      return error(401, "Login required.");
+    }
+
     await ensureAuthSchema(context.env);
     const user = await findUserByEmail(context.env, claims.email);
     if (!user) {
@@ -32,10 +58,7 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
     }
 
     const accessEnforcement = (context.env.ACCESS_ENFORCEMENT ?? "off").toLowerCase();
-    const accessRequired = accessEnforcement !== "off";
-    const accessIdentity = getAccessIdentity(context.request, context.env);
-
-    if (accessRequired) {
+    if (accessEnforcement !== "off") {
       if (!accessIdentity) {
         return error(401, "Cloudflare Access identity is required.");
       }
@@ -55,9 +78,14 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
         role: user.role
       },
       accessIdentity: accessIdentity ?? null,
+      authMode,
       sessionExpiresAt: new Date(claims.exp * 1000).toISOString()
     });
   } catch (dataError) {
     return error(500, "Failed to load protected admin data.", dataError instanceof Error ? dataError.message : null);
   }
+}
+
+function resolveAuthMode(env: RuntimeEnv): "app" | "access" {
+  return (env.AUTH_MODE ?? "app").toLowerCase() === "access" ? "access" : "app";
 }

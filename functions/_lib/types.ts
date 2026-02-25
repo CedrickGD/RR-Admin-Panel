@@ -42,6 +42,7 @@ export interface RuntimeEnv {
   INGEST_TOKEN?: string;
   JWT_SECRET?: string;
   AUTH_SESSION_COOKIE?: string;
+  AUTH_MODE?: string;
   STORAGE_BACKEND?: string;
   ACCESS_ENFORCEMENT?: string;
   ACCESS_ALLOWED_EMAIL?: string;

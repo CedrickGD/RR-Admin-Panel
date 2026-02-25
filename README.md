@@ -5,8 +5,8 @@ RR-Admin-Panel is now a Cloudflare Pages full-stack app:
 - Frontend SPA: Vite + TypeScript (`/public` + `/src`)
 - Backend API: Pages Functions (`/functions/api/*`)
 - Storage: D1 primary, KV fallback
-- Optional edge gate: Cloudflare Access
-- App auth: email/password accounts with secure session cookie (admin key removed)
+- Auth mode `access`: Cloudflare Access only
+- Auth mode `app`: email/password accounts with secure session cookie
 
 ## MANUAL SETUP REQUIRED
 
@@ -44,9 +44,10 @@ Complete every checkbox yourself. These steps cannot be automated from this repo
   - Secrets:
   - `INGEST_TOKEN` = long random bearer token for device ingestion
   - `JWT_SECRET` = long random secret for app session signing
-  - Variables:
+- Variables:
+  - `AUTH_MODE` = `access` (Cloudflare-only) or `app` (in-app email/password)
   - `STORAGE_BACKEND` = `d1`
-  - `ACCESS_ENFORCEMENT` = `off` (app-login only) or `strict` (app-login + Cloudflare Access required)
+  - `ACCESS_ENFORCEMENT` = `strict` for Access-protected routes (recommended in `AUTH_MODE=access`)
   - `ACCESS_ALLOWED_EMAIL` = optional comma-separated Access identity allowlist
   - `AUTH_SESSION_COOKIE` = optional, default `rr_session`
   - `BUILD_SHA` = optional commit marker (or leave unset to use `CF_PAGES_COMMIT_SHA`)
@@ -70,7 +71,7 @@ Complete every checkbox yourself. These steps cannot be automated from this repo
   - Keep app-level bearer security in code via `INGEST_TOKEN`.
 - [ ] (Optional but recommended) Add a custom domain to Pages for stable public URL.
   - Cloudflare Pages project -> `Custom domains` -> Add domain.
-- [ ] Initialize first admin account (one-time, in app).
+- [ ] (Only for `AUTH_MODE=app`) Initialize first admin account (one-time, in app).
   - Open your deployed URL.
   - If no account exists, the app shows `Create Admin Account`.
   - Create your email + password directly in the UI.
@@ -123,9 +124,9 @@ Complete every checkbox yourself. These steps cannot be automated from this repo
 
 ## Security Model
 
-1. App login is email/password with PBKDF2 hash and HttpOnly signed session cookie.
-2. `GET /api/admin/data` requires valid app session.
-3. Optional Cloudflare Access layer can also be enforced (`ACCESS_ENFORCEMENT=strict`).
+1. `AUTH_MODE=access`: `GET /api/admin/data` requires valid Cloudflare Access identity.
+2. `AUTH_MODE=app`: `GET /api/admin/data` requires valid app session cookie.
+3. Optional Cloudflare Access layer can also be enforced in app mode (`ACCESS_ENFORCEMENT=strict`).
 4. `POST /api/ingest` requires `Authorization: Bearer <INGEST_TOKEN>`.
 
 ## Local Development
@@ -150,7 +151,7 @@ Complete every checkbox yourself. These steps cannot be automated from this repo
 - `GET /api/health`
   - Returns API/storage state, last ingest, event count, build info.
 - `GET /api/admin/data`
-  - Auth: app session cookie.
+  - Auth: Cloudflare Access identity (`AUTH_MODE=access`) or app session cookie (`AUTH_MODE=app`).
   - Returns protected summary + health payload.
 - `GET /api/auth/session`
   - Returns current auth session state and whether users exist.

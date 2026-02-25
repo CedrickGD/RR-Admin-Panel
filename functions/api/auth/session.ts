@@ -1,5 +1,5 @@
 import { getSessionTokenFromCookie, verifyAppSessionToken } from "../../_lib/auth";
-import { error, json } from "../../_lib/http";
+import { error, getAccessIdentity, isAllowedAccessIdentity, json } from "../../_lib/http";
 import type { RuntimeEnv } from "../../_lib/types";
 import { countUsers, ensureAuthSchema, findUserByEmail } from "../../_lib/users";
 
@@ -11,6 +11,35 @@ type HandlerContext = {
 export async function onRequest(context: HandlerContext): Promise<Response> {
   if (context.request.method !== "GET") {
     return error(405, "Method not allowed. Use GET.");
+  }
+
+  const authMode = resolveAuthMode(context.env);
+
+  if (authMode === "access") {
+    const accessIdentity = getAccessIdentity(context.request, context.env);
+    if (!accessIdentity) {
+      return json({
+        ok: true,
+        authenticated: false,
+        hasUsers: true,
+        authMode
+      });
+    }
+
+    if (!isAllowedAccessIdentity(accessIdentity, context.env)) {
+      return error(403, "Access identity is not allowed.");
+    }
+
+    return json({
+      ok: true,
+      authenticated: true,
+      hasUsers: true,
+      authMode,
+      user: {
+        email: accessIdentity,
+        role: "admin"
+      }
+    });
   }
 
   if (!context.env.JWT_SECRET) {
@@ -27,7 +56,8 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
       return json({
         ok: true,
         authenticated: false,
-        hasUsers
+        hasUsers,
+        authMode
       });
     }
 
@@ -36,7 +66,8 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
       return json({
         ok: true,
         authenticated: false,
-        hasUsers
+        hasUsers,
+        authMode
       });
     }
 
@@ -44,6 +75,7 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
       ok: true,
       authenticated: true,
       hasUsers: true,
+      authMode,
       user: {
         email: user.email,
         role: user.role
@@ -52,4 +84,8 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
   } catch (sessionError) {
     return error(500, "Failed to resolve auth session.", sessionError instanceof Error ? sessionError.message : null);
   }
+}
+
+function resolveAuthMode(env: RuntimeEnv): "app" | "access" {
+  return (env.AUTH_MODE ?? "app").toLowerCase() === "access" ? "access" : "app";
 }

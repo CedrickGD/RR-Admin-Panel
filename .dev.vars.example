@@ -1,7 +1,8 @@
 INGEST_TOKEN=replace-with-local-ingest-token
 JWT_SECRET=replace-with-long-random-secret
+AUTH_MODE=access
 STORAGE_BACKEND=d1
-ACCESS_ENFORCEMENT=off
+ACCESS_ENFORCEMENT=strict
 ACCESS_ALLOWED_EMAIL=
 AUTH_SESSION_COOKIE=rr_session
 BUILD_SHA=local-dev

@@ -4,6 +4,7 @@ type TelemetryStatus = "ok" | "degraded" | "down";
 type OverallStatus = TelemetryStatus | "unknown";
 type ViewMode = "status" | "telemetry" | "settings";
 type AppUserRole = "admin" | "viewer";
+type AuthMode = "app" | "access";
 
 interface TelemetryEvent {
   id: string;
@@ -56,6 +57,7 @@ interface SessionPayload {
   ok: boolean;
   authenticated: boolean;
   hasUsers: boolean;
+  authMode?: AuthMode;
   user?: AuthUser;
   error?: string;
 }
@@ -74,6 +76,7 @@ interface AdminDataPayload {
   user: AuthUser;
   accessIdentity: string | null;
   sessionExpiresAt: string | null;
+  authMode?: AuthMode;
   error?: string;
 }
 
@@ -99,6 +102,7 @@ let currentUser: AuthUser | null = null;
 let requiresBootstrap = false;
 let authErrorMessage: string | null = null;
 let authBusy = false;
+let authMode: AuthMode = "app";
 
 let viewMode: ViewMode = "status";
 let summary: SummaryPayload | null = null;
@@ -116,12 +120,18 @@ void bootstrap();
 
 async function bootstrap(): Promise<void> {
   const session = await fetchSessionState();
+  authMode = session.authMode ?? "app";
 
   if (session.authenticated && session.user) {
     currentUser = session.user;
     authErrorMessage = null;
     mountDashboardShell();
     await fetchProtectedData(false);
+    return;
+  }
+
+  if (authMode === "access") {
+    mountAccessLoginHint();
     return;
   }
 
@@ -138,7 +148,8 @@ async function fetchSessionState(): Promise<SessionPayload> {
       return {
         ok: false,
         authenticated: false,
-        hasUsers: true
+        hasUsers: true,
+        authMode: "app"
       };
     }
 
@@ -147,9 +158,31 @@ async function fetchSessionState(): Promise<SessionPayload> {
     return {
       ok: false,
       authenticated: false,
-      hasUsers: true
+      hasUsers: true,
+      authMode: "app"
     };
   }
+}
+
+function mountAccessLoginHint(): void {
+  stopRefreshLoop();
+  appRoot.innerHTML = `
+    <section class="auth-shell">
+      <article class="glass panel auth-card">
+        <p class="eyebrow">RazorReaper Infrastructure</p>
+        <h1>Cloudflare Access Required</h1>
+        <p class="auth-copy">
+          This dashboard runs in Cloudflare-only auth mode. Sign in through Cloudflare Access, then reload this page.
+        </p>
+        <button id="reloadButton" type="button">Reload</button>
+      </article>
+    </section>
+  `;
+
+  const reloadButton = mustFind<HTMLButtonElement>("#reloadButton");
+  reloadButton.addEventListener("click", () => {
+    window.location.reload();
+  });
 }
 
 function mountAuthShell(): void {
@@ -289,6 +322,10 @@ function mountDashboardShell(): void {
   const settingsTab = currentUser.role === "admin" ? `<button class="tab" type="button" data-view="settings">Settings</button>` : "";
   const overallStatus = summary?.overallStatus ?? "unknown";
   const lastSync = summary?.generatedAt ? `Last synced ${formatDateTime(summary.generatedAt)}` : "Not synced yet";
+  const logoutControl =
+    authMode === "app"
+      ? `<button id="logoutButton" class="ghost-button" type="button">Sign Out</button>`
+      : `<span class="meta-label">Cloudflare Access session</span>`;
 
   appRoot.innerHTML = `
     <div class="app-shell">
@@ -301,7 +338,7 @@ function mountDashboardShell(): void {
           <span id="overallBadge" class="status-pill status-${overallStatus}">${overallStatus.toUpperCase()}</span>
           <p id="lastRefresh" class="meta-label">${escapeHtml(lastSync)}</p>
           <p class="meta-label user-meta">${escapeHtml(currentUser.email)} (${escapeHtml(currentUser.role)})</p>
-          <button id="logoutButton" class="ghost-button" type="button">Sign Out</button>
+          ${logoutControl}
         </div>
       </header>
 
@@ -316,8 +353,6 @@ function mountDashboardShell(): void {
   `;
 
   const tabs = mustFind("#tabs");
-  const logoutButton = mustFind<HTMLButtonElement>("#logoutButton");
-
   tabs.addEventListener("click", (event) => {
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-view]");
     if (!button) {
@@ -339,14 +374,21 @@ function mountDashboardShell(): void {
     }
   });
 
-  logoutButton.addEventListener("click", () => {
-    void handleLogout();
-  });
+  if (authMode === "app") {
+    const logoutButton = mustFind<HTMLButtonElement>("#logoutButton");
+    logoutButton.addEventListener("click", () => {
+      void handleLogout();
+    });
+  }
 
   renderDashboardView();
 }
 
 async function handleLogout(): Promise<void> {
+  if (authMode !== "app") {
+    return;
+  }
+
   try {
     await fetch("/api/auth/logout", { method: "POST" });
   } catch {
@@ -385,6 +427,7 @@ async function fetchProtectedData(silent: boolean): Promise<void> {
     health = body.health;
     accessIdentity = body.accessIdentity;
     sessionExpiresAt = body.sessionExpiresAt ?? null;
+    authMode = body.authMode ?? authMode;
     currentUser = body.user;
     dashboardErrorMessage = null;
 
@@ -408,9 +451,16 @@ async function handleSessionExpired(): Promise<void> {
   viewMode = "status";
   dashboardErrorMessage = null;
   settingsMessage = null;
-  authErrorMessage = "Session expired. Please sign in again.";
-
   const session = await fetchSessionState();
+  authMode = session.authMode ?? authMode;
+
+  if (authMode === "access") {
+    authErrorMessage = null;
+    mountAccessLoginHint();
+    return;
+  }
+
+  authErrorMessage = "Session expired. Please sign in again.";
   requiresBootstrap = !session.hasUsers;
   mountAuthShell();
 }
@@ -634,15 +684,9 @@ function renderSettingsView(viewMount: HTMLElement, nextSummary: SummaryPayload,
 
   const identity = accessIdentity ?? "Cloudflare Access identity unavailable";
   const sessionExpiryText = sessionExpiresAt ? formatDateTime(sessionExpiresAt) : "Unknown";
-
-  viewMount.innerHTML = `
-    <section class="settings-grid">
-      <article class="glass panel settings-card">
-        <h2>Account</h2>
-        <p>Signed in as <b>${escapeHtml(currentUser.email)}</b></p>
-        <p>Role: <b>${escapeHtml(currentUser.role)}</b></p>
-        <p>Session expires: <b>${escapeHtml(sessionExpiryText)}</b></p>
-
+  const passwordSection =
+    authMode === "app"
+      ? `
         <form id="passwordForm" class="password-form">
           <label for="oldPassword">Current password</label>
           <input id="oldPassword" name="oldPassword" type="password" autocomplete="current-password" required minlength="10" maxlength="256" />
@@ -655,6 +699,17 @@ function renderSettingsView(viewMount: HTMLElement, nextSummary: SummaryPayload,
 
           <button id="passwordSubmit" type="submit">Update Password</button>
         </form>
+      `
+      : `<p>Auth mode: <b>Cloudflare Access only</b></p>`;
+
+  viewMount.innerHTML = `
+    <section class="settings-grid">
+      <article class="glass panel settings-card">
+        <h2>Account</h2>
+        <p>Signed in as <b>${escapeHtml(currentUser.email)}</b></p>
+        <p>Role: <b>${escapeHtml(currentUser.role)}</b></p>
+        <p>Session expires: <b>${escapeHtml(sessionExpiryText)}</b></p>
+        ${passwordSection}
 
         <p class="error-text">${escapeHtml(settingsMessage ?? "")}</p>
       </article>
@@ -670,10 +725,12 @@ function renderSettingsView(viewMount: HTMLElement, nextSummary: SummaryPayload,
     </section>
   `;
 
-  const passwordForm = mustFind<HTMLFormElement>("#passwordForm");
-  passwordForm.addEventListener("submit", (event) => {
-    void handlePasswordChange(event);
-  });
+  if (authMode === "app") {
+    const passwordForm = mustFind<HTMLFormElement>("#passwordForm");
+    passwordForm.addEventListener("submit", (event) => {
+      void handlePasswordChange(event);
+    });
+  }
 }
 
 async function handlePasswordChange(event: SubmitEvent): Promise<void> {

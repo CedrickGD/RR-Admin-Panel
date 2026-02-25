@@ -5,8 +5,8 @@ RR-Admin-Panel is now a Cloudflare Pages full-stack app:
 - Frontend SPA: Vite + TypeScript (`/public` + `/src`)
 - Backend API: Pages Functions (`/functions/api/*`)
 - Storage: D1 primary, KV fallback
-- Security layer 1: Cloudflare Access (edge)
-- App auth: Cloudflare Access only (no additional admin key prompt)
+- Optional edge gate: Cloudflare Access
+- App auth: email/password accounts with secure session cookie (admin key removed)
 
 ## MANUAL SETUP REQUIRED
 
@@ -43,14 +43,16 @@ Complete every checkbox yourself. These steps cannot be automated from this repo
   - Cloudflare Pages project -> `Settings` -> `Variables and Secrets`.
   - Secrets:
   - `INGEST_TOKEN` = long random bearer token for device ingestion
+  - `JWT_SECRET` = long random secret for app session signing
   - Variables:
   - `STORAGE_BACKEND` = `d1`
-  - `ACCESS_ENFORCEMENT` = `strict`
-  - `ACCESS_ALLOWED_EMAIL` = `cedrickgrabe@outlook.de` (optional code-level lock to your exact Access identity)
+  - `ACCESS_ENFORCEMENT` = `off` (app-login only) or `strict` (app-login + Cloudflare Access required)
+  - `ACCESS_ALLOWED_EMAIL` = optional comma-separated Access identity allowlist
+  - `AUTH_SESSION_COOKIE` = optional, default `rr_session`
   - `BUILD_SHA` = optional commit marker (or leave unset to use `CF_PAGES_COMMIT_SHA`)
 - [ ] (Alternative to dashboard) Set Pages secrets via Wrangler CLI.
   - Command: `npx wrangler pages secret put INGEST_TOKEN --project-name <your-pages-project>`
-- [ ] Configure Cloudflare Access for the Pages domain (edge auth).
+- [ ] (Optional) Configure Cloudflare Access for the Pages domain (edge auth).
   - Zero Trust Dashboard -> `Access` -> `Applications` -> `Add an application`.
   - Create app `RR Admin UI` as `Self-hosted`.
   - Domain: your Pages/custom domain, path `/*`.
@@ -68,10 +70,14 @@ Complete every checkbox yourself. These steps cannot be automated from this repo
   - Keep app-level bearer security in code via `INGEST_TOKEN`.
 - [ ] (Optional but recommended) Add a custom domain to Pages for stable public URL.
   - Cloudflare Pages project -> `Custom domains` -> Add domain.
+- [ ] Initialize first admin account (one-time, in app).
+  - Open your deployed URL.
+  - If no account exists, the app shows `Create Admin Account`.
+  - Create your email + password directly in the UI.
 - [ ] Verify live deployment from a different network/device.
   - Open `https://<your-domain>` and confirm:
-  - Access login challenge appears first.
-  - Dashboard data loads after Access authentication.
+  - Login screen appears (or Access challenge first if `ACCESS_ENFORCEMENT=strict`).
+  - Dashboard data loads after successful sign-in.
 
 ## Repository Layout
 
@@ -82,11 +88,18 @@ Complete every checkbox yourself. These steps cannot be automated from this repo
 |   |   |-- auth.ts
 |   |   |-- http.ts
 |   |   |-- storage.ts
+|   |   |-- users.ts
 |   |   `-- types.ts
 |   `-- api/
 |       |-- admin/
 |       |   |-- data.ts
 |       |   `-- verify.ts
+|       |-- auth/
+|       |   |-- bootstrap.ts
+|       |   |-- change-password.ts
+|       |   |-- login.ts
+|       |   |-- logout.ts
+|       |   `-- session.ts
 |       |-- health.ts
 |       |-- ingest.ts
 |       `-- summary.ts
@@ -110,9 +123,10 @@ Complete every checkbox yourself. These steps cannot be automated from this repo
 
 ## Security Model
 
-1. Cloudflare Access controls the site at edge (identity policy).
-2. `GET /api/admin/data` requires a Cloudflare Access identity header.
-3. `POST /api/ingest` requires `Authorization: Bearer <INGEST_TOKEN>`.
+1. App login is email/password with PBKDF2 hash and HttpOnly signed session cookie.
+2. `GET /api/admin/data` requires valid app session.
+3. Optional Cloudflare Access layer can also be enforced (`ACCESS_ENFORCEMENT=strict`).
+4. `POST /api/ingest` requires `Authorization: Bearer <INGEST_TOKEN>`.
 
 ## Local Development
 
@@ -136,8 +150,18 @@ Complete every checkbox yourself. These steps cannot be automated from this repo
 - `GET /api/health`
   - Returns API/storage state, last ingest, event count, build info.
 - `GET /api/admin/data`
-  - Auth: Cloudflare Access identity.
+  - Auth: app session cookie.
   - Returns protected summary + health payload.
+- `GET /api/auth/session`
+  - Returns current auth session state and whether users exist.
+- `POST /api/auth/bootstrap`
+  - One-time first admin creation (only if no users exist).
+- `POST /api/auth/login`
+  - Email/password login.
+- `POST /api/auth/logout`
+  - Clears session cookie.
+- `POST /api/auth/change-password`
+  - Updates signed-in user password.
 
 ## curl Examples
 

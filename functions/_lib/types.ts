@@ -1,5 +1,6 @@
 export type TelemetryStatus = "ok" | "degraded" | "down";
 export type StorageBackend = "d1" | "kv";
+export type AppUserRole = "admin" | "viewer";
 
 export interface D1RunResult {
   success?: boolean;
@@ -38,9 +39,9 @@ export interface KVNamespace {
 }
 
 export interface RuntimeEnv {
-  ADMIN_KEY_HASH?: string;
   INGEST_TOKEN?: string;
   JWT_SECRET?: string;
+  AUTH_SESSION_COOKIE?: string;
   STORAGE_BACKEND?: string;
   ACCESS_ENFORCEMENT?: string;
   ACCESS_ALLOWED_EMAIL?: string;
@@ -100,4 +101,23 @@ export interface SessionClaims {
   iat: number;
   exp: number;
   email: string | null;
+}
+
+export interface AppSessionClaims {
+  sub: "rr-user";
+  scope: "dashboard";
+  iat: number;
+  exp: number;
+  email: string;
+  role: AppUserRole;
+}
+
+export interface AuthUser {
+  id: number;
+  email: string;
+  role: AppUserRole;
+  passwordHash: string;
+  createdAt: string;
+  updatedAt: string;
+  lastLoginAt: string | null;
 }

@@ -87,7 +87,7 @@ export function nowIso(): string {
 export function getAccessIdentity(request: Request, env: RuntimeEnv): string | null {
   const emailHeader = request.headers.get("cf-access-authenticated-user-email");
   const jwtHeader = request.headers.get("cf-access-jwt-assertion");
-  const enforcement = (env.ACCESS_ENFORCEMENT ?? "strict").toLowerCase();
+  void env;
 
   if (emailHeader) {
     return emailHeader;
@@ -97,18 +97,23 @@ export function getAccessIdentity(request: Request, env: RuntimeEnv): string | n
     return "access-jwt-assertion";
   }
 
-  if (enforcement === "off") {
-    return "access-bypass-local-dev";
-  }
-
   return null;
 }
 
 export function isAllowedAccessIdentity(identity: string, env: RuntimeEnv): boolean {
-  const allowedEmail = env.ACCESS_ALLOWED_EMAIL?.trim().toLowerCase();
-  if (!allowedEmail) {
+  const rawAllowed = env.ACCESS_ALLOWED_EMAIL?.trim();
+  if (!rawAllowed) {
     return true;
   }
 
-  return identity.toLowerCase() === allowedEmail;
+  const allowedIdentities = rawAllowed
+    .split(",")
+    .map((part) => part.trim().toLowerCase())
+    .filter((part) => part.length > 0);
+
+  if (allowedIdentities.length === 0) {
+    return true;
+  }
+
+  return allowedIdentities.includes(identity.toLowerCase());
 }

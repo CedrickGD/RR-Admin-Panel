@@ -27,3 +27,15 @@ CREATE TABLE IF NOT EXISTS latest_status (
 );
 
 CREATE INDEX IF NOT EXISTS idx_latest_updated ON latest_status(updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS admin_users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  email TEXT NOT NULL UNIQUE,
+  role TEXT NOT NULL CHECK (role IN ('admin', 'viewer')) DEFAULT 'admin',
+  password_hash TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  last_login_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_users_email ON admin_users(email);

@@ -4,7 +4,7 @@ pages_build_output_dir = "dist"
 
 [vars]
 STORAGE_BACKEND = "d1"
-ACCESS_ENFORCEMENT = "strict"
+ACCESS_ENFORCEMENT = "off"
 ACCESS_ALLOWED_EMAIL = ""
 
 [[d1_databases]]

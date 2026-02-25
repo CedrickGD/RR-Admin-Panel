@@ -1,4 +1,5 @@
-import { error } from "../../_lib/http";
+import { clearSessionCookie } from "../../_lib/auth";
+import { error, json } from "../../_lib/http";
 import type { RuntimeEnv } from "../../_lib/types";
 
 type HandlerContext = {
@@ -11,5 +12,14 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
     return error(405, "Method not allowed. Use POST.");
   }
 
-  return error(410, "Legacy admin key verification is disabled. Use /api/auth/login.");
+  return json(
+    {
+      ok: true,
+      loggedOut: true
+    },
+    200,
+    {
+      "set-cookie": clearSessionCookie(context.request, context.env.AUTH_SESSION_COOKIE)
+    }
+  );
 }

@@ -10,6 +10,7 @@ Desktop.ini
 
 # Node and build outputs
 node_modules/
+package-lock.json
 dist/
 coverage/
 *.tsbuildinfo

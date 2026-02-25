@@ -46,6 +46,7 @@ export interface RuntimeEnv {
   STORAGE_BACKEND?: string;
   ACCESS_ENFORCEMENT?: string;
   ACCESS_ALLOWED_EMAIL?: string;
+  ACCESS_ADMIN_EMAIL?: string;
   BUILD_SHA?: string;
   DB?: D1Database;
   KV?: KVNamespace;

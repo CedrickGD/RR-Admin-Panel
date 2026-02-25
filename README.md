@@ -49,6 +49,7 @@ Complete every checkbox yourself. These steps cannot be automated from this repo
   - `STORAGE_BACKEND` = `d1`
   - `ACCESS_ENFORCEMENT` = `strict` for Access-protected routes (recommended in `AUTH_MODE=access`)
   - `ACCESS_ALLOWED_EMAIL` = optional comma-separated Access identity allowlist
+  - `ACCESS_ADMIN_EMAIL` = optional comma-separated list of Access identities that should see admin-only settings
   - `AUTH_SESSION_COOKIE` = optional, default `rr_session`
   - `BUILD_SHA` = optional commit marker (or leave unset to use `CF_PAGES_COMMIT_SHA`)
 - [ ] (Alternative to dashboard) Set Pages secrets via Wrangler CLI.

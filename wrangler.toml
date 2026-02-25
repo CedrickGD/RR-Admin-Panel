@@ -7,6 +7,7 @@ STORAGE_BACKEND = "d1"
 AUTH_MODE = "access"
 ACCESS_ENFORCEMENT = "strict"
 ACCESS_ALLOWED_EMAIL = ""
+ACCESS_ADMIN_EMAIL = ""
 
 [[d1_databases]]
 binding = "DB"

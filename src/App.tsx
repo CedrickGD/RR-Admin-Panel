@@ -1,24 +1,29 @@
 import {
   Activity,
   ArrowUpRight,
-  Clock3,
   Cpu,
   Database,
   Github,
   Globe,
-  HardDrive,
+  KeyRound,
+  ListTree,
   LogOut,
   MessageSquare,
   Moon,
   Network,
+  Package,
   RefreshCw,
+  Search,
   ScrollText,
   Server,
   Settings2,
+  ShieldCheck,
   ShieldAlert,
   Sun,
+  TimerReset,
   UserCircle2,
   Users,
+  Webhook,
   Zap
 } from "lucide-react";
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
@@ -105,6 +110,11 @@ interface WorkerRow {
   services: number;
 }
 
+interface MetricKeyCount {
+  key: string;
+  count: number;
+}
+
 const REFRESH_MS = 30_000;
 const THEME_KEY = "rr-admin-theme";
 const TIMEFRAMES: Timeframe[] = ["1D", "5D", "1M", "6M", "YTD", "1Y"];
@@ -170,11 +180,16 @@ export default function App() {
   const previousEvents = useMemo(() => filterPrevious(allEvents, timeframe), [allEvents, timeframe]);
   const chartData = useMemo(() => buildChart(allEvents, timeframe), [allEvents, timeframe]);
   const serviceSplit = useMemo(() => buildTopSlices(scopedEvents, (event) => event.service, 4), [scopedEvents]);
-  const sourceSplit = useMemo(() => buildTopSlices(scopedEvents, (event) => event.source, 4), [scopedEvents]);
+  const sourceSplit = useMemo(() => buildTopSlices(scopedEvents, (event) => event.source, 6), [scopedEvents]);
   const platformSplit = useMemo(
     () => buildTopSlices(scopedEvents, (event) => readMetric(event.metrics, ["platform", "os_platform", "os"], "unknown"), 4),
     [scopedEvents]
   );
+  const statusSplit = useMemo(
+    () => buildTopSlices(scopedEvents, (event) => event.status, 3).map((slice) => ({ ...slice, name: slice.name.toUpperCase() })),
+    [scopedEvents]
+  );
+  const metricKeys = useMemo(() => collectMetricKeys(allEvents, 14), [allEvents]);
   const workerRows = useMemo(() => buildWorkers(allEvents), [allEvents]);
   const platformLabel = useMemo(
     () => mostCommonMetric(allEvents, ["platform", "os_platform", "os"], "unknown"),
@@ -286,6 +301,13 @@ export default function App() {
 
       <main className="pt-24 pb-12 px-6 max-w-[1600px] mx-auto space-y-8">
         {loadError ? <div className="glass-card rounded-xl p-4 border border-rose-500/30 text-rose-300">{loadError}</div> : null}
+        {allEvents.length === 0 ? (
+          <div className="notice-banner">
+            No telemetry events received yet. Accepted ingest formats:{" "}
+            <span className="font-mono">POST /api/ingest</span> (Bearer token) or{" "}
+            <span className="font-mono">POST /v1/telemetry/event</span> (X-App-Key).
+          </div>
+        ) : null}
 
         <nav className="md:hidden glass-card rounded-xl p-2 flex gap-1 overflow-x-auto">
           {NAV_ITEMS.map((item) => (
@@ -561,10 +583,20 @@ export default function App() {
           </>
         ) : null}
 
-        {page === "workers" ? <WorkersPanel workers={workerRows} /> : null}
-        {page === "network" ? <NetworkPanel chartData={chartData} serviceSplit={serviceSplit} platformSplit={platformSplit} currentCount={currentCount} previousCount={previousCount} /> : null}
+        {page === "workers" ? <WorkersPanel workers={workerRows} totalEvents={summary?.stats.totalEvents ?? 0} statusSplit={statusSplit} /> : null}
+        {page === "network" ? <NetworkPanel chartData={chartData} serviceSplit={serviceSplit} platformSplit={platformSplit} sourceSplit={sourceSplit} currentCount={currentCount} previousCount={previousCount} /> : null}
         {page === "logs" ? <LogsPanel events={allEvents} /> : null}
-        {page === "settings" ? <SettingsPanel user={user} authMode={authMode} summary={summary} health={health} onLogout={authMode === "app" ? () => void handleLogout() : null} /> : null}
+        {page === "settings" ? (
+          <SettingsPanel
+            user={user}
+            authMode={authMode}
+            summary={summary}
+            health={health}
+            events={allEvents}
+            metricKeys={metricKeys}
+            onLogout={authMode === "app" ? () => void handleLogout() : null}
+          />
+        ) : null}
       </main>
     </div>
   );
@@ -782,46 +814,101 @@ function StatCard(props: {
   );
 }
 
-function WorkersPanel(props: { workers: WorkerRow[] }) {
+function WorkersPanel(props: { workers: WorkerRow[]; totalEvents: number; statusSplit: PieSlice[] }) {
+  const topWorker = props.workers[0] ?? null;
+  const newestWorker = props.workers[props.workers.length - 1] ?? null;
+  const averageEvents = props.workers.length > 0 ? (props.totalEvents / props.workers.length).toFixed(1) : "0.0";
+  const maxEvents = Math.max(...props.workers.map((worker) => worker.events), 1);
+
   return (
-    <section className="space-y-4 float-in">
+    <section className="space-y-6 float-in">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h2 className="text-xl font-semibold">Workers</h2>
+        <div>
+          <h2 className="text-xl font-semibold">Workers</h2>
+          <p className="text-xs text-muted-foreground">Per-source health, throughput, and latest runtime metadata.</p>
+        </div>
         <span className="text-xs text-muted-foreground font-mono">{props.workers.length} active sources</span>
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <article className="glass-card rounded-xl p-4">
+          <p className="text-xs text-muted-foreground uppercase tracking-wide">Busiest Worker</p>
+          <p className="text-lg font-semibold mt-1">{topWorker?.name ?? "none"}</p>
+          <p className="text-xs text-muted-foreground">{topWorker ? `${topWorker.events} events` : "No worker data yet"}</p>
+        </article>
+        <article className="glass-card rounded-xl p-4">
+          <p className="text-xs text-muted-foreground uppercase tracking-wide">Avg Events / Worker</p>
+          <p className="text-lg font-semibold mt-1">{averageEvents}</p>
+          <p className="text-xs text-muted-foreground">Based on total ingested events</p>
+        </article>
+        <article className="glass-card rounded-xl p-4">
+          <p className="text-xs text-muted-foreground uppercase tracking-wide">Newest Seen Worker</p>
+          <p className="text-lg font-semibold mt-1">{newestWorker?.name ?? "none"}</p>
+          <p className="text-xs text-muted-foreground">{newestWorker ? formatDate(newestWorker.lastSeen) : "No worker data yet"}</p>
+        </article>
+      </div>
+
       {props.workers.length === 0 ? (
-        <div className="glass-card rounded-xl p-6 text-sm text-muted-foreground">No worker activity yet.</div>
+        <div className="glass-card rounded-xl p-6 text-sm text-muted-foreground">
+          No worker activity yet. Send telemetry events to populate worker diagnostics.
+        </div>
       ) : (
-        <div className="glass-card rounded-xl p-0 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="text-xs text-muted-foreground uppercase bg-muted/30">
-              <tr>
-                <th className="px-5 py-3 text-left">Worker</th>
-                <th className="px-5 py-3 text-left">Events</th>
-                <th className="px-5 py-3 text-left hidden md:table-cell">Services</th>
-                <th className="px-5 py-3 text-left hidden md:table-cell">Platform</th>
-                <th className="px-5 py-3 text-left hidden lg:table-cell">Version</th>
-                <th className="px-5 py-3 text-left">Last Seen</th>
-                <th className="px-5 py-3 text-left">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/50">
-              {props.workers.map((worker) => (
-                <tr key={worker.name}>
-                  <td className="px-5 py-3 font-medium">{worker.name}</td>
-                  <td className="px-5 py-3 font-mono">{worker.events}</td>
-                  <td className="px-5 py-3 hidden md:table-cell">{worker.services}</td>
-                  <td className="px-5 py-3 hidden md:table-cell">{worker.platform}</td>
-                  <td className="px-5 py-3 hidden lg:table-cell">{worker.version}</td>
-                  <td className="px-5 py-3 text-muted-foreground">{formatDate(worker.lastSeen)}</td>
-                  <td className="px-5 py-3">
-                    <span className={`status-pill status-${worker.status}`}>{worker.status}</span>
-                  </td>
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          <div className="xl:col-span-2 glass-card rounded-xl p-0 overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="text-xs text-muted-foreground uppercase bg-muted/30">
+                <tr>
+                  <th className="px-5 py-3 text-left">Worker</th>
+                  <th className="px-5 py-3 text-left">Events</th>
+                  <th className="px-5 py-3 text-left hidden md:table-cell">Services</th>
+                  <th className="px-5 py-3 text-left hidden md:table-cell">Platform</th>
+                  <th className="px-5 py-3 text-left hidden lg:table-cell">Version</th>
+                  <th className="px-5 py-3 text-left">Last Seen</th>
+                  <th className="px-5 py-3 text-left">Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-border/50">
+                {props.workers.map((worker) => (
+                  <tr key={worker.name} className="hover:bg-primary/5 transition-colors">
+                    <td className="px-5 py-3 font-medium">{worker.name}</td>
+                    <td className="px-5 py-3 font-mono">{worker.events}</td>
+                    <td className="px-5 py-3 hidden md:table-cell">{worker.services}</td>
+                    <td className="px-5 py-3 hidden md:table-cell">{worker.platform}</td>
+                    <td className="px-5 py-3 hidden lg:table-cell">{worker.version}</td>
+                    <td className="px-5 py-3 text-muted-foreground">{formatDate(worker.lastSeen)}</td>
+                    <td className="px-5 py-3">
+                      <span className={`status-pill status-${worker.status}`}>{worker.status}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="space-y-6">
+            <article className="glass-card rounded-xl p-6">
+              <h3 className="text-base font-semibold">Top Worker Load</h3>
+              <p className="text-xs text-muted-foreground mb-4">Share of event volume by source.</p>
+              <div className="space-y-3">
+                {props.workers.slice(0, 6).map((worker) => (
+                  <div key={`load-${worker.name}`} className="space-y-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="truncate max-w-[65%] text-muted-foreground">{worker.name}</span>
+                      <span className="font-mono">{worker.events}</span>
+                    </div>
+                    <div className="progress-track">
+                      <div
+                        className="progress-fill"
+                        style={{ width: `${Math.max(8, Math.round((worker.events / maxEvents) * 100))}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </article>
+
+            <DistributionCard title="Worker Status" subtitle="Latest status distribution" slices={props.statusSplit} />
+          </div>
         </div>
       )}
     </section>
@@ -832,6 +919,7 @@ function NetworkPanel(props: {
   chartData: ChartPoint[];
   serviceSplit: PieSlice[];
   platformSplit: PieSlice[];
+  sourceSplit: PieSlice[];
   currentCount: number;
   previousCount: number;
 }) {
@@ -841,7 +929,10 @@ function NetworkPanel(props: {
   return (
     <section className="space-y-5 float-in">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h2 className="text-xl font-semibold">Network</h2>
+        <div>
+          <h2 className="text-xl font-semibold">Network</h2>
+          <p className="text-xs text-muted-foreground">Traffic trend + distribution across services, platforms, and sources.</p>
+        </div>
         <p className="text-xs text-muted-foreground">
           {props.currentCount} events in scope
           {delta ? (
@@ -851,6 +942,23 @@ function NetworkPanel(props: {
             </span>
           ) : null}
         </p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <article className="glass-card rounded-xl p-4">
+          <p className="text-xs text-muted-foreground uppercase tracking-wide">Events In Scope</p>
+          <p className="text-2xl font-mono font-bold mt-1">{props.currentCount}</p>
+        </article>
+        <article className="glass-card rounded-xl p-4">
+          <p className="text-xs text-muted-foreground uppercase tracking-wide">Prior Window</p>
+          <p className="text-2xl font-mono font-bold mt-1">{props.previousCount}</p>
+        </article>
+        <article className="glass-card rounded-xl p-4">
+          <p className="text-xs text-muted-foreground uppercase tracking-wide">Delta</p>
+          <p className={`text-2xl font-mono font-bold mt-1 ${delta && Number(delta) < 0 ? "text-rose-400" : "text-emerald-400"}`}>
+            {delta ? `${Number(delta) >= 0 ? "+" : ""}${delta}%` : "n/a"}
+          </p>
+        </article>
       </div>
 
       <div className="glass-card rounded-2xl p-6 h-[340px]">
@@ -878,37 +986,140 @@ function NetworkPanel(props: {
         </ResponsiveContainer>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <DistributionCard title="Services" subtitle="Service spread in scope" slices={props.serviceSplit} />
         <DistributionCard title="Platforms" subtitle="OS/platform spread in scope" slices={props.platformSplit} />
+        <article className="glass-card rounded-xl p-6">
+          <h3 className="text-lg font-medium">Top Sources</h3>
+          <p className="text-xs text-muted-foreground mb-4">Source activity in selected timeframe</p>
+          <div className="space-y-3">
+            {props.sourceSplit.length > 0 ? (
+              props.sourceSplit.map((slice, index) => {
+                const max = props.sourceSplit[0]?.value ?? 1;
+                return (
+                  <div key={`network-source-${slice.name}`} className="space-y-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="truncate max-w-[70%] text-muted-foreground">{slice.name}</span>
+                      <span className="font-mono">{slice.value}</span>
+                    </div>
+                    <div className="progress-track">
+                      <div
+                        className="progress-fill"
+                        style={{
+                          width: `${Math.max(8, Math.round((slice.value / max) * 100))}%`,
+                          background: PIE_COLORS[index % PIE_COLORS.length]
+                        }}
+                      />
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="text-xs text-muted-foreground">No source traffic yet.</div>
+            )}
+          </div>
+        </article>
       </div>
     </section>
   );
 }
 
 function LogsPanel(props: { events: TelemetryEvent[] }) {
+  const [searchValue, setSearchValue] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | TelemetryStatus>("all");
+  const eventTypes = useMemo(() => buildTopSlices(props.events, (event) => normalizeEventName(event.service), 8), [props.events]);
+  const filteredEvents = useMemo(() => {
+    const lowerSearch = searchValue.trim().toLowerCase();
+    return props.events
+      .filter((event) => (statusFilter === "all" ? true : event.status === statusFilter))
+      .filter((event) => {
+        if (!lowerSearch) {
+          return true;
+        }
+
+        const haystack = [
+          event.source,
+          event.service,
+          event.message ?? "",
+          readMetric(event.metrics, ["platform", "os_platform", "os"], ""),
+          readMetric(event.metrics, ["app_version", "version", "client_version"], "")
+        ]
+          .join(" ")
+          .toLowerCase();
+
+        return haystack.includes(lowerSearch);
+      })
+      .slice(0, 300);
+  }, [props.events, searchValue, statusFilter]);
+
   return (
-    <section className="space-y-4 float-in">
+    <section className="space-y-5 float-in">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h2 className="text-xl font-semibold">Logs</h2>
-        <span className="text-xs text-muted-foreground font-mono">last {Math.min(200, props.events.length)} rows</span>
+        <div>
+          <h2 className="text-xl font-semibold">Logs</h2>
+          <p className="text-xs text-muted-foreground">Search and inspect the latest telemetry rows.</p>
+        </div>
+        <span className="text-xs text-muted-foreground font-mono">showing {filteredEvents.length} rows</span>
       </div>
 
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        <label className="glass-card rounded-xl px-4 py-3 flex items-center gap-3 xl:col-span-2">
+          <Search className="w-4 h-4 text-muted-foreground" />
+          <input
+            className="w-full bg-transparent border-0 outline-none text-sm text-foreground placeholder:text-muted-foreground"
+            placeholder="Search worker, event, version, platform, or message..."
+            value={searchValue}
+            onChange={(event) => setSearchValue(event.target.value)}
+          />
+        </label>
+        <div className="glass-card rounded-xl p-2 flex items-center gap-2 justify-between">
+          {(["all", "ok", "degraded", "down"] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setStatusFilter(value)}
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                statusFilter === value ? "bg-primary/20 text-primary border border-primary/30" : "text-muted-foreground hover:bg-muted/40"
+              }`}
+            >
+              {value.toUpperCase()}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <article className="glass-card rounded-xl p-4">
+        <h3 className="text-xs uppercase tracking-wide text-muted-foreground mb-3">Top Event Types</h3>
+        <div className="flex flex-wrap gap-2">
+          {eventTypes.length > 0 ? (
+            eventTypes.map((slice) => (
+              <span key={`event-kind-${slice.name}`} className="event-badge event-neutral">
+                {slice.name} · {slice.value}
+              </span>
+            ))
+          ) : (
+            <span className="text-xs text-muted-foreground">No events yet.</span>
+          )}
+        </div>
+      </article>
+
       <div className="glass-card rounded-xl p-0 overflow-hidden">
-        <div className="table-scroll overflow-auto max-h-[680px]">
+        <div className="table-scroll overflow-auto max-h-[720px]">
           <table className="w-full text-sm">
             <thead className="text-xs text-muted-foreground uppercase bg-muted/30">
               <tr>
-                <th className="px-5 py-3 text-left">Time</th>
+                <th className="px-5 py-3 text-left">Time (UTC)</th>
                 <th className="px-5 py-3 text-left">Event</th>
                 <th className="px-5 py-3 text-left">Worker</th>
                 <th className="px-5 py-3 text-left">Status</th>
-                <th className="px-5 py-3 text-left hidden md:table-cell">Message</th>
+                <th className="px-5 py-3 text-left hidden md:table-cell">Platform</th>
+                <th className="px-5 py-3 text-left hidden md:table-cell">Version</th>
+                <th className="px-5 py-3 text-left hidden xl:table-cell">Message</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/50">
-              {props.events.slice(0, 200).map((event) => (
-                <tr key={event.id}>
+              {filteredEvents.map((event) => (
+                <tr key={event.id} className="hover:bg-primary/5 transition-colors">
                   <td className="px-5 py-3 font-mono text-xs text-muted-foreground">{formatUtc(event.timestamp)}</td>
                   <td className="px-5 py-3">
                     <span className={`event-badge ${resolveEventTone(event.service)}`}>{normalizeEventName(event.service)}</span>
@@ -917,13 +1128,19 @@ function LogsPanel(props: { events: TelemetryEvent[] }) {
                   <td className="px-5 py-3">
                     <span className={`status-pill status-${event.status}`}>{event.status}</span>
                   </td>
-                  <td className="px-5 py-3 text-muted-foreground hidden md:table-cell">{event.message ?? "-"}</td>
+                  <td className="px-5 py-3 text-muted-foreground hidden md:table-cell">
+                    {readMetric(event.metrics, ["platform", "os_platform", "os"], "-")}
+                  </td>
+                  <td className="px-5 py-3 text-muted-foreground hidden md:table-cell">
+                    {readMetric(event.metrics, ["app_version", "version", "client_version"], "-")}
+                  </td>
+                  <td className="px-5 py-3 text-muted-foreground hidden xl:table-cell">{event.message ?? "-"}</td>
                 </tr>
               ))}
-              {props.events.length === 0 ? (
+              {filteredEvents.length === 0 ? (
                 <tr>
-                  <td className="px-5 py-8 text-muted-foreground" colSpan={5}>
-                    No events yet.
+                  <td className="px-5 py-8 text-muted-foreground" colSpan={7}>
+                    No rows match the current filters.
                   </td>
                 </tr>
               ) : null}
@@ -940,25 +1157,47 @@ function SettingsPanel(props: {
   authMode: AuthMode;
   summary: SummaryPayload | null;
   health: HealthPayload | null;
+  events: TelemetryEvent[];
+  metricKeys: MetricKeyCount[];
   onLogout: (() => void) | null;
 }) {
-  return (
-    <section className="space-y-5 float-in">
-      <h2 className="text-xl font-semibold">Settings</h2>
+  const topServices = useMemo(() => buildTopSlices(props.events, (event) => normalizeEventName(event.service), 6), [props.events]);
+  const topSources = useMemo(() => buildTopSlices(props.events, (event) => event.source, 6), [props.events]);
+  const latestEvent = props.events[0] ?? null;
+  const canonicalFields = [
+    "id",
+    "source",
+    "service",
+    "timestamp",
+    "status",
+    "metrics.*",
+    "message",
+    "receivedAt"
+  ];
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  return (
+    <section className="space-y-6 float-in">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h2 className="text-xl font-semibold">Settings</h2>
+          <p className="text-xs text-muted-foreground">Account, auth, ingest contracts, and runtime diagnostics.</p>
+        </div>
+        <span className="text-xs text-muted-foreground font-mono">Last ingest: {formatDate(props.summary?.stats.lastIngestAt ?? null)}</span>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <article className="glass-card rounded-xl p-6 space-y-3">
-          <h3 className="text-lg font-medium">Account</h3>
-          <p className="text-sm flex items-center gap-2">
+          <h3 className="text-lg font-medium flex items-center gap-2">
             <UserCircle2 className="w-4 h-4 text-primary" />
+            Account
+          </h3>
+          <p className="text-sm">
             <span className="text-muted-foreground">Email:</span> {props.user.email}
           </p>
-          <p className="text-sm flex items-center gap-2">
-            <Users className="w-4 h-4 text-primary" />
+          <p className="text-sm">
             <span className="text-muted-foreground">Role:</span> {props.user.role}
           </p>
-          <p className="text-sm flex items-center gap-2">
-            <Settings2 className="w-4 h-4 text-primary" />
+          <p className="text-sm">
             <span className="text-muted-foreground">Auth mode:</span> {props.authMode}
           </p>
           {props.onLogout ? (
@@ -970,26 +1209,123 @@ function SettingsPanel(props: {
         </article>
 
         <article className="glass-card rounded-xl p-6 space-y-3">
-          <h3 className="text-lg font-medium">Runtime</h3>
-          <p className="text-sm flex items-center gap-2">
+          <h3 className="text-lg font-medium flex items-center gap-2">
             <Database className="w-4 h-4 text-primary" />
-            <span className="text-muted-foreground">Storage:</span> {props.health?.storage.backend.toUpperCase() ?? "-"}
-          </p>
-          <p className="text-sm flex items-center gap-2">
-            <HardDrive className="w-4 h-4 text-primary" />
-            <span className="text-muted-foreground">Total events:</span> {props.summary?.stats.totalEvents ?? 0}
-          </p>
-          <p className="text-sm flex items-center gap-2">
-            <Clock3 className="w-4 h-4 text-primary" />
-            <span className="text-muted-foreground">Last ingest:</span> {formatDate(props.summary?.stats.lastIngestAt ?? null)}
+            Runtime
+          </h3>
+          <p className="text-sm">
+            <span className="text-muted-foreground">Storage backend:</span> {props.health?.storage.backend.toUpperCase() ?? "-"}
           </p>
           <p className="text-sm">
-            <span className="text-muted-foreground">Canonical ingest:</span>{" "}
-            <span className="font-mono text-xs">POST /api/ingest (Bearer token)</span>
+            <span className="text-muted-foreground">Total events:</span> {(props.summary?.stats.totalEvents ?? 0).toLocaleString()}
           </p>
           <p className="text-sm">
-            <span className="text-muted-foreground">Legacy ingest:</span>{" "}
-            <span className="font-mono text-xs">POST /v1/telemetry/event (X-App-Key)</span>
+            <span className="text-muted-foreground">Sources:</span> {(props.summary?.stats.sources ?? 0).toLocaleString()}
+          </p>
+          <p className="text-sm">
+            <span className="text-muted-foreground">Services:</span> {(props.summary?.stats.services ?? 0).toLocaleString()}
+          </p>
+          <p className="text-sm">
+            <span className="text-muted-foreground">Latest event:</span>{" "}
+            {latestEvent ? `${normalizeEventName(latestEvent.service)} on ${latestEvent.source}` : "none"}
+          </p>
+        </article>
+
+        <article className="glass-card rounded-xl p-6 space-y-3">
+          <h3 className="text-lg font-medium flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-primary" />
+            Security
+          </h3>
+          <p className="text-sm flex items-center gap-2">
+            <KeyRound className="w-4 h-4 text-primary" />
+            <span className="text-muted-foreground">Canonical auth:</span> Bearer token
+          </p>
+          <p className="text-sm flex items-center gap-2">
+            <Webhook className="w-4 h-4 text-primary" />
+            <span className="text-muted-foreground">Legacy auth:</span> X-App-Key
+          </p>
+          <p className="text-sm flex items-center gap-2">
+            <TimerReset className="w-4 h-4 text-primary" />
+            <span className="text-muted-foreground">Session model:</span> {props.authMode === "app" ? "App JWT" : "Cloudflare Access"}
+          </p>
+        </article>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <article className="glass-card rounded-xl p-6 space-y-4">
+          <h3 className="text-lg font-medium flex items-center gap-2">
+            <Webhook className="w-4 h-4 text-primary" />
+            Ingest Endpoints
+          </h3>
+          <div className="space-y-3">
+            <div className="p-3 rounded-lg border border-border/60 bg-card/40">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide">Canonical</p>
+              <p className="font-mono text-xs mt-1">POST /api/ingest</p>
+              <p className="text-xs text-muted-foreground mt-1">Header: Authorization: Bearer &lt;INGEST_TOKEN&gt;</p>
+            </div>
+            <div className="p-3 rounded-lg border border-border/60 bg-card/40">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide">Legacy Compatible</p>
+              <p className="font-mono text-xs mt-1">POST /v1/telemetry/event</p>
+              <p className="text-xs text-muted-foreground mt-1">Header: X-App-Key: &lt;TELEMETRY_APP_KEY&gt;</p>
+            </div>
+          </div>
+        </article>
+
+        <article className="glass-card rounded-xl p-6 space-y-4">
+          <h3 className="text-lg font-medium flex items-center gap-2">
+            <ListTree className="w-4 h-4 text-primary" />
+            Telemetry Schema
+          </h3>
+          <div>
+            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Core Fields</p>
+            <div className="flex flex-wrap gap-2">
+              {canonicalFields.map((field) => (
+                <span key={`core-${field}`} className="event-badge event-neutral">
+                  {field}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Observed Metric Keys</p>
+            <div className="flex flex-wrap gap-2">
+              {props.metricKeys.length > 0 ? (
+                props.metricKeys.map((metric) => (
+                  <span key={`metric-${metric.key}`} className="event-badge event-primary">
+                    {metric.key} ({metric.count})
+                  </span>
+                ))
+              ) : (
+                <span className="text-xs text-muted-foreground">No metric keys observed yet.</span>
+              )}
+            </div>
+          </div>
+        </article>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <DistributionCard title="Top Services" subtitle="Most frequent service names" slices={topServices} />
+        <DistributionCard title="Top Sources" subtitle="Most active telemetry sources" slices={topSources} />
+        <article className="glass-card rounded-xl p-6 space-y-4">
+          <h3 className="text-lg font-medium flex items-center gap-2">
+            <Package className="w-4 h-4 text-primary" />
+            Build & Deploy
+          </h3>
+          <p className="text-sm">
+            <span className="text-muted-foreground">API:</span> {props.health?.api ?? "-"}
+          </p>
+          <p className="text-sm">
+            <span className="text-muted-foreground">Commit:</span>{" "}
+            <span className="font-mono text-xs">{props.health?.build.commit ?? "-"}</span>
+          </p>
+          <p className="text-sm">
+            <span className="text-muted-foreground">Branch:</span> {props.health?.build.branch ?? "-"}
+          </p>
+          <p className="text-sm">
+            <span className="text-muted-foreground">Environment:</span> {props.health?.build.environment ?? "-"}
+          </p>
+          <p className="text-sm">
+            <span className="text-muted-foreground">Health snapshot:</span> {formatDate(props.health?.build.generatedAt ?? null)}
           </p>
         </article>
       </div>
@@ -1017,19 +1353,42 @@ function DistributionCard(props: { title: string; subtitle: string; slices: PieS
           <div className="h-full flex items-center justify-center text-xs text-muted-foreground">No data</div>
         )}
       </div>
-      <div className="grid grid-cols-2 gap-2">
-        {props.slices.slice(0, 6).map((slice, index) => (
-          <div key={slice.name} className="flex items-center justify-between text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-2 truncate">
-              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }} />
-              <span className="truncate">{slice.name}</span>
-            </span>
-            <span className="font-mono">{slice.value}</span>
-          </div>
-        ))}
-      </div>
+      {props.slices.length > 0 ? (
+        <div className="grid grid-cols-2 gap-2">
+          {props.slices.slice(0, 6).map((slice, index) => (
+            <div key={slice.name} className="flex items-center justify-between text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-2 truncate">
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }} />
+                <span className="truncate">{slice.name}</span>
+              </span>
+              <span className="font-mono">{slice.value}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">No distribution yet.</p>
+      )}
     </article>
   );
+}
+
+function collectMetricKeys(events: TelemetryEvent[], limit: number): MetricKeyCount[] {
+  const counts = new Map<string, number>();
+
+  for (const event of events) {
+    for (const key of Object.keys(event.metrics)) {
+      const normalized = key.trim();
+      if (!normalized) {
+        continue;
+      }
+      counts.set(normalized, (counts.get(normalized) ?? 0) + 1);
+    }
+  }
+
+  return [...counts.entries()]
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, limit)
+    .map(([key, count]) => ({ key, count }));
 }
 
 function getInitialTheme(): ThemeMode {

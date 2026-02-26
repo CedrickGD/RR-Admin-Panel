@@ -1,16 +1,24 @@
 import {
   Activity,
   ArrowUpRight,
+  Clock3,
   Cpu,
+  Database,
   Github,
   Globe,
+  HardDrive,
   LogOut,
   MessageSquare,
   Moon,
+  Network,
   RefreshCw,
+  ScrollText,
   Server,
+  Settings2,
   ShieldAlert,
   Sun,
+  UserCircle2,
+  Users,
   Zap
 } from "lucide-react";
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
@@ -20,6 +28,7 @@ type TelemetryStatus = "ok" | "degraded" | "down";
 type AuthMode = "app" | "access";
 type ThemeMode = "dark" | "light";
 type Timeframe = "1D" | "5D" | "1M" | "6M" | "YTD" | "1Y";
+type PageKey = "overview" | "workers" | "network" | "logs" | "settings";
 
 interface TelemetryEvent {
   id: string;
@@ -86,14 +95,32 @@ interface PieSlice {
   value: number;
 }
 
+interface WorkerRow {
+  name: string;
+  events: number;
+  lastSeen: string;
+  status: TelemetryStatus;
+  platform: string;
+  version: string;
+  services: number;
+}
+
 const REFRESH_MS = 30_000;
 const THEME_KEY = "rr-admin-theme";
 const TIMEFRAMES: Timeframe[] = ["1D", "5D", "1M", "6M", "YTD", "1Y"];
 const PIE_COLORS = ["hsl(var(--primary))", "#67e8b5", "#ffd166", "#a66ef6", "#ff7aa2", "#7fdbff"];
+const NAV_ITEMS: Array<{ key: PageKey; label: string; icon: ReactNode }> = [
+  { key: "overview", label: "Overview", icon: <Activity className="w-4 h-4" /> },
+  { key: "workers", label: "Workers", icon: <Users className="w-4 h-4" /> },
+  { key: "network", label: "Network", icon: <Network className="w-4 h-4" /> },
+  { key: "logs", label: "Logs", icon: <ScrollText className="w-4 h-4" /> },
+  { key: "settings", label: "Settings", icon: <Settings2 className="w-4 h-4" /> }
+];
 
 export default function App() {
   const [theme, setTheme] = useState<ThemeMode>(getInitialTheme());
   const [timeframe, setTimeframe] = useState<Timeframe>("1D");
+  const [page, setPage] = useState<PageKey>("overview");
   const [authMode, setAuthMode] = useState<AuthMode>("access");
   const [ready, setReady] = useState(false);
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -138,26 +165,35 @@ export default function App() {
     void loadDashboard(true);
   }, [tick, user]);
 
-  const scopedEvents = useMemo(() => filterEvents(summary?.recent ?? [], timeframe), [summary, timeframe]);
-  const chartData = useMemo(() => buildChart(summary?.recent ?? [], timeframe), [summary, timeframe]);
+  const allEvents = summary?.recent ?? [];
+  const scopedEvents = useMemo(() => filterEvents(allEvents, timeframe), [allEvents, timeframe]);
+  const previousEvents = useMemo(() => filterPrevious(allEvents, timeframe), [allEvents, timeframe]);
+  const chartData = useMemo(() => buildChart(allEvents, timeframe), [allEvents, timeframe]);
   const serviceSplit = useMemo(() => buildTopSlices(scopedEvents, (event) => event.service, 4), [scopedEvents]);
   const sourceSplit = useMemo(() => buildTopSlices(scopedEvents, (event) => event.source, 4), [scopedEvents]);
+  const platformSplit = useMemo(
+    () => buildTopSlices(scopedEvents, (event) => readMetric(event.metrics, ["platform", "os_platform", "os"], "unknown"), 4),
+    [scopedEvents]
+  );
+  const workerRows = useMemo(() => buildWorkers(allEvents), [allEvents]);
   const platformLabel = useMemo(
-    () => mostCommonMetric(summary?.recent ?? [], ["platform", "os_platform", "os"], "windows"),
-    [summary]
+    () => mostCommonMetric(allEvents, ["platform", "os_platform", "os"], "unknown"),
+    [allEvents]
   );
   const versionLabel = useMemo(
-    () => mostCommonMetric(summary?.recent ?? [], ["app_version", "version", "client_version"], "unknown"),
-    [summary]
+    () => mostCommonMetric(allEvents, ["app_version", "version", "client_version"], "unknown"),
+    [allEvents]
   );
   const processArch = useMemo(
-    () => mostCommonMetric(summary?.recent ?? [], ["process_arch", "arch"], "x64"),
-    [summary]
+    () => mostCommonMetric(allEvents, ["process_arch", "arch"], "x64"),
+    [allEvents]
   );
 
   const currentCount = scopedEvents.length;
-  const previousCount = filterPrevious(summary?.recent ?? [], timeframe).length;
-  const percentDelta = previousCount > 0 ? (((currentCount - previousCount) / previousCount) * 100).toFixed(2) : null;
+  const previousCount = previousEvents.length;
+  const currentRate = useMemo(() => computeRate(allEvents, 10 * 60 * 1000), [allEvents]);
+  const previousRate = useMemo(() => computeRate(allEvents, 10 * 60 * 1000, 10 * 60 * 1000), [allEvents]);
+  const percentDelta = previousRate > 0 ? (((currentRate - previousRate) / previousRate) * 100).toFixed(2) : null;
 
   if (!ready) {
     return <ScreenMessage title="Loading session..." />;
@@ -202,12 +238,17 @@ export default function App() {
               </span>
             </div>
 
-            <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-muted-foreground ml-6">
-              <span className="text-foreground">Overview</span>
-              <span className="opacity-70">Workers</span>
-              <span className="opacity-70">Network</span>
-              <span className="opacity-70">Logs</span>
-              <span className="opacity-70">Settings</span>
+            <nav className="hidden md:flex items-center gap-1 ml-6">
+              {NAV_ITEMS.map((item) => (
+                <button
+                  key={item.key}
+                  className={`nav-link ${page === item.key ? "nav-link-active" : ""}`}
+                  onClick={() => setPage(item.key)}
+                  type="button"
+                >
+                  {item.label}
+                </button>
+              ))}
             </nav>
           </div>
 
@@ -245,256 +286,285 @@ export default function App() {
 
       <main className="pt-24 pb-12 px-6 max-w-[1600px] mx-auto space-y-8">
         {loadError ? <div className="glass-card rounded-xl p-4 border border-rose-500/30 text-rose-300">{loadError}</div> : null}
-        {(summary?.stats.totalEvents ?? 0) === 0 ? (
-          <div className="glass-card rounded-xl p-4 border border-amber-500/20 text-amber-300 text-sm">
-            No telemetry events received yet. Accepted ingest formats:
-            <span className="font-mono"> POST /api/ingest (Bearer token)</span> or
-            <span className="font-mono"> POST /v1/telemetry/event (X-App-Key)</span>.
-          </div>
+
+        <nav className="md:hidden glass-card rounded-xl p-2 flex gap-1 overflow-x-auto">
+          {NAV_ITEMS.map((item) => (
+            <button
+              key={item.key}
+              className={`nav-link shrink-0 ${page === item.key ? "nav-link-active" : ""}`}
+              onClick={() => setPage(item.key)}
+              type="button"
+            >
+              <span className="inline-flex items-center gap-1">
+                {item.icon}
+                {item.label}
+              </span>
+            </button>
+          ))}
+        </nav>
+
+        {page === "overview" ? (
+          <>
+            <section className="flex flex-col gap-4 float-in">
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div>
+                  <h1 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-primary" />
+                    Global Network Traffic
+                  </h1>
+                  <div className="mt-2 flex items-baseline gap-4 flex-wrap">
+                    <span className="text-4xl md:text-5xl font-mono tracking-tight font-bold">
+                      {formatRate(currentRate)} <span className="text-2xl text-muted-foreground">req/s</span>
+                    </span>
+                    {percentDelta ? (
+                      <span
+                        className={`flex items-center font-medium px-2 py-1 rounded-md text-sm ${
+                          Number(percentDelta) >= 0 ? "text-emerald-500 bg-emerald-500/10" : "text-rose-400 bg-rose-500/10"
+                        }`}
+                      >
+                        <ArrowUpRight className="w-4 h-4 mr-1" />
+                        {Number(percentDelta) >= 0 ? "+" : ""}
+                        {percentDelta}%
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">No prior window</span>
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Last updated: {formatDate(summary?.generatedAt ?? null)}
+                  </p>
+                </div>
+
+                <div className="text-sm text-muted-foreground text-right">
+                  <p>{user.email}</p>
+                  <p className="uppercase text-xs">{user.role}</p>
+                </div>
+              </div>
+
+              <div className="timeframe-wrap flex items-center gap-1 border border-border/50 bg-card/30 p-1 rounded-lg w-fit max-w-full overflow-x-auto backdrop-blur-md">
+                {TIMEFRAMES.map((value) => (
+                  <button
+                    key={value}
+                    onClick={() => setTimeframe(value)}
+                    className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                      timeframe === value
+                        ? "bg-primary/20 text-primary border border-primary/30 shadow-[0_0_10px_rgba(109,17,237,0.2)]"
+                        : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                    }`}
+                    type="button"
+                  >
+                    {value}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section className="glass-card rounded-2xl p-6 h-[400px] w-full float-in delay-1">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="traffic-area" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.5} />
+                  <XAxis
+                    dataKey="label"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
+                    dy={10}
+                  />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} dx={-10} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--card))",
+                      borderColor: "hsl(var(--border))",
+                      borderRadius: "8px",
+                      color: "hsl(var(--foreground))"
+                    }}
+                    itemStyle={{ color: "hsl(var(--primary))", fontWeight: "bold" }}
+                    labelStyle={{ color: "hsl(var(--muted-foreground))" }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="value"
+                    stroke="hsl(var(--primary))"
+                    strokeWidth={2}
+                    fillOpacity={1}
+                    fill="url(#traffic-area)"
+                    activeDot={{ r: 6, fill: "hsl(var(--primary))", stroke: "hsl(var(--background))", strokeWidth: 2 }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </section>
+
+            <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 float-in delay-2">
+              <StatCard
+                label="Active Workers"
+                value={String(summary?.stats.sources ?? 0)}
+                sub="Unique Installs"
+                icon={<Server className="w-5 h-5" />}
+                tone="blue"
+              />
+              <StatCard
+                label="Total Events"
+                value={(summary?.stats.totalEvents ?? 0).toLocaleString()}
+                sub={describeScope(timeframe)}
+                icon={<Zap className="w-5 h-5" />}
+                tone="amber"
+              />
+              <StatCard
+                label="App Version"
+                value={versionLabel}
+                sub="Latest Stable"
+                icon={<Cpu className="w-5 h-5" />}
+                tone="primary"
+              />
+              <StatCard
+                label="Platform"
+                value={platformLabel}
+                sub={`${processArch} runtime`}
+                icon={<Globe className="w-5 h-5" />}
+                tone="emerald"
+              />
+            </section>
+
+            <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 float-in delay-3">
+              <div className="glass-card rounded-xl p-6 lg:col-span-1 space-y-5">
+                <div>
+                  <h3 className="text-lg font-medium">Event Distribution</h3>
+                  <p className="text-xs text-muted-foreground">By service in selected timeframe</p>
+                </div>
+                <div className="h-[220px] relative">
+                  {serviceSplit.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={serviceSplit} cx="50%" cy="50%" innerRadius={60} outerRadius={88} paddingAngle={4} dataKey="value" stroke="none">
+                          {serviceSplit.map((_, index) => (
+                            <Cell key={`service-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "hsl(var(--card))",
+                            borderRadius: "8px",
+                            border: "1px solid hsl(var(--border))",
+                            color: "hsl(var(--foreground))"
+                          }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-full flex items-center justify-center text-xs text-muted-foreground">
+                      No events in selected timeframe
+                    </div>
+                  )}
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                    <span className="text-3xl font-mono font-bold">{currentCount}</span>
+                    <span className="text-xs text-muted-foreground">events</span>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  {serviceSplit.length > 0 ? (
+                    serviceSplit.map((slice, index) => (
+                      <div key={slice.name} className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }} />
+                          {slice.name}
+                        </span>
+                        <strong>{slice.value}</strong>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-xs text-muted-foreground">No distribution data</div>
+                  )}
+                </div>
+
+                <div className="pt-2 border-t border-border/50">
+                  <p className="text-xs text-muted-foreground mb-2">Top Sources</p>
+                  <div className="space-y-2">
+                    {sourceSplit.length > 0 ? (
+                      sourceSplit.map((slice) => (
+                        <div key={slice.name} className="text-xs flex justify-between">
+                          <span className="truncate max-w-[70%] text-muted-foreground">{slice.name}</span>
+                          <span className="font-mono">{slice.value}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-xs text-muted-foreground">No source data</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="glass-card rounded-xl p-0 lg:col-span-2 overflow-hidden flex flex-col">
+                <div className="p-6 pb-2 border-b border-border/50 flex justify-between items-center">
+                  <h3 className="text-lg font-medium flex items-center gap-2">
+                    Telemetry Stream
+                    <span className="flex h-2 w-2 relative">
+                      <span className="pulse-dot absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+                    </span>
+                  </h3>
+                  <div className="text-xs text-muted-foreground font-mono">Showing last 50 events</div>
+                </div>
+                <div className="table-scroll overflow-x-auto">
+                  <table className="w-full text-sm text-left">
+                    <thead className="text-xs text-muted-foreground uppercase bg-muted/30">
+                      <tr>
+                        <th className="px-6 py-3 font-medium">Event</th>
+                        <th className="px-6 py-3 font-medium">Worker</th>
+                        <th className="px-6 py-3 font-medium hidden md:table-cell">Platform</th>
+                        <th className="px-6 py-3 font-medium hidden md:table-cell">Version</th>
+                        <th className="px-6 py-3 font-medium">Time (UTC)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/50">
+                      {allEvents.slice(0, 50).map((event) => {
+                        const eventLabel = normalizeEventName(event.service);
+                        const platformValue = readMetric(event.metrics, ["platform", "os_platform", "os"], "windows");
+                        const versionValue = readMetric(event.metrics, ["app_version", "version", "client_version"], "n/a");
+                        const badgeClass = `event-badge ${resolveEventTone(eventLabel)}`;
+
+                        return (
+                          <tr key={event.id} className="hover:bg-primary/5 transition-colors">
+                            <td className="px-6 py-4">
+                              <span className={badgeClass}>{eventLabel}</span>
+                            </td>
+                            <td className="px-6 py-4 font-mono text-xs">{event.source}</td>
+                            <td className="px-6 py-4 text-muted-foreground hidden md:table-cell">{platformValue}</td>
+                            <td className="px-6 py-4 text-muted-foreground hidden md:table-cell">{versionValue}</td>
+                            <td className="px-6 py-4 text-muted-foreground font-mono text-xs">{formatUtc(event.timestamp)}</td>
+                          </tr>
+                        );
+                      })}
+                      {allEvents.length === 0 ? (
+                        <tr>
+                          <td className="px-6 py-8 text-muted-foreground text-sm" colSpan={5}>
+                            No telemetry rows yet.
+                          </td>
+                        </tr>
+                      ) : null}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+
+            <footer className="text-xs text-muted-foreground">
+              API: {health?.api ?? "-"} | Storage: {health?.storage.backend.toUpperCase() ?? "-"} | Build:{" "}
+              <span className="font-mono">{health?.build.commit.slice(0, 12) ?? "-"}</span>
+            </footer>
+          </>
         ) : null}
 
-        <section className="flex flex-col gap-4 float-in">
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div>
-              <h1 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <Globe className="w-4 h-4 text-primary" />
-                Global Network Traffic
-              </h1>
-              <div className="mt-2 flex items-baseline gap-4 flex-wrap">
-                <span className="text-4xl md:text-5xl font-mono tracking-tight font-bold">
-                  {currentCount.toLocaleString()} <span className="text-2xl text-muted-foreground">events</span>
-                </span>
-                {percentDelta ? (
-                  <span
-                    className={`flex items-center font-medium px-2 py-1 rounded-md text-sm ${
-                      Number(percentDelta) >= 0 ? "text-emerald-500 bg-emerald-500/10" : "text-rose-400 bg-rose-500/10"
-                    }`}
-                  >
-                    <ArrowUpRight className="w-4 h-4 mr-1" />
-                    {Number(percentDelta) >= 0 ? "+" : ""}
-                    {percentDelta}%
-                  </span>
-                ) : (
-                  <span className="text-xs text-muted-foreground">No prior window</span>
-                )}
-              </div>
-              <p className="text-sm text-muted-foreground mt-1">Last updated: {formatDate(summary?.generatedAt ?? null)}</p>
-            </div>
-
-            <div className="text-sm text-muted-foreground text-right">
-              <p>{user.email}</p>
-              <p className="uppercase text-xs">{user.role}</p>
-            </div>
-          </div>
-
-          <div className="timeframe-wrap flex items-center gap-1 border border-border/50 bg-card/30 p-1 rounded-lg w-fit max-w-full overflow-x-auto backdrop-blur-md">
-            {TIMEFRAMES.map((value) => (
-              <button
-                key={value}
-                onClick={() => setTimeframe(value)}
-                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
-                  timeframe === value
-                    ? "bg-primary/20 text-primary border border-primary/30 shadow-[0_0_10px_rgba(109,17,237,0.2)]"
-                    : "text-muted-foreground hover:text-foreground hover:bg-white/5"
-                }`}
-                type="button"
-              >
-                {value}
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <section className="glass-card rounded-2xl p-6 h-[400px] w-full float-in delay-1">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id="traffic-area" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.5} />
-              <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} dy={10} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} dx={-10} />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "hsl(var(--card))",
-                  borderColor: "hsl(var(--border))",
-                  borderRadius: "8px",
-                  color: "hsl(var(--foreground))"
-                }}
-                itemStyle={{ color: "hsl(var(--primary))", fontWeight: "bold" }}
-                labelStyle={{ color: "hsl(var(--muted-foreground))" }}
-              />
-              <Area
-                type="monotone"
-                dataKey="value"
-                stroke="hsl(var(--primary))"
-                strokeWidth={2}
-                fillOpacity={1}
-                fill="url(#traffic-area)"
-                activeDot={{ r: 6, fill: "hsl(var(--primary))", stroke: "hsl(var(--background))", strokeWidth: 2 }}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </section>
-
-        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 float-in delay-2">
-          <StatCard
-            label="Active Workers"
-            value={String(summary?.stats.sources ?? 0)}
-            sub="Unique sources"
-            icon={<Server className="w-5 h-5" />}
-            tone="blue"
-          />
-          <StatCard
-            label="Total Events"
-            value={(summary?.stats.totalEvents ?? 0).toLocaleString()}
-            sub={`Scope: ${timeframe}`}
-            icon={<Zap className="w-5 h-5" />}
-            tone="amber"
-          />
-          <StatCard
-            label="App Version"
-            value={versionLabel}
-            sub="Latest Seen"
-            icon={<Cpu className="w-5 h-5" />}
-            tone="primary"
-          />
-          <StatCard
-            label="Platform"
-            value={platformLabel}
-            sub={`${processArch} runtime`}
-            icon={<Globe className="w-5 h-5" />}
-            tone="emerald"
-          />
-        </section>
-
-        <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 float-in delay-3">
-          <div className="glass-card rounded-xl p-6 lg:col-span-1 space-y-5">
-            <div>
-              <h3 className="text-lg font-medium">Event Distribution</h3>
-              <p className="text-xs text-muted-foreground">By service in selected timeframe</p>
-            </div>
-            <div className="h-[220px] relative">
-              {serviceSplit.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={serviceSplit} cx="50%" cy="50%" innerRadius={60} outerRadius={88} paddingAngle={4} dataKey="value" stroke="none">
-                      {serviceSplit.map((_, index) => (
-                        <Cell key={`service-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "hsl(var(--card))",
-                        borderRadius: "8px",
-                        border: "1px solid hsl(var(--border))",
-                        color: "hsl(var(--foreground))"
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-full flex items-center justify-center text-xs text-muted-foreground">No events in selected timeframe</div>
-              )}
-              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <span className="text-3xl font-mono font-bold">{currentCount}</span>
-                <span className="text-xs text-muted-foreground">events</span>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              {serviceSplit.length > 0 ? (
-                serviceSplit.map((slice, index) => (
-                  <div key={slice.name} className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }} />
-                      {slice.name}
-                    </span>
-                    <strong>{slice.value}</strong>
-                  </div>
-                ))
-              ) : (
-                <div className="text-xs text-muted-foreground">No distribution data</div>
-              )}
-            </div>
-
-            <div className="pt-2 border-t border-border/50">
-              <p className="text-xs text-muted-foreground mb-2">Top Sources</p>
-              <div className="space-y-2">
-                {sourceSplit.length > 0 ? (
-                  sourceSplit.map((slice) => (
-                    <div key={slice.name} className="text-xs flex justify-between">
-                      <span className="truncate max-w-[70%] text-muted-foreground">{slice.name}</span>
-                      <span className="font-mono">{slice.value}</span>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-xs text-muted-foreground">No source data</div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="glass-card rounded-xl p-0 lg:col-span-2 overflow-hidden flex flex-col">
-            <div className="p-6 pb-2 border-b border-border/50 flex justify-between items-center">
-              <h3 className="text-lg font-medium flex items-center gap-2">
-                Telemetry Stream
-                <span className="flex h-2 w-2 relative">
-                  <span className="pulse-dot absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
-                </span>
-              </h3>
-              <div className="text-xs text-muted-foreground font-mono">Showing last 50 events</div>
-            </div>
-            <div className="table-scroll overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="text-xs text-muted-foreground uppercase bg-muted/30">
-                  <tr>
-                    <th className="px-6 py-3 font-medium">Event</th>
-                    <th className="px-6 py-3 font-medium">Worker</th>
-                    <th className="px-6 py-3 font-medium hidden md:table-cell">Platform</th>
-                    <th className="px-6 py-3 font-medium hidden md:table-cell">Version</th>
-                    <th className="px-6 py-3 font-medium">Time (UTC)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/50">
-                  {(summary?.recent ?? []).slice(0, 50).map((event) => {
-                    const eventLabel = normalizeEventName(event.service);
-                    const platformValue = readMetric(event.metrics, ["platform", "os_platform", "os"], "windows");
-                    const versionValue = readMetric(event.metrics, ["app_version", "version", "client_version"], "n/a");
-                    const badgeClass = `event-badge ${resolveEventTone(eventLabel)}`;
-
-                    return (
-                    <tr key={event.id} className="hover:bg-primary/5 transition-colors">
-                      <td className="px-6 py-4">
-                        <span className={badgeClass}>{eventLabel}</span>
-                      </td>
-                      <td className="px-6 py-4 font-mono text-xs">{event.source}</td>
-                      <td className="px-6 py-4 text-muted-foreground hidden md:table-cell">{platformValue}</td>
-                      <td className="px-6 py-4 text-muted-foreground hidden md:table-cell">{versionValue}</td>
-                      <td className="px-6 py-4 text-muted-foreground font-mono text-xs">{formatUtc(event.timestamp)}</td>
-                    </tr>
-                    );
-                  })}
-                  {(summary?.recent ?? []).length === 0 ? (
-                    <tr>
-                      <td className="px-6 py-8 text-muted-foreground text-sm" colSpan={5}>
-                        No telemetry rows yet.
-                      </td>
-                    </tr>
-                  ) : null}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </section>
-
-        <footer className="text-xs text-muted-foreground">
-          API: {health?.api ?? "-"} | Storage: {health?.storage.backend.toUpperCase() ?? "-"} | Build: <span className="font-mono">{health?.build.commit.slice(0, 12) ?? "-"}</span>
-        </footer>
+        {page === "workers" ? <WorkersPanel workers={workerRows} /> : null}
+        {page === "network" ? <NetworkPanel chartData={chartData} serviceSplit={serviceSplit} platformSplit={platformSplit} currentCount={currentCount} previousCount={previousCount} /> : null}
+        {page === "logs" ? <LogsPanel events={allEvents} /> : null}
+        {page === "settings" ? <SettingsPanel user={user} authMode={authMode} summary={summary} health={health} onLogout={authMode === "app" ? () => void handleLogout() : null} /> : null}
       </main>
     </div>
   );
@@ -712,6 +782,256 @@ function StatCard(props: {
   );
 }
 
+function WorkersPanel(props: { workers: WorkerRow[] }) {
+  return (
+    <section className="space-y-4 float-in">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <h2 className="text-xl font-semibold">Workers</h2>
+        <span className="text-xs text-muted-foreground font-mono">{props.workers.length} active sources</span>
+      </div>
+
+      {props.workers.length === 0 ? (
+        <div className="glass-card rounded-xl p-6 text-sm text-muted-foreground">No worker activity yet.</div>
+      ) : (
+        <div className="glass-card rounded-xl p-0 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="text-xs text-muted-foreground uppercase bg-muted/30">
+              <tr>
+                <th className="px-5 py-3 text-left">Worker</th>
+                <th className="px-5 py-3 text-left">Events</th>
+                <th className="px-5 py-3 text-left hidden md:table-cell">Services</th>
+                <th className="px-5 py-3 text-left hidden md:table-cell">Platform</th>
+                <th className="px-5 py-3 text-left hidden lg:table-cell">Version</th>
+                <th className="px-5 py-3 text-left">Last Seen</th>
+                <th className="px-5 py-3 text-left">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/50">
+              {props.workers.map((worker) => (
+                <tr key={worker.name}>
+                  <td className="px-5 py-3 font-medium">{worker.name}</td>
+                  <td className="px-5 py-3 font-mono">{worker.events}</td>
+                  <td className="px-5 py-3 hidden md:table-cell">{worker.services}</td>
+                  <td className="px-5 py-3 hidden md:table-cell">{worker.platform}</td>
+                  <td className="px-5 py-3 hidden lg:table-cell">{worker.version}</td>
+                  <td className="px-5 py-3 text-muted-foreground">{formatDate(worker.lastSeen)}</td>
+                  <td className="px-5 py-3">
+                    <span className={`status-pill status-${worker.status}`}>{worker.status}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function NetworkPanel(props: {
+  chartData: ChartPoint[];
+  serviceSplit: PieSlice[];
+  platformSplit: PieSlice[];
+  currentCount: number;
+  previousCount: number;
+}) {
+  const delta =
+    props.previousCount > 0 ? (((props.currentCount - props.previousCount) / props.previousCount) * 100).toFixed(2) : null;
+
+  return (
+    <section className="space-y-5 float-in">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <h2 className="text-xl font-semibold">Network</h2>
+        <p className="text-xs text-muted-foreground">
+          {props.currentCount} events in scope
+          {delta ? (
+            <span className={`ml-2 ${Number(delta) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+              {Number(delta) >= 0 ? "+" : ""}
+              {delta}%
+            </span>
+          ) : null}
+        </p>
+      </div>
+
+      <div className="glass-card rounded-2xl p-6 h-[340px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={props.chartData} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
+            <defs>
+              <linearGradient id="network-area" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.24} />
+                <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.5} />
+            <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} />
+            <YAxis axisLine={false} tickLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} />
+            <Tooltip
+              contentStyle={{
+                backgroundColor: "hsl(var(--card))",
+                borderColor: "hsl(var(--border))",
+                borderRadius: "8px",
+                color: "hsl(var(--foreground))"
+              }}
+            />
+            <Area type="monotone" dataKey="value" stroke="hsl(var(--primary))" strokeWidth={2} fill="url(#network-area)" />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <DistributionCard title="Services" subtitle="Service spread in scope" slices={props.serviceSplit} />
+        <DistributionCard title="Platforms" subtitle="OS/platform spread in scope" slices={props.platformSplit} />
+      </div>
+    </section>
+  );
+}
+
+function LogsPanel(props: { events: TelemetryEvent[] }) {
+  return (
+    <section className="space-y-4 float-in">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <h2 className="text-xl font-semibold">Logs</h2>
+        <span className="text-xs text-muted-foreground font-mono">last {Math.min(200, props.events.length)} rows</span>
+      </div>
+
+      <div className="glass-card rounded-xl p-0 overflow-hidden">
+        <div className="table-scroll overflow-auto max-h-[680px]">
+          <table className="w-full text-sm">
+            <thead className="text-xs text-muted-foreground uppercase bg-muted/30">
+              <tr>
+                <th className="px-5 py-3 text-left">Time</th>
+                <th className="px-5 py-3 text-left">Event</th>
+                <th className="px-5 py-3 text-left">Worker</th>
+                <th className="px-5 py-3 text-left">Status</th>
+                <th className="px-5 py-3 text-left hidden md:table-cell">Message</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/50">
+              {props.events.slice(0, 200).map((event) => (
+                <tr key={event.id}>
+                  <td className="px-5 py-3 font-mono text-xs text-muted-foreground">{formatUtc(event.timestamp)}</td>
+                  <td className="px-5 py-3">
+                    <span className={`event-badge ${resolveEventTone(event.service)}`}>{normalizeEventName(event.service)}</span>
+                  </td>
+                  <td className="px-5 py-3">{event.source}</td>
+                  <td className="px-5 py-3">
+                    <span className={`status-pill status-${event.status}`}>{event.status}</span>
+                  </td>
+                  <td className="px-5 py-3 text-muted-foreground hidden md:table-cell">{event.message ?? "-"}</td>
+                </tr>
+              ))}
+              {props.events.length === 0 ? (
+                <tr>
+                  <td className="px-5 py-8 text-muted-foreground" colSpan={5}>
+                    No events yet.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function SettingsPanel(props: {
+  user: AuthUser;
+  authMode: AuthMode;
+  summary: SummaryPayload | null;
+  health: HealthPayload | null;
+  onLogout: (() => void) | null;
+}) {
+  return (
+    <section className="space-y-5 float-in">
+      <h2 className="text-xl font-semibold">Settings</h2>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <article className="glass-card rounded-xl p-6 space-y-3">
+          <h3 className="text-lg font-medium">Account</h3>
+          <p className="text-sm flex items-center gap-2">
+            <UserCircle2 className="w-4 h-4 text-primary" />
+            <span className="text-muted-foreground">Email:</span> {props.user.email}
+          </p>
+          <p className="text-sm flex items-center gap-2">
+            <Users className="w-4 h-4 text-primary" />
+            <span className="text-muted-foreground">Role:</span> {props.user.role}
+          </p>
+          <p className="text-sm flex items-center gap-2">
+            <Settings2 className="w-4 h-4 text-primary" />
+            <span className="text-muted-foreground">Auth mode:</span> {props.authMode}
+          </p>
+          {props.onLogout ? (
+            <button className="btn-primary mt-2" type="button" onClick={props.onLogout}>
+              <LogOut className="w-4 h-4 mr-2" />
+              Sign Out
+            </button>
+          ) : null}
+        </article>
+
+        <article className="glass-card rounded-xl p-6 space-y-3">
+          <h3 className="text-lg font-medium">Runtime</h3>
+          <p className="text-sm flex items-center gap-2">
+            <Database className="w-4 h-4 text-primary" />
+            <span className="text-muted-foreground">Storage:</span> {props.health?.storage.backend.toUpperCase() ?? "-"}
+          </p>
+          <p className="text-sm flex items-center gap-2">
+            <HardDrive className="w-4 h-4 text-primary" />
+            <span className="text-muted-foreground">Total events:</span> {props.summary?.stats.totalEvents ?? 0}
+          </p>
+          <p className="text-sm flex items-center gap-2">
+            <Clock3 className="w-4 h-4 text-primary" />
+            <span className="text-muted-foreground">Last ingest:</span> {formatDate(props.summary?.stats.lastIngestAt ?? null)}
+          </p>
+          <p className="text-sm">
+            <span className="text-muted-foreground">Canonical ingest:</span>{" "}
+            <span className="font-mono text-xs">POST /api/ingest (Bearer token)</span>
+          </p>
+          <p className="text-sm">
+            <span className="text-muted-foreground">Legacy ingest:</span>{" "}
+            <span className="font-mono text-xs">POST /v1/telemetry/event (X-App-Key)</span>
+          </p>
+        </article>
+      </div>
+    </section>
+  );
+}
+
+function DistributionCard(props: { title: string; subtitle: string; slices: PieSlice[] }) {
+  return (
+    <article className="glass-card rounded-xl p-6">
+      <h3 className="text-lg font-medium">{props.title}</h3>
+      <p className="text-xs text-muted-foreground">{props.subtitle}</p>
+      <div className="h-[240px] mt-3 relative">
+        {props.slices.length > 0 ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie data={props.slices} cx="50%" cy="50%" innerRadius={64} outerRadius={90} dataKey="value" paddingAngle={4}>
+                {props.slices.map((_, index) => (
+                  <Cell key={index} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                ))}
+              </Pie>
+            </PieChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="h-full flex items-center justify-center text-xs text-muted-foreground">No data</div>
+        )}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {props.slices.slice(0, 6).map((slice, index) => (
+          <div key={slice.name} className="flex items-center justify-between text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-2 truncate">
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }} />
+              <span className="truncate">{slice.name}</span>
+            </span>
+            <span className="font-mono">{slice.value}</span>
+          </div>
+        ))}
+      </div>
+    </article>
+  );
+}
+
 function getInitialTheme(): ThemeMode {
   try {
     const stored = window.localStorage.getItem(THEME_KEY);
@@ -836,6 +1156,58 @@ function buildTopSlices(
   return top;
 }
 
+function buildWorkers(events: TelemetryEvent[]): WorkerRow[] {
+  const sorted = [...events].sort((left, right) => Date.parse(right.timestamp) - Date.parse(left.timestamp));
+  const map = new Map<string, WorkerRow & { serviceSet: Set<string> }>();
+
+  for (const event of sorted) {
+    const key = event.source || "unknown";
+    const platform = readMetric(event.metrics, ["platform", "os_platform", "os"], "unknown");
+    const version = readMetric(event.metrics, ["app_version", "version", "client_version"], "unknown");
+    const existing = map.get(key);
+
+    if (!existing) {
+      map.set(key, {
+        name: key,
+        events: 1,
+        lastSeen: event.timestamp,
+        status: event.status,
+        platform,
+        version,
+        services: 1,
+        serviceSet: new Set([event.service])
+      });
+      continue;
+    }
+
+    existing.events += 1;
+    existing.serviceSet.add(event.service);
+    existing.services = existing.serviceSet.size;
+  }
+
+  return [...map.values()]
+    .map((worker) => ({
+      name: worker.name,
+      events: worker.events,
+      lastSeen: worker.lastSeen,
+      status: worker.status,
+      platform: worker.platform,
+      version: worker.version,
+      services: worker.services
+    }))
+    .sort((left, right) => right.events - left.events);
+}
+
+function computeRate(events: TelemetryEvent[], windowMs: number, offsetMs = 0): number {
+  const end = Date.now() - offsetMs;
+  const start = end - windowMs;
+  const count = events.filter((event) => {
+    const timestamp = Date.parse(event.timestamp);
+    return Number.isFinite(timestamp) && timestamp >= start && timestamp <= end;
+  }).length;
+  return count / (windowMs / 1000);
+}
+
 function mostCommonMetric(events: TelemetryEvent[], keys: string[], fallback: string): string {
   const counts = new Map<string, number>();
 
@@ -889,6 +1261,29 @@ function resolveEventTone(eventName: string): string {
     return "event-bad";
   }
   return "event-neutral";
+}
+
+function describeScope(timeframe: Timeframe): string {
+  if (timeframe === "1D") {
+    return "Last 24h";
+  }
+  if (timeframe === "5D") {
+    return "Last 5 days";
+  }
+  if (timeframe === "1M") {
+    return "Last 30 days";
+  }
+  if (timeframe === "6M") {
+    return "Last 6 months";
+  }
+  if (timeframe === "YTD") {
+    return "Year to date";
+  }
+  return "Last 12 months";
+}
+
+function formatRate(value: number): string {
+  return value.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 });
 }
 
 function formatDate(value: string | null): string {

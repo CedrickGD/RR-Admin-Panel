@@ -1,0 +1,331 @@
+@import "tailwindcss";
+
+:root {
+  --background: 0 0% 98%;
+  --foreground: 0 0% 4%;
+  --card: 0 0% 100%;
+  --primary: 265 89% 53%;
+  --muted: 0 0% 94%;
+  --muted-foreground: 0 0% 45%;
+  --border: 0 0% 90%;
+}
+
+.dark {
+  --background: 240 10% 4%;
+  --foreground: 0 0% 95%;
+  --card: 240 10% 6%;
+  --primary: 265 89% 65%;
+  --muted: 240 10% 12%;
+  --muted-foreground: 240 5% 65%;
+  --border: 240 10% 15%;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.35);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.55);
+}
+
+.app-bg {
+  background: radial-gradient(circle at 20% 0%, hsl(var(--primary) / 0.07), transparent 36%),
+    radial-gradient(circle at 100% 100%, hsl(var(--primary) / 0.05), transparent 42%),
+    hsl(var(--background));
+}
+
+.mesh-bg {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image: linear-gradient(to right, hsl(var(--border) / 0.15) 1px, transparent 1px),
+    linear-gradient(to bottom, hsl(var(--border) / 0.15) 1px, transparent 1px);
+  background-size: 36px 36px;
+  mask-image: radial-gradient(circle at center, black 30%, transparent 75%);
+}
+
+main,
+header {
+  position: relative;
+  z-index: 1;
+}
+
+.glass-panel {
+  background: color-mix(in srgb, hsl(var(--background)) 72%, transparent);
+  backdrop-filter: blur(20px);
+}
+
+.glass-card {
+  background: color-mix(in srgb, hsl(var(--card)) 64%, transparent);
+  border: 1px solid color-mix(in srgb, hsl(var(--border)) 78%, transparent);
+  backdrop-filter: blur(14px);
+}
+
+.neon-text {
+  text-shadow: 0 0 10px hsl(var(--primary) / 0.5), 0 0 20px hsl(var(--primary) / 0.28);
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid hsl(var(--primary) / 0.35);
+  background: hsl(var(--primary) / 0.2);
+  color: hsl(var(--foreground));
+  border-radius: 0.6rem;
+  padding: 0.62rem 1rem;
+  font-weight: 600;
+  transition: all 160ms ease;
+}
+
+.btn-primary:hover {
+  background: hsl(var(--primary) / 0.3);
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.55rem;
+  border: 1px solid hsl(var(--border));
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  transition: all 160ms ease;
+}
+
+.btn-ghost:hover {
+  color: hsl(var(--foreground));
+  border-color: hsl(var(--primary) / 0.45);
+  background: hsl(var(--primary) / 0.12);
+}
+
+.input-field {
+  width: 100%;
+  border-radius: 0.65rem;
+  border: 1px solid hsl(var(--border));
+  background: color-mix(in srgb, hsl(var(--card)) 82%, transparent);
+  color: hsl(var(--foreground));
+  padding: 0.72rem 0.88rem;
+  outline: none;
+}
+
+.input-field:focus {
+  border-color: hsl(var(--primary) / 0.5);
+  box-shadow: 0 0 0 3px hsl(var(--primary) / 0.15);
+}
+
+.mini-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: hsl(var(--muted-foreground));
+  text-decoration: none;
+  transition: color 140ms ease;
+}
+
+.mini-link:hover {
+  color: hsl(var(--foreground));
+}
+
+.kpi-card {
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.kpi-card:hover {
+  transform: translateY(-3px);
+  border-color: hsl(var(--primary) / 0.45);
+  box-shadow: 0 14px 28px hsl(var(--background) / 0.45);
+}
+
+.status-pill {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.14rem 0.46rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-weight: 700;
+}
+
+.status-ok {
+  color: #67e8b5;
+  background: rgb(103 232 181 / 0.12);
+  border-color: rgb(103 232 181 / 0.3);
+}
+
+.status-degraded {
+  color: #ffd166;
+  background: rgb(255 209 102 / 0.13);
+  border-color: rgb(255 209 102 / 0.35);
+}
+
+.status-down {
+  color: #ff7aa2;
+  background: rgb(255 122 162 / 0.14);
+  border-color: rgb(255 122 162 / 0.35);
+}
+
+.status-unknown {
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--muted) / 0.45);
+  border-color: hsl(var(--border));
+}
+
+.event-badge {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-radius: 0.38rem;
+  padding: 0.16rem 0.45rem;
+  font-weight: 700;
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--muted) / 0.34);
+  border: 1px solid hsl(var(--border));
+}
+
+.event-badge.event-primary {
+  color: hsl(var(--primary));
+  background: hsl(var(--primary) / 0.14);
+  border: 1px solid hsl(var(--primary) / 0.3);
+}
+
+.event-badge.event-good {
+  color: #67e8b5;
+  background: rgb(103 232 181 / 0.12);
+  border: 1px solid rgb(103 232 181 / 0.34);
+}
+
+.event-badge.event-bad {
+  color: #ff7aa2;
+  background: rgb(255 122 162 / 0.12);
+  border: 1px solid rgb(255 122 162 / 0.34);
+}
+
+.event-badge.event-neutral {
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--muted) / 0.34);
+  border: 1px solid hsl(var(--border));
+}
+
+.table-scroll {
+  max-height: 540px;
+}
+
+.timeframe-wrap {
+  scrollbar-width: thin;
+}
+
+.float-in {
+  animation: floatIn 450ms ease-out both;
+}
+
+.float-in.delay-1 {
+  animation-delay: 60ms;
+}
+
+.float-in.delay-2 {
+  animation-delay: 120ms;
+}
+
+.float-in.delay-3 {
+  animation-delay: 180ms;
+}
+
+.pulse-dot {
+  animation: pulseDot 1.4s ease-out infinite;
+}
+
+@keyframes floatIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulseDot {
+  0% {
+    transform: scale(1);
+    opacity: 0.75;
+  }
+
+  70% {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+
+  100% {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+}
+
+@media (max-width: 1024px) {
+  .table-scroll {
+    max-height: 460px;
+  }
+}
+
+@media (max-width: 768px) {
+  .mesh-bg {
+    display: none;
+  }
+
+  main {
+    padding-top: 5.5rem;
+    padding-left: 1rem;
+    padding-right: 1rem;
+    padding-bottom: 2.5rem;
+  }
+
+  .table-scroll {
+    max-height: 400px;
+  }
+
+  .kpi-card:hover {
+    transform: none;
+  }
+
+  .mini-link {
+    font-size: 0.78rem;
+  }
+}

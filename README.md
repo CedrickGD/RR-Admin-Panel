@@ -147,6 +147,10 @@ Complete every checkbox yourself. These steps cannot be automated from this repo
 - `POST /api/ingest`
   - Auth: `Authorization: Bearer <INGEST_TOKEN>`
   - Writes telemetry event, updates latest status, caps history to 500.
+- `POST /v1/telemetry/event`
+  - Backward-compatible ingest route.
+  - Auth: `X-App-Key: <TELEMETRY_APP_KEY>` (falls back to `INGEST_TOKEN` when `TELEMETRY_APP_KEY` is unset).
+  - Accepts legacy payload shape: `install_id`, `event_name`, `app_version`, `timestamp_utc`, `platform`, `properties`.
 - `GET /api/summary`
   - Returns latest status + recent events + counts.
 - `GET /api/health`

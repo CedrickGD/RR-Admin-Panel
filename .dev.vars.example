@@ -1,4 +1,5 @@
 INGEST_TOKEN=replace-with-local-ingest-token
+TELEMETRY_APP_KEY=
 JWT_SECRET=replace-with-long-random-secret
 AUTH_MODE=access
 STORAGE_BACKEND=d1

@@ -245,6 +245,13 @@ export default function App() {
 
       <main className="pt-24 pb-12 px-6 max-w-[1600px] mx-auto space-y-8">
         {loadError ? <div className="glass-card rounded-xl p-4 border border-rose-500/30 text-rose-300">{loadError}</div> : null}
+        {(summary?.stats.totalEvents ?? 0) === 0 ? (
+          <div className="glass-card rounded-xl p-4 border border-amber-500/20 text-amber-300 text-sm">
+            No telemetry events received yet. Accepted ingest formats:
+            <span className="font-mono"> POST /api/ingest (Bearer token)</span> or
+            <span className="font-mono"> POST /v1/telemetry/event (X-App-Key)</span>.
+          </div>
+        ) : null}
 
         <section className="flex flex-col gap-4 float-in">
           <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -371,23 +378,27 @@ export default function App() {
               <p className="text-xs text-muted-foreground">By service in selected timeframe</p>
             </div>
             <div className="h-[220px] relative">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={serviceSplit} cx="50%" cy="50%" innerRadius={60} outerRadius={88} paddingAngle={4} dataKey="value" stroke="none">
-                    {serviceSplit.map((_, index) => (
-                      <Cell key={`service-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "hsl(var(--card))",
-                      borderRadius: "8px",
-                      border: "1px solid hsl(var(--border))",
-                      color: "hsl(var(--foreground))"
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+              {serviceSplit.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={serviceSplit} cx="50%" cy="50%" innerRadius={60} outerRadius={88} paddingAngle={4} dataKey="value" stroke="none">
+                      {serviceSplit.map((_, index) => (
+                        <Cell key={`service-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "hsl(var(--card))",
+                        borderRadius: "8px",
+                        border: "1px solid hsl(var(--border))",
+                        color: "hsl(var(--foreground))"
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-xs text-muted-foreground">No events in selected timeframe</div>
+              )}
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                 <span className="text-3xl font-mono font-bold">{currentCount}</span>
                 <span className="text-xs text-muted-foreground">events</span>
@@ -395,26 +406,34 @@ export default function App() {
             </div>
 
             <div className="space-y-2">
-              {serviceSplit.map((slice, index) => (
-                <div key={slice.name} className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }} />
-                    {slice.name}
-                  </span>
-                  <strong>{slice.value}</strong>
-                </div>
-              ))}
+              {serviceSplit.length > 0 ? (
+                serviceSplit.map((slice, index) => (
+                  <div key={slice.name} className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }} />
+                      {slice.name}
+                    </span>
+                    <strong>{slice.value}</strong>
+                  </div>
+                ))
+              ) : (
+                <div className="text-xs text-muted-foreground">No distribution data</div>
+              )}
             </div>
 
             <div className="pt-2 border-t border-border/50">
               <p className="text-xs text-muted-foreground mb-2">Top Sources</p>
               <div className="space-y-2">
-                {sourceSplit.map((slice) => (
-                  <div key={slice.name} className="text-xs flex justify-between">
-                    <span className="truncate max-w-[70%] text-muted-foreground">{slice.name}</span>
-                    <span className="font-mono">{slice.value}</span>
-                  </div>
-                ))}
+                {sourceSplit.length > 0 ? (
+                  sourceSplit.map((slice) => (
+                    <div key={slice.name} className="text-xs flex justify-between">
+                      <span className="truncate max-w-[70%] text-muted-foreground">{slice.name}</span>
+                      <span className="font-mono">{slice.value}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-xs text-muted-foreground">No source data</div>
+                )}
               </div>
             </div>
           </div>
@@ -460,6 +479,13 @@ export default function App() {
                     </tr>
                     );
                   })}
+                  {(summary?.recent ?? []).length === 0 ? (
+                    <tr>
+                      <td className="px-6 py-8 text-muted-foreground text-sm" colSpan={5}>
+                        No telemetry rows yet.
+                      </td>
+                    </tr>
+                  ) : null}
                 </tbody>
               </table>
             </div>
@@ -664,9 +690,18 @@ function StatCard(props: {
       : props.tone === "emerald"
       ? "bg-emerald-500/10 text-emerald-500"
       : "bg-primary/10 text-primary";
+  const glowClass =
+    props.tone === "blue"
+      ? "bg-blue-500/40"
+      : props.tone === "amber"
+      ? "bg-amber-500/40"
+      : props.tone === "emerald"
+      ? "bg-emerald-500/40"
+      : "bg-primary/40";
 
   return (
-    <article className="glass-card kpi-card p-5 rounded-xl relative overflow-hidden">
+    <article className="glass-card kpi-card p-5 rounded-xl relative overflow-hidden group">
+      <div className={`absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl -mr-16 -mt-16 opacity-20 transition-opacity group-hover:opacity-40 ${glowClass}`} />
       <div className="flex justify-between items-start mb-4">
         <div className={`p-2 rounded-lg ${toneClass}`}>{props.icon}</div>
       </div>
@@ -797,10 +832,6 @@ function buildTopSlices(
     .sort((left, right) => right[1] - left[1])
     .slice(0, limit)
     .map(([name, value]) => ({ name, value }));
-
-  if (top.length === 0) {
-    return [{ name: "no-data", value: 1 }];
-  }
 
   return top;
 }

@@ -40,6 +40,7 @@ export interface KVNamespace {
 
 export interface RuntimeEnv {
   INGEST_TOKEN?: string;
+  TELEMETRY_APP_KEY?: string;
   JWT_SECRET?: string;
   AUTH_SESSION_COOKIE?: string;
   AUTH_MODE?: string;

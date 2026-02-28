@@ -49,7 +49,7 @@ export function useDashboard() {
         setSummary(data.summary);
         setHealth(data.health);
         setUser(data.user);
-        setAuthMode(data.authMode ?? authMode);
+        setAuthMode(prev => data.authMode ?? prev);
         setLoadError(null);
       } catch (err) {
         if (!silent) {
@@ -59,10 +59,10 @@ export function useDashboard() {
         }
       }
     },
-    [authMode]
+    []
   );
 
-  // Bootstrap auth session
+  // Bootstrap auth session — runs once on mount
   useEffect(() => {
     void (async () => {
       const session = await fetchSession();
@@ -76,7 +76,8 @@ export function useDashboard() {
       }
       setReady(true);
     })();
-  }, [loadDashboard]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Auto-refresh timer
   useEffect(() => {
@@ -132,6 +133,7 @@ export function useDashboard() {
     setUser(null);
     setSummary(null);
     setHealth(null);
+    setAuthError(null);
     const session = await fetchSession();
     setAuthMode(session.authMode ?? "access");
     setRequiresBootstrap(!session.hasUsers);

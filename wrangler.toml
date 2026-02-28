@@ -4,8 +4,8 @@ pages_build_output_dir = "dist"
 
 [vars]
 STORAGE_BACKEND = "d1"
-AUTH_MODE = "app"
-ACCESS_ENFORCEMENT = "off"
+AUTH_MODE = "access"
+ACCESS_ENFORCEMENT = "strict"
 ACCESS_ALLOWED_EMAIL = ""
 ACCESS_ADMIN_EMAIL = "cedrickgrabe@outlook.de"
 

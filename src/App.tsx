@@ -29,7 +29,7 @@ export default function App() {
     refresh,
   } = useDashboard();
 
-  const [page, setPage] = useState<PageKey>("overview");
+  const [page, setPage] = useState<PageKey>("live");
 
   /* ─── Loading ─── */
   if (!ready) {

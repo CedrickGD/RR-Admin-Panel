@@ -24,7 +24,7 @@ function apiUrl(path: string): string {
 
 export async function fetchSession(): Promise<SessionPayload> {
   try {
-    const res = await fetch(apiUrl("/api/auth/session"), { method: "GET" });
+    const res = await fetch(apiUrl("/api/auth/session"), { method: "GET", cache: "no-store" });
     const body = await parseJson<SessionPayload>(res);
     if (!res.ok || typeof body?.authenticated !== "boolean") {
       return { authenticated: false, hasUsers: true, authMode: "access" };
@@ -40,7 +40,9 @@ export async function fetchAdminData(): Promise<{
   data?: AdminDataPayload;
   status: number;
 }> {
-  const res = await fetch(apiUrl("/api/admin/data"), { method: "GET" });
+  const url = new URL(apiUrl("/api/admin/data"));
+  url.searchParams.set("_ts", String(Date.now()));
+  const res = await fetch(url.toString(), { method: "GET", cache: "no-store" });
   const body = await parseJson<AdminDataPayload>(res);
   return { ok: res.ok, data: body, status: res.status };
 }

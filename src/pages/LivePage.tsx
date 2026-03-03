@@ -1,9 +1,8 @@
-import { Activity, Clock3, Radio, Server } from "lucide-react";
+import { Radio } from "lucide-react";
 import { useMemo } from "react";
-import { StatCard } from "../components/StatCard";
 import { StatusBadge } from "../components/StatusBadge";
 import type { SummaryPayload, TelemetryStatus } from "../types/telemetry";
-import { formatDate, formatNumber, timeAgo } from "../utils/format";
+import { formatDate, timeAgo } from "../utils/format";
 
 const ACTIVE_WINDOW_MS = 2 * 60 * 1000;
 
@@ -16,7 +15,6 @@ interface LiveSession {
   lastSeen: string;
   status: TelemetryStatus;
   services: number;
-  events: number;
 }
 
 function compareStatus(left: TelemetryStatus, right: TelemetryStatus): TelemetryStatus {
@@ -36,11 +34,10 @@ export function LivePage({ summary }: LivePageProps) {
         lastSeen: string;
         status: TelemetryStatus;
         services: Set<string>;
-        events: number;
       }
     >();
 
-    const events = summary.recent;
+    const events = summary.latest;
     for (const event of events) {
       const source = event.source || "unknown";
       const current = map.get(source);
@@ -50,7 +47,6 @@ export function LivePage({ summary }: LivePageProps) {
           lastSeen: event.timestamp,
           status: event.status,
           services: new Set([event.service]),
-          events: 1,
         });
         continue;
       }
@@ -62,7 +58,6 @@ export function LivePage({ summary }: LivePageProps) {
       }
       current.status = compareStatus(current.status, event.status);
       current.services.add(event.service);
-      current.events += 1;
     }
 
     return [...map.entries()]
@@ -71,10 +66,9 @@ export function LivePage({ summary }: LivePageProps) {
         lastSeen: value.lastSeen,
         status: value.status,
         services: value.services.size,
-        events: value.events,
       }))
       .sort((a, b) => Date.parse(b.lastSeen) - Date.parse(a.lastSeen));
-  }, [summary.recent]);
+  }, [summary.latest]);
 
   const activeSessions = useMemo(
     () =>
@@ -89,42 +83,28 @@ export function LivePage({ summary }: LivePageProps) {
     <div className="page-content">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-xl font-bold">Live</h1>
+          <h1 className="text-xl font-bold">LIVE</h1>
           <p className="text-sm text-[hsl(var(--muted-foreground))]">
-            Active session = last heartbeat within 2 minutes
+            Realtime active sessions (heartbeat in the last 2 minutes)
           </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
-        <StatCard
-          label="Active Sessions"
-          value={String(activeSessions.length)}
-          sub="Workers currently online"
-          icon={<Radio className="w-5 h-5" />}
-          tone="primary"
-        />
-        <StatCard
-          label="Known Sessions"
-          value={String(sessions.length)}
-          sub="Distinct worker sources"
-          icon={<Server className="w-5 h-5" />}
-          tone="accent"
-        />
-        <StatCard
-          label="Recent Events"
-          value={formatNumber(summary.recent.length)}
-          sub="Events in dashboard buffer"
-          icon={<Activity className="w-5 h-5" />}
-          tone="amber"
-        />
-        <StatCard
-          label="Last Ingest"
-          value={timeAgo(summary.stats.lastIngestAt)}
-          sub={formatDate(summary.stats.lastIngestAt)}
-          icon={<Clock3 className="w-5 h-5" />}
-          tone="rose"
-        />
+      <div className="card p-8 mb-6">
+        <div className="flex flex-col items-center justify-center text-center">
+          <div className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-[hsl(var(--primary)/0.14)] text-[hsl(var(--primary))]">
+            <Radio className="h-6 w-6" />
+          </div>
+          <p className="text-xs uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]">
+            Active Users Now
+          </p>
+          <p className="mt-2 text-5xl font-extrabold font-[JetBrains_Mono,monospace] leading-none">
+            {activeSessions.length}
+          </p>
+          <p className="mt-3 text-xs text-[hsl(var(--muted-foreground))]">
+            Last ingest: {timeAgo(summary.stats.lastIngestAt)} ({formatDate(summary.stats.lastIngestAt)})
+          </p>
+        </div>
       </div>
 
       <div className="card p-5">
@@ -148,9 +128,6 @@ export function LivePage({ summary }: LivePageProps) {
                 <th className="text-right py-2 pr-4 font-medium text-[hsl(var(--muted-foreground))]">
                   Services
                 </th>
-                <th className="text-right py-2 pr-4 font-medium text-[hsl(var(--muted-foreground))]">
-                  Events
-                </th>
                 <th className="text-right py-2 font-medium text-[hsl(var(--muted-foreground))]">
                   Last Seen
                 </th>
@@ -169,9 +146,6 @@ export function LivePage({ summary }: LivePageProps) {
                   <td className="py-2.5 pr-4 text-right font-[JetBrains_Mono,monospace]">
                     {session.services}
                   </td>
-                  <td className="py-2.5 pr-4 text-right font-[JetBrains_Mono,monospace]">
-                    {formatNumber(session.events)}
-                  </td>
                   <td className="py-2.5 text-right text-[hsl(var(--muted-foreground))]">
                     {timeAgo(session.lastSeen)}
                   </td>
@@ -181,7 +155,7 @@ export function LivePage({ summary }: LivePageProps) {
               {activeSessions.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={4}
                     className="py-8 text-center text-[hsl(var(--muted-foreground))]"
                   >
                     No active sessions in the last 2 minutes

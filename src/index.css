@@ -94,7 +94,8 @@ body {
 
 .page-content {
   padding: 28px 32px 48px;
-  max-width: 1400px;
+  width: 100%;
+  max-width: none;
   animation: fadeInUp 400ms ease-out both;
 }
 

@@ -2,6 +2,7 @@ import {
   Activity,
   BarChart3,
   Globe,
+  Radio,
   LogOut,
   Moon,
   Network,
@@ -22,6 +23,7 @@ interface NavEntry {
 
 const NAV_ITEMS: NavEntry[] = [
   { key: "overview", label: "Overview", icon: <BarChart3 className="w-[18px] h-[18px]" /> },
+  { key: "live", label: "Live", icon: <Radio className="w-[18px] h-[18px]" /> },
   { key: "workers", label: "Workers", icon: <Users className="w-[18px] h-[18px]" /> },
   { key: "network", label: "Network", icon: <Network className="w-[18px] h-[18px]" /> },
   { key: "logs", label: "Logs", icon: <ScrollText className="w-[18px] h-[18px]" /> },

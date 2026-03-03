@@ -4,6 +4,7 @@ import { MobileNav, Sidebar } from "./components/Sidebar";
 import { useDashboard } from "./hooks/useDashboard";
 import { useTheme } from "./hooks/useTheme";
 import { LogsPage } from "./pages/LogsPage";
+import { LivePage } from "./pages/LivePage";
 import { NetworkPage } from "./pages/NetworkPage";
 import { OverviewPage } from "./pages/OverviewPage";
 import { SettingsPage } from "./pages/SettingsPage";
@@ -82,6 +83,7 @@ export default function App() {
         {summary && health ? (
           <>
             {page === "overview" ? <OverviewPage summary={summary} /> : null}
+            {page === "live" ? <LivePage summary={summary} /> : null}
             {page === "workers" ? <WorkersPage summary={summary} /> : null}
             {page === "network" ? <NetworkPage summary={summary} /> : null}
             {page === "logs" ? <LogsPage summary={summary} /> : null}

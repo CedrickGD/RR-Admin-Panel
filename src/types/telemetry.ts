@@ -2,7 +2,7 @@ export type TelemetryStatus = "ok" | "degraded" | "down";
 export type AuthMode = "app" | "access";
 export type ThemeMode = "dark" | "light";
 export type Timeframe = "1D" | "5D" | "1M" | "6M" | "YTD" | "1Y";
-export type PageKey = "overview" | "workers" | "network" | "logs" | "settings";
+export type PageKey = "overview" | "live" | "workers" | "network" | "logs" | "settings";
 
 export interface TelemetryEvent {
   id: string;
@@ -19,6 +19,7 @@ export interface SummaryPayload {
   generatedAt: string;
   storage: "d1" | "kv";
   overallStatus: TelemetryStatus | "unknown";
+  latest: TelemetryEvent[];
   recent: TelemetryEvent[];
   stats: {
     totalEvents: number;
@@ -29,8 +30,11 @@ export interface SummaryPayload {
 }
 
 export interface HealthPayload {
+  ok: boolean;
   api: "alive";
   storage: { backend: "d1" | "kv"; available?: boolean };
+  lastIngestAt: string | null;
+  count: number;
   build: {
     commit: string;
     branch?: string;

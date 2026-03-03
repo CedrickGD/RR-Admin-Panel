@@ -458,11 +458,27 @@ function attachRequestContext(metricsRaw, context) {
     metrics.client_ip = context.clientIp;
   }
 
+  if (context.clientIp && toText(metrics.client_ip_version) === null) {
+    metrics.client_ip_version = ipVersion(context.clientIp);
+  }
+
   if (context.country && toText(metrics.client_country) === null) {
     metrics.client_country = context.country;
   }
 
   return metrics;
+}
+
+function ipVersion(value) {
+  if (value.includes(":")) {
+    return "ipv6";
+  }
+
+  if (value.includes(".")) {
+    return "ipv4";
+  }
+
+  return "unknown";
 }
 
 function normalizePayload(raw) {

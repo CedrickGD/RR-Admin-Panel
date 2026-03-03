@@ -149,13 +149,14 @@ async function handleIngest(request, env) {
   }
 
   const now = nowIso();
+  const requestContext = readRequestContext(request);
   const event = {
     id: crypto.randomUUID(),
     source: payload.source,
     service: payload.service,
     timestamp: new Date(payload.timestamp).toISOString(),
     status: payload.status,
-    metrics: payload.metrics,
+    metrics: attachRequestContext(payload.metrics, requestContext),
     message: payload.message ?? null,
     receivedAt: now
   };
@@ -435,6 +436,33 @@ function timingSafeEqual(left, right) {
   }
 
   return mismatch === 0;
+}
+
+function readRequestContext(request) {
+  const directIp = toText(request.headers.get("cf-connecting-ip"));
+  const forwarded = toText(request.headers.get("x-forwarded-for"));
+  const fallbackIp = forwarded ? toText(forwarded.split(",")[0]) : null;
+  const country = toText(request.headers.get("cf-ipcountry"));
+
+  return {
+    clientIp: directIp || fallbackIp,
+    country
+  };
+}
+
+function attachRequestContext(metricsRaw, context) {
+  const metrics = isObject(metricsRaw) ? { ...metricsRaw } : {};
+
+  // Keep client IP visible per active session in Live view.
+  if (context.clientIp && toText(metrics.client_ip) === null) {
+    metrics.client_ip = context.clientIp;
+  }
+
+  if (context.country && toText(metrics.client_country) === null) {
+    metrics.client_country = context.country;
+  }
+
+  return metrics;
 }
 
 function normalizePayload(raw) {

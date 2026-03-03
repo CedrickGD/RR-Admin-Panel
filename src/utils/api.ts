@@ -4,6 +4,9 @@ import type {
   SessionPayload,
 } from "../types/telemetry";
 
+const DEFAULT_API_BASE = "https://backend.rr-admin-panel.workers.dev";
+const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? DEFAULT_API_BASE).replace(/\/+$/, "");
+
 async function parseJson<T>(response: Response): Promise<T> {
   const text = await response.text();
   if (!text) return {} as T;
@@ -14,9 +17,14 @@ async function parseJson<T>(response: Response): Promise<T> {
   }
 }
 
+function apiUrl(path: string): string {
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  return `${API_BASE}${normalized}`;
+}
+
 export async function fetchSession(): Promise<SessionPayload> {
   try {
-    const res = await fetch("/api/auth/session", { method: "GET" });
+    const res = await fetch(apiUrl("/api/auth/session"), { method: "GET" });
     const body = await parseJson<SessionPayload>(res);
     if (!res.ok || typeof body?.authenticated !== "boolean") {
       return { authenticated: false, hasUsers: true, authMode: "access" };
@@ -32,7 +40,7 @@ export async function fetchAdminData(): Promise<{
   data?: AdminDataPayload;
   status: number;
 }> {
-  const res = await fetch("/api/admin/data", { method: "GET" });
+  const res = await fetch(apiUrl("/api/admin/data"), { method: "GET" });
   const body = await parseJson<AdminDataPayload>(res);
   return { ok: res.ok, data: body, status: res.status };
 }
@@ -42,7 +50,7 @@ export async function postAuth(
   email: string,
   password: string
 ): Promise<{ ok: boolean; data?: AuthActionPayload; status: number }> {
-  const res = await fetch(endpoint, {
+  const res = await fetch(apiUrl(endpoint), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
@@ -53,7 +61,7 @@ export async function postAuth(
 
 export async function postLogout(): Promise<void> {
   try {
-    await fetch("/api/auth/logout", { method: "POST" });
+    await fetch(apiUrl("/api/auth/logout"), { method: "POST" });
   } catch {
     // no-op
   }

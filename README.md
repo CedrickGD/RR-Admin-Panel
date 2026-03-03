@@ -8,6 +8,9 @@ RR-Admin-Panel is now a Cloudflare Pages full-stack app:
 - Auth mode `access`: Cloudflare Access only
 - Auth mode `app`: email/password accounts with secure session cookie
 
+Production setup in this repository uses a single backend Worker (`backend`) for ingest + dashboard API.
+The frontend reads from `https://backend.rr-admin-panel.workers.dev` by default.
+
 ## MANUAL SETUP REQUIRED
 
 Complete every checkbox yourself. These steps cannot be automated from this repo.
@@ -135,6 +138,8 @@ Complete every checkbox yourself. These steps cannot be automated from this repo
 1. Copy local vars file:
    - `Copy-Item .dev.vars.example .dev.vars`
 2. Fill `.dev.vars` with local secrets.
+3. (Optional) set frontend API target:
+   - `.env.local`: `VITE_API_BASE_URL=https://backend.rr-admin-panel.workers.dev`
 3. For local dev without Access edge headers, keep `ACCESS_ENFORCEMENT=off` in `.dev.vars`.
 4. Build frontend:
    - `npm run build`

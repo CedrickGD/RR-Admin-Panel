@@ -139,7 +139,7 @@ export function useDashboard() {
     setRequiresBootstrap(!session.hasUsers);
   };
 
-  const refresh = () => void loadDashboard(false);
+  const refresh = () => void loadDashboard(true);
 
   return {
     authMode,

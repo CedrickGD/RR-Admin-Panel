@@ -1,34 +1,94 @@
 const SERVICE_PATTERN = /^[a-zA-Z0-9._:-]{1,64}$/;
 const STATUS_VALUES = new Set(["ok", "degraded", "down"]);
 const MAX_HISTORY = 500;
+const RECENT_LIMIT = MAX_HISTORY;
 const MAX_METRICS_KEYS = 64;
 const MAX_MESSAGE_LENGTH = 500;
 const MAX_METRICS_BYTES = 8 * 1024;
 
 export default {
   async fetch(request, env) {
+    if (request.method === "OPTIONS") {
+      return withCors(new Response(null, { status: 204 }), request);
+    }
+
     const url = new URL(request.url);
     const path = url.pathname;
 
-    if (request.method === "GET" && path === "/health") {
-      return json({
-        ok: true,
-        service: "rr-telemetry-backend",
-        storage: "rr_admin_panel"
-      });
-    }
+    try {
+      if (request.method === "GET" && path === "/health") {
+        return json(
+          {
+            ok: true,
+            service: "backend",
+            storage: "rr_admin_panel"
+          },
+          200,
+          request
+        );
+      }
 
-    if (request.method === "POST" && (path === "/v1/telemetry/event" || path === "/api/ingest")) {
-      return handleIngest(request, env);
-    }
+      if (request.method === "GET" && (path === "/api/health" || path === "/healthz")) {
+        const health = await loadHealth(env);
+        return json(health, 200, request);
+      }
 
-    return json(
-      {
-        error: "not_found",
-        message: "Route not found."
-      },
-      404
-    );
+      if (request.method === "GET" && (path === "/api/summary" || path === "/summary")) {
+        const summary = await loadSummary(env);
+        return json(summary, 200, request);
+      }
+
+      if (request.method === "GET" && path === "/api/auth/session") {
+        return json(buildSessionPayload(request), 200, request);
+      }
+
+      if (request.method === "POST" && path === "/api/auth/logout") {
+        return json({ ok: true }, 200, request);
+      }
+
+      if (request.method === "GET" && path === "/api/admin/data") {
+        const summary = await loadSummary(env);
+        const health = await loadHealth(env);
+        const session = buildSessionPayload(request);
+
+        return json(
+          {
+            ok: true,
+            summary,
+            health,
+            user: session.user,
+            authMode: "access",
+            accessIdentity: session.user.email,
+            sessionExpiresAt: null
+          },
+          200,
+          request
+        );
+      }
+
+      if (request.method === "POST" && (path === "/v1/telemetry/event" || path === "/api/ingest")) {
+        return await handleIngest(request, env);
+      }
+
+      return json(
+        {
+          ok: false,
+          error: "Route not found."
+        },
+        404,
+        request
+      );
+    } catch (err) {
+      return json(
+        {
+          ok: false,
+          error: "Internal error.",
+          details: err instanceof Error ? err.message : String(err)
+        },
+        500,
+        request
+      );
+    }
   }
 };
 
@@ -36,10 +96,11 @@ async function handleIngest(request, env) {
   if (!env?.DB) {
     return json(
       {
-        error: "server_misconfigured",
-        message: "D1 binding DB is missing."
+        ok: false,
+        error: "D1 binding DB is missing."
       },
-      500
+      500,
+      request
     );
   }
 
@@ -54,10 +115,11 @@ async function handleIngest(request, env) {
   } catch {
     return json(
       {
-        error: "invalid_payload",
-        message: "Request body must be valid JSON."
+        ok: false,
+        error: "Request body must be valid JSON."
       },
-      400
+      400,
+      request
     );
   }
 
@@ -65,10 +127,11 @@ async function handleIngest(request, env) {
   if (!normalized.valid) {
     return json(
       {
-        error: "invalid_payload",
-        message: normalized.message
+        ok: false,
+        error: normalized.message
       },
-      400
+      400,
+      request
     );
   }
 
@@ -77,18 +140,17 @@ async function handleIngest(request, env) {
   if (!validation.valid) {
     return json(
       {
-        error: "invalid_payload",
-        message: validation.message
+        ok: false,
+        error: validation.message
       },
-      400
+      400,
+      request
     );
   }
 
-  const now = new Date().toISOString();
-  const eventId = crypto.randomUUID();
-
+  const now = nowIso();
   const event = {
-    id: eventId,
+    id: crypto.randomUUID(),
     source: payload.source,
     service: payload.service,
     timestamp: new Date(payload.timestamp).toISOString(),
@@ -98,54 +160,45 @@ async function handleIngest(request, env) {
     receivedAt: now
   };
 
-  const metricsJson = JSON.stringify(event.metrics);
-
   try {
-    await env.DB.prepare(
-      `INSERT INTO telemetry_events
-        (event_id, source, service, ts, status, metrics_json, message, received_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-    )
-      .bind(event.id, event.source, event.service, event.timestamp, event.status, metricsJson, event.message, event.receivedAt)
-      .run();
-
-    await env.DB.prepare(
-      `INSERT INTO latest_status
-        (source, service, ts, status, metrics_json, message, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(source, service) DO UPDATE SET
-         ts = excluded.ts,
-         status = excluded.status,
-         metrics_json = excluded.metrics_json,
-         message = excluded.message,
-         updated_at = excluded.updated_at`
-    )
-      .bind(event.source, event.service, event.timestamp, event.status, metricsJson, event.message, event.receivedAt)
-      .run();
-
-    await env.DB.prepare(`DELETE FROM telemetry_events WHERE id NOT IN (SELECT id FROM telemetry_events ORDER BY id DESC LIMIT ?)`)
-      .bind(MAX_HISTORY)
-      .run();
+    await storeTelemetryD1(env, event);
   } catch (err) {
     return json(
       {
-        error: "persist_failed",
-        message: err instanceof Error ? err.message : "Failed to persist telemetry."
+        ok: false,
+        error: err instanceof Error ? err.message : "Failed to persist telemetry."
       },
-      500
+      500,
+      request
     );
   }
 
   return json(
     {
-      accepted: true,
       ok: true,
+      accepted: true,
       backend: "d1",
-      eventId,
-      receivedAt: now
+      eventId: event.id,
+      receivedAt: event.receivedAt
     },
-    202
+    202,
+    request
   );
+}
+
+function buildSessionPayload(request) {
+  const email = request.headers.get("cf-access-authenticated-user-email") ?? "dashboard@rr-admin-panel.local";
+
+  return {
+    ok: true,
+    authenticated: true,
+    hasUsers: true,
+    authMode: "access",
+    user: {
+      email,
+      role: "admin"
+    }
+  };
 }
 
 function validateAuthorization(request, env) {
@@ -153,10 +206,11 @@ function validateAuthorization(request, env) {
   if (!sharedKey) {
     return json(
       {
-        error: "server_misconfigured",
-        message: "Ingest key is missing (APP_SHARED_KEY or INGEST_TOKEN)."
+        ok: false,
+        error: "Ingest key is missing (APP_SHARED_KEY or INGEST_TOKEN)."
       },
-      500
+      500,
+      request
     );
   }
 
@@ -170,14 +224,189 @@ function validateAuthorization(request, env) {
   if (!authorized) {
     return json(
       {
-        error: "unauthorized",
-        message: "Invalid application key."
+        ok: false,
+        error: "Invalid ingest credentials."
       },
-      401
+      401,
+      request
     );
   }
 
   return null;
+}
+
+async function storeTelemetryD1(env, event) {
+  const db = env.DB;
+  const metricsJson = JSON.stringify(event.metrics);
+
+  await db
+    .prepare(
+      `INSERT INTO telemetry_events
+        (event_id, source, service, ts, status, metrics_json, message, received_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .bind(event.id, event.source, event.service, event.timestamp, event.status, metricsJson, event.message, event.receivedAt)
+    .run();
+
+  await db
+    .prepare(
+      `INSERT INTO latest_status
+        (source, service, ts, status, metrics_json, message, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(source, service) DO UPDATE SET
+         ts = excluded.ts,
+         status = excluded.status,
+         metrics_json = excluded.metrics_json,
+         message = excluded.message,
+         updated_at = excluded.updated_at`
+    )
+    .bind(event.source, event.service, event.timestamp, event.status, metricsJson, event.message, event.receivedAt)
+    .run();
+
+  await db
+    .prepare(`DELETE FROM telemetry_events WHERE id NOT IN (SELECT id FROM telemetry_events ORDER BY id DESC LIMIT ?)`)
+    .bind(MAX_HISTORY)
+    .run();
+}
+
+async function loadSummary(env) {
+  const db = env.DB;
+  if (!db) {
+    throw new Error("D1 binding DB is missing.");
+  }
+
+  const latestRows = (
+    await db
+      .prepare(
+        `SELECT source, service, ts, status, metrics_json, message, updated_at
+         FROM latest_status
+         ORDER BY updated_at DESC
+         LIMIT 300`
+      )
+      .all()
+  ).results;
+
+  const recentRows = (
+    await db
+      .prepare(
+        `SELECT event_id, source, service, ts, status, metrics_json, message, received_at
+         FROM telemetry_events
+         ORDER BY id DESC
+         LIMIT ?`
+      )
+      .bind(RECENT_LIMIT)
+      .all()
+  ).results;
+
+  const stats = await db
+    .prepare(
+      `SELECT
+        COUNT(*) AS totalEvents,
+        MAX(ts) AS lastIngestAt,
+        COUNT(DISTINCT source) AS sources,
+        COUNT(DISTINCT service) AS services
+       FROM telemetry_events`
+    )
+    .first();
+
+  const latest = latestRows.map(mapLatestRow);
+  const recent = recentRows.map(mapEventRow);
+
+  return {
+    generatedAt: nowIso(),
+    storage: "d1",
+    overallStatus: calculateOverall(latest),
+    latest,
+    recent,
+    stats: {
+      totalEvents: toNumber(stats?.totalEvents),
+      lastIngestAt: stats?.lastIngestAt ?? null,
+      sources: toNumber(stats?.sources),
+      services: toNumber(stats?.services)
+    }
+  };
+}
+
+async function loadHealth(env) {
+  const db = env.DB;
+  if (!db) {
+    throw new Error("D1 binding DB is missing.");
+  }
+
+  await db.prepare("SELECT 1").first();
+  const stats = await db.prepare("SELECT COUNT(*) AS totalEvents, MAX(ts) AS lastIngestAt FROM telemetry_events").first();
+
+  return {
+    ok: true,
+    api: "alive",
+    storage: {
+      backend: "d1",
+      available: true
+    },
+    lastIngestAt: stats?.lastIngestAt ?? null,
+    count: toNumber(stats?.totalEvents),
+    build: {
+      commit: "backend",
+      branch: "production",
+      environment: "workers",
+      generatedAt: nowIso()
+    }
+  };
+}
+
+function mapLatestRow(row) {
+  return {
+    id: `${row.source}:${row.service}:${row.ts}`,
+    source: row.source,
+    service: row.service,
+    timestamp: row.ts,
+    status: row.status,
+    metrics: safeParseMetrics(row.metrics_json),
+    message: row.message ?? null,
+    receivedAt: row.updated_at
+  };
+}
+
+function mapEventRow(row) {
+  return {
+    id: row.event_id,
+    source: row.source,
+    service: row.service,
+    timestamp: row.ts,
+    status: row.status,
+    metrics: safeParseMetrics(row.metrics_json),
+    message: row.message ?? null,
+    receivedAt: row.received_at
+  };
+}
+
+function safeParseMetrics(raw) {
+  if (!raw) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+      return parsed;
+    }
+    return {};
+  } catch {
+    return {};
+  }
+}
+
+function calculateOverall(events) {
+  if (events.length === 0) {
+    return "unknown";
+  }
+  if (events.some((event) => event.status === "down")) {
+    return "down";
+  }
+  if (events.some((event) => event.status === "degraded")) {
+    return "degraded";
+  }
+  return "ok";
 }
 
 function readBearerToken(request) {
@@ -185,6 +414,7 @@ function readBearerToken(request) {
   if (!auth) {
     return null;
   }
+
   const [scheme, token] = auth.split(" ");
   if (!scheme || !token || scheme.toLowerCase() !== "bearer") {
     return null;
@@ -196,12 +426,12 @@ function timingSafeEqual(left, right) {
   const leftBytes = new TextEncoder().encode(left);
   const rightBytes = new TextEncoder().encode(right);
   let mismatch = leftBytes.length ^ rightBytes.length;
-  const max = Math.max(leftBytes.length, rightBytes.length);
+  const maxLength = Math.max(leftBytes.length, rightBytes.length);
 
-  for (let i = 0; i < max; i += 1) {
-    const l = i < leftBytes.length ? leftBytes[i] : 0;
-    const r = i < rightBytes.length ? rightBytes[i] : 0;
-    mismatch |= l ^ r;
+  for (let index = 0; index < maxLength; index += 1) {
+    const leftByte = index < leftBytes.length ? leftBytes[index] : 0;
+    const rightByte = index < rightBytes.length ? rightBytes[index] : 0;
+    mismatch |= leftByte ^ rightByte;
   }
 
   return mismatch === 0;
@@ -467,12 +697,49 @@ function isObject(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
+function toNumber(value) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number.parseInt(value, 10);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return 0;
+}
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function json(data, status = 200, request) {
+  const response = new Response(JSON.stringify(data), {
     status,
     headers: {
       "content-type": "application/json; charset=utf-8",
       "cache-control": "no-store"
     }
+  });
+  return withCors(response, request);
+}
+
+function withCors(response, request) {
+  const headers = new Headers(response.headers);
+  const origin = request?.headers?.get("origin") ?? "*";
+
+  headers.set("access-control-allow-origin", origin);
+  headers.set("access-control-allow-methods", "GET,POST,OPTIONS");
+  headers.set("access-control-allow-headers", "content-type,authorization,x-app-key");
+  headers.set("access-control-max-age", "86400");
+  headers.set("vary", "origin");
+
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers
   });
 }

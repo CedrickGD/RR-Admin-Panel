@@ -91,7 +91,15 @@ export function Sidebar({
       <div className="p-4 space-y-3 border-t border-[hsl(var(--border))]">
         {/* Quick actions */}
         <div className="flex items-center gap-2">
-          <button className="btn-icon" onClick={onRefresh} title="Refresh data" type="button">
+          <button
+            className="btn-icon"
+            onClick={(event) => {
+              event.preventDefault();
+              onRefresh();
+            }}
+            title="Refresh data"
+            type="button"
+          >
             <RefreshCw className="w-4 h-4" />
           </button>
           <button className="btn-icon" onClick={onToggleTheme} title="Toggle theme" type="button">

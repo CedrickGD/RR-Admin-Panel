@@ -36,6 +36,7 @@ interface SidebarProps {
   theme: ThemeMode;
   onToggleTheme: () => void;
   onRefresh: () => void;
+  refreshing?: boolean;
   onLogout: () => void;
 }
 
@@ -47,6 +48,7 @@ export function Sidebar({
   theme,
   onToggleTheme,
   onRefresh,
+  refreshing = false,
   onLogout,
 }: SidebarProps) {
   return (
@@ -99,8 +101,9 @@ export function Sidebar({
             }}
             title="Refresh data"
             type="button"
+            disabled={refreshing}
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
           </button>
           <button className="btn-icon" onClick={onToggleTheme} title="Toggle theme" type="button">
             {theme === "dark" ? (

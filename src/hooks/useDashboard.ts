@@ -20,6 +20,7 @@ export function useDashboard() {
   const [summary, setSummary] = useState<SummaryPayload | null>(null);
   const [health, setHealth] = useState<HealthPayload | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [tick, setTick] = useState(0);
 
   const loadDashboard = useCallback(
@@ -139,7 +140,18 @@ export function useDashboard() {
     setRequiresBootstrap(!session.hasUsers);
   };
 
-  const refresh = () => void loadDashboard(true);
+  const refresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    const startedAt = Date.now();
+    await loadDashboard(true);
+    const elapsed = Date.now() - startedAt;
+    const minVisibleMs = 550;
+    if (elapsed < minVisibleMs) {
+      await new Promise((resolve) => window.setTimeout(resolve, minVisibleMs - elapsed));
+    }
+    setRefreshing(false);
+  };
 
   return {
     authMode,
@@ -151,6 +163,7 @@ export function useDashboard() {
     summary,
     health,
     loadError,
+    refreshing,
     authenticate,
     logout,
     refresh,

@@ -22,6 +22,7 @@ export default function App() {
     summary,
     health,
     loadError,
+    refreshing,
     authenticate,
     logout,
     refresh,
@@ -67,6 +68,7 @@ export default function App() {
         theme={theme}
         onToggleTheme={toggleTheme}
         onRefresh={refresh}
+        refreshing={refreshing}
         onLogout={() => void logout()}
       />
 

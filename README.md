@@ -67,7 +67,7 @@ Complete every checkbox yourself. These steps cannot be automated from this repo
 - [ ] Create a second Access app/policy for ingestion path bypass (recommended for headless devices).
   - Zero Trust Dashboard -> `Access` -> `Applications` -> `Add an application`.
   - App name: `RR Admin Ingest`.
-  - Domain/path: same domain, path `/api/ingest*`.
+  - Domain/path: same domain, path `/api/ingest*` (and `/v1/telemetry/event*` if legacy clients are still active).
   - Action: `Bypass`.
   - Keep app-level bearer security in code via `INGEST_TOKEN`.
 - [ ] (Optional but recommended) Add a custom domain to Pages for stable public URL.

@@ -4,7 +4,7 @@ import type { HealthPayload, RuntimeEnv, StorageBackend, SummaryPayload, Telemet
 const EVENTS_KEY = "rr:events";
 const LATEST_KEY = "rr:latest";
 const MAX_HISTORY = 500;
-const RECENT_LIMIT = 200;
+const RECENT_LIMIT = MAX_HISTORY;
 
 interface D1EventRow {
   event_id: string;

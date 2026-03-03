@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { LoginForm } from "./components/LoginForm";
 import { MobileNav, Sidebar } from "./components/Sidebar";
 import { useDashboard } from "./hooks/useDashboard";
@@ -30,6 +30,31 @@ export default function App() {
   } = useDashboard();
 
   const [page, setPage] = useState<PageKey>("live");
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      root.style.setProperty("--status-dot-progress", "0");
+      return;
+    }
+
+    let raf = 0;
+    const durationMs = 2000;
+
+    const tick = (now: number) => {
+      const phase = (now % durationMs) / durationMs;
+      const progress = phase <= 0.7 ? phase / 0.7 : 1;
+      root.style.setProperty("--status-dot-progress", progress.toFixed(4));
+      raf = window.requestAnimationFrame(tick);
+    };
+
+    raf = window.requestAnimationFrame(tick);
+
+    return () => {
+      window.cancelAnimationFrame(raf);
+      root.style.removeProperty("--status-dot-progress");
+    };
+  }, []);
 
   /* ─── Loading ─── */
   if (!ready) {

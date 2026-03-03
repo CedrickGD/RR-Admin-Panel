@@ -14,6 +14,7 @@
   --muted: 0 0% 94%;
   --muted-foreground: 0 0% 45%;
   --border: 0 0% 90%;
+  --status-dot-progress: 0;
 }
 
 .dark {
@@ -335,7 +336,9 @@ body {
   height: 6px;
   border-radius: 50%;
   background: currentColor;
-  animation: pulseDot 2s ease-out infinite;
+  transform: scale(calc(1 + var(--status-dot-progress)));
+  opacity: calc(0.8 * (1 - var(--status-dot-progress)));
+  will-change: transform, opacity;
 }
 
 /* ─── Timeframe selector ─── */
@@ -453,21 +456,6 @@ body {
   to {
     opacity: 1;
     transform: translateY(0);
-  }
-}
-
-@keyframes pulseDot {
-  0% {
-    transform: scale(1);
-    opacity: 0.8;
-  }
-  70% {
-    transform: scale(2);
-    opacity: 0;
-  }
-  100% {
-    transform: scale(2);
-    opacity: 0;
   }
 }
 

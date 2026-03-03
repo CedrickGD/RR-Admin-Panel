@@ -1,4 +1,4 @@
-import { BarChart3, Globe, Radio, Wifi } from "lucide-react";
+import { BarChart3, Globe, Radio, RefreshCw, Wifi } from "lucide-react";
 import { useMemo, useState } from "react";
 import { DonutChart } from "../components/DonutChart";
 import { EventLineChart } from "../components/EventLineChart";
@@ -13,6 +13,7 @@ import {
   computeRate,
   describeScope,
   filterEvents,
+  isUpdateCheckEvent,
   mostCommonMetric,
 } from "../utils/telemetry";
 
@@ -22,49 +23,68 @@ interface NetworkPageProps {
 
 export function NetworkPage({ summary }: NetworkPageProps) {
   const [timeframe, setTimeframe] = useState<Timeframe>("1M");
-  const filtered = useMemo(
+  const timeframeEvents = useMemo(
     () => filterEvents(summary.recent, timeframe),
     [summary.recent, timeframe]
   );
+  const coreEvents = useMemo(
+    () => timeframeEvents.filter((event) => !isUpdateCheckEvent(event)),
+    [timeframeEvents]
+  );
+  const updateChecks = useMemo(
+    () => timeframeEvents.filter((event) => isUpdateCheckEvent(event)),
+    [timeframeEvents]
+  );
 
-  const chart = useMemo(() => buildChart(filtered, timeframe), [filtered, timeframe]);
+  const chart = useMemo(() => buildChart(coreEvents, timeframe), [coreEvents, timeframe]);
   const bySource = useMemo(
-    () => buildTopSlices(filtered, (e) => e.source, 6),
-    [filtered]
+    () => buildTopSlices(coreEvents, (event) => event.source, 6),
+    [coreEvents]
   );
   const byService = useMemo(
-    () => buildTopSlices(filtered, (e) => e.service, 6),
-    [filtered]
+    () => buildTopSlices(coreEvents, (event) => event.service, 6),
+    [coreEvents]
   );
-  const metricKeys = useMemo(() => collectMetricKeys(filtered, 10), [filtered]);
+  const trackedActions = useMemo(() => collectMetricKeys(coreEvents, 8), [coreEvents]);
+  const uniqueTrackedActions = useMemo(() => {
+    const keys = new Set<string>();
+    for (const event of coreEvents) {
+      for (const key of Object.keys(event.metrics)) {
+        const normalized = key.trim();
+        if (normalized) {
+          keys.add(normalized);
+        }
+      }
+    }
+    return keys.size;
+  }, [coreEvents]);
 
-  const rate = computeRate(filtered, 3_600_000);
+  const rate = computeRate(coreEvents, 3_600_000);
   const topRegion = mostCommonMetric(
-    filtered,
-    ["region", "geo", "country", "location"],
+    coreEvents,
+    ["region", "geo", "country", "location", "client_country"],
     "N/A"
   );
-  const uniqueSources = new Set(filtered.map((e) => e.source)).size;
+  const uniqueSources = new Set(coreEvents.map((event) => event.source)).size;
+  const uniqueServices = new Set(coreEvents.map((event) => event.service)).size;
 
   return (
     <div className="page-content">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-xl font-bold">Network</h1>
           <p className="text-sm text-[hsl(var(--muted-foreground))]">
-            {describeScope(timeframe)} &middot; Traffic & metric analysis
+            {describeScope(timeframe)} · core events: {coreEvents.length} · update checks: {updateChecks.length}
           </p>
         </div>
         <TimeframeSelector value={timeframe} onChange={setTimeframe} />
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
         <StatCard
           label="Throughput"
           value={`${formatRate(rate)}/s`}
-          sub="Current ingest rate"
+          sub="Core ingest rate"
           icon={<Radio className="w-5 h-5" />}
           tone="primary"
         />
@@ -83,44 +103,52 @@ export function NetworkPage({ summary }: NetworkPageProps) {
           tone="amber"
         />
         <StatCard
-          label="Metric Keys"
-          value={String(metricKeys.length)}
-          sub="Unique keys tracked"
+          label="Tracked Actions"
+          value={String(uniqueTrackedActions)}
+          sub="Distinct tracked keys"
           icon={<BarChart3 className="w-5 h-5" />}
           tone="rose"
         />
+        <StatCard
+          label="Update Checks"
+          value={formatNumber(updateChecks.length)}
+          sub="Not included in charts"
+          icon={<RefreshCw className="w-5 h-5" />}
+          tone="accent"
+        />
       </div>
 
-      {/* Line chart */}
       <div className="mb-6">
         <EventLineChart
           data={chart}
-          title="Network Traffic"
-          subtitle={`Ingest volume — ${describeScope(timeframe)}`}
+          title="Core Traffic"
+          subtitle={`Ingest volume (update checks excluded) — ${describeScope(timeframe)}`}
         />
       </div>
 
-      {/* Donuts */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <DonutChart
-          data={bySource}
-          title="Traffic by Source"
-          subtitle="Volume distribution by source"
-          centerValue={uniqueSources}
-          centerLabel="Sources"
-        />
+      <div
+        className={`grid grid-cols-1 ${bySource.length > 1 ? "md:grid-cols-2 lg:grid-cols-3" : "md:grid-cols-2"} gap-4 mb-6`}
+      >
+        {bySource.length > 1 ? (
+          <DonutChart
+            data={bySource}
+            title="Traffic by Source"
+            subtitle="Core event distribution by source"
+            centerValue={uniqueSources}
+            centerLabel="Sources"
+          />
+        ) : null}
         <DonutChart
           data={byService}
           title="Traffic by Service"
-          subtitle="Volume distribution by service"
-          centerValue={byService.length}
+          subtitle="Core event distribution by service"
+          centerValue={uniqueServices}
           centerLabel="Services"
         />
       </div>
 
-      {/* Metric keys table */}
       <div className="card p-5">
-        <h3 className="text-sm font-semibold mb-4">Top Metric Keys</h3>
+        <h3 className="text-sm font-semibold mb-4">Tracked Actions Snapshot</h3>
         <div className="overflow-x-auto -mx-5 px-5">
           <table className="w-full text-xs">
             <thead>
@@ -137,45 +165,45 @@ export function NetworkPage({ summary }: NetworkPageProps) {
               </tr>
             </thead>
             <tbody>
-              {metricKeys.map((mk) => {
-                const pct =
-                  filtered.length > 0
-                    ? ((mk.count / filtered.length) * 100).toFixed(1)
+              {trackedActions.map((item) => {
+                const percentage =
+                  coreEvents.length > 0
+                    ? ((item.count / coreEvents.length) * 100).toFixed(1)
                     : "0";
                 return (
                   <tr
-                    key={mk.key}
+                    key={item.key}
                     className="border-b border-[hsl(var(--border)/0.5)] last:border-0 hover:bg-[hsl(var(--muted)/0.3)] transition-colors"
                   >
                     <td className="py-2.5 pr-4 font-[JetBrains_Mono,monospace] font-medium">
-                      {mk.key}
+                      {item.key}
                     </td>
                     <td className="py-2.5 pr-4 text-right font-[JetBrains_Mono,monospace]">
-                      {formatNumber(mk.count)}
+                      {formatNumber(item.count)}
                     </td>
                     <td className="py-2.5">
                       <div className="flex items-center gap-2">
-                        <div className="h-1.5 rounded-full bg-[hsl(var(--muted))] flex-1 max-w-[120px]">
+                        <div className="h-1.5 rounded-full bg-[hsl(var(--muted))] flex-1 max-w-[140px]">
                           <div
                             className="h-full rounded-full bg-[hsl(var(--primary))]"
-                            style={{ width: `${pct}%` }}
+                            style={{ width: `${percentage}%` }}
                           />
                         </div>
                         <span className="text-[hsl(var(--muted-foreground))] w-10 text-right">
-                          {pct}%
+                          {percentage}%
                         </span>
                       </div>
                     </td>
                   </tr>
                 );
               })}
-              {metricKeys.length === 0 ? (
+              {trackedActions.length === 0 ? (
                 <tr>
                   <td
                     colSpan={3}
                     className="py-8 text-center text-[hsl(var(--muted-foreground))]"
                   >
-                    No metric keys found
+                    No tracked actions found
                   </td>
                 </tr>
               ) : null}

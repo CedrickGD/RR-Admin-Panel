@@ -2,7 +2,7 @@ export type TelemetryStatus = "ok" | "degraded" | "down";
 export type AuthMode = "app" | "access";
 export type ThemeMode = "dark" | "light";
 export type Timeframe = "1D" | "5D" | "1M" | "6M" | "YTD" | "1Y";
-export type PageKey = "overview" | "live" | "workers" | "network" | "logs" | "settings";
+export type PageKey = "overview" | "live" | "workers" | "network" | "actions" | "logs" | "settings";
 
 export interface TelemetryEvent {
   id: string;

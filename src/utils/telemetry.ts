@@ -26,6 +26,19 @@ export function normalizeEventName(raw: string): string {
   return v.replaceAll(" ", "_");
 }
 
+export function resolvedEventName(event: TelemetryEvent): string {
+  const raw = readMetric(event.metrics, ["event_name"], event.service);
+  return normalizeEventName(raw);
+}
+
+export function isUpdateCheckEvent(event: TelemetryEvent): boolean {
+  return resolvedEventName(event) === "update_check";
+}
+
+export function isHeartbeatEvent(event: TelemetryEvent): boolean {
+  return resolvedEventName(event) === "heartbeat";
+}
+
 export function resolveEventTone(
   eventName: string
 ): "badge-success" | "badge-primary" | "badge-danger" | "badge-default" {
@@ -44,7 +57,10 @@ function getWindow(timeframe: Timeframe): { start: number; end: number } {
   if (timeframe === "5D") return { start: end - 5 * day, end };
   if (timeframe === "1M") return { start: end - 30 * day, end };
   if (timeframe === "6M") return { start: end - 180 * day, end };
-  if (timeframe === "1Y") return { start: end - 365 * day, end };
+  if (timeframe === "1Y") {
+    const endDate = new Date(end);
+    return { start: new Date(endDate.getFullYear(), endDate.getMonth() - 11, 1).getTime(), end };
+  }
   return { start: new Date(new Date(end).getFullYear(), 0, 1).getTime(), end };
 }
 
@@ -71,47 +87,125 @@ export function filterPrevious(
   });
 }
 
+type TimeBucket = {
+  start: number;
+  end: number;
+  label: string;
+  value: number;
+};
+
+function createRangeBuckets(
+  start: number,
+  end: number,
+  count: number,
+  format: Intl.DateTimeFormatOptions
+): TimeBucket[] {
+  if (count <= 0) {
+    return [];
+  }
+
+  const safeEnd = Math.max(end, start + 1);
+  const step = (safeEnd - start) / count;
+
+  return Array.from({ length: count }, (_, index) => {
+    const bucketStart = start + index * step;
+    const bucketEnd = index === count - 1 ? safeEnd + 1 : start + (index + 1) * step;
+    return {
+      start: bucketStart,
+      end: bucketEnd,
+      label: new Date(bucketStart).toLocaleString(undefined, format),
+      value: 0,
+    };
+  });
+}
+
+function createMonthlyBuckets(start: number, end: number): TimeBucket[] {
+  const buckets: TimeBucket[] = [];
+  const first = new Date(start);
+  let cursor = new Date(first.getFullYear(), first.getMonth(), 1);
+
+  while (cursor.getTime() <= end) {
+    const bucketStart = cursor.getTime();
+    const next = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+    buckets.push({
+      start: bucketStart,
+      end: next.getTime(),
+      label: cursor.toLocaleString(undefined, { month: "short" }),
+      value: 0,
+    });
+    cursor = next;
+  }
+
+  if (buckets.length === 0) {
+    buckets.push({
+      start,
+      end: end + 1,
+      label: new Date(start).toLocaleString(undefined, { month: "short" }),
+      value: 0,
+    });
+  } else {
+    buckets[buckets.length - 1].end = end + 1;
+  }
+
+  return buckets;
+}
+
 export function buildChart(
   events: TelemetryEvent[],
   timeframe: Timeframe
 ): ChartPoint[] {
-  const now = Date.now();
+  const { end } = getWindow(timeframe);
   const day = 86_400_000;
-  let count = 24;
-  let step = 3_600_000;
-  let format: Intl.DateTimeFormatOptions = { hour: "2-digit", minute: "2-digit" };
+  let windowStart: number;
+  let buckets: TimeBucket[];
 
-  if (timeframe === "5D") {
-    count = 60;
-    step = 2 * 3_600_000;
-    format = { month: "short", day: "numeric", hour: "2-digit" };
+  if (timeframe === "1D") {
+    windowStart = end - day;
+    buckets = createRangeBuckets(windowStart, end, 24, {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } else if (timeframe === "5D") {
+    windowStart = end - 5 * day;
+    buckets = createRangeBuckets(windowStart, end, 60, {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+    });
   } else if (timeframe === "1M") {
-    count = 30;
-    step = day;
-    format = { month: "short", day: "numeric" };
+    windowStart = end - 30 * day;
+    buckets = createRangeBuckets(windowStart, end, 30, {
+      month: "short",
+      day: "numeric",
+    });
   } else if (timeframe === "6M") {
-    count = 26;
-    step = 7 * day;
-    format = { month: "short", day: "numeric" };
-  } else if (timeframe === "YTD" || timeframe === "1Y") {
-    count = 12;
-    step = 30 * day;
-    format = { month: "short" };
+    windowStart = end - 180 * day;
+    buckets = createRangeBuckets(windowStart, end, 26, {
+      month: "short",
+      day: "numeric",
+    });
+  } else if (timeframe === "YTD") {
+    windowStart = new Date(new Date(end).getFullYear(), 0, 1).getTime();
+    buckets = createMonthlyBuckets(windowStart, end);
+  } else {
+    const endDate = new Date(end);
+    windowStart = new Date(endDate.getFullYear(), endDate.getMonth() - 11, 1).getTime();
+    buckets = createMonthlyBuckets(windowStart, end);
   }
 
-  const start = now - (count - 1) * step;
-  const buckets = Array.from({ length: count }, (_, i) => ({
-    label: new Date(start + i * step).toLocaleString(undefined, format),
-    value: 0,
-  }));
+  for (const event of events) {
+    const ts = Date.parse(event.timestamp);
+    if (!Number.isFinite(ts) || ts < windowStart || ts > end) {
+      continue;
+    }
 
-  for (const e of events) {
-    const ts = Date.parse(e.timestamp);
-    if (!Number.isFinite(ts) || ts < start || ts > now) continue;
-    const idx = Math.min(count - 1, Math.max(0, Math.floor((ts - start) / step)));
-    buckets[idx].value += 1;
+    const bucket = buckets.find((candidate) => ts >= candidate.start && ts < candidate.end);
+    if (bucket) {
+      bucket.value += 1;
+    }
   }
-  return buckets;
+
+  return buckets.map((bucket) => ({ label: bucket.label, value: bucket.value }));
 }
 
 export function buildTopSlices(

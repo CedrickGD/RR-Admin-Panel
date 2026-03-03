@@ -3,6 +3,7 @@ import {
   BarChart3,
   Globe,
   Radio,
+  KeyRound,
   LogOut,
   Moon,
   Network,
@@ -26,6 +27,7 @@ const NAV_ITEMS: NavEntry[] = [
   { key: "overview", label: "Overview", icon: <BarChart3 className="w-[18px] h-[18px]" /> },
   { key: "workers", label: "Workers", icon: <Users className="w-[18px] h-[18px]" /> },
   { key: "network", label: "Network", icon: <Network className="w-[18px] h-[18px]" /> },
+  { key: "actions", label: "Actions", icon: <KeyRound className="w-[18px] h-[18px]" /> },
   { key: "logs", label: "Logs", icon: <ScrollText className="w-[18px] h-[18px]" /> },
   { key: "settings", label: "Settings", icon: <Settings2 className="w-[18px] h-[18px]" /> },
 ];

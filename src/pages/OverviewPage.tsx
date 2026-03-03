@@ -1,12 +1,4 @@
-import {
-  Activity,
-  ArrowDownRight,
-  ArrowUpRight,
-  Clock,
-  Globe,
-  Server,
-  Zap,
-} from "lucide-react";
+import { Activity, Clock, Radio, RefreshCw, Users, Zap } from "lucide-react";
 import { useMemo, useState } from "react";
 import { DonutChart } from "../components/DonutChart";
 import { EventLineChart } from "../components/EventLineChart";
@@ -22,52 +14,96 @@ import {
   describeScope,
   filterEvents,
   filterPrevious,
+  isHeartbeatEvent,
+  isUpdateCheckEvent,
+  readMetric,
 } from "../utils/telemetry";
 
 interface OverviewPageProps {
   summary: SummaryPayload;
 }
 
+function percentDelta(currentValue: number, previousValue: number): string | null {
+  if (previousValue === 0 && currentValue === 0) {
+    return null;
+  }
+
+  if (previousValue === 0) {
+    return "100";
+  }
+
+  return (((currentValue - previousValue) / previousValue) * 100).toFixed(1);
+}
+
 export function OverviewPage({ summary }: OverviewPageProps) {
   const [timeframe, setTimeframe] = useState<Timeframe>("1M");
-  const all = summary.recent;
+  const allEvents = summary.recent;
 
-  const filtered = useMemo(() => filterEvents(all, timeframe), [all, timeframe]);
-  const previous = useMemo(() => filterPrevious(all, timeframe), [all, timeframe]);
+  const coreAllEvents = useMemo(
+    () => allEvents.filter((event) => !isUpdateCheckEvent(event)),
+    [allEvents]
+  );
 
-  const chart = useMemo(() => buildChart(filtered, timeframe), [filtered, timeframe]);
-  const bySource = useMemo(
-    () => buildTopSlices(filtered, (e) => e.source, 6),
+  const filtered = useMemo(() => filterEvents(allEvents, timeframe), [allEvents, timeframe]);
+  const previous = useMemo(() => filterPrevious(allEvents, timeframe), [allEvents, timeframe]);
+  const filteredCore = useMemo(
+    () => filtered.filter((event) => !isUpdateCheckEvent(event)),
     [filtered]
+  );
+  const previousCore = useMemo(
+    () => previous.filter((event) => !isUpdateCheckEvent(event)),
+    [previous]
+  );
+  const heartbeatEvents = useMemo(
+    () => filteredCore.filter((event) => isHeartbeatEvent(event)),
+    [filteredCore]
+  );
+  const updateChecks = useMemo(
+    () => filtered.filter((event) => isUpdateCheckEvent(event)),
+    [filtered]
+  );
+  const updateChecksPrev = useMemo(
+    () => previous.filter((event) => isUpdateCheckEvent(event)),
+    [previous]
+  );
+
+  const chart = useMemo(() => buildChart(heartbeatEvents, timeframe), [heartbeatEvents, timeframe]);
+  const bySource = useMemo(
+    () => buildTopSlices(filteredCore, (event) => event.source, 6),
+    [filteredCore]
   );
   const byService = useMemo(
-    () => buildTopSlices(filtered, (e) => e.service, 6),
-    [filtered]
+    () => buildTopSlices(filteredCore, (event) => event.service, 6),
+    [filteredCore]
   );
   const byStatus = useMemo(
-    () => buildTopSlices(filtered, (e) => e.status, 6),
-    [filtered]
+    () => buildTopSlices(filteredCore, (event) => event.status, 6),
+    [filteredCore]
   );
 
-  const rate = computeRate(all, 3_600_000);
-  const ratePrev = computeRate(all, 3_600_000, 3_600_000);
+  const updateCheckUsers = useMemo(() => {
+    const ids = new Set<string>();
+    for (const event of updateChecks) {
+      const installId = readMetric(event.metrics, ["install_id", "installId"], "");
+      if (installId) {
+        ids.add(installId);
+      }
+    }
+    return ids.size;
+  }, [updateChecks]);
 
-  const pctChange = (cur: number, prev: number) => {
-    if (prev === 0 && cur === 0) return null;
-    if (prev === 0) return "100";
-    return ((cur - prev) / prev * 100).toFixed(1);
-  };
-
-  const delta = pctChange(filtered.length, previous.length);
+  const coreRate = computeRate(coreAllEvents, 3_600_000);
+  const coreRatePrev = computeRate(coreAllEvents, 3_600_000, 3_600_000);
+  const coreDelta = percentDelta(filteredCore.length, previousCore.length);
+  const updateDelta = percentDelta(updateChecks.length, updateChecksPrev.length);
 
   return (
     <div className="page-content">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-xl font-bold">Overview</h1>
           <p className="text-sm text-[hsl(var(--muted-foreground))]">
-            {describeScope(timeframe)} &middot; {filtered.length} events
+            {describeScope(timeframe)} · Core events: {filteredCore.length} · Update checks: {updateChecks.length}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -76,80 +112,95 @@ export function OverviewPage({ summary }: OverviewPageProps) {
         </div>
       </div>
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-4 mb-6">
         <StatCard
-          label="Total Events"
-          value={formatNumber(filtered.length)}
+          label="Core Events"
+          value={formatNumber(filteredCore.length)}
           sub={`${formatNumber(summary.stats.totalEvents)} all time`}
           icon={<Activity className="w-5 h-5" />}
           tone="primary"
-          delta={delta}
+          delta={coreDelta}
+        />
+        <StatCard
+          label="Heartbeat Events"
+          value={formatNumber(heartbeatEvents.length)}
+          sub="Used for heartbeat chart"
+          icon={<Radio className="w-5 h-5" />}
+          tone="accent"
         />
         <StatCard
           label="Ingest Rate"
-          value={`${formatRate(rate)}/s`}
-          sub={ratePrev > 0 ? `Previous: ${formatRate(ratePrev)}/s` : "No previous data"}
+          value={`${formatRate(coreRate)}/s`}
+          sub={coreRatePrev > 0 ? `Previous: ${formatRate(coreRatePrev)}/s` : "No previous data"}
           icon={<Zap className="w-5 h-5" />}
-          tone="accent"
-          delta={ratePrev > 0 ? pctChange(rate, ratePrev) : null}
+          tone="amber"
+          delta={coreRatePrev > 0 ? percentDelta(coreRate, coreRatePrev) : null}
         />
         <StatCard
-          label="Sources"
-          value={String(summary.stats.sources)}
-          sub={`${summary.stats.services} services tracked`}
-          icon={<Server className="w-5 h-5" />}
-          tone="amber"
+          label="Update Checks"
+          value={formatNumber(updateChecks.length)}
+          sub="Separated from core charts"
+          icon={<RefreshCw className="w-5 h-5" />}
+          tone="rose"
+          delta={updateDelta}
+        />
+        <StatCard
+          label="Update Check Users"
+          value={String(updateCheckUsers)}
+          sub="Distinct installs triggering checks"
+          icon={<Users className="w-5 h-5" />}
+          tone="accent"
         />
         <StatCard
           label="Last Ingest"
           value={timeAgo(summary.stats.lastIngestAt)}
           sub={formatDate(summary.stats.lastIngestAt)}
           icon={<Clock className="w-5 h-5" />}
-          tone="rose"
+          tone="primary"
         />
       </div>
 
-      {/* Chart */}
       <div className="mb-6">
         <EventLineChart
           data={chart}
-          title="Event Volume"
-          subtitle={describeScope(timeframe)}
+          title="Heartbeat Activity"
+          subtitle={`${describeScope(timeframe)} · update checks excluded`}
         />
       </div>
 
-      {/* Donut charts grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <DonutChart
-          data={bySource}
-          title="By Source"
-          subtitle="Event distribution by source"
-          centerValue={summary.stats.sources}
-          centerLabel="Sources"
-        />
+      <div
+        className={`grid grid-cols-1 ${bySource.length > 1 ? "md:grid-cols-3" : "md:grid-cols-2"} gap-4 mb-6`}
+      >
+        {bySource.length > 1 ? (
+          <DonutChart
+            data={bySource}
+            title="By Source"
+            subtitle="Core event distribution by source"
+            centerValue={bySource.length}
+            centerLabel="Sources"
+          />
+        ) : null}
         <DonutChart
           data={byService}
           title="By Service"
-          subtitle="Event distribution by service"
-          centerValue={summary.stats.services}
-          centerLabel="Services"
+          subtitle="App start/stop/heartbeat mix"
+          centerValue={filteredCore.length}
+          centerLabel="Core"
         />
         <DonutChart
           data={byStatus}
           title="By Status"
-          subtitle="Event distribution by status"
-          centerValue={filtered.length}
+          subtitle="Core event status"
+          centerValue={filteredCore.length}
           centerLabel="Events"
         />
       </div>
 
-      {/* Recent events table */}
       <div className="card p-5">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold">Recent Events</h3>
+          <h3 className="text-sm font-semibold">Recent Core Events</h3>
           <span className="text-[11px] text-[hsl(var(--muted-foreground))]">
-            Last {Math.min(filtered.length, 10)} of {filtered.length}
+            Last {Math.min(filteredCore.length, 6)} of {filteredCore.length}
           </span>
         </div>
         <div className="overflow-x-auto -mx-5 px-5">
@@ -174,33 +225,31 @@ export function OverviewPage({ summary }: OverviewPageProps) {
               </tr>
             </thead>
             <tbody>
-              {filtered.slice(0, 10).map((evt) => (
+              {filteredCore.slice(0, 6).map((event) => (
                 <tr
-                  key={evt.id}
+                  key={event.id}
                   className="border-b border-[hsl(var(--border)/0.5)] last:border-0 hover:bg-[hsl(var(--muted)/0.3)] transition-colors"
                 >
-                  <td className="py-2.5 pr-4 font-medium">{evt.source}</td>
-                  <td className="py-2.5 pr-4 text-[hsl(var(--muted-foreground))]">
-                    {evt.service}
-                  </td>
+                  <td className="py-2.5 pr-4 font-medium">{event.source}</td>
+                  <td className="py-2.5 pr-4 text-[hsl(var(--muted-foreground))]">{event.service}</td>
                   <td className="py-2.5 pr-4">
-                    <StatusBadge status={evt.status} />
+                    <StatusBadge status={event.status} />
                   </td>
-                  <td className="py-2.5 pr-4 text-[hsl(var(--muted-foreground))] max-w-[200px] truncate">
-                    {evt.message ?? "—"}
+                  <td className="py-2.5 pr-4 text-[hsl(var(--muted-foreground))] max-w-[220px] truncate">
+                    {event.message ?? "—"}
                   </td>
                   <td className="py-2.5 text-right text-[hsl(var(--muted-foreground))]">
-                    {timeAgo(evt.timestamp)}
+                    {timeAgo(event.timestamp)}
                   </td>
                 </tr>
               ))}
-              {filtered.length === 0 ? (
+              {filteredCore.length === 0 ? (
                 <tr>
                   <td
                     colSpan={5}
                     className="py-8 text-center text-[hsl(var(--muted-foreground))]"
                   >
-                    No events in this timeframe
+                    No core events in this timeframe
                   </td>
                 </tr>
               ) : null}

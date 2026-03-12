@@ -42,36 +42,19 @@ export default {
       }
 
       if (request.method === "GET" && (path === "/api/summary" || path === "/summary")) {
-        const summary = await loadSummary(env);
-        return json(summary, 200, request);
+        return disabledStandaloneRoute(request);
       }
 
       if (request.method === "GET" && path === "/api/auth/session") {
-        return json(buildSessionPayload(request), 200, request);
+        return disabledStandaloneRoute(request);
       }
 
       if (request.method === "POST" && path === "/api/auth/logout") {
-        return json({ ok: true }, 200, request);
+        return disabledStandaloneRoute(request);
       }
 
       if (request.method === "GET" && path === "/api/admin/data") {
-        const summary = await loadSummary(env);
-        const health = await loadHealth(env);
-        const session = buildSessionPayload(request);
-
-        return json(
-          {
-            ok: true,
-            summary,
-            health,
-            user: session.user,
-            authMode: "access",
-            accessIdentity: session.user.email,
-            sessionExpiresAt: null
-          },
-          200,
-          request
-        );
+        return disabledStandaloneRoute(request);
       }
 
       if (request.method === "POST" && (path === "/v1/telemetry/event" || path === "/api/ingest")) {
@@ -99,6 +82,17 @@ export default {
     }
   }
 };
+
+function disabledStandaloneRoute(request) {
+  return json(
+    {
+      ok: false,
+      error: "Dashboard routes are disabled on the standalone worker. Use the Cloudflare Pages app behind Zero Trust."
+    },
+    410,
+    request
+  );
+}
 
 async function handleIngest(request, env) {
   if (!env?.DB) {

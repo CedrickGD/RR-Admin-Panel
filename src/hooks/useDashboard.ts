@@ -8,7 +8,7 @@ import type {
 } from "../types/telemetry";
 import { fetchAdminData, fetchSession, postAuth, postLogout } from "../utils/api";
 
-const REFRESH_MS = 10_000;
+const REFRESH_MS = 15_000;
 
 export function useDashboard() {
   const [authMode, setAuthMode] = useState<AuthMode>("access");

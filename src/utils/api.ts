@@ -4,8 +4,7 @@ import type {
   SessionPayload,
 } from "../types/telemetry";
 
-const DEFAULT_API_BASE = "https://backend.rr-admin-panel.workers.dev";
-const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? DEFAULT_API_BASE).replace(/\/+$/, "");
+const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
 
 async function parseJson<T>(response: Response): Promise<T> {
   const text = await response.text();
@@ -19,12 +18,16 @@ async function parseJson<T>(response: Response): Promise<T> {
 
 function apiUrl(path: string): string {
   const normalized = path.startsWith("/") ? path : `/${path}`;
-  return `${API_BASE}${normalized}`;
+  return API_BASE ? `${API_BASE}${normalized}` : normalized;
 }
 
 export async function fetchSession(): Promise<SessionPayload> {
   try {
-    const res = await fetch(apiUrl("/api/auth/session"), { method: "GET", cache: "no-store" });
+    const res = await fetch(apiUrl("/api/auth/session"), {
+      method: "GET",
+      cache: "no-store",
+      credentials: "include",
+    });
     const body = await parseJson<SessionPayload>(res);
     if (!res.ok || typeof body?.authenticated !== "boolean") {
       return { authenticated: false, hasUsers: true, authMode: "access" };
@@ -40,9 +43,13 @@ export async function fetchAdminData(): Promise<{
   data?: AdminDataPayload;
   status: number;
 }> {
-  const url = new URL(apiUrl("/api/admin/data"));
+  const url = new URL(apiUrl("/api/admin/data"), window.location.origin);
   url.searchParams.set("_ts", String(Date.now()));
-  const res = await fetch(url.toString(), { method: "GET", cache: "no-store" });
+  const res = await fetch(url.toString(), {
+    method: "GET",
+    cache: "no-store",
+    credentials: "include",
+  });
   const body = await parseJson<AdminDataPayload>(res);
   return { ok: res.ok, data: body, status: res.status };
 }
@@ -56,6 +63,7 @@ export async function postAuth(
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+    credentials: "include",
   });
   const body = await parseJson<AuthActionPayload>(res);
   return { ok: res.ok, data: body, status: res.status };
@@ -63,7 +71,10 @@ export async function postAuth(
 
 export async function postLogout(): Promise<void> {
   try {
-    await fetch(apiUrl("/api/auth/logout"), { method: "POST" });
+    await fetch(apiUrl("/api/auth/logout"), {
+      method: "POST",
+      credentials: "include",
+    });
   } catch {
     // no-op
   }

@@ -67,17 +67,41 @@ export interface TelemetryEvent {
   receivedAt: string;
 }
 
+export interface AppSessionRecord {
+  id: string;
+  installId: string;
+  source: string;
+  userLabel: string | null;
+  clientIp: string | null;
+  clientCountry: string | null;
+  appVersion: string | null;
+  platform: string | null;
+  startedAt: string;
+  lastSeenAt: string;
+  endedAt: string | null;
+  durationSeconds: number | null;
+  isActive: boolean;
+  lastEvent: string | null;
+  lastStatus: TelemetryStatus;
+  errorCount: number;
+}
+
 export interface SummaryPayload {
   generatedAt: string;
   storage: StorageBackend;
-  overallStatus: TelemetryStatus | "unknown";
-  latest: TelemetryEvent[];
-  recent: TelemetryEvent[];
+  activeSessions: AppSessionRecord[];
+  recentSessions: AppSessionRecord[];
+  recentErrors: TelemetryEvent[];
+  recentEvents: TelemetryEvent[];
   stats: {
     totalEvents: number;
+    totalSessions: number;
+    activeUsers: number;
+    sessionsStartedToday: number;
+    sessionsEndedToday: number;
+    averageSessionDurationSeconds: number;
+    errorsLast24Hours: number;
     lastIngestAt: string | null;
-    sources: number;
-    services: number;
   };
 }
 

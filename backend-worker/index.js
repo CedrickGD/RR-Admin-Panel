@@ -1,10 +1,17 @@
 const SERVICE_PATTERN = /^[a-zA-Z0-9._:-]{1,64}$/;
 const STATUS_VALUES = new Set(["ok", "degraded", "down"]);
-const MAX_HISTORY = 500;
-const RECENT_LIMIT = MAX_HISTORY;
+const MAX_HISTORY = 1000;
+const RECENT_EVENT_LIMIT = 200;
+const ACTIVE_SESSION_LIMIT = 100;
+const RECENT_SESSION_LIMIT = 200;
+const RECENT_ERROR_LIMIT = 50;
 const MAX_METRICS_KEYS = 64;
 const MAX_MESSAGE_LENGTH = 500;
 const MAX_METRICS_BYTES = 8 * 1024;
+const SESSION_START = "session_start";
+const SESSION_ACTIVE = "session_active";
+const SESSION_END = "session_end";
+const APP_ERROR = "app_error";
 
 export default {
   async fetch(request, env) {
@@ -238,6 +245,7 @@ function validateAuthorization(request, env) {
 
 async function storeTelemetryD1(env, event) {
   const db = env.DB;
+  await ensureTelemetrySchema(db);
   const metricsJson = JSON.stringify(event.metrics);
 
   await db
@@ -248,6 +256,8 @@ async function storeTelemetryD1(env, event) {
     )
     .bind(event.id, event.source, event.service, event.timestamp, event.status, metricsJson, event.message, event.receivedAt)
     .run();
+
+  await upsertSessionD1(db, event);
 
   await db
     .prepare(
@@ -276,54 +286,89 @@ async function loadSummary(env) {
     throw new Error("D1 binding DB is missing.");
   }
 
-  const latestRows = (
-    await db
-      .prepare(
-        `SELECT source, service, ts, status, metrics_json, message, updated_at
-         FROM latest_status
-         ORDER BY updated_at DESC
-         LIMIT 300`
-      )
-      .all()
-  ).results;
+  await ensureTelemetrySchema(db);
 
-  const recentRows = (
-    await db
+  const [activeRows, recentSessionRows, recentErrorRows, recentEventRows, eventStats, sessionStats] = await Promise.all([
+    db
+      .prepare(
+        `SELECT session_id, install_id, source, user_label, client_ip, client_country, app_version, platform,
+                started_at, last_seen_at, ended_at, duration_seconds, is_active, last_event, last_status, error_count, updated_at
+         FROM app_sessions
+         WHERE is_active = 1
+         ORDER BY last_seen_at DESC
+         LIMIT ?`
+      )
+      .bind(ACTIVE_SESSION_LIMIT)
+      .all(),
+    db
+      .prepare(
+        `SELECT session_id, install_id, source, user_label, client_ip, client_country, app_version, platform,
+                started_at, last_seen_at, ended_at, duration_seconds, is_active, last_event, last_status, error_count, updated_at
+         FROM app_sessions
+         ORDER BY updated_at DESC
+         LIMIT ?`
+      )
+      .bind(RECENT_SESSION_LIMIT)
+      .all(),
+    db
+      .prepare(
+        `SELECT event_id, source, service, ts, status, metrics_json, message, received_at
+         FROM telemetry_events
+         WHERE service = ?
+         ORDER BY id DESC
+         LIMIT ?`
+      )
+      .bind(APP_ERROR, RECENT_ERROR_LIMIT)
+      .all(),
+    db
       .prepare(
         `SELECT event_id, source, service, ts, status, metrics_json, message, received_at
          FROM telemetry_events
          ORDER BY id DESC
          LIMIT ?`
       )
-      .bind(RECENT_LIMIT)
-      .all()
-  ).results;
-
-  const stats = await db
-    .prepare(
-      `SELECT
-        COUNT(*) AS totalEvents,
-        MAX(ts) AS lastIngestAt,
-        COUNT(DISTINCT source) AS sources,
-        COUNT(DISTINCT service) AS services
-       FROM telemetry_events`
-    )
-    .first();
-
-  const latest = latestRows.map(mapLatestRow);
-  const recent = recentRows.map(mapEventRow);
+      .bind(RECENT_EVENT_LIMIT)
+      .all(),
+    db
+      .prepare(
+        `SELECT
+           COUNT(*) AS totalEvents,
+           SUM(CASE WHEN service = ? AND ts >= ? THEN 1 ELSE 0 END) AS errorsLast24Hours,
+           MAX(ts) AS lastIngestAt
+         FROM telemetry_events`
+      )
+      .bind(APP_ERROR, hoursAgoIso(24))
+      .first(),
+    db
+      .prepare(
+        `SELECT
+           COUNT(*) AS totalSessions,
+           SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) AS activeUsers,
+           SUM(CASE WHEN started_at >= ? THEN 1 ELSE 0 END) AS sessionsStartedToday,
+           SUM(CASE WHEN ended_at IS NOT NULL AND ended_at >= ? THEN 1 ELSE 0 END) AS sessionsEndedToday,
+           AVG(CASE WHEN duration_seconds IS NOT NULL THEN duration_seconds END) AS averageSessionDurationSeconds
+         FROM app_sessions`
+      )
+      .bind(startOfUtcDayIso(), startOfUtcDayIso())
+      .first()
+  ]);
 
   return {
     generatedAt: nowIso(),
     storage: "d1",
-    overallStatus: calculateOverall(latest),
-    latest,
-    recent,
+    activeSessions: activeRows.results.map(mapSessionRow),
+    recentSessions: recentSessionRows.results.map(mapSessionRow),
+    recentErrors: recentErrorRows.results.map(mapEventRow),
+    recentEvents: recentEventRows.results.map(mapEventRow),
     stats: {
-      totalEvents: toNumber(stats?.totalEvents),
-      lastIngestAt: stats?.lastIngestAt ?? null,
-      sources: toNumber(stats?.sources),
-      services: toNumber(stats?.services)
+      totalEvents: toNumber(eventStats?.totalEvents),
+      totalSessions: toNumber(sessionStats?.totalSessions),
+      activeUsers: toNumber(sessionStats?.activeUsers),
+      sessionsStartedToday: toNumber(sessionStats?.sessionsStartedToday),
+      sessionsEndedToday: toNumber(sessionStats?.sessionsEndedToday),
+      averageSessionDurationSeconds: toRoundedNumber(sessionStats?.averageSessionDurationSeconds),
+      errorsLast24Hours: toNumber(eventStats?.errorsLast24Hours),
+      lastIngestAt: eventStats?.lastIngestAt ?? null
     }
   };
 }
@@ -334,6 +379,7 @@ async function loadHealth(env) {
     throw new Error("D1 binding DB is missing.");
   }
 
+  await ensureTelemetrySchema(db);
   await db.prepare("SELECT 1").first();
   const stats = await db.prepare("SELECT COUNT(*) AS totalEvents, MAX(ts) AS lastIngestAt FROM telemetry_events").first();
 
@@ -352,19 +398,6 @@ async function loadHealth(env) {
       environment: "workers",
       generatedAt: nowIso()
     }
-  };
-}
-
-function mapLatestRow(row) {
-  return {
-    id: `${row.source}:${row.service}:${row.ts}`,
-    source: row.source,
-    service: row.service,
-    timestamp: row.ts,
-    status: row.status,
-    metrics: safeParseMetrics(row.metrics_json),
-    message: row.message ?? null,
-    receivedAt: row.updated_at
   };
 }
 
@@ -397,17 +430,214 @@ function safeParseMetrics(raw) {
   }
 }
 
-function calculateOverall(events) {
-  if (events.length === 0) {
-    return "unknown";
+function mapSessionRow(row) {
+  return {
+    id: row.session_id,
+    installId: row.install_id,
+    source: row.source,
+    userLabel: row.user_label ?? null,
+    clientIp: row.client_ip ?? null,
+    clientCountry: row.client_country ?? null,
+    appVersion: row.app_version ?? null,
+    platform: row.platform ?? null,
+    startedAt: row.started_at,
+    lastSeenAt: row.last_seen_at,
+    endedAt: row.ended_at ?? null,
+    durationSeconds: toNullableNumber(row.duration_seconds),
+    isActive: toNumber(row.is_active) === 1,
+    lastEvent: row.last_event ?? null,
+    lastStatus: row.last_status,
+    errorCount: toNumber(row.error_count)
+  };
+}
+
+async function ensureTelemetrySchema(db) {
+  if (!db) {
+    return;
   }
-  if (events.some((event) => event.status === "down")) {
-    return "down";
+
+  const statements = [
+    `CREATE TABLE IF NOT EXISTS telemetry_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_id TEXT NOT NULL UNIQUE,
+      source TEXT NOT NULL,
+      service TEXT NOT NULL,
+      ts TEXT NOT NULL,
+      status TEXT NOT NULL CHECK (status IN ('ok', 'degraded', 'down')),
+      metrics_json TEXT NOT NULL DEFAULT '{}',
+      message TEXT,
+      received_at TEXT NOT NULL
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_events_ts ON telemetry_events(ts DESC)`,
+    `CREATE INDEX IF NOT EXISTS idx_events_source_service ON telemetry_events(source, service, ts DESC)`,
+    `CREATE TABLE IF NOT EXISTS latest_status (
+      source TEXT NOT NULL,
+      service TEXT NOT NULL,
+      ts TEXT NOT NULL,
+      status TEXT NOT NULL CHECK (status IN ('ok', 'degraded', 'down')),
+      metrics_json TEXT NOT NULL DEFAULT '{}',
+      message TEXT,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (source, service)
+    )`,
+    `CREATE TABLE IF NOT EXISTS app_sessions (
+      session_id TEXT PRIMARY KEY,
+      install_id TEXT NOT NULL,
+      source TEXT NOT NULL,
+      user_label TEXT,
+      client_ip TEXT,
+      client_country TEXT,
+      app_version TEXT,
+      platform TEXT,
+      started_at TEXT NOT NULL,
+      last_seen_at TEXT NOT NULL,
+      ended_at TEXT,
+      duration_seconds INTEGER,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      last_event TEXT,
+      last_status TEXT NOT NULL CHECK (last_status IN ('ok', 'degraded', 'down')),
+      error_count INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_sessions_active_last_seen ON app_sessions(is_active, last_seen_at DESC)`,
+    `CREATE INDEX IF NOT EXISTS idx_sessions_updated ON app_sessions(updated_at DESC)`,
+    `CREATE INDEX IF NOT EXISTS idx_sessions_install ON app_sessions(install_id, updated_at DESC)`
+  ];
+
+  for (const statement of statements) {
+    await db.prepare(statement).run();
   }
-  if (events.some((event) => event.status === "degraded")) {
-    return "degraded";
+}
+
+async function upsertSessionD1(db, event) {
+  const sessionId = readSessionId(event);
+  if (!db || !sessionId) {
+    return;
   }
-  return "ok";
+
+  const existingRow = await db
+    .prepare(
+      `SELECT session_id, install_id, source, user_label, client_ip, client_country, app_version, platform,
+              started_at, last_seen_at, ended_at, duration_seconds, is_active, last_event, last_status, error_count, updated_at
+       FROM app_sessions
+       WHERE session_id = ?`
+    )
+    .bind(sessionId)
+    .first();
+
+  const next = mergeSessionRecord(existingRow ? mapSessionRow(existingRow) : undefined, event);
+  if (!next) {
+    return;
+  }
+
+  await db
+    .prepare(
+      `INSERT INTO app_sessions
+        (session_id, install_id, source, user_label, client_ip, client_country, app_version, platform,
+         started_at, last_seen_at, ended_at, duration_seconds, is_active, last_event, last_status, error_count, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(session_id) DO UPDATE SET
+         install_id = excluded.install_id,
+         source = excluded.source,
+         user_label = excluded.user_label,
+         client_ip = excluded.client_ip,
+         client_country = excluded.client_country,
+         app_version = excluded.app_version,
+         platform = excluded.platform,
+         started_at = excluded.started_at,
+         last_seen_at = excluded.last_seen_at,
+         ended_at = excluded.ended_at,
+         duration_seconds = excluded.duration_seconds,
+         is_active = excluded.is_active,
+         last_event = excluded.last_event,
+         last_status = excluded.last_status,
+         error_count = excluded.error_count,
+         updated_at = excluded.updated_at`
+    )
+    .bind(
+      next.id,
+      next.installId,
+      next.source,
+      next.userLabel,
+      next.clientIp,
+      next.clientCountry,
+      next.appVersion,
+      next.platform,
+      next.startedAt,
+      next.lastSeenAt,
+      next.endedAt,
+      next.durationSeconds,
+      next.isActive ? 1 : 0,
+      next.lastEvent,
+      next.lastStatus,
+      next.errorCount,
+      nowIso()
+    )
+    .run();
+}
+
+function mergeSessionRecord(existing, event) {
+  const sessionId = readSessionId(event);
+  const installId = readMetricText(event.metrics, ["install_id"]) ?? existing?.installId ?? null;
+  if (!sessionId || !installId) {
+    return null;
+  }
+
+  const source = readMetricText(event.metrics, ["app_name"]) ?? event.source ?? existing?.source ?? "razorreaper";
+  const userLabel = readMetricText(event.metrics, ["user_label", "machine_name"]) ?? existing?.userLabel ?? null;
+  const clientIp = readMetricText(event.metrics, ["client_ip", "ip"]) ?? existing?.clientIp ?? null;
+  const clientCountry = readMetricText(event.metrics, ["client_country", "country"]) ?? existing?.clientCountry ?? null;
+  const appVersion = readMetricText(event.metrics, ["app_version", "version"]) ?? existing?.appVersion ?? null;
+  const platform = readMetricText(event.metrics, ["platform", "os_platform", "os"]) ?? existing?.platform ?? null;
+  const metricStartedAt = readMetricText(event.metrics, ["session_started_at"]);
+  const eventTimestamp = event.timestamp;
+
+  let startedAt = existing?.startedAt ?? metricStartedAt ?? eventTimestamp;
+  let lastSeenAt = newerIso(existing?.lastSeenAt, eventTimestamp) ? eventTimestamp : existing?.lastSeenAt ?? eventTimestamp;
+  let endedAt = existing?.endedAt ?? null;
+  let durationSeconds = existing?.durationSeconds ?? null;
+  let isActive = existing?.isActive ?? true;
+  let errorCount = existing?.errorCount ?? 0;
+
+  if (event.service === SESSION_START) {
+    startedAt = metricStartedAt ?? eventTimestamp;
+    lastSeenAt = eventTimestamp;
+    endedAt = null;
+    durationSeconds = null;
+    isActive = true;
+  } else if (event.service === SESSION_ACTIVE) {
+    startedAt = existing?.startedAt ?? metricStartedAt ?? eventTimestamp;
+    lastSeenAt = eventTimestamp;
+    endedAt = existing?.endedAt ?? null;
+    isActive = true;
+  } else if (event.service === SESSION_END) {
+    lastSeenAt = eventTimestamp;
+    endedAt = eventTimestamp;
+    durationSeconds = readMetricNumber(event.metrics, ["session_duration_seconds"]) ?? durationBetween(startedAt, endedAt);
+    isActive = false;
+  } else if (event.service === APP_ERROR) {
+    lastSeenAt = eventTimestamp;
+    errorCount += 1;
+  }
+
+  return {
+    id: sessionId,
+    installId,
+    source,
+    userLabel,
+    clientIp,
+    clientCountry,
+    appVersion,
+    platform,
+    startedAt,
+    lastSeenAt,
+    endedAt,
+    durationSeconds,
+    isActive,
+    lastEvent: event.service,
+    lastStatus: event.status,
+    errorCount
+  };
 }
 
 function readBearerToken(request) {
@@ -737,6 +967,75 @@ function toText(value) {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function readSessionId(event) {
+  return readMetricText(event.metrics, ["session_id"]);
+}
+
+function readMetricText(metrics, keys) {
+  for (const key of keys) {
+    const value = metrics[key];
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
+    }
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return String(value);
+    }
+  }
+
+  return null;
+}
+
+function readMetricNumber(metrics, keys) {
+  for (const key of keys) {
+    const value = metrics[key];
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return Math.round(value);
+    }
+    if (typeof value === "string") {
+      const parsed = Number.parseFloat(value);
+      if (Number.isFinite(parsed)) {
+        return Math.round(parsed);
+      }
+    }
+  }
+
+  return null;
+}
+
+function startOfUtcDayIso() {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString();
+}
+
+function hoursAgoIso(hours) {
+  return new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+}
+
+function newerIso(left, right) {
+  return compareIso(right, left ?? "") > 0;
+}
+
+function compareIso(left, right) {
+  const leftTs = Date.parse(left);
+  const rightTs = Date.parse(right);
+
+  if (Number.isFinite(leftTs) && Number.isFinite(rightTs)) {
+    return leftTs - rightTs;
+  }
+
+  return left.localeCompare(right);
+}
+
+function durationBetween(startedAt, endedAt) {
+  const startTs = Date.parse(startedAt);
+  const endTs = Date.parse(endedAt);
+  if (!Number.isFinite(startTs) || !Number.isFinite(endTs) || endTs < startTs) {
+    return null;
+  }
+
+  return Math.round((endTs - startTs) / 1000);
+}
+
 function isObject(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -754,6 +1053,36 @@ function toNumber(value) {
   }
 
   return 0;
+}
+
+function toRoundedNumber(value) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.round(value);
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number.parseFloat(value);
+    if (Number.isFinite(parsed)) {
+      return Math.round(parsed);
+    }
+  }
+
+  return 0;
+}
+
+function toNullableNumber(value) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.round(value);
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number.parseFloat(value);
+    if (Number.isFinite(parsed)) {
+      return Math.round(parsed);
+    }
+  }
+
+  return null;
 }
 
 function nowIso() {

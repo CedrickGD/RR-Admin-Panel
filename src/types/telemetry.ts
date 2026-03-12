@@ -1,8 +1,7 @@
 export type TelemetryStatus = "ok" | "degraded" | "down";
 export type AuthMode = "app" | "access";
 export type ThemeMode = "dark" | "light";
-export type Timeframe = "1D" | "5D" | "1M" | "6M" | "YTD" | "1Y";
-export type PageKey = "overview" | "live" | "workers" | "network" | "actions" | "logs" | "settings";
+export type PageKey = "overview" | "live" | "workers" | "logs" | "settings";
 
 export interface TelemetryEvent {
   id: string;
@@ -15,17 +14,41 @@ export interface TelemetryEvent {
   receivedAt: string;
 }
 
+export interface AppSessionRecord {
+  id: string;
+  installId: string;
+  source: string;
+  userLabel: string | null;
+  clientIp: string | null;
+  clientCountry: string | null;
+  appVersion: string | null;
+  platform: string | null;
+  startedAt: string;
+  lastSeenAt: string;
+  endedAt: string | null;
+  durationSeconds: number | null;
+  isActive: boolean;
+  lastEvent: string | null;
+  lastStatus: TelemetryStatus;
+  errorCount: number;
+}
+
 export interface SummaryPayload {
   generatedAt: string;
   storage: "d1" | "kv";
-  overallStatus: TelemetryStatus | "unknown";
-  latest: TelemetryEvent[];
-  recent: TelemetryEvent[];
+  activeSessions: AppSessionRecord[];
+  recentSessions: AppSessionRecord[];
+  recentErrors: TelemetryEvent[];
+  recentEvents: TelemetryEvent[];
   stats: {
     totalEvents: number;
+    totalSessions: number;
+    activeUsers: number;
+    sessionsStartedToday: number;
+    sessionsEndedToday: number;
+    averageSessionDurationSeconds: number;
+    errorsLast24Hours: number;
     lastIngestAt: string | null;
-    sources: number;
-    services: number;
   };
 }
 
@@ -66,29 +89,4 @@ export interface AdminDataPayload {
   user: AuthUser;
   authMode?: AuthMode;
   error?: string;
-}
-
-export interface ChartPoint {
-  label: string;
-  value: number;
-}
-
-export interface PieSlice {
-  name: string;
-  value: number;
-}
-
-export interface WorkerRow {
-  name: string;
-  events: number;
-  lastSeen: string;
-  status: TelemetryStatus;
-  platform: string;
-  version: string;
-  services: number;
-}
-
-export interface MetricKeyCount {
-  key: string;
-  count: number;
 }

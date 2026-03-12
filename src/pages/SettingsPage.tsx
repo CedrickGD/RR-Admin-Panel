@@ -10,7 +10,7 @@ import {
   User,
 } from "lucide-react";
 import type { AuthMode, AuthUser, HealthPayload, SummaryPayload } from "../types/telemetry";
-import { formatDate } from "../utils/format";
+import { formatDate, formatDuration } from "../utils/format";
 
 interface SettingsPageProps {
   user: AuthUser;
@@ -153,27 +153,47 @@ export function SettingsPage({
             </div>
             <div className="text-center p-4 rounded-xl bg-[hsl(var(--muted)/0.3)]">
               <p className="text-2xl font-bold font-[JetBrains_Mono,monospace] text-[hsl(var(--accent))]">
-                {summary.stats.sources}
+                {summary.stats.totalSessions}
               </p>
               <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
-                Sources
+                Sessions
               </p>
             </div>
             <div className="text-center p-4 rounded-xl bg-[hsl(var(--muted)/0.3)]">
               <p className="text-2xl font-bold font-[JetBrains_Mono,monospace] text-amber-400">
-                {summary.stats.services}
+                {summary.stats.activeUsers}
               </p>
               <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
-                Services
+                Active Users
               </p>
             </div>
             <div className="text-center p-4 rounded-xl bg-[hsl(var(--muted)/0.3)]">
               <p className="text-sm font-bold font-[JetBrains_Mono,monospace] text-rose-400">
-                {formatDate(summary.stats.lastIngestAt)}
+                {formatDuration(summary.stats.averageSessionDurationSeconds)}
               </p>
               <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
-                Last Ingest
+                Avg Session
               </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-4">
+            <div className="rounded-xl bg-[hsl(var(--muted)/0.3)] p-4 text-center">
+              <p className="text-lg font-bold font-[JetBrains_Mono,monospace]">
+                {summary.stats.sessionsStartedToday}
+              </p>
+              <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">Started Today</p>
+            </div>
+            <div className="rounded-xl bg-[hsl(var(--muted)/0.3)] p-4 text-center">
+              <p className="text-lg font-bold font-[JetBrains_Mono,monospace]">
+                {summary.stats.sessionsEndedToday}
+              </p>
+              <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">Ended Today</p>
+            </div>
+            <div className="rounded-xl bg-[hsl(var(--muted)/0.3)] p-4 text-center col-span-2 sm:col-span-1">
+              <p className="text-sm font-bold font-[JetBrains_Mono,monospace]">
+                {formatDate(summary.stats.lastIngestAt)}
+              </p>
+              <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">Last Ingest</p>
             </div>
           </div>
         </div>

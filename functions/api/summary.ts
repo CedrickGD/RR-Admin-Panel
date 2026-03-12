@@ -1,5 +1,4 @@
-import { error, json } from "../_lib/http";
-import { loadSummary } from "../_lib/storage";
+import { error } from "../_lib/http";
 import type { RuntimeEnv } from "../_lib/types";
 
 type HandlerContext = {
@@ -12,10 +11,6 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
     return error(405, "Method not allowed. Use GET.");
   }
 
-  try {
-    const summary = await loadSummary(context.env);
-    return json(summary);
-  } catch (summaryError) {
-    return error(500, "Failed to load summary.", summaryError instanceof Error ? summaryError.message : null);
-  }
+  void context.env;
+  return error(410, "Public summary endpoint is disabled. Use /api/admin/data.");
 }

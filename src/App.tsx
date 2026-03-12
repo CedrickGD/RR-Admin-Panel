@@ -5,9 +5,7 @@ import { useDashboard } from "./hooks/useDashboard";
 import { useTheme } from "./hooks/useTheme";
 import { LogsPage } from "./pages/LogsPage";
 import { LivePage } from "./pages/LivePage";
-import { NetworkPage } from "./pages/NetworkPage";
 import { OverviewPage } from "./pages/OverviewPage";
-import { ActionsPage } from "./pages/ActionsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { WorkersPage } from "./pages/WorkersPage";
 import type { PageKey } from "./types/telemetry";
@@ -30,7 +28,7 @@ export default function App() {
     refresh,
   } = useDashboard();
 
-  const [page, setPage] = useState<PageKey>("live");
+  const [page, setPage] = useState<PageKey>("overview");
 
   useEffect(() => {
     const root = document.documentElement;
@@ -111,8 +109,6 @@ export default function App() {
             {page === "overview" ? <OverviewPage summary={summary} /> : null}
             {page === "live" ? <LivePage summary={summary} /> : null}
             {page === "workers" ? <WorkersPage summary={summary} /> : null}
-            {page === "network" ? <NetworkPage summary={summary} /> : null}
-            {page === "actions" ? <ActionsPage summary={summary} /> : null}
             {page === "logs" ? <LogsPage summary={summary} /> : null}
             {page === "settings" ? (
               <SettingsPage

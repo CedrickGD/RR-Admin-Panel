@@ -34,3 +34,24 @@ export function timeAgo(value: string | null): string {
   if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
   return `${Math.floor(diff / 86_400_000)}d ago`;
 }
+
+export function formatDuration(seconds: number | null): string {
+  if (seconds === null || !Number.isFinite(seconds) || seconds < 0) {
+    return "open";
+  }
+
+  const wholeSeconds = Math.round(seconds);
+  const hours = Math.floor(wholeSeconds / 3600);
+  const minutes = Math.floor((wholeSeconds % 3600) / 60);
+  const remainingSeconds = wholeSeconds % 60;
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+
+  if (minutes > 0) {
+    return `${minutes}m ${remainingSeconds}s`;
+  }
+
+  return `${remainingSeconds}s`;
+}

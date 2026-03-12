@@ -2,16 +2,14 @@ import {
   Activity,
   BarChart3,
   Globe,
+  History,
   Radio,
-  KeyRound,
   LogOut,
   Moon,
-  Network,
   RefreshCw,
-  ScrollText,
+  AlertTriangle,
   Settings2,
   Sun,
-  Users,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import type { AuthMode, AuthUser, PageKey, ThemeMode } from "../types/telemetry";
@@ -23,12 +21,10 @@ interface NavEntry {
 }
 
 const NAV_ITEMS: NavEntry[] = [
-  { key: "live", label: "LIVE", icon: <Radio className="w-[18px] h-[18px]" /> },
   { key: "overview", label: "Overview", icon: <BarChart3 className="w-[18px] h-[18px]" /> },
-  { key: "workers", label: "Workers", icon: <Users className="w-[18px] h-[18px]" /> },
-  { key: "network", label: "Network", icon: <Network className="w-[18px] h-[18px]" /> },
-  { key: "actions", label: "Actions", icon: <KeyRound className="w-[18px] h-[18px]" /> },
-  { key: "logs", label: "Logs", icon: <ScrollText className="w-[18px] h-[18px]" /> },
+  { key: "live", label: "Live", icon: <Radio className="w-[18px] h-[18px]" /> },
+  { key: "workers", label: "Sessions", icon: <History className="w-[18px] h-[18px]" /> },
+  { key: "logs", label: "Errors", icon: <AlertTriangle className="w-[18px] h-[18px]" /> },
   { key: "settings", label: "Settings", icon: <Settings2 className="w-[18px] h-[18px]" /> },
 ];
 

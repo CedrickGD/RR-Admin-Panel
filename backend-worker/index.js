@@ -5,6 +5,7 @@ const RECENT_EVENT_LIMIT = 200;
 const ACTIVE_SESSION_LIMIT = 100;
 const RECENT_SESSION_LIMIT = 200;
 const RECENT_ERROR_LIMIT = 50;
+const ACTIVE_SESSION_TIMEOUT_MS = 12 * 60 * 1000;
 const MAX_METRICS_KEYS = 64;
 const MAX_MESSAGE_LENGTH = 500;
 const MAX_METRICS_BYTES = 8 * 1024;
@@ -287,6 +288,7 @@ async function loadSummary(env) {
   }
 
   await ensureTelemetrySchema(db);
+  await expireStaleSessionsD1(db);
 
   const [activeRows, recentSessionRows, recentErrorRows, recentEventRows, eventStats, sessionStats] = await Promise.all([
     db
@@ -380,6 +382,7 @@ async function loadHealth(env) {
   }
 
   await ensureTelemetrySchema(db);
+  await expireStaleSessionsD1(db);
   await db.prepare("SELECT 1").first();
   const stats = await db.prepare("SELECT COUNT(*) AS totalEvents, MAX(ts) AS lastIngestAt FROM telemetry_events").first();
 
@@ -507,6 +510,35 @@ async function ensureTelemetrySchema(db) {
   for (const statement of statements) {
     await db.prepare(statement).run();
   }
+}
+
+async function expireStaleSessionsD1(db) {
+  if (!db) {
+    return;
+  }
+
+  const cutoff = new Date(Date.now() - ACTIVE_SESSION_TIMEOUT_MS).toISOString();
+
+  await db
+    .prepare(
+      `UPDATE app_sessions
+       SET
+         is_active = 0,
+         ended_at = COALESCE(ended_at, last_seen_at),
+         duration_seconds = COALESCE(
+           duration_seconds,
+           CASE
+             WHEN strftime('%s', last_seen_at) >= strftime('%s', started_at)
+             THEN CAST(strftime('%s', last_seen_at) - strftime('%s', started_at) AS INTEGER)
+             ELSE duration_seconds
+           END
+         ),
+         updated_at = ?
+       WHERE is_active = 1
+         AND last_seen_at < ?`
+    )
+    .bind(nowIso(), cutoff)
+    .run();
 }
 
 async function upsertSessionD1(db, event) {

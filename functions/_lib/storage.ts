@@ -17,6 +17,7 @@ const ACTIVE_SESSION_LIMIT = 100;
 const RECENT_SESSION_LIMIT = 200;
 const RECENT_ERROR_LIMIT = 50;
 const MAX_KV_SESSIONS = 500;
+const ACTIVE_SESSION_TIMEOUT_MS = 12 * 60 * 1000;
 
 const SESSION_START = "session_start";
 const SESSION_ACTIVE = "session_active";
@@ -178,6 +179,7 @@ async function loadSummaryD1(env: RuntimeEnv): Promise<SummaryPayload> {
   }
 
   await ensureTelemetrySchema(db);
+  await expireStaleSessionsD1(db);
 
   const [activeRows, recentSessionRows, recentErrorRows, recentEventRows, eventStats, sessionStats] = await Promise.all([
     db
@@ -271,6 +273,7 @@ async function loadHealthD1(env: RuntimeEnv): Promise<HealthPayload> {
   }
 
   await ensureTelemetrySchema(db);
+  await expireStaleSessionsD1(db);
 
   await db.prepare("SELECT 1 AS ok").first();
   const stats = await db.prepare("SELECT COUNT(*) AS totalEvents, MAX(ts) AS lastIngestAt FROM telemetry_events").first<{
@@ -327,7 +330,7 @@ async function loadSummaryKv(env: RuntimeEnv): Promise<SummaryPayload> {
     kvGetJson<Record<string, AppSessionRecord>>(kv, SESSIONS_KEY, {}),
   ]);
 
-  const sessions = Object.values(sessionsMap);
+  const sessions = Object.values(sessionsMap).map(normalizeSessionRecord);
   return buildSummaryFromCollections("kv", sessions, events);
 }
 
@@ -439,6 +442,35 @@ async function ensureTelemetrySchema(db: RuntimeEnv["DB"]): Promise<void> {
   for (const statement of statements) {
     await db.prepare(statement).run();
   }
+}
+
+async function expireStaleSessionsD1(db: RuntimeEnv["DB"]): Promise<void> {
+  if (!db) {
+    return;
+  }
+
+  const cutoff = new Date(Date.now() - ACTIVE_SESSION_TIMEOUT_MS).toISOString();
+
+  await db
+    .prepare(
+      `UPDATE app_sessions
+       SET
+         is_active = 0,
+         ended_at = COALESCE(ended_at, last_seen_at),
+         duration_seconds = COALESCE(
+           duration_seconds,
+           CASE
+             WHEN strftime('%s', last_seen_at) >= strftime('%s', started_at)
+             THEN CAST(strftime('%s', last_seen_at) - strftime('%s', started_at) AS INTEGER)
+             ELSE duration_seconds
+           END
+         ),
+         updated_at = ?
+       WHERE is_active = 1
+         AND last_seen_at < ?`
+    )
+    .bind(nowIso(), cutoff)
+    .run();
 }
 
 async function upsertSessionD1(db: RuntimeEnv["DB"], event: TelemetryEvent): Promise<void> {
@@ -582,6 +614,19 @@ function trimSessionMap(sessionsMap: Record<string, AppSessionRecord>): Record<s
   return Object.fromEntries(sorted.map((session) => [session.id, session]));
 }
 
+function normalizeSessionRecord(session: AppSessionRecord): AppSessionRecord {
+  if (!session.isActive || !isSessionStale(session.lastSeenAt)) {
+    return session;
+  }
+
+  return {
+    ...session,
+    isActive: false,
+    endedAt: session.endedAt ?? session.lastSeenAt,
+    durationSeconds: session.durationSeconds ?? durationBetween(session.startedAt, session.lastSeenAt),
+  };
+}
+
 function mapD1Event(row: D1EventRow): TelemetryEvent {
   return {
     id: row.event_id,
@@ -683,6 +728,15 @@ function startOfUtcDayIso(): string {
 
 function hoursAgoIso(hours: number): string {
   return new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+}
+
+function isSessionStale(lastSeenAt: string): boolean {
+  const lastSeenTs = Date.parse(lastSeenAt);
+  if (!Number.isFinite(lastSeenTs)) {
+    return false;
+  }
+
+  return Date.now() - lastSeenTs > ACTIVE_SESSION_TIMEOUT_MS;
 }
 
 function sessionRecency(session: AppSessionRecord): string {

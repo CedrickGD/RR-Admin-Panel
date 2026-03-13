@@ -61,6 +61,7 @@ export function WorkersPage({ summary }: WorkersPageProps) {
     <div className="page-content page-content-wide page-stack">
       <section className="page-header">
         <div>
+          <p className="page-kicker">Session Archive</p>
           <h1 className="page-title">Sessions</h1>
           <p className="page-subtitle">Searchable session history and TXT export.</p>
         </div>

@@ -22,21 +22,22 @@ export function LoginForm({
 
   if (authMode === "access") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[hsl(var(--background))] p-4">
-        <div className="card w-full max-w-sm p-8 text-center">
-          <div className="mb-4 flex justify-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[hsl(var(--primary)/0.12)] text-[hsl(var(--primary))]">
+      <div className="auth-shell">
+        <div className="auth-panel auth-panel-compact">
+          <div className="auth-brand">
+            <div className="auth-brand-mark">
               <Shield className="h-7 w-7" />
             </div>
+            <div>
+              <p className="auth-kicker">Zero Trust</p>
+              <h1 className="auth-title">Cloudflare Access gate</h1>
+            </div>
           </div>
-          <h1 className="mb-1 text-lg font-bold">Cloudflare Access</h1>
-          <p className="mb-5 text-sm text-[hsl(var(--muted-foreground))]">
-            This dashboard is protected by Cloudflare Access.
+          <p className="auth-copy">
+            This dashboard stays behind Cloudflare Access. Continue through the protected portal and return here once
+            the session is established.
           </p>
-          <a
-            href="/"
-            className="btn-primary w-full inline-flex items-center justify-center"
-          >
+          <a href="/" className="btn-primary w-full inline-flex items-center justify-center">
             Open Access Portal
           </a>
         </div>
@@ -45,40 +46,46 @@ export function LoginForm({
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[hsl(var(--background))] p-4">
-      <div className="card w-full max-w-sm p-8">
-        <div className="mb-5 flex justify-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[hsl(var(--primary)/0.12)] text-[hsl(var(--primary))]">
+    <div className="auth-shell">
+      <div className="auth-panel">
+        <div className="auth-brand">
+          <div className="auth-brand-mark">
             <Activity className="h-7 w-7" />
+          </div>
+          <div>
+            <p className="auth-kicker">{isBootstrap ? "First-time setup" : "Operator sign-in"}</p>
+            <h1 className="auth-title">{isBootstrap ? "Create Admin Account" : "Enter the dashboard"}</h1>
           </div>
         </div>
 
-        <h1 className="mb-0.5 text-center text-lg font-bold">
-          {isBootstrap ? "Create Admin Account" : "Sign In"}
-        </h1>
-        <p className="mb-5 text-center text-sm text-[hsl(var(--muted-foreground))]">
+        <p className="auth-copy">
           {isBootstrap
             ? "Set up the first admin account for this panel."
-            : "Enter your credentials to access the dashboard."}
+            : "Use your operator credentials to access live telemetry, sessions, and error feeds."}
         </p>
 
-        {error ? (
-          <div className="mb-4 p-3 rounded-lg bg-rose-500/10 text-rose-400 text-sm border border-rose-500/20">
-            {error}
+        <div className="auth-note-grid">
+          <div>
+            <span>Scope</span>
+            <strong>Sessions, incidents, rollout health</strong>
           </div>
-        ) : null}
+          <div>
+            <span>Mode</span>
+            <strong>{isBootstrap ? "Bootstrap" : "Protected access"}</strong>
+          </div>
+        </div>
+
+        {error ? <div className="inline-error">{error}</div> : null}
 
         <form
-          onSubmit={(e) => {
-            e.preventDefault();
+          onSubmit={(event) => {
+            event.preventDefault();
             onSubmit(email, password, confirm);
           }}
-          className="space-y-4"
+          className="auth-form"
         >
           <div>
-            <label className="block text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1.5">
-              Email
-            </label>
+            <label className="auth-label">Email</label>
             <div className="input-group">
               <Mail className="w-4 h-4 text-[hsl(var(--muted-foreground))]" />
               <input
@@ -86,7 +93,7 @@ export function LoginForm({
                 placeholder="admin@example.com"
                 className="input"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(event) => setEmail(event.target.value)}
                 required
                 autoFocus
               />
@@ -94,9 +101,7 @@ export function LoginForm({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1.5">
-              Password
-            </label>
+            <label className="auth-label">Password</label>
             <div className="input-group">
               <KeyRound className="w-4 h-4 text-[hsl(var(--muted-foreground))]" />
               <input
@@ -104,7 +109,7 @@ export function LoginForm({
                 placeholder="Minimum 10 characters"
                 className="input"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(event) => setPassword(event.target.value)}
                 required
                 minLength={10}
               />
@@ -113,9 +118,7 @@ export function LoginForm({
 
           {isBootstrap ? (
             <div>
-              <label className="block text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1.5">
-                Confirm Password
-              </label>
+              <label className="auth-label">Confirm Password</label>
               <div className="input-group">
                 <KeyRound className="w-4 h-4 text-[hsl(var(--muted-foreground))]" />
                 <input
@@ -123,7 +126,7 @@ export function LoginForm({
                   placeholder="Re-enter password"
                   className="input"
                   value={confirm}
-                  onChange={(e) => setConfirm(e.target.value)}
+                  onChange={(event) => setConfirm(event.target.value)}
                   required
                   minLength={10}
                 />
@@ -131,14 +134,8 @@ export function LoginForm({
             </div>
           ) : null}
 
-          <button
-            className="btn-primary w-full flex items-center justify-center gap-2"
-            type="submit"
-            disabled={busy}
-          >
-            {busy ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : null}
+          <button className="btn-primary w-full flex items-center justify-center gap-2" type="submit" disabled={busy}>
+            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
             {isBootstrap ? "Create Account" : "Sign In"}
           </button>
         </form>

@@ -35,6 +35,7 @@ export function LogsPage({ summary }: LogsPageProps) {
     <div className="page-content page-content-wide page-stack">
       <section className="page-header">
         <div>
+          <p className="page-kicker">Incident Feed</p>
           <h1 className="page-title">Errors</h1>
           <p className="page-subtitle">Only real application errors.</p>
         </div>

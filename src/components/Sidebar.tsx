@@ -64,8 +64,11 @@ export function Sidebar({
 }: SidebarProps) {
   const activeUsers = summary?.stats.activeUsers ?? 0;
   const totalSessions = summary?.stats.totalSessions ?? 0;
+  const errorsLast24Hours = summary?.stats.errorsLast24Hours ?? 0;
   const ingestLabel = timeAgo(summary?.stats.lastIngestAt ?? health?.lastIngestAt ?? null);
   const storageLabel = summary?.storage?.toUpperCase() ?? health?.storage.backend?.toUpperCase() ?? "N/A";
+  const systemLabel = health?.api === "alive" ? "API online" : "API offline";
+  const pulseLabel = errorsLast24Hours > 0 ? "Monitoring incidents" : "Quiet telemetry window";
 
   return (
     <aside className="sidebar">
@@ -75,29 +78,43 @@ export function Sidebar({
         </div>
         <div className="sidebar-brand-copy">
           <p className="sidebar-brand-title">RazorReaper Admin</p>
-          <p className="sidebar-brand-subtitle">Telemetry Console</p>
+          <p className="sidebar-brand-subtitle">Operations Console</p>
         </div>
       </div>
 
-      <section className="sidebar-block">
-        <p className="sidebar-block-label">Status</p>
-        <div className="sidebar-metric-list">
-          <div className="sidebar-metric-row">
-            <span>Active users</span>
+      <section className="sidebar-block sidebar-command-block">
+        <div className="sidebar-command-head">
+          <div>
+            <p className="sidebar-block-label">Command Deck</p>
+            <p className="sidebar-command-title">{pulseLabel}</p>
+          </div>
+          <span className={`sidebar-pill ${errorsLast24Hours > 0 ? "sidebar-pill-warning" : "sidebar-pill-success"}`}>
+            {systemLabel}
+          </span>
+        </div>
+
+        <div className="sidebar-hero-metrics">
+          <div>
+            <span>Active</span>
             <strong>{formatNumber(activeUsers)}</strong>
           </div>
-          <div className="sidebar-metric-row">
-            <span>Total sessions</span>
+          <div>
+            <span>Sessions</span>
             <strong>{formatNumber(totalSessions)}</strong>
           </div>
-          <div className="sidebar-metric-row">
-            <span>Last ingest</span>
-            <strong>{ingestLabel}</strong>
+          <div>
+            <span>Errors</span>
+            <strong>{formatNumber(errorsLast24Hours)}</strong>
           </div>
-          <div className="sidebar-metric-row">
+          <div>
             <span>Storage</span>
             <strong>{storageLabel}</strong>
           </div>
+        </div>
+
+        <div className="sidebar-command-foot">
+          <span>Last ingest</span>
+          <strong>{ingestLabel}</strong>
         </div>
       </section>
 
@@ -120,7 +137,7 @@ export function Sidebar({
 
       <div className="sidebar-spacer" />
 
-      <section className="sidebar-block">
+      <section className="sidebar-block sidebar-controls-block">
         <p className="sidebar-block-label">Controls</p>
         <div className="sidebar-control-row">
           <button

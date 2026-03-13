@@ -101,6 +101,8 @@ export function OverviewPage({ summary, theme }: OverviewPageProps) {
   const liveRows = summary.activeSessions.slice(0, 5);
   const recentRows = summary.recentSessions.slice(0, 8);
   const errorRows = summary.recentErrors.slice(0, 5);
+  const topCountry = countries[0];
+  const latestEvent = summary.recentEvents[0];
 
   const chartPalette = useMemo(
     () =>
@@ -109,26 +111,26 @@ export function OverviewPage({ summary, theme }: OverviewPageProps) {
             grid: "rgba(255,255,255,0.08)",
             axis: "rgba(255,255,255,0.58)",
             axisSoft: "rgba(255,255,255,0.46)",
-            primaryLine: "#ffffff",
-            primaryFillStart: "rgba(255,255,255,0.34)",
-            primaryFillEnd: "rgba(255,255,255,0)",
-            secondaryLine: "rgba(167,139,250,0.88)",
-            errorBar: "rgba(168,85,247,0.28)",
-            countryBar: "rgba(255,255,255,0.84)",
-            durationBar: "rgba(168,85,247,0.58)",
+            primaryLine: "#fbbf24",
+            primaryFillStart: "rgba(251,191,36,0.34)",
+            primaryFillEnd: "rgba(251,191,36,0)",
+            secondaryLine: "rgba(94,234,212,0.88)",
+            errorBar: "rgba(248,113,113,0.28)",
+            countryBar: "rgba(251,191,36,0.82)",
+            durationBar: "rgba(94,234,212,0.58)",
             tooltipCursor: false as const,
           }
         : {
-            grid: "rgba(15,23,42,0.1)",
-            axis: "rgba(15,23,42,0.66)",
-            axisSoft: "rgba(15,23,42,0.5)",
-            primaryLine: "rgba(91,33,182,0.92)",
-            primaryFillStart: "rgba(91,33,182,0.14)",
-            primaryFillEnd: "rgba(15,23,42,0)",
-            secondaryLine: "rgba(15,23,42,0.72)",
-            errorBar: "rgba(124,58,237,0.18)",
-            countryBar: "rgba(31,41,55,0.9)",
-            durationBar: "rgba(124,58,237,0.58)",
+            grid: "rgba(19,37,57,0.12)",
+            axis: "rgba(19,37,57,0.72)",
+            axisSoft: "rgba(19,37,57,0.54)",
+            primaryLine: "rgba(180,83,9,0.94)",
+            primaryFillStart: "rgba(217,119,6,0.18)",
+            primaryFillEnd: "rgba(19,37,57,0)",
+            secondaryLine: "rgba(15,118,110,0.88)",
+            errorBar: "rgba(220,38,38,0.18)",
+            countryBar: "rgba(180,83,9,0.88)",
+            durationBar: "rgba(15,118,110,0.62)",
             tooltipCursor: false as const,
           },
     [theme],
@@ -150,22 +152,59 @@ export function OverviewPage({ summary, theme }: OverviewPageProps) {
 
   return (
     <div className="page-content page-content-wide overview-page">
-      <section className="page-header overview-header">
-        <div>
-          <h1 className="page-title">Operations Overview</h1>
-          <p className="page-subtitle">
-            Sessions, errors, geography, and runtime behavior for the current telemetry window.
+      <section className="overview-hero panel">
+        <div className="overview-hero-main">
+          <p className="page-kicker">Command Deck</p>
+          <h1 className="overview-hero-title">Keep telemetry, incidents, and session drift in one sightline.</h1>
+          <p className="overview-hero-copy">
+            This view compresses the current operating window into a single briefing so you can catch unstable releases,
+            noisy regions, and active users before support tickets pile up.
           </p>
+
+          <div className="hero-chip-row">
+            <div className="hero-chip">
+              <span>Storage</span>
+              <strong>{summary.storage.toUpperCase()}</strong>
+            </div>
+            <div className="hero-chip">
+              <span>Last ingest</span>
+              <strong>{summary.stats.lastIngestAt ? timeAgo(summary.stats.lastIngestAt) : "Waiting"}</strong>
+            </div>
+            <div className="hero-chip">
+              <span>Top region</span>
+              <strong>{topCountry ? `${topCountry.label} (${formatNumber(topCountry.value)})` : "No geo data yet"}</strong>
+            </div>
+          </div>
         </div>
 
-        <div className="page-meta-stack">
-          <div className="page-meta">
-            <span>Last ingest</span>
-            <strong>{summary.stats.lastIngestAt ? formatDate(summary.stats.lastIngestAt) : "Waiting"}</strong>
+        <div className="overview-hero-side">
+          <div className="overview-hero-highlight">
+            <span className="overview-hero-label">Current Pulse</span>
+            <strong className="overview-hero-value">{formatNumber(summary.stats.totalEvents)}</strong>
+            <p className="overview-hero-note">events loaded into the present telemetry window</p>
           </div>
-          <div className="page-meta">
-            <span>Total sessions</span>
-            <strong>{formatNumber(summary.stats.totalSessions)}</strong>
+
+          <div className="overview-hero-grid">
+            <div className="overview-hero-cell">
+              <span>Active now</span>
+              <strong>{formatNumber(summary.stats.activeUsers)}</strong>
+              <p>{liveRows.length} live sessions in memory</p>
+            </div>
+            <div className="overview-hero-cell">
+              <span>Session flow</span>
+              <strong>{formatNumber(summary.stats.sessionsStartedToday)}</strong>
+              <p>{formatNumber(summary.stats.sessionsEndedToday)} closed today</p>
+            </div>
+            <div className="overview-hero-cell">
+              <span>Error pressure</span>
+              <strong>{formatNumber(summary.stats.errorsLast24Hours)}</strong>
+              <p>{errorRows.length} rows in the loaded feed</p>
+            </div>
+            <div className="overview-hero-cell">
+              <span>Latest event</span>
+              <strong>{latestEvent ? latestEvent.service : "Waiting"}</strong>
+              <p>{latestEvent ? timeAgo(latestEvent.timestamp) : "No recent activity"}</p>
+            </div>
           </div>
         </div>
       </section>
@@ -190,7 +229,7 @@ export function OverviewPage({ summary, theme }: OverviewPageProps) {
           value={formatDuration(summary.stats.averageSessionDurationSeconds)}
           sub="Across completed sessions"
           icon={<Clock3 className="h-5 w-5" />}
-          tone="primary"
+          tone="amber"
         />
         <StatCard
           label="Errors 24h"
@@ -205,6 +244,7 @@ export function OverviewPage({ summary, theme }: OverviewPageProps) {
         <section className="panel panel-dense">
           <div className="panel-header">
             <div>
+              <p className="panel-kicker">Flow</p>
               <h2 className="panel-title">Traffic</h2>
               <p className="panel-subtitle">Open and close activity with error spikes over the last 24 hours.</p>
             </div>
@@ -284,6 +324,7 @@ export function OverviewPage({ summary, theme }: OverviewPageProps) {
           <section className="panel panel-dense">
             <div className="panel-header">
               <div>
+                <p className="panel-kicker">Live</p>
                 <h2 className="panel-title">Active Sessions</h2>
                 <p className="panel-subtitle">Latest users currently inside the app.</p>
               </div>
@@ -296,7 +337,8 @@ export function OverviewPage({ summary, theme }: OverviewPageProps) {
                   <div className="signal-copy">
                     <p className="signal-title">{displayUser(session)}</p>
                     <p className="signal-meta">
-                      {session.clientIp ?? "unknown"} · {session.clientCountry ?? "Unknown"} · {session.appVersion ?? "unknown"}
+                      {session.clientIp ?? "unknown"} · {session.clientCountry ?? "Unknown"} ·{" "}
+                      {session.appVersion ?? "unknown"}
                     </p>
                   </div>
                   <div className="signal-side">
@@ -313,6 +355,7 @@ export function OverviewPage({ summary, theme }: OverviewPageProps) {
           <section className="panel panel-dense">
             <div className="panel-header">
               <div>
+                <p className="panel-kicker">Reach</p>
                 <h2 className="panel-title">Geography</h2>
                 <p className="panel-subtitle">Country distribution across the current loaded sessions.</p>
               </div>
@@ -333,7 +376,13 @@ export function OverviewPage({ summary, theme }: OverviewPageProps) {
                     tick={{ fill: chartPalette.axis, fontSize: 11 }}
                   />
                   <Tooltip cursor={chartPalette.tooltipCursor} content={<ChartTooltip />} />
-                  <Bar dataKey="value" name="Sessions" fill={chartPalette.countryBar} radius={[0, 6, 6, 0]} barSize={12} />
+                  <Bar
+                    dataKey="value"
+                    name="Sessions"
+                    fill={chartPalette.countryBar}
+                    radius={[0, 6, 6, 0]}
+                    barSize={12}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -345,6 +394,7 @@ export function OverviewPage({ summary, theme }: OverviewPageProps) {
         <section className="panel panel-dense">
           <div className="panel-header">
             <div>
+              <p className="panel-kicker">History</p>
               <h2 className="panel-title">Session Tape</h2>
               <p className="panel-subtitle">Recent session opens, closes, addresses, and runtime.</p>
             </div>
@@ -372,7 +422,7 @@ export function OverviewPage({ summary, theme }: OverviewPageProps) {
                         <div className="table-subline">{session.installId}</div>
                       </td>
                       <td>
-                        <div className="font-[JetBrains_Mono,monospace]">{session.clientIp ?? "unknown"}</div>
+                        <div className="font-[IBM_Plex_Mono,monospace]">{session.clientIp ?? "unknown"}</div>
                         <div className="table-subline">{session.clientCountry ?? "Unknown"}</div>
                       </td>
                       <td>
@@ -392,7 +442,7 @@ export function OverviewPage({ summary, theme }: OverviewPageProps) {
                       <td>
                         <StatusBadge status={session.lastStatus} />
                       </td>
-                      <td className="text-right font-[JetBrains_Mono,monospace]">{sessionDuration(session)}</td>
+                      <td className="text-right font-[IBM_Plex_Mono,monospace]">{sessionDuration(session)}</td>
                     </tr>
                   ))}
 
@@ -413,6 +463,7 @@ export function OverviewPage({ summary, theme }: OverviewPageProps) {
           <section className="panel panel-dense">
             <div className="panel-header">
               <div>
+                <p className="panel-kicker">Distribution</p>
                 <h2 className="panel-title">Session Duration</h2>
                 <p className="panel-subtitle">Completed sessions grouped by runtime band.</p>
               </div>
@@ -435,7 +486,13 @@ export function OverviewPage({ summary, theme }: OverviewPageProps) {
                     tick={{ fill: chartPalette.axisSoft, fontSize: 11 }}
                   />
                   <Tooltip cursor={chartPalette.tooltipCursor} content={<ChartTooltip />} />
-                  <Bar dataKey="value" name="Sessions" fill={chartPalette.durationBar} radius={[6, 6, 0, 0]} barSize={22} />
+                  <Bar
+                    dataKey="value"
+                    name="Sessions"
+                    fill={chartPalette.durationBar}
+                    radius={[6, 6, 0, 0]}
+                    barSize={22}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -444,6 +501,7 @@ export function OverviewPage({ summary, theme }: OverviewPageProps) {
           <section className="panel panel-dense">
             <div className="panel-header">
               <div>
+                <p className="panel-kicker">Incidents</p>
                 <h2 className="panel-title">Error Feed</h2>
                 <p className="panel-subtitle">Most recent application failures in the loaded range.</p>
               </div>

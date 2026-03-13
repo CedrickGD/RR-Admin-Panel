@@ -2,18 +2,22 @@ import type { ReactNode } from "react";
 
 type Tone = "primary" | "accent" | "amber" | "rose";
 
-const TONE_MAP: Record<Tone, { icon: string }> = {
+const TONE_MAP: Record<Tone, { icon: string; card: string }> = {
   primary: {
-    icon: "bg-[hsl(var(--primary)/0.12)] text-[hsl(var(--primary))]",
+    icon: "bg-[hsl(var(--primary)/0.14)] text-[hsl(var(--primary))]",
+    card: "stat-card-primary",
   },
   accent: {
-    icon: "bg-[hsl(var(--accent)/0.12)] text-[hsl(var(--accent))]",
+    icon: "bg-[hsl(var(--accent)/0.14)] text-[hsl(var(--accent))]",
+    card: "stat-card-accent",
   },
   amber: {
-    icon: "bg-amber-500/12 text-amber-500",
+    icon: "bg-[hsl(var(--warning)/0.16)] text-[hsl(var(--warning))]",
+    card: "stat-card-amber",
   },
   rose: {
-    icon: "bg-rose-500/12 text-rose-500",
+    icon: "bg-[hsl(var(--danger)/0.16)] text-[hsl(var(--danger))]",
+    card: "stat-card-rose",
   },
 };
 
@@ -37,7 +41,7 @@ export function StatCard({
   const t = TONE_MAP[tone];
 
   return (
-    <article className="stat-card">
+    <article className={`stat-card ${t.card}`}>
       <div className="stat-card-top">
         <p className="stat-card-label">{label}</p>
         <div className={`stat-card-icon ${t.icon}`}>{icon}</div>

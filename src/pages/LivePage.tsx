@@ -27,6 +27,7 @@ export function LivePage({ summary }: LivePageProps) {
     <div className="page-content page-content-wide page-stack">
       <section className="page-header">
         <div>
+          <p className="page-kicker">Live Telemetry</p>
           <h1 className="page-title">Live</h1>
           <p className="page-subtitle">Current open sessions with IP, version, and last seen time.</p>
         </div>

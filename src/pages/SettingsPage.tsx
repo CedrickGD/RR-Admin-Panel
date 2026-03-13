@@ -21,6 +21,7 @@ export function SettingsPage({
     <div className="page-content page-content-wide page-stack">
       <section className="page-header">
         <div>
+          <p className="page-kicker">Configuration</p>
           <h1 className="page-title">Settings</h1>
           <p className="page-subtitle">Account and backend information.</p>
         </div>

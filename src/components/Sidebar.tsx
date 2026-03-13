@@ -1,5 +1,4 @@
 import {
-  Activity,
   AlertTriangle,
   BarChart3,
   History,
@@ -20,6 +19,7 @@ import type {
   ThemeMode,
 } from "../types/telemetry";
 import { formatNumber, timeAgo } from "../utils/format";
+const brandLogo = new URL("../img/logo.ico", import.meta.url).href;
 
 export const DEFAULT_SIDEBAR_WIDTH = 296;
 export const SIDEBAR_MIN_WIDTH = 248;
@@ -132,7 +132,7 @@ export function Sidebar({
     <aside className="sidebar">
       <div className="sidebar-header">
         <div className="sidebar-brand-mark">
-          <Activity className="h-5 w-5" />
+          <img src={brandLogo} alt="RazorReaper logo" className="sidebar-brand-image" />
         </div>
         <div className="sidebar-brand-copy">
           <p className="sidebar-brand-title">RazorReaper Admin</p>

@@ -1,5 +1,6 @@
-import { Activity, KeyRound, Loader2, Mail, Shield } from "lucide-react";
+import { KeyRound, Loader2, Mail } from "lucide-react";
 import { useState } from "react";
+const brandLogo = new URL("../img/logo.ico", import.meta.url).href;
 
 interface LoginFormProps {
   isBootstrap: boolean;
@@ -26,7 +27,7 @@ export function LoginForm({
         <div className="auth-panel auth-panel-compact">
           <div className="auth-brand">
             <div className="auth-brand-mark">
-              <Shield className="h-7 w-7" />
+              <img src={brandLogo} alt="RazorReaper logo" className="auth-brand-image" />
             </div>
             <div>
               <p className="auth-kicker">Zero Trust</p>
@@ -50,7 +51,7 @@ export function LoginForm({
       <div className="auth-panel">
         <div className="auth-brand">
           <div className="auth-brand-mark">
-            <Activity className="h-7 w-7" />
+            <img src={brandLogo} alt="RazorReaper logo" className="auth-brand-image" />
           </div>
           <div>
             <p className="auth-kicker">{isBootstrap ? "First-time setup" : "Operator sign-in"}</p>

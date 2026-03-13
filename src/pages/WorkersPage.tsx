@@ -72,7 +72,7 @@ export function WorkersPage({ summary }: WorkersPageProps) {
         <div className="page-actions">
           <button type="button" className="btn-ghost" onClick={() => void handleExport()} disabled={exporting}>
             <Download className="h-4 w-4" />
-            {exporting ? "Preparing TXT..." : "Download TXT"}
+            {exporting ? "Preparing TXT..." : "Download TXT Report"}
           </button>
         </div>
       </section>
@@ -87,7 +87,7 @@ export function WorkersPage({ summary }: WorkersPageProps) {
         <div className="panel-header">
           <div>
             <h2 className="panel-title">Session History</h2>
-            <p className="panel-subtitle">User, location, version, last visibility, last event, and error count.</p>
+            <p className="panel-subtitle">User, location, version, last visibility, last event, and error count. Export writes the same data in a readable text report.</p>
           </div>
           <div className="input-group search-small">
             <Search className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />

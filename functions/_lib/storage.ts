@@ -452,12 +452,20 @@ function buildSessionExportText(sessions: AppSessionRecord[], storage: StorageBa
 
   const lines = [
     "# RazorReaper session export",
-    `# generated_at=${nowIso()} storage=${storage} total_sessions=${ordered.length}`,
+    `Generated: ${nowIso()}`,
+    `Storage: ${storage.toUpperCase()}`,
+    `Total sessions: ${ordered.length}`,
+    "",
   ];
 
-  for (const session of ordered) {
-    lines.push(formatSessionExportLine(session));
+  if (ordered.length === 0) {
+    lines.push("No sessions available.");
+    return lines.join("\n");
   }
+
+  ordered.forEach((session, index) => {
+    lines.push(formatSessionExportBlock(session, index + 1));
+  });
 
   return lines.join("\n");
 }
@@ -834,36 +842,61 @@ function durationBetween(startedAt: string, endedAt: string): number | null {
   return Math.round((endTs - startTs) / 1000);
 }
 
-function formatSessionExportLine(session: AppSessionRecord): string {
+function formatSessionExportBlock(session: AppSessionRecord, index: number): string {
   const duration =
     session.durationSeconds ??
     durationBetween(session.startedAt, session.isActive ? session.lastSeenAt : session.endedAt ?? session.lastSeenAt);
 
-  const state = session.isActive
-    ? session.errorCount > 0
-      ? "live-flagged"
-      : "live"
-    : session.errorCount > 0
-      ? "closed-flagged"
-      : "closed";
+  const state = formatExportState(session);
 
   return [
-    `opened=${sanitizeExportValue(session.startedAt)}`,
-    `last_seen=${sanitizeExportValue(session.lastSeenAt)}`,
-    `ended=${sanitizeExportValue(session.endedAt ?? "open")}`,
-    `duration=${sanitizeExportValue(formatExportDuration(duration))}`,
-    `state=${state}`,
-    `telemetry=${sanitizeExportValue(session.lastStatus)}`,
-    `errors=${session.errorCount}`,
-    `user=${sanitizeExportValue(session.userLabel ?? "-")}`,
-    `ip=${sanitizeExportValue(session.clientIp ?? "-")}`,
-    `country=${sanitizeExportValue(session.clientCountry ?? "-")}`,
-    `os=${sanitizeExportValue(session.platform ?? "-")}`,
-    `version=${sanitizeExportValue(session.appVersion ?? "-")}`,
-    `source=${sanitizeExportValue(session.source)}`,
-    `install_id=${sanitizeExportValue(session.installId)}`,
-    `session_id=${sanitizeExportValue(session.id)}`,
-  ].join(" | ");
+    "========================================================================",
+    `Session ${index}`,
+    `User: ${sanitizeExportValue(session.userLabel ?? "-")}`,
+    `Install ID: ${sanitizeExportValue(session.installId)}`,
+    `Session ID: ${sanitizeExportValue(session.id)}`,
+    `State: ${state}`,
+    `Telemetry status: ${sanitizeExportValue(session.lastStatus)}`,
+    `Last event: ${sanitizeExportValue(formatExportEventName(session.lastEvent))}`,
+    `Errors: ${session.errorCount}`,
+    `Source: ${sanitizeExportValue(session.source)}`,
+    `Version: ${sanitizeExportValue(session.appVersion ?? "-")}`,
+    `Platform: ${sanitizeExportValue(session.platform ?? "-")}`,
+    `Country: ${sanitizeExportValue(session.clientCountry ?? "-")}`,
+    `IP: ${sanitizeExportValue(session.clientIp ?? "-")}`,
+    `Started: ${sanitizeExportValue(session.startedAt)}`,
+    `Last seen: ${sanitizeExportValue(session.lastSeenAt)}`,
+    `Ended: ${sanitizeExportValue(session.endedAt ?? "open")}`,
+    `Duration: ${sanitizeExportValue(formatExportDuration(duration))}`,
+    "",
+  ].join("\n");
+}
+
+function formatExportState(session: AppSessionRecord): string {
+  if (session.isActive) {
+    return session.errorCount > 0 ? "active (flagged)" : "active";
+  }
+
+  return session.errorCount > 0 ? "closed (flagged)" : "closed";
+}
+
+function formatExportEventName(value: string | null): string {
+  if (!value) {
+    return "-";
+  }
+
+  switch (value) {
+    case SESSION_START:
+      return "Started";
+    case SESSION_ACTIVE:
+      return "Heartbeat";
+    case SESSION_END:
+      return "Ended";
+    case APP_ERROR:
+      return "App error";
+    default:
+      return value.replaceAll("_", " ");
+  }
 }
 
 function formatExportDuration(seconds: number | null): string {

@@ -12,18 +12,13 @@ import {
   YAxis,
 } from "recharts";
 import { StatCard } from "../components/StatCard";
-import { StatusBadge } from "../components/StatusBadge";
-import type { AppSessionRecord, SummaryPayload, TelemetryEvent, ThemeMode } from "../types/telemetry";
+import type { SummaryPayload, ThemeMode } from "../types/telemetry";
 import { buildCountryBreakdown, buildTrafficTimeline, buildVersionBreakdown } from "../utils/dashboardInsights";
 import { formatDate, formatEventName, formatNumber, timeAgo } from "../utils/format";
 
 interface OverviewPageProps {
   summary: SummaryPayload;
   theme: ThemeMode;
-}
-
-function displayUser(session: AppSessionRecord): string {
-  return session.userLabel?.trim() || session.installId;
 }
 
 function ChartTooltip({
@@ -60,30 +55,11 @@ function ChartTooltip({
   );
 }
 
-function ErrorItem({ event }: { event: TelemetryEvent }) {
-  return (
-    <div className="signal-row">
-      <div className="signal-copy">
-        <p className="signal-title">{event.message ?? "Unhandled application error"}</p>
-        <p className="signal-meta">
-          {event.source} · {String(event.metrics["exception_type"] ?? event.service)}
-        </p>
-      </div>
-      <div className="signal-side">
-        <StatusBadge status={event.status} showDot={false} />
-        <span className="signal-time">{timeAgo(event.timestamp)}</span>
-      </div>
-    </div>
-  );
-}
-
 export function OverviewPage({ summary, theme }: OverviewPageProps) {
   const traffic = useMemo(() => buildTrafficTimeline(summary), [summary]);
   const countries = useMemo(() => buildCountryBreakdown(summary), [summary]);
   const versions = useMemo(() => buildVersionBreakdown(summary), [summary]);
-  const liveRows = summary.activeSessions.slice(0, 5);
-  const recentRows = summary.recentSessions.slice(0, 8);
-  const errorRows = summary.recentErrors.slice(0, 5);
+  const latestError = summary.recentErrors[0];
 
   const chartPalette = useMemo(
     () =>
@@ -126,7 +102,6 @@ export function OverviewPage({ summary, theme }: OverviewPageProps) {
   const sessionsWithErrors = summary.recentSessions.filter((session) => session.errorCount > 0).length;
   const liveWithErrors = summary.activeSessions.filter((session) => session.errorCount > 0).length;
   const mostUsedVersion = versions[0]?.label ?? "Unknown";
-  const latestEvent = summary.recentEvents[0];
 
   return (
     <div className="page-content page-content-wide overview-page">
@@ -135,7 +110,7 @@ export function OverviewPage({ summary, theme }: OverviewPageProps) {
           <p className="page-kicker">Operator View</p>
           <h1 className="page-title">Overview</h1>
           <p className="page-subtitle">
-            Keep the main screen focused on who is active, which version they run, and whether errors are climbing.
+            Summary only. Live rows, session history, and full error lists stay on their own pages so this page stays clean.
           </p>
         </div>
 
@@ -159,14 +134,14 @@ export function OverviewPage({ summary, theme }: OverviewPageProps) {
         <StatCard
           label="Active Users"
           value={formatNumber(summary.stats.activeUsers)}
-          sub={`${liveRows.length} visible in live list`}
+          sub="Full active table lives on the Live page"
           icon={<Radio className="h-5 w-5" />}
           tone="primary"
         />
         <StatCard
           label="Sessions With Errors"
           value={formatNumber(sessionsWithErrors)}
-          sub={`${formatNumber(liveWithErrors)} of them still active`}
+          sub={`${formatNumber(liveWithErrors)} are currently active`}
           icon={<ShieldAlert className="h-5 w-5" />}
           tone="rose"
         />
@@ -178,9 +153,9 @@ export function OverviewPage({ summary, theme }: OverviewPageProps) {
           tone="accent"
         />
         <StatCard
-          label="Latest Event"
-          value={formatEventName(latestEvent?.service ?? null)}
-          sub={latestEvent ? timeAgo(latestEvent.timestamp) : "No recent activity"}
+          label="Latest Error"
+          value={latestError ? timeAgo(latestError.timestamp) : "None"}
+          sub={latestError ? String(latestError.metrics["exception_type"] ?? latestError.service) : "No recent failures"}
           icon={<AlertTriangle className="h-5 w-5" />}
           tone="amber"
         />
@@ -254,213 +229,99 @@ export function OverviewPage({ summary, theme }: OverviewPageProps) {
           </div>
         </section>
 
-        <div className="overview-side-stack">
-          <section className="panel panel-dense">
-            <div className="panel-header">
-              <div>
-                <p className="panel-kicker">Need Attention</p>
-                <h2 className="panel-title">Quick checks</h2>
-                <p className="panel-subtitle">Operator-facing facts that help decide whether anything needs action.</p>
-              </div>
-            </div>
-
-            <div className="info-list">
-              <div className="info-row">
-                <span className="info-label">Last ingest</span>
-                <span className="info-value">{summary.stats.lastIngestAt ? formatDate(summary.stats.lastIngestAt) : "Waiting"}</span>
-              </div>
-              <div className="info-row">
-                <span className="info-label">Sessions with errors</span>
-                <span className="info-value">{formatNumber(sessionsWithErrors)}</span>
-              </div>
-              <div className="info-row">
-                <span className="info-label">Most used version</span>
-                <span className="info-value">{mostUsedVersion}</span>
-              </div>
-              <div className="info-row">
-                <span className="info-label">Storage backend</span>
-                <span className="info-value">{summary.storage.toUpperCase()}</span>
-              </div>
-            </div>
-          </section>
-
-          <section className="panel panel-dense">
-            <div className="panel-header">
-              <div>
-                <p className="panel-kicker">Live</p>
-                <h2 className="panel-title">Active sessions</h2>
-                <p className="panel-subtitle">Users currently active, ordered by recent visibility.</p>
-              </div>
-              <span className="panel-count">{liveRows.length}</span>
-            </div>
-
-            <div className="signal-list">
-              {liveRows.map((session) => (
-                <div key={session.id} className="signal-row">
-                  <div className="signal-copy">
-                    <p className="signal-title">{displayUser(session)}</p>
-                    <p className="signal-meta">
-                      {session.clientCountry ?? "Unknown"} · {session.appVersion ?? "unknown"} · last seen{" "}
-                      {timeAgo(session.lastSeenAt)}
-                    </p>
-                  </div>
-                  <div className="signal-side">
-                    <StatusBadge status={session.lastStatus} />
-                    <span className="signal-time">{session.errorCount} errors</span>
-                  </div>
-                </div>
-              ))}
-
-              {liveRows.length === 0 ? <div className="empty-panel small">No active sessions.</div> : null}
-            </div>
-          </section>
-        </div>
-      </div>
-
-      <div className="overview-secondary-grid">
         <section className="panel panel-dense">
           <div className="panel-header">
             <div>
-              <p className="panel-kicker">Sessions</p>
-              <h2 className="panel-title">Latest session activity</h2>
-              <p className="panel-subtitle">Focus on who was seen last, what version they run, and whether errors are attached.</p>
+              <p className="panel-kicker">Quick Checks</p>
+              <h2 className="panel-title">Current operating state</h2>
+              <p className="panel-subtitle">High-signal checks only, without re-listing rows from the dedicated pages.</p>
             </div>
-            <span className="panel-count">{recentRows.length}</span>
           </div>
 
-          <div className="table-shell table-shell-dense">
-            <div className="table-scroller">
-              <table>
-                <thead>
-                  <tr>
-                    <th>User</th>
-                    <th>Location</th>
-                    <th>Version</th>
-                    <th>Last seen</th>
-                    <th>Last event</th>
-                    <th className="text-right">Errors</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentRows.map((session) => (
-                    <tr key={session.id}>
-                      <td>
-                        <div className="font-semibold">{displayUser(session)}</div>
-                        <div className="table-subline">{session.installId}</div>
-                      </td>
-                      <td>
-                        <div>{session.clientCountry ?? "Unknown"}</div>
-                        <div className="table-subline font-[IBM_Plex_Mono,monospace]">{session.clientIp ?? "unknown"}</div>
-                      </td>
-                      <td>
-                        <div>{session.appVersion ?? "unknown"}</div>
-                        <div className="table-subline">{session.platform ?? "unknown"}</div>
-                      </td>
-                      <td>
-                        <div>{formatDate(session.lastSeenAt)}</div>
-                        <div className="table-subline">{timeAgo(session.lastSeenAt)}</div>
-                      </td>
-                      <td>{formatEventName(session.lastEvent)}</td>
-                      <td className="text-right font-[IBM_Plex_Mono,monospace]">{session.errorCount}</td>
-                      <td>
-                        <StatusBadge status={session.lastStatus} />
-                      </td>
-                    </tr>
-                  ))}
-
-                  {recentRows.length === 0 ? (
-                    <tr>
-                      <td colSpan={7}>
-                        <div className="empty-panel small">No recorded sessions yet.</div>
-                      </td>
-                    </tr>
-                  ) : null}
-                </tbody>
-              </table>
+          <div className="info-list">
+            <div className="info-row">
+              <span className="info-label">Last ingest</span>
+              <span className="info-value">{summary.stats.lastIngestAt ? formatDate(summary.stats.lastIngestAt) : "Waiting"}</span>
+            </div>
+            <div className="info-row">
+              <span className="info-label">Started today</span>
+              <span className="info-value">{formatNumber(summary.stats.sessionsStartedToday)}</span>
+            </div>
+            <div className="info-row">
+              <span className="info-label">Active sessions with errors</span>
+              <span className="info-value">{formatNumber(liveWithErrors)}</span>
+            </div>
+            <div className="info-row">
+              <span className="info-label">Storage backend</span>
+              <span className="info-value">{summary.storage.toUpperCase()}</span>
+            </div>
+            <div className="info-row">
+              <span className="info-label">Latest error source</span>
+              <span className="info-value">{latestError ? latestError.source : "No recent failures"}</span>
             </div>
           </div>
         </section>
+      </div>
 
-        <div className="overview-side-stack">
-          <section className="panel panel-dense">
-            <div className="panel-header">
-              <div>
-                <p className="panel-kicker">Versions</p>
-                <h2 className="panel-title">Version spread</h2>
-                <p className="panel-subtitle">See which client versions dominate the currently loaded sessions.</p>
-              </div>
+      <div className="content-grid">
+        <section className="panel panel-dense">
+          <div className="panel-header">
+            <div>
+              <p className="panel-kicker">Versions</p>
+              <h2 className="panel-title">Version spread</h2>
+              <p className="panel-subtitle">Which client versions dominate the currently loaded sessions.</p>
             </div>
+          </div>
 
-            <div className="chart-shell chart-shell-professional chart-shell-compact">
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={versions} layout="vertical" margin={{ top: 8, right: 6, left: 4, bottom: 4 }}>
-                  <CartesianGrid stroke={chartPalette.grid} horizontal={false} />
-                  <XAxis type="number" hide />
-                  <YAxis
-                    type="category"
-                    dataKey="label"
-                    tickLine={false}
-                    axisLine={false}
-                    width={92}
-                    tick={{ fill: chartPalette.axis, fontSize: 11 }}
-                  />
-                  <Tooltip cursor={chartPalette.tooltipCursor} content={<ChartTooltip />} />
-                  <Bar dataKey="value" name="Sessions" fill={chartPalette.sessionsLine} radius={[0, 6, 6, 0]} barSize={12} />
-                </BarChart>
-              </ResponsiveContainer>
+          <div className="chart-shell chart-shell-professional chart-shell-compact">
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={versions} layout="vertical" margin={{ top: 8, right: 6, left: 4, bottom: 4 }}>
+                <CartesianGrid stroke={chartPalette.grid} horizontal={false} />
+                <XAxis type="number" hide />
+                <YAxis
+                  type="category"
+                  dataKey="label"
+                  tickLine={false}
+                  axisLine={false}
+                  width={92}
+                  tick={{ fill: chartPalette.axis, fontSize: 11 }}
+                />
+                <Tooltip cursor={chartPalette.tooltipCursor} content={<ChartTooltip />} />
+                <Bar dataKey="value" name="Sessions" fill={chartPalette.sessionsLine} radius={[0, 6, 6, 0]} barSize={12} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </section>
+
+        <section className="panel panel-dense">
+          <div className="panel-header">
+            <div>
+              <p className="panel-kicker">Regions</p>
+              <h2 className="panel-title">Geography</h2>
+              <p className="panel-subtitle">Country distribution across active or recent sessions.</p>
             </div>
-          </section>
+            <Globe2 className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
+          </div>
 
-          <section className="panel panel-dense">
-            <div className="panel-header">
-              <div>
-                <p className="panel-kicker">Regions</p>
-                <h2 className="panel-title">Geography</h2>
-                <p className="panel-subtitle">Country distribution across active or recent sessions.</p>
-              </div>
-              <Globe2 className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
-            </div>
-
-            <div className="chart-shell chart-shell-professional chart-shell-compact">
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={countries} layout="vertical" margin={{ top: 8, right: 6, left: 4, bottom: 4 }}>
-                  <CartesianGrid stroke={chartPalette.grid} horizontal={false} />
-                  <XAxis type="number" hide />
-                  <YAxis
-                    type="category"
-                    dataKey="label"
-                    tickLine={false}
-                    axisLine={false}
-                    width={72}
-                    tick={{ fill: chartPalette.axis, fontSize: 11 }}
-                  />
-                  <Tooltip cursor={chartPalette.tooltipCursor} content={<ChartTooltip />} />
-                  <Bar dataKey="value" name="Sessions" fill={chartPalette.activityBar} radius={[0, 6, 6, 0]} barSize={12} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </section>
-
-          <section className="panel panel-dense">
-            <div className="panel-header">
-              <div>
-                <p className="panel-kicker">Incidents</p>
-                <h2 className="panel-title">Error feed</h2>
-                <p className="panel-subtitle">Most recent application failures in the loaded range.</p>
-              </div>
-              <span className="panel-count">{errorRows.length}</span>
-            </div>
-
-            <div className="signal-list">
-              {errorRows.map((event) => (
-                <ErrorItem key={event.id} event={event} />
-              ))}
-
-              {errorRows.length === 0 ? <div className="empty-panel small">No recent errors.</div> : null}
-            </div>
-          </section>
-        </div>
+          <div className="chart-shell chart-shell-professional chart-shell-compact">
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={countries} layout="vertical" margin={{ top: 8, right: 6, left: 4, bottom: 4 }}>
+                <CartesianGrid stroke={chartPalette.grid} horizontal={false} />
+                <XAxis type="number" hide />
+                <YAxis
+                  type="category"
+                  dataKey="label"
+                  tickLine={false}
+                  axisLine={false}
+                  width={72}
+                  tick={{ fill: chartPalette.axis, fontSize: 11 }}
+                />
+                <Tooltip cursor={chartPalette.tooltipCursor} content={<ChartTooltip />} />
+                <Bar dataKey="value" name="Sessions" fill={chartPalette.activityBar} radius={[0, 6, 6, 0]} barSize={12} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </section>
       </div>
     </div>
   );

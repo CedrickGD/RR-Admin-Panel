@@ -1,4 +1,5 @@
 import { Radio } from "lucide-react";
+import { useMemo } from "react";
 import { StatusBadge } from "../components/StatusBadge";
 import type { AppSessionRecord, SummaryPayload } from "../types/telemetry";
 import { formatDate, formatNumber, timeAgo } from "../utils/format";
@@ -12,7 +13,23 @@ function displayUser(session: AppSessionRecord): string {
 }
 
 export function LivePage({ summary }: LivePageProps) {
-  const activeSessions = summary.activeSessions;
+  const activeSessions = useMemo(
+    () =>
+      [...summary.activeSessions].sort((left, right) => {
+        const nameComparison = displayUser(left).localeCompare(displayUser(right), undefined, { sensitivity: "base" });
+        if (nameComparison !== 0) {
+          return nameComparison;
+        }
+
+        const installComparison = left.installId.localeCompare(right.installId, undefined, { sensitivity: "base" });
+        if (installComparison !== 0) {
+          return installComparison;
+        }
+
+        return left.id.localeCompare(right.id, undefined, { sensitivity: "base" });
+      }),
+    [summary.activeSessions],
+  );
   const liveErrors = activeSessions.filter((session) => session.errorCount > 0).length;
 
   return (
@@ -21,7 +38,9 @@ export function LivePage({ summary }: LivePageProps) {
         <div>
           <p className="page-kicker">Live Telemetry</p>
           <h1 className="page-title">Live</h1>
-          <p className="page-subtitle">Who is active right now, what build they run, and whether their session is clean.</p>
+          <p className="page-subtitle">
+            Who is active right now, what build they run, and whether their session is clean. Rows stay in a stable user order so they do not jump while you copy data.
+          </p>
         </div>
         <div className="page-meta">
           <span>Active now</span>

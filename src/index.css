@@ -559,6 +559,11 @@ html:not(.dark) .network-backdrop-canvas {
   animation-delay: 120ms;
 }
 
+.live-page {
+  min-height: calc(100vh - 120px);
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
 .page-header {
   position: relative;
   display: grid;
@@ -1096,6 +1101,23 @@ html:not(.dark) .network-backdrop-canvas {
   border-top: 1px solid hsl(var(--border));
   font-size: 13px;
   vertical-align: middle;
+}
+
+.live-page > .panel {
+  min-height: min(780px, calc(100vh - 240px));
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.live-page .table-shell {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.live-page .table-scroller {
+  flex: 1;
+  overflow-y: auto;
 }
 
 .table-shell tbody tr:hover {
@@ -1829,6 +1851,15 @@ html:not(.dark) .sidebar-hero-metrics div {
 
   .page-content {
     padding: 20px 16px 100px;
+  }
+
+  .live-page {
+    min-height: auto;
+    grid-template-rows: none;
+  }
+
+  .live-page > .panel {
+    min-height: auto;
   }
 
   .page-header,

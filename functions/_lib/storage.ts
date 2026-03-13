@@ -17,7 +17,7 @@ const ACTIVE_SESSION_LIMIT = 100;
 const RECENT_SESSION_LIMIT = 200;
 const RECENT_ERROR_LIMIT = 50;
 const MAX_KV_SESSIONS = 500;
-const ACTIVE_SESSION_TIMEOUT_MS = 12 * 60 * 1000;
+const ACTIVE_SESSION_TIMEOUT_MS = 6 * 60 * 1000;
 
 const SESSION_START = "session_start";
 const SESSION_ACTIVE = "session_active";

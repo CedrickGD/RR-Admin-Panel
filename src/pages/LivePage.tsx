@@ -8,38 +8,48 @@ interface LivePageProps {
   summary: SummaryPayload;
 }
 
+const LIVE_SESSION_MAX_AGE_MS = 6 * 60 * 1000;
+
 function displayUser(session: AppSessionRecord): string {
   return session.userLabel?.trim() || session.installId;
 }
 
 export function LivePage({ summary }: LivePageProps) {
   const activeSessions = useMemo(
-    () =>
-      [...summary.activeSessions].sort((left, right) => {
-        const nameComparison = displayUser(left).localeCompare(displayUser(right), undefined, { sensitivity: "base" });
-        if (nameComparison !== 0) {
-          return nameComparison;
-        }
+    () => {
+      const now = Date.now();
 
-        const installComparison = left.installId.localeCompare(right.installId, undefined, { sensitivity: "base" });
-        if (installComparison !== 0) {
-          return installComparison;
-        }
+      return [...summary.activeSessions]
+        .filter((session) => {
+          const lastSeenTs = Date.parse(session.lastSeenAt);
+          return session.isActive && Number.isFinite(lastSeenTs) && now - lastSeenTs <= LIVE_SESSION_MAX_AGE_MS;
+        })
+        .sort((left, right) => {
+          const nameComparison = displayUser(left).localeCompare(displayUser(right), undefined, { sensitivity: "base" });
+          if (nameComparison !== 0) {
+            return nameComparison;
+          }
 
-        return left.id.localeCompare(right.id, undefined, { sensitivity: "base" });
-      }),
+          const installComparison = left.installId.localeCompare(right.installId, undefined, { sensitivity: "base" });
+          if (installComparison !== 0) {
+            return installComparison;
+          }
+
+          return left.id.localeCompare(right.id, undefined, { sensitivity: "base" });
+        });
+    },
     [summary.activeSessions],
   );
   const liveErrors = activeSessions.filter((session) => session.errorCount > 0).length;
 
   return (
-    <div className="page-content page-content-wide page-stack">
+    <div className="page-content page-content-wide page-stack live-page">
       <section className="page-header">
         <div>
           <p className="page-kicker">Live Telemetry</p>
           <h1 className="page-title">Live</h1>
           <p className="page-subtitle">
-            Who is active right now, what build they run, and whether their session is clean. Rows stay in a stable user order so they do not jump while you copy data.
+            Only sessions seen within the last few minutes stay here. Rows keep a stable order so they do not jump while you copy data.
           </p>
         </div>
 

@@ -130,11 +130,12 @@ body::before {
   width: 100%;
   height: 100%;
   display: block;
-  opacity: 0.34;
+  opacity: 0.48;
+  filter: saturate(1.12) contrast(1.08);
 }
 
 .dark .network-backdrop-canvas {
-  opacity: 0.54;
+  opacity: 0.68;
 }
 
 .sidebar {
@@ -231,6 +232,15 @@ body::before {
 .panel-header,
 .toolbar-row {
   flex-wrap: wrap;
+}
+
+.panel-header + .chart-shell,
+.panel-header + .table-shell,
+.panel-header + .info-list,
+.panel-header + .panel-stack,
+.panel-header + .stats-grid,
+.panel-header + .content-grid {
+  margin-top: 18px;
 }
 
 .sidebar-command-title {
@@ -886,11 +896,11 @@ body::before {
 }
 
 .chart-shell-tall {
-  padding: 16px 16px 8px;
+  padding: 18px 18px 10px;
 }
 
 .chart-shell-compact {
-  padding: 14px 12px 8px;
+  padding: 16px 14px 10px;
 }
 
 .chart-tooltip {
@@ -1021,6 +1031,49 @@ body::before {
 
 .table-shell tbody tr:hover {
   background: hsl(var(--primary) / 0.04);
+}
+
+html:not(.dark) .sidebar-block,
+html:not(.dark) .page-header,
+html:not(.dark) .panel,
+html:not(.dark) .card,
+html:not(.dark) .simple-stat,
+html:not(.dark) .terminal-block,
+html:not(.dark) .stat-card,
+html:not(.dark) .auth-panel,
+html:not(.dark) .mobile-nav {
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.76) 0%, rgb(252 249 255 / 0.62) 100%),
+    rgb(255 255 255 / 0.52);
+  backdrop-filter: blur(18px);
+  border-color: rgb(139 92 246 / 0.14);
+  box-shadow:
+    0 14px 28px rgb(76 29 149 / 0.08),
+    inset 0 1px 0 rgb(255 255 255 / 0.52);
+}
+
+html:not(.dark) .sidebar-command-block {
+  background:
+    radial-gradient(circle at top left, rgb(139 92 246 / 0.14), transparent 38%),
+    radial-gradient(circle at 88% 18%, rgb(56 189 248 / 0.08), transparent 18%),
+    linear-gradient(180deg, rgb(255 255 255 / 0.78), rgb(249 244 255 / 0.66));
+}
+
+html:not(.dark) .page-meta,
+html:not(.dark) .panel-count,
+html:not(.dark) .panel-inline-metrics div,
+html:not(.dark) .hero-chip,
+html:not(.dark) .overview-hero-cell,
+html:not(.dark) .auth-note-grid div,
+html:not(.dark) .signal-row,
+html:not(.dark) .info-row,
+html:not(.dark) .input-group,
+html:not(.dark) .table-shell,
+html:not(.dark) .chart-shell,
+html:not(.dark) .chart-tooltip,
+html:not(.dark) .sidebar-hero-metrics div {
+  background: rgb(255 255 255 / 0.58);
+  border-color: rgb(139 92 246 / 0.14);
 }
 
 .empty-panel {
@@ -1620,11 +1673,6 @@ body::before {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .network-backdrop-canvas,
-  body::before {
-    display: none;
-  }
-
   .page-stack > *,
   .overview-page > *,
   .spinner {

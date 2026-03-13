@@ -10,7 +10,7 @@ import {
   Settings2,
   Sun,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import type {
   AuthMode,
   AuthUser,
@@ -20,6 +20,14 @@ import type {
   ThemeMode,
 } from "../types/telemetry";
 import { formatNumber, timeAgo } from "../utils/format";
+
+export const DEFAULT_SIDEBAR_WIDTH = 296;
+export const SIDEBAR_MIN_WIDTH = 248;
+export const SIDEBAR_MAX_WIDTH = 420;
+
+function clampSidebarWidth(value: number) {
+  return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, Math.round(value)));
+}
 
 interface NavEntry {
   key: PageKey;
@@ -47,6 +55,10 @@ interface SidebarProps {
   onRefresh: () => void;
   refreshing?: boolean;
   onLogout: () => void;
+  sidebarWidth: number;
+  onResizeWidth: (width: number) => void;
+  onResizeStart: () => void;
+  onResizeEnd: () => void;
 }
 
 export function Sidebar({
@@ -61,6 +73,10 @@ export function Sidebar({
   onRefresh,
   refreshing = false,
   onLogout,
+  sidebarWidth,
+  onResizeWidth,
+  onResizeStart,
+  onResizeEnd,
 }: SidebarProps) {
   const activeUsers = summary?.stats.activeUsers ?? 0;
   const totalSessions = summary?.stats.totalSessions ?? 0;
@@ -69,6 +85,48 @@ export function Sidebar({
   const storageLabel = summary?.storage?.toUpperCase() ?? health?.storage.backend?.toUpperCase() ?? "N/A";
   const systemLabel = health?.api === "alive" ? "API online" : "API offline";
   const pulseLabel = errorsLast24Hours > 0 ? "Monitoring incidents" : "Quiet telemetry window";
+  const resizeStartXRef = useRef(0);
+  const resizeStartWidthRef = useRef(sidebarWidth);
+  const [isResizing, setIsResizing] = useState(false);
+
+  useEffect(() => {
+    if (!isResizing) {
+      return;
+    }
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const delta = event.clientX - resizeStartXRef.current;
+      onResizeWidth(clampSidebarWidth(resizeStartWidthRef.current + delta));
+    };
+
+    const stopResizing = () => {
+      setIsResizing(false);
+      onResizeEnd();
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", stopResizing);
+    window.addEventListener("pointercancel", stopResizing);
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", stopResizing);
+      window.removeEventListener("pointercancel", stopResizing);
+    };
+  }, [isResizing, onResizeEnd, onResizeWidth]);
+
+  function handleResizePointerDown(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (window.innerWidth <= 1024 || event.pointerType === "touch") {
+      return;
+    }
+
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    resizeStartXRef.current = event.clientX;
+    resizeStartWidthRef.current = sidebarWidth;
+    setIsResizing(true);
+    onResizeStart();
+  }
 
   return (
     <aside className="sidebar">
@@ -169,6 +227,15 @@ export function Sidebar({
           {user.role} · {authMode === "access" ? "Zero Trust" : "App auth"}
         </p>
       </section>
+
+      <button
+        type="button"
+        className="sidebar-resize-handle"
+        onPointerDown={handleResizePointerDown}
+        onDoubleClick={() => onResizeWidth(DEFAULT_SIDEBAR_WIDTH)}
+        aria-label="Resize sidebar"
+        title="Drag to resize sidebar"
+      />
     </aside>
   );
 }

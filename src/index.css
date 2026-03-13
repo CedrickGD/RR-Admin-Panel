@@ -22,6 +22,7 @@
   --success: 267 78% 70%;
   --shadow: 258 32% 16%;
   --sidebar-width: 296px;
+  --sidebar-width-user: 296px;
   --chart-grid: 261 22% 85%;
   --backdrop-a: 267 95% 74%;
   --backdrop-b: 261 84% 63%;
@@ -95,6 +96,7 @@ body::before {
 }
 
 .app-shell {
+  --sidebar-width: clamp(248px, var(--sidebar-width-user), 420px);
   position: relative;
   display: flex;
   min-height: 100vh;
@@ -154,6 +156,46 @@ body::before {
     24px 0 48px hsl(var(--shadow) / 0.12),
     inset -1px 0 0 rgb(255 255 255 / 0.28);
   backdrop-filter: blur(16px);
+}
+
+.sidebar-resize-handle {
+  position: absolute;
+  top: 20px;
+  right: -12px;
+  bottom: 20px;
+  width: 24px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: col-resize;
+  z-index: 4;
+}
+
+.sidebar-resize-handle::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 88px;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  background: linear-gradient(180deg, transparent, hsl(var(--primary) / 0.42), transparent);
+  box-shadow: 0 0 18px hsl(var(--primary) / 0.16);
+  opacity: 0.48;
+  transition:
+    opacity 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.sidebar-resize-handle:hover::before,
+.sidebar-resize-handle:focus-visible::before {
+  opacity: 0.9;
+  box-shadow: 0 0 24px hsl(var(--primary) / 0.28);
+}
+
+.sidebar-resize-handle:focus-visible {
+  outline: none;
 }
 
 .dark .sidebar {
@@ -1043,20 +1085,20 @@ html:not(.dark) .stat-card,
 html:not(.dark) .auth-panel,
 html:not(.dark) .mobile-nav {
   background:
-    linear-gradient(180deg, rgb(255 255 255 / 0.76) 0%, rgb(252 249 255 / 0.62) 100%),
-    rgb(255 255 255 / 0.52);
-  backdrop-filter: blur(18px);
+    linear-gradient(180deg, rgb(255 255 255 / 0.6) 0%, rgb(252 249 255 / 0.38) 100%),
+    rgb(255 255 255 / 0.24);
+  backdrop-filter: blur(22px);
   border-color: rgb(139 92 246 / 0.14);
   box-shadow:
     0 14px 28px rgb(76 29 149 / 0.08),
-    inset 0 1px 0 rgb(255 255 255 / 0.52);
+    inset 0 1px 0 rgb(255 255 255 / 0.4);
 }
 
 html:not(.dark) .sidebar-command-block {
   background:
     radial-gradient(circle at top left, rgb(139 92 246 / 0.14), transparent 38%),
     radial-gradient(circle at 88% 18%, rgb(56 189 248 / 0.08), transparent 18%),
-    linear-gradient(180deg, rgb(255 255 255 / 0.78), rgb(249 244 255 / 0.66));
+    linear-gradient(180deg, rgb(255 255 255 / 0.56), rgb(249 244 255 / 0.34));
 }
 
 html:not(.dark) .page-meta,
@@ -1072,7 +1114,7 @@ html:not(.dark) .table-shell,
 html:not(.dark) .chart-shell,
 html:not(.dark) .chart-tooltip,
 html:not(.dark) .sidebar-hero-metrics div {
-  background: rgb(255 255 255 / 0.58);
+  background: rgb(255 255 255 / 0.34);
   border-color: rgb(139 92 246 / 0.14);
 }
 
@@ -1443,8 +1485,8 @@ html:not(.dark) .sidebar-hero-metrics div {
 .dark .auth-panel,
 .dark .mobile-nav {
   background:
-    linear-gradient(180deg, rgb(255 255 255 / 0.04) 0%, rgb(255 255 255 / 0.015) 100%),
-    rgb(9 11 17 / 0.74);
+    linear-gradient(180deg, rgb(255 255 255 / 0.035) 0%, rgb(255 255 255 / 0.012) 100%),
+    rgb(9 11 17 / 0.62);
   border-color: rgb(255 255 255 / 0.08);
   box-shadow:
     0 18px 40px rgb(0 0 0 / 0.34),
@@ -1473,8 +1515,19 @@ html:not(.dark) .sidebar-hero-metrics div {
 .dark .table-shell,
 .dark .chart-shell,
 .dark .chart-tooltip {
-  background: rgb(255 255 255 / 0.04);
+  background: rgb(255 255 255 / 0.03);
   border-color: rgb(255 255 255 / 0.08);
+}
+
+.dark .sidebar-resize-handle::before {
+  background: linear-gradient(180deg, transparent, rgb(196 181 253 / 0.64), transparent);
+  box-shadow: 0 0 20px rgb(139 92 246 / 0.22);
+}
+
+.app-shell.sidebar-resizing,
+.app-shell.sidebar-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
 }
 
 .dark .nav-item {
@@ -1690,12 +1743,16 @@ html:not(.dark) .sidebar-hero-metrics div {
 }
 
 @media (max-width: 1024px) {
-  :root {
+  .app-shell {
     --sidebar-width: 236px;
   }
 
   .page-content {
     padding: 28px 24px 72px;
+  }
+
+  .sidebar-resize-handle {
+    display: none;
   }
 
   .page-header {

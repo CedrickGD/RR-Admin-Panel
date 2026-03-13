@@ -1,8 +1,14 @@
 import { AlertTriangle, RefreshCw } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { LoginForm } from "./components/LoginForm";
 import { NetworkBackdrop } from "./components/NetworkBackdrop";
-import { MobileNav, Sidebar } from "./components/Sidebar";
+import {
+  DEFAULT_SIDEBAR_WIDTH,
+  MobileNav,
+  SIDEBAR_MAX_WIDTH,
+  SIDEBAR_MIN_WIDTH,
+  Sidebar,
+} from "./components/Sidebar";
 import { useDashboard } from "./hooks/useDashboard";
 import { useTheme } from "./hooks/useTheme";
 import { LogsPage } from "./pages/LogsPage";
@@ -11,6 +17,27 @@ import { OverviewPage } from "./pages/OverviewPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { WorkersPage } from "./pages/WorkersPage";
 import type { PageKey } from "./types/telemetry";
+
+const SIDEBAR_WIDTH_KEY = "rr-admin-sidebar-width";
+
+function clampSidebarWidth(value: number) {
+  return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, Math.round(value)));
+}
+
+function getInitialSidebarWidth() {
+  if (typeof window === "undefined") {
+    return DEFAULT_SIDEBAR_WIDTH;
+  }
+
+  const stored = window.localStorage.getItem(SIDEBAR_WIDTH_KEY);
+  const parsed = Number(stored);
+
+  if (!Number.isFinite(parsed)) {
+    return DEFAULT_SIDEBAR_WIDTH;
+  }
+
+  return clampSidebarWidth(parsed);
+}
 
 export default function App() {
   const { theme, toggle: toggleTheme } = useTheme();
@@ -31,6 +58,16 @@ export default function App() {
   } = useDashboard();
 
   const [page, setPage] = useState<PageKey>("overview");
+  const [sidebarWidth, setSidebarWidth] = useState(getInitialSidebarWidth);
+  const [sidebarResizing, setSidebarResizing] = useState(false);
+
+  useEffect(() => {
+    window.localStorage.setItem(SIDEBAR_WIDTH_KEY, String(sidebarWidth));
+  }, [sidebarWidth]);
+
+  const shellStyle = {
+    "--sidebar-width-user": `${sidebarWidth}px`,
+  } as CSSProperties;
 
   /* ─── Loading ─── */
   if (!ready) {
@@ -69,7 +106,7 @@ export default function App() {
 
   /* ─── Dashboard ─── */
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${sidebarResizing ? "sidebar-resizing" : ""}`} style={shellStyle}>
       <NetworkBackdrop theme={theme} />
 
       <Sidebar
@@ -84,6 +121,10 @@ export default function App() {
         onRefresh={refresh}
         refreshing={refreshing}
         onLogout={() => void logout()}
+        sidebarWidth={sidebarWidth}
+        onResizeWidth={(value) => setSidebarWidth(clampSidebarWidth(value))}
+        onResizeStart={() => setSidebarResizing(true)}
+        onResizeEnd={() => setSidebarResizing(false)}
       />
 
       <div className="main-area">

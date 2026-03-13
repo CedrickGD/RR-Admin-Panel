@@ -4,50 +4,50 @@
 @source "../public/index.html";
 
 :root {
-  --background: 40 33% 95%;
-  --background-end: 36 28% 91%;
-  --foreground: 215 38% 16%;
+  --background: 258 38% 97%;
+  --background-end: 262 30% 94%;
+  --foreground: 258 28% 14%;
   --surface: 0 0% 100%;
-  --surface-muted: 40 27% 97%;
-  --surface-strong: 36 42% 99%;
-  --border: 31 26% 82%;
-  --border-strong: 31 32% 70%;
-  --muted-foreground: 214 15% 39%;
-  --primary: 31 92% 44%;
-  --primary-soft: 35 100% 93%;
-  --accent: 174 72% 31%;
-  --accent-soft: 169 36% 91%;
-  --danger: 0 70% 48%;
-  --warning: 35 91% 52%;
-  --success: 150 57% 34%;
-  --shadow: 215 41% 18%;
+  --surface-muted: 260 28% 97%;
+  --surface-strong: 260 38% 99%;
+  --border: 261 22% 84%;
+  --border-strong: 265 34% 67%;
+  --muted-foreground: 256 12% 42%;
+  --primary: 261 84% 63%;
+  --primary-soft: 265 100% 95%;
+  --accent: 267 95% 74%;
+  --accent-soft: 266 72% 94%;
+  --danger: 0 84% 60%;
+  --warning: 38 92% 50%;
+  --success: 267 78% 70%;
+  --shadow: 258 32% 16%;
   --sidebar-width: 272px;
-  --chart-grid: 31 22% 80%;
-  --backdrop-a: 39 90% 60%;
-  --backdrop-b: 174 61% 42%;
+  --chart-grid: 261 22% 85%;
+  --backdrop-a: 267 95% 74%;
+  --backdrop-b: 261 84% 63%;
 }
 
 .dark {
-  --background: 220 26% 8%;
-  --background-end: 220 24% 6%;
-  --foreground: 42 20% 95%;
-  --surface: 221 22% 12%;
-  --surface-muted: 220 20% 15%;
-  --surface-strong: 220 20% 10%;
-  --border: 218 17% 25%;
-  --border-strong: 37 36% 42%;
-  --muted-foreground: 38 11% 68%;
-  --primary: 40 95% 60%;
-  --primary-soft: 38 44% 18%;
-  --accent: 172 74% 50%;
-  --accent-soft: 172 44% 16%;
-  --danger: 0 84% 67%;
-  --warning: 40 96% 64%;
-  --success: 153 63% 54%;
-  --shadow: 220 44% 3%;
-  --chart-grid: 219 15% 22%;
-  --backdrop-a: 40 96% 64%;
-  --backdrop-b: 172 74% 50%;
+  --background: 267 35% 5%;
+  --background-end: 264 31% 7%;
+  --foreground: 258 40% 97%;
+  --surface: 262 30% 10%;
+  --surface-muted: 264 28% 12%;
+  --surface-strong: 264 30% 8%;
+  --border: 268 20% 20%;
+  --border-strong: 270 34% 36%;
+  --muted-foreground: 264 13% 69%;
+  --primary: 261 84% 63%;
+  --primary-soft: 264 45% 16%;
+  --accent: 267 95% 74%;
+  --accent-soft: 269 42% 17%;
+  --danger: 0 84% 64%;
+  --warning: 38 92% 50%;
+  --success: 267 78% 70%;
+  --shadow: 264 45% 3%;
+  --chart-grid: 267 15% 20%;
+  --backdrop-a: 261 84% 63%;
+  --backdrop-b: 267 95% 74%;
 }
 
 * {

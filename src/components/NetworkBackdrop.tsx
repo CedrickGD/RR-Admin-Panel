@@ -45,12 +45,12 @@ export function NetworkBackdrop({ theme }: NetworkBackdropProps) {
     const palette =
       theme === "dark"
         ? {
-            line: "255, 255, 255",
-            node: "255, 255, 255",
+            line: "139, 92, 246",
+            node: "196, 181, 253",
           }
         : {
-            line: "148, 163, 184",
-            node: "148, 163, 184",
+            line: "139, 92, 246",
+            node: "109, 40, 217",
           };
 
     const resizeCanvas = () => {

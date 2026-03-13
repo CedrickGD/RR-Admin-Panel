@@ -23,16 +23,15 @@ export function LoginForm({
   if (authMode === "access") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[hsl(var(--background))] p-4">
-        <div className="card p-8 w-full max-w-sm text-center animate-fade-in">
-          <div className="flex justify-center mb-4">
+        <div className="card w-full max-w-sm p-8 text-center">
+          <div className="mb-4 flex justify-center">
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[hsl(var(--primary)/0.12)] text-[hsl(var(--primary))]">
               <Shield className="h-7 w-7" />
             </div>
           </div>
-          <h1 className="text-lg font-bold mb-1">Cloudflare Access</h1>
-          <p className="text-sm text-[hsl(var(--muted-foreground))] mb-5">
-            This dashboard is protected by Cloudflare Access. Please
-            authenticate through the access portal.
+          <h1 className="mb-1 text-lg font-bold">Cloudflare Access</h1>
+          <p className="mb-5 text-sm text-[hsl(var(--muted-foreground))]">
+            This dashboard is protected by Cloudflare Access.
           </p>
           <a
             href="/"
@@ -47,18 +46,17 @@ export function LoginForm({
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[hsl(var(--background))] p-4">
-      <div className="card p-8 w-full max-w-sm animate-fade-in">
-        {/* Logo */}
-        <div className="flex justify-center mb-5">
+      <div className="card w-full max-w-sm p-8">
+        <div className="mb-5 flex justify-center">
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[hsl(var(--primary)/0.12)] text-[hsl(var(--primary))]">
             <Activity className="h-7 w-7" />
           </div>
         </div>
 
-        <h1 className="text-lg font-bold text-center mb-0.5">
+        <h1 className="mb-0.5 text-center text-lg font-bold">
           {isBootstrap ? "Create Admin Account" : "Sign In"}
         </h1>
-        <p className="text-sm text-[hsl(var(--muted-foreground))] text-center mb-5">
+        <p className="mb-5 text-center text-sm text-[hsl(var(--muted-foreground))]">
           {isBootstrap
             ? "Set up the first admin account for this panel."
             : "Enter your credentials to access the dashboard."}

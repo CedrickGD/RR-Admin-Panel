@@ -1,18 +1,25 @@
 import {
   Activity,
+  AlertTriangle,
   BarChart3,
-  Globe,
   History,
-  Radio,
   LogOut,
   Moon,
+  Radio,
   RefreshCw,
-  AlertTriangle,
   Settings2,
   Sun,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import type { AuthMode, AuthUser, PageKey, ThemeMode } from "../types/telemetry";
+import type {
+  AuthMode,
+  AuthUser,
+  HealthPayload,
+  PageKey,
+  SummaryPayload,
+  ThemeMode,
+} from "../types/telemetry";
+import { formatNumber, timeAgo } from "../utils/format";
 
 interface NavEntry {
   key: PageKey;
@@ -21,11 +28,11 @@ interface NavEntry {
 }
 
 const NAV_ITEMS: NavEntry[] = [
-  { key: "overview", label: "Overview", icon: <BarChart3 className="w-[18px] h-[18px]" /> },
-  { key: "live", label: "Live", icon: <Radio className="w-[18px] h-[18px]" /> },
-  { key: "workers", label: "Sessions", icon: <History className="w-[18px] h-[18px]" /> },
-  { key: "logs", label: "Errors", icon: <AlertTriangle className="w-[18px] h-[18px]" /> },
-  { key: "settings", label: "Settings", icon: <Settings2 className="w-[18px] h-[18px]" /> },
+  { key: "overview", label: "Overview", icon: <BarChart3 className="h-[17px] w-[17px]" /> },
+  { key: "live", label: "Live", icon: <Radio className="h-[17px] w-[17px]" /> },
+  { key: "workers", label: "Sessions", icon: <History className="h-[17px] w-[17px]" /> },
+  { key: "logs", label: "Errors", icon: <AlertTriangle className="h-[17px] w-[17px]" /> },
+  { key: "settings", label: "Settings", icon: <Settings2 className="h-[17px] w-[17px]" /> },
 ];
 
 interface SidebarProps {
@@ -33,6 +40,8 @@ interface SidebarProps {
   onNavigate: (key: PageKey) => void;
   user: AuthUser;
   authMode: AuthMode;
+  summary?: SummaryPayload | null;
+  health?: HealthPayload | null;
   theme: ThemeMode;
   onToggleTheme: () => void;
   onRefresh: () => void;
@@ -45,54 +54,75 @@ export function Sidebar({
   onNavigate,
   user,
   authMode,
+  summary,
+  health,
   theme,
   onToggleTheme,
   onRefresh,
   refreshing = false,
   onLogout,
 }: SidebarProps) {
+  const activeUsers = summary?.stats.activeUsers ?? 0;
+  const totalSessions = summary?.stats.totalSessions ?? 0;
+  const ingestLabel = timeAgo(summary?.stats.lastIngestAt ?? health?.lastIngestAt ?? null);
+  const storageLabel = summary?.storage?.toUpperCase() ?? health?.storage.backend?.toUpperCase() ?? "N/A";
+
   return (
     <aside className="sidebar">
-      {/* Brand */}
-      <div className="px-5 pt-5 pb-4">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[hsl(var(--primary))] text-white">
-            <Activity className="h-5 w-5" />
-          </div>
-          <div className="leading-tight">
-            <p className="font-bold text-sm tracking-tight">RazorReaper</p>
-            <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
-              Telemetry Dashboard
-            </p>
-          </div>
+      <div className="sidebar-header">
+        <div className="sidebar-brand-mark">
+          <Activity className="h-5 w-5" />
+        </div>
+        <div className="sidebar-brand-copy">
+          <p className="sidebar-brand-title">RazorReaper Admin</p>
+          <p className="sidebar-brand-subtitle">Telemetry Console</p>
         </div>
       </div>
 
-      {/* Divider */}
-      <div className="mx-4 mb-2 border-b border-[hsl(var(--border))]" />
+      <section className="sidebar-block">
+        <p className="sidebar-block-label">Status</p>
+        <div className="sidebar-metric-list">
+          <div className="sidebar-metric-row">
+            <span>Active users</span>
+            <strong>{formatNumber(activeUsers)}</strong>
+          </div>
+          <div className="sidebar-metric-row">
+            <span>Total sessions</span>
+            <strong>{formatNumber(totalSessions)}</strong>
+          </div>
+          <div className="sidebar-metric-row">
+            <span>Last ingest</span>
+            <strong>{ingestLabel}</strong>
+          </div>
+          <div className="sidebar-metric-row">
+            <span>Storage</span>
+            <strong>{storageLabel}</strong>
+          </div>
+        </div>
+      </section>
 
-      {/* Navigation */}
-      <nav className="flex-1 py-1">
-        <p className="px-6 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[hsl(var(--muted-foreground))]">
-          Dashboard
-        </p>
-        {NAV_ITEMS.map((item) => (
-          <button
-            key={item.key}
-            className={`nav-item ${page === item.key ? "nav-item-active" : ""}`}
-            onClick={() => onNavigate(item.key)}
-            type="button"
-          >
-            {item.icon}
-            {item.label}
-          </button>
-        ))}
-      </nav>
+      <section className="sidebar-block sidebar-nav-block">
+        <p className="sidebar-block-label">Navigation</p>
+        <nav className="sidebar-nav">
+          {NAV_ITEMS.map((item) => (
+            <button
+              key={item.key}
+              className={`nav-item ${page === item.key ? "nav-item-active" : ""}`}
+              onClick={() => onNavigate(item.key)}
+              type="button"
+            >
+              <span className="nav-item-icon">{item.icon}</span>
+              <span className="nav-item-label">{item.label}</span>
+            </button>
+          ))}
+        </nav>
+      </section>
 
-      {/* Bottom actions */}
-      <div className="p-4 space-y-3 border-t border-[hsl(var(--border))]">
-        {/* Quick actions */}
-        <div className="flex items-center gap-2">
+      <div className="sidebar-spacer" />
+
+      <section className="sidebar-block">
+        <p className="sidebar-block-label">Controls</p>
+        <div className="sidebar-control-row">
           <button
             className="btn-icon"
             onClick={(event) => {
@@ -103,45 +133,29 @@ export function Sidebar({
             type="button"
             disabled={refreshing}
           >
-            <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
+            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
           </button>
           <button className="btn-icon" onClick={onToggleTheme} title="Toggle theme" type="button">
-            {theme === "dark" ? (
-              <Sun className="w-4 h-4" />
-            ) : (
-              <Moon className="w-4 h-4" />
-            )}
+            {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </button>
           {authMode === "app" ? (
-            <button
-              className="btn-icon"
-              onClick={onLogout}
-              title="Sign out"
-              type="button"
-            >
-              <LogOut className="w-4 h-4" />
+            <button className="btn-icon" onClick={onLogout} title="Sign out" type="button">
+              <LogOut className="h-4 w-4" />
             </button>
           ) : null}
         </div>
+      </section>
 
-        {/* User info */}
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[hsl(var(--primary)/0.12)] text-[hsl(var(--primary))]">
-            <Globe className="w-4 h-4" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-medium truncate">{user.email}</p>
-            <p className="text-[10px] text-[hsl(var(--muted-foreground))] uppercase">
-              {user.role}
-            </p>
-          </div>
-        </div>
-      </div>
+      <section className="sidebar-user">
+        <p className="sidebar-user-email">{user.email}</p>
+        <p className="sidebar-user-meta">
+          {user.role} · {authMode === "access" ? "Zero Trust" : "App auth"}
+        </p>
+      </section>
     </aside>
   );
 }
 
-/* Mobile bottom nav */
 export function MobileNav({
   page,
   onNavigate,

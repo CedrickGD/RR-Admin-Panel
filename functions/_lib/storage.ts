@@ -146,6 +146,23 @@ export async function loadHealth(env: RuntimeEnv): Promise<HealthPayload> {
   return loadHealthKv(env);
 }
 
+export async function loadSessionExportText(env: RuntimeEnv): Promise<string> {
+  const preferred = resolveStorageBackend(env);
+
+  if (preferred === "d1") {
+    try {
+      return await loadSessionExportTextD1(env);
+    } catch (error) {
+      if (!env.KV) {
+        throw error;
+      }
+      return loadSessionExportTextKv(env);
+    }
+  }
+
+  return loadSessionExportTextKv(env);
+}
+
 async function storeTelemetryD1(env: RuntimeEnv, event: TelemetryEvent): Promise<void> {
   const db = env.DB;
   if (!db) {
@@ -356,6 +373,38 @@ async function loadHealthKv(env: RuntimeEnv): Promise<HealthPayload> {
   };
 }
 
+async function loadSessionExportTextD1(env: RuntimeEnv): Promise<string> {
+  const db = env.DB;
+  if (!db) {
+    throw new Error("D1 binding DB is missing.");
+  }
+
+  await ensureTelemetrySchema(db);
+  await expireStaleSessionsD1(db);
+
+  const rows = await db
+    .prepare(
+      `SELECT session_id, install_id, source, user_label, client_ip, client_country, app_version, platform,
+              started_at, last_seen_at, ended_at, duration_seconds, is_active, last_event, last_status, error_count, updated_at
+       FROM app_sessions
+       ORDER BY updated_at DESC`
+    )
+    .all<D1SessionRow>();
+
+  return buildSessionExportText(rows.results.map(mapD1Session), "d1");
+}
+
+async function loadSessionExportTextKv(env: RuntimeEnv): Promise<string> {
+  const kv = env.KV;
+  if (!kv) {
+    throw new Error("KV binding KV is missing.");
+  }
+
+  const sessionsMap = await kvGetJson<Record<string, AppSessionRecord>>(kv, SESSIONS_KEY, {});
+  const sessions = Object.values(sessionsMap).map(normalizeSessionRecord);
+  return buildSessionExportText(sessions, "kv");
+}
+
 function buildSummaryFromCollections(storage: StorageBackend, sessions: AppSessionRecord[], events: TelemetryEvent[]): SummaryPayload {
   const activeSessions = [...sessions]
     .filter((session) => session.isActive)
@@ -394,6 +443,23 @@ function buildSummaryFromCollections(storage: StorageBackend, sessions: AppSessi
       lastIngestAt: events[0]?.timestamp ?? null,
     },
   };
+}
+
+function buildSessionExportText(sessions: AppSessionRecord[], storage: StorageBackend): string {
+  const ordered = [...sessions]
+    .map(normalizeSessionRecord)
+    .sort((left, right) => compareIso(sessionRecency(right), sessionRecency(left)));
+
+  const lines = [
+    "# RazorReaper session export",
+    `# generated_at=${nowIso()} storage=${storage} total_sessions=${ordered.length}`,
+  ];
+
+  for (const session of ordered) {
+    lines.push(formatSessionExportLine(session));
+  }
+
+  return lines.join("\n");
 }
 
 async function ensureTelemetrySchema(db: RuntimeEnv["DB"]): Promise<void> {
@@ -766,6 +832,63 @@ function durationBetween(startedAt: string, endedAt: string): number | null {
   }
 
   return Math.round((endTs - startTs) / 1000);
+}
+
+function formatSessionExportLine(session: AppSessionRecord): string {
+  const duration =
+    session.durationSeconds ??
+    durationBetween(session.startedAt, session.isActive ? session.lastSeenAt : session.endedAt ?? session.lastSeenAt);
+
+  const state = session.isActive
+    ? session.errorCount > 0
+      ? "live-flagged"
+      : "live"
+    : session.errorCount > 0
+      ? "closed-flagged"
+      : "closed";
+
+  return [
+    `opened=${sanitizeExportValue(session.startedAt)}`,
+    `last_seen=${sanitizeExportValue(session.lastSeenAt)}`,
+    `ended=${sanitizeExportValue(session.endedAt ?? "open")}`,
+    `duration=${sanitizeExportValue(formatExportDuration(duration))}`,
+    `state=${state}`,
+    `telemetry=${sanitizeExportValue(session.lastStatus)}`,
+    `errors=${session.errorCount}`,
+    `user=${sanitizeExportValue(session.userLabel ?? "-")}`,
+    `ip=${sanitizeExportValue(session.clientIp ?? "-")}`,
+    `country=${sanitizeExportValue(session.clientCountry ?? "-")}`,
+    `os=${sanitizeExportValue(session.platform ?? "-")}`,
+    `version=${sanitizeExportValue(session.appVersion ?? "-")}`,
+    `source=${sanitizeExportValue(session.source)}`,
+    `install_id=${sanitizeExportValue(session.installId)}`,
+    `session_id=${sanitizeExportValue(session.id)}`,
+  ].join(" | ");
+}
+
+function formatExportDuration(seconds: number | null): string {
+  if (seconds === null || !Number.isFinite(seconds) || seconds < 0) {
+    return "open";
+  }
+
+  const rounded = Math.round(seconds);
+  const hours = Math.floor(rounded / 3600);
+  const minutes = Math.floor((rounded % 3600) / 60);
+  const remainingSeconds = rounded % 60;
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+
+  if (minutes > 0) {
+    return `${minutes}m ${remainingSeconds}s`;
+  }
+
+  return `${remainingSeconds}s`;
+}
+
+function sanitizeExportValue(value: string): string {
+  return value.replace(/[\r\n]+/g, " ").replace(/\|/g, "/").trim() || "-";
 }
 
 async function kvGetJson<T>(kv: RuntimeEnv["KV"], key: string, fallback: T): Promise<T> {

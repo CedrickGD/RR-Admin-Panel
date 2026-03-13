@@ -1,7 +1,7 @@
 import { Radio } from "lucide-react";
 import { StatusBadge } from "../components/StatusBadge";
 import type { AppSessionRecord, SummaryPayload } from "../types/telemetry";
-import { formatDate, formatDuration, timeAgo } from "../utils/format";
+import { formatDate, formatDuration, formatNumber, timeAgo } from "../utils/format";
 
 interface LivePageProps {
   summary: SummaryPayload;
@@ -24,88 +24,100 @@ export function LivePage({ summary }: LivePageProps) {
   const activeSessions = summary.activeSessions;
 
   return (
-    <div className="page-content">
-      <div className="mb-6">
-        <h1 className="text-xl font-bold">Live Sessions</h1>
-        <p className="text-sm text-[hsl(var(--muted-foreground))]">
-          Open sessions, IPs, open timestamps, and current duration
-        </p>
-      </div>
-
-      <div className="card p-8 mb-6">
-        <div className="flex flex-col items-center justify-center text-center">
-          <div className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-[hsl(var(--primary)/0.14)] text-[hsl(var(--primary))]">
-            <Radio className="h-6 w-6" />
-          </div>
-          <p className="text-xs uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]">
-            Active Users Now
-          </p>
-          <p className="mt-2 text-5xl font-extrabold font-[JetBrains_Mono,monospace] leading-none">
-            {activeSessions.length}
-          </p>
-          <p className="mt-3 text-xs text-[hsl(var(--muted-foreground))]">
-            Last ingest: {timeAgo(summary.stats.lastIngestAt)} ({formatDate(summary.stats.lastIngestAt)})
-          </p>
+    <div className="page-content page-content-wide page-stack">
+      <section className="page-header">
+        <div>
+          <h1 className="page-title">Live</h1>
+          <p className="page-subtitle">Current open sessions with IP, version, and last seen time.</p>
         </div>
+        <div className="page-meta">
+          <span>Active now</span>
+          <strong>{formatNumber(activeSessions.length)}</strong>
+        </div>
+      </section>
+
+      <div className="stats-grid stats-grid-3">
+        <Stat label="Active Users" value={formatNumber(activeSessions.length)} />
+        <Stat label="Last Ingest" value={summary.stats.lastIngestAt ? timeAgo(summary.stats.lastIngestAt) : "waiting"} />
+        <Stat label="Sessions Today" value={formatNumber(summary.stats.sessionsStartedToday)} />
       </div>
 
-      <div className="card p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold">Open Sessions</h3>
-          <span className="text-[11px] text-[hsl(var(--muted-foreground))]">
-            {activeSessions.length} active
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <h2 className="panel-title">Open Sessions</h2>
+            <p className="panel-subtitle">Rows stay here only while the app is considered active.</p>
+          </div>
+          <span className="panel-count">
+            <Radio className="mr-1 inline h-4 w-4" />
+            {activeSessions.length}
           </span>
         </div>
 
-        <div className="overflow-x-auto -mx-5 px-5">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-[hsl(var(--border))]">
-                <th className="text-left py-2 pr-4 font-medium text-[hsl(var(--muted-foreground))]">User</th>
-                <th className="text-left py-2 pr-4 font-medium text-[hsl(var(--muted-foreground))]">IP</th>
-                <th className="text-left py-2 pr-4 font-medium text-[hsl(var(--muted-foreground))]">Country</th>
-                <th className="text-left py-2 pr-4 font-medium text-[hsl(var(--muted-foreground))]">Opened</th>
-                <th className="text-left py-2 pr-4 font-medium text-[hsl(var(--muted-foreground))]">Version</th>
-                <th className="text-left py-2 pr-4 font-medium text-[hsl(var(--muted-foreground))]">Status</th>
-                <th className="text-right py-2 pr-4 font-medium text-[hsl(var(--muted-foreground))]">Live For</th>
-                <th className="text-right py-2 font-medium text-[hsl(var(--muted-foreground))]">Last Seen</th>
-              </tr>
-            </thead>
-            <tbody>
-              {activeSessions.map((session) => (
-                <tr key={session.id} className="border-b border-[hsl(var(--border)/0.5)] last:border-0">
-                  <td className="py-2.5 pr-4">
-                    <div className="font-medium">{displayUser(session)}</div>
-                    <div className="text-[11px] text-[hsl(var(--muted-foreground))] font-[JetBrains_Mono,monospace]">
-                      {session.installId}
-                    </div>
-                  </td>
-                  <td className="py-2.5 pr-4 font-[JetBrains_Mono,monospace]">{session.clientIp ?? "unknown"}</td>
-                  <td className="py-2.5 pr-4">{session.clientCountry ?? "unknown"}</td>
-                  <td className="py-2.5 pr-4 text-[hsl(var(--muted-foreground))]">{formatDate(session.startedAt)}</td>
-                  <td className="py-2.5 pr-4">
-                    <div>{session.appVersion ?? "unknown"}</div>
-                    <div className="text-[11px] text-[hsl(var(--muted-foreground))]">{session.platform ?? "unknown"}</div>
-                  </td>
-                  <td className="py-2.5 pr-4">
-                    <StatusBadge status={session.lastStatus} />
-                  </td>
-                  <td className="py-2.5 pr-4 text-right font-[JetBrains_Mono,monospace]">{liveDuration(session)}</td>
-                  <td className="py-2.5 text-right text-[hsl(var(--muted-foreground))]">{timeAgo(session.lastSeenAt)}</td>
-                </tr>
-              ))}
-
-              {activeSessions.length === 0 ? (
+        <div className="table-shell">
+          <div className="table-scroller">
+            <table>
+              <thead>
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-[hsl(var(--muted-foreground))]">
-                    No active sessions right now
-                  </td>
+                  <th>User</th>
+                  <th>IP</th>
+                  <th>Country</th>
+                  <th>Opened</th>
+                  <th>Version</th>
+                  <th>Status</th>
+                  <th className="text-right">Live for</th>
+                  <th className="text-right">Last seen</th>
                 </tr>
-              ) : null}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {activeSessions.map((session) => (
+                  <tr key={session.id}>
+                    <td>
+                      <div className="font-semibold">{displayUser(session)}</div>
+                      <div className="table-subline">{session.installId}</div>
+                    </td>
+                    <td className="font-[JetBrains_Mono,monospace]">{session.clientIp ?? "unknown"}</td>
+                    <td>{session.clientCountry ?? "unknown"}</td>
+                    <td>
+                      <div>{formatDate(session.startedAt)}</div>
+                      <div className="table-subline">{timeAgo(session.startedAt)}</div>
+                    </td>
+                    <td>
+                      <div>{session.appVersion ?? "unknown"}</div>
+                      <div className="table-subline">{session.platform ?? "unknown"}</div>
+                    </td>
+                    <td>
+                      <StatusBadge status={session.lastStatus} />
+                    </td>
+                    <td className="text-right font-[JetBrains_Mono,monospace]">{liveDuration(session)}</td>
+                    <td className="text-right">
+                      <div>{formatDate(session.lastSeenAt)}</div>
+                      <div className="table-subline">{timeAgo(session.lastSeenAt)}</div>
+                    </td>
+                  </tr>
+                ))}
+
+                {activeSessions.length === 0 ? (
+                  <tr>
+                    <td colSpan={8}>
+                      <div className="empty-panel small">No active sessions right now.</div>
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      </section>
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="simple-stat">
+      <p className="simple-stat-label">{label}</p>
+      <p className="simple-stat-value">{value}</p>
     </div>
   );
 }

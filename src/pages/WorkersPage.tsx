@@ -1,8 +1,9 @@
-import { History, Search } from "lucide-react";
+import { Download, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { StatusBadge } from "../components/StatusBadge";
 import type { AppSessionRecord, SummaryPayload } from "../types/telemetry";
-import { formatDate, formatDuration, timeAgo } from "../utils/format";
+import { downloadSessionExport } from "../utils/api";
+import { formatDate, formatDuration, formatNumber, timeAgo } from "../utils/format";
 
 interface WorkersPageProps {
   summary: SummaryPayload;
@@ -14,6 +15,8 @@ function displayUser(session: AppSessionRecord): string {
 
 export function WorkersPage({ summary }: WorkersPageProps) {
   const [query, setQuery] = useState("");
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const sessions = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -37,96 +40,136 @@ export function WorkersPage({ summary }: WorkersPageProps) {
     });
   }, [query, summary.recentSessions]);
 
+  async function handleExport() {
+    if (exporting) {
+      return;
+    }
+
+    setExporting(true);
+    setExportError(null);
+
+    try {
+      await downloadSessionExport();
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : "Failed to download session export.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
-    <div className="page-content">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+    <div className="page-content page-content-wide page-stack">
+      <section className="page-header">
         <div>
-          <h1 className="text-xl font-bold">Session History</h1>
-          <p className="text-sm text-[hsl(var(--muted-foreground))]">
-            Open timestamp, close timestamp, duration, IP and session outcome
-          </p>
+          <h1 className="page-title">Sessions</h1>
+          <p className="page-subtitle">Searchable session history and TXT export.</p>
         </div>
-        <div className="input-group w-full sm:w-[280px]">
-          <Search className="w-4 h-4 text-[hsl(var(--muted-foreground))]" />
-          <input
-            type="text"
-            className="input"
-            placeholder="Search session history..."
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
+        <div className="page-actions">
+          <button type="button" className="btn-ghost" onClick={() => void handleExport()} disabled={exporting}>
+            <Download className="h-4 w-4" />
+            {exporting ? "Preparing TXT..." : "Download TXT"}
+          </button>
         </div>
+      </section>
+
+      <div className="stats-grid stats-grid-3">
+        <Stat label="Visible Rows" value={formatNumber(sessions.length)} />
+        <Stat label="Total Sessions" value={formatNumber(summary.stats.totalSessions)} />
+        <Stat label="Ended Today" value={formatNumber(summary.stats.sessionsEndedToday)} />
       </div>
 
-      <div className="card p-5">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <History className="w-4 h-4 text-[hsl(var(--primary))]" />
-            <h3 className="text-sm font-semibold">Recent Sessions</h3>
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <h2 className="panel-title">Session History</h2>
+            <p className="panel-subtitle">One row per session.</p>
           </div>
-          <span className="text-[11px] text-[hsl(var(--muted-foreground))]">
-            {sessions.length} rows
-          </span>
+          <div className="input-group search-small">
+            <Search className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
+            <input
+              type="text"
+              className="input"
+              placeholder="Search user, IP, country..."
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </div>
         </div>
 
-        <div className="overflow-x-auto -mx-5 px-5">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-[hsl(var(--border))]">
-                <th className="text-left py-2 pr-4 font-medium text-[hsl(var(--muted-foreground))]">User</th>
-                <th className="text-left py-2 pr-4 font-medium text-[hsl(var(--muted-foreground))]">IP</th>
-                <th className="text-left py-2 pr-4 font-medium text-[hsl(var(--muted-foreground))]">Opened</th>
-                <th className="text-left py-2 pr-4 font-medium text-[hsl(var(--muted-foreground))]">Closed</th>
-                <th className="text-left py-2 pr-4 font-medium text-[hsl(var(--muted-foreground))]">Status</th>
-                <th className="text-right py-2 pr-4 font-medium text-[hsl(var(--muted-foreground))]">Duration</th>
-                <th className="text-right py-2 font-medium text-[hsl(var(--muted-foreground))]">Errors</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sessions.map((session) => (
-                <tr key={session.id} className="border-b border-[hsl(var(--border)/0.5)] last:border-0">
-                  <td className="py-2.5 pr-4">
-                    <div className="font-medium">{displayUser(session)}</div>
-                    <div className="text-[11px] text-[hsl(var(--muted-foreground))] font-[JetBrains_Mono,monospace]">
-                      {session.installId}
-                    </div>
-                  </td>
-                  <td className="py-2.5 pr-4 font-[JetBrains_Mono,monospace]">{session.clientIp ?? "unknown"}</td>
-                  <td className="py-2.5 pr-4">
-                    <div>{formatDate(session.startedAt)}</div>
-                    <div className="text-[11px] text-[hsl(var(--muted-foreground))]">{timeAgo(session.startedAt)}</div>
-                  </td>
-                  <td className="py-2.5 pr-4">
-                    {session.endedAt ? (
-                      <>
-                        <div>{formatDate(session.endedAt)}</div>
-                        <div className="text-[11px] text-[hsl(var(--muted-foreground))]">{timeAgo(session.endedAt)}</div>
-                      </>
-                    ) : (
-                      <span className="text-[hsl(var(--muted-foreground))]">still open</span>
-                    )}
-                  </td>
-                  <td className="py-2.5 pr-4">
-                    <StatusBadge status={session.lastStatus} />
-                  </td>
-                  <td className="py-2.5 pr-4 text-right font-[JetBrains_Mono,monospace]">
-                    {session.isActive ? "open" : formatDuration(session.durationSeconds)}
-                  </td>
-                  <td className="py-2.5 text-right font-[JetBrains_Mono,monospace]">{session.errorCount}</td>
-                </tr>
-              ))}
+        <div className="panel-stack">
+          {exportError ? <div className="inline-error">{exportError}</div> : null}
 
-              {sessions.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="py-8 text-center text-[hsl(var(--muted-foreground))]">
-                    No sessions match the current filter
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
+          <div className="table-shell">
+            <div className="table-scroller">
+              <table>
+                <thead>
+                  <tr>
+                    <th>User</th>
+                    <th>IP</th>
+                    <th>Opened</th>
+                    <th>Closed</th>
+                    <th>Status</th>
+                    <th className="text-right">Duration</th>
+                    <th className="text-right">Errors</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sessions.map((session) => (
+                    <tr key={session.id}>
+                      <td>
+                        <div className="font-semibold">{displayUser(session)}</div>
+                        <div className="table-subline">{session.installId}</div>
+                      </td>
+                      <td>
+                        <div className="font-[JetBrains_Mono,monospace]">{session.clientIp ?? "unknown"}</div>
+                        <div className="table-subline">{session.clientCountry ?? "unknown"}</div>
+                      </td>
+                      <td>
+                        <div>{formatDate(session.startedAt)}</div>
+                        <div className="table-subline">{timeAgo(session.startedAt)}</div>
+                      </td>
+                      <td>
+                        {session.endedAt ? (
+                          <>
+                            <div>{formatDate(session.endedAt)}</div>
+                            <div className="table-subline">{timeAgo(session.endedAt)}</div>
+                          </>
+                        ) : (
+                          <span className="table-subline">Still open</span>
+                        )}
+                      </td>
+                      <td>
+                        <StatusBadge status={session.lastStatus} />
+                      </td>
+                      <td className="text-right font-[JetBrains_Mono,monospace]">
+                        {session.isActive ? "open" : formatDuration(session.durationSeconds)}
+                      </td>
+                      <td className="text-right font-[JetBrains_Mono,monospace]">{session.errorCount}</td>
+                    </tr>
+                  ))}
+
+                  {sessions.length === 0 ? (
+                    <tr>
+                      <td colSpan={7}>
+                        <div className="empty-panel small">No sessions match the current filter.</div>
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
-      </div>
+      </section>
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="simple-stat">
+      <p className="simple-stat-label">{label}</p>
+      <p className="simple-stat-value">{value}</p>
     </div>
   );
 }

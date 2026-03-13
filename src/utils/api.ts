@@ -79,3 +79,48 @@ export async function postLogout(): Promise<void> {
     // no-op
   }
 }
+
+export async function downloadSessionExport(): Promise<void> {
+  const url = new URL(apiUrl("/api/admin/sessions-export"), window.location.origin);
+  url.searchParams.set("_ts", String(Date.now()));
+
+  const res = await fetch(url.toString(), {
+    method: "GET",
+    cache: "no-store",
+    credentials: "include",
+  });
+
+  if (!res.ok) {
+    const body = await parseJson<{ error?: string }>(res);
+    throw new Error(body?.error ?? "Failed to download session export.");
+  }
+
+  const blob = await res.blob();
+  const objectUrl = window.URL.createObjectURL(blob);
+  const filename = readDownloadFilename(res.headers.get("content-disposition")) ?? defaultExportName();
+
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = filename;
+  anchor.style.display = "none";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+
+  window.setTimeout(() => {
+    window.URL.revokeObjectURL(objectUrl);
+  }, 0);
+}
+
+function readDownloadFilename(contentDisposition: string | null): string | null {
+  if (!contentDisposition) {
+    return null;
+  }
+
+  const match = contentDisposition.match(/filename="?([^"]+)"?/i);
+  return match?.[1]?.trim() || null;
+}
+
+function defaultExportName(): string {
+  return `rr-sessions-${new Date().toISOString().replaceAll(":", "-")}.txt`;
+}

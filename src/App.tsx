@@ -1,5 +1,7 @@
-import { useEffect, useState } from "react";
+import { AlertTriangle, RefreshCw } from "lucide-react";
+import { useState } from "react";
 import { LoginForm } from "./components/LoginForm";
+import { NetworkBackdrop } from "./components/NetworkBackdrop";
 import { MobileNav, Sidebar } from "./components/Sidebar";
 import { useDashboard } from "./hooks/useDashboard";
 import { useTheme } from "./hooks/useTheme";
@@ -30,39 +32,22 @@ export default function App() {
 
   const [page, setPage] = useState<PageKey>("overview");
 
-  useEffect(() => {
-    const root = document.documentElement;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      root.style.setProperty("--status-dot-progress", "0");
-      return;
-    }
-
-    let raf = 0;
-    const durationMs = 2000;
-
-    const tick = (now: number) => {
-      const phase = (now % durationMs) / durationMs;
-      const progress = phase <= 0.7 ? phase / 0.7 : 1;
-      root.style.setProperty("--status-dot-progress", progress.toFixed(4));
-      raf = window.requestAnimationFrame(tick);
-    };
-
-    raf = window.requestAnimationFrame(tick);
-
-    return () => {
-      window.cancelAnimationFrame(raf);
-      root.style.removeProperty("--status-dot-progress");
-    };
-  }, []);
-
   /* ─── Loading ─── */
   if (!ready) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[hsl(var(--background))]">
-        <div className="spinner" />
-        <p className="mt-4 text-sm text-[hsl(var(--muted-foreground))]">
-          Loading session...
-        </p>
+      <div className="flex min-h-screen items-center justify-center px-4">
+        <div className="card w-full max-w-xl p-8 text-center">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-[20px] bg-[hsl(var(--primary)/0.12)] text-[hsl(var(--primary))]">
+            <RefreshCw className="h-6 w-6 animate-spin" />
+          </div>
+          <p className="mt-5 text-[11px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">
+            Loading
+          </p>
+          <h1 className="mt-3 text-2xl font-black tracking-[-0.06em]">Preparing dashboard</h1>
+          <p className="mx-auto mt-3 max-w-md text-sm leading-7 text-[hsl(var(--muted-foreground))]">
+            Loading auth state and session data.
+          </p>
+        </div>
       </div>
     );
   }
@@ -85,11 +70,15 @@ export default function App() {
   /* ─── Dashboard ─── */
   return (
     <div className="app-shell">
+      <NetworkBackdrop theme={theme} />
+
       <Sidebar
         page={page}
         onNavigate={setPage}
         user={user}
         authMode={authMode}
+        summary={summary}
+        health={health}
         theme={theme}
         onToggleTheme={toggleTheme}
         onRefresh={refresh}
@@ -99,14 +88,31 @@ export default function App() {
 
       <div className="main-area">
         {loadError ? (
-          <div className="mx-8 mt-6 p-4 rounded-xl border border-rose-500/30 bg-rose-500/8 text-rose-400 text-sm">
-            {loadError}
+          <div className="px-4 pt-4 md:px-8 md:pt-8">
+            <div className="card border-rose-500/25 bg-rose-500/5 p-4 text-sm text-rose-500">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-rose-500/10 text-rose-500">
+                    <AlertTriangle className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-rose-500/80">Load error</p>
+                    <p className="mt-1 font-semibold text-[hsl(var(--foreground))]">The dashboard could not refresh.</p>
+                    <p className="mt-1 text-sm leading-6 text-rose-500">{loadError}</p>
+                  </div>
+                </div>
+
+                <button type="button" className="btn-ghost self-start sm:self-center" onClick={refresh}>
+                  Retry fetch
+                </button>
+              </div>
+            </div>
           </div>
         ) : null}
 
         {summary && health ? (
           <>
-            {page === "overview" ? <OverviewPage summary={summary} /> : null}
+            {page === "overview" ? <OverviewPage summary={summary} theme={theme} /> : null}
             {page === "live" ? <LivePage summary={summary} /> : null}
             {page === "workers" ? <WorkersPage summary={summary} /> : null}
             {page === "logs" ? <LogsPage summary={summary} /> : null}
@@ -121,11 +127,17 @@ export default function App() {
             ) : null}
           </>
         ) : !loadError ? (
-          <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
-            <div className="spinner" />
-            <p className="text-sm text-[hsl(var(--muted-foreground))]">
-              Loading dashboard data...
-            </p>
+          <div className="flex min-h-[70vh] items-center justify-center px-4 md:px-8">
+            <div className="card w-full max-w-lg p-8 text-center">
+              <div className="spinner mx-auto" />
+              <p className="mt-5 text-[11px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">
+                Loading
+              </p>
+              <h2 className="mt-3 text-2xl font-black tracking-[-0.06em]">Loading dashboard data</h2>
+              <p className="mx-auto mt-3 max-w-md text-sm leading-7 text-[hsl(var(--muted-foreground))]">
+                Fetching session summary and recent errors.
+              </p>
+            </div>
           </div>
         ) : null}
       </div>

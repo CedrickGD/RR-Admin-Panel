@@ -27,6 +27,9 @@ type HandlerContext = {
   env: RuntimeEnv;
 };
 
+const SESSION_START = "session_start";
+const SESSION_ACTIVE = "session_active";
+const SESSION_END = "session_end";
 const SERVICE_PATTERN = /^[a-zA-Z0-9._:-]{1,64}$/;
 const STATUS_VALUES = new Set<TelemetryStatus>(["ok", "degraded", "down"]);
 const MAX_METRICS_KEYS = 64;
@@ -195,12 +198,14 @@ function tryNormalizeLegacyPayload(raw: Record<string, unknown>): { valid: true;
   const sourceFromProperties = toText(properties.worker_name) || toText(properties.source);
 
   const source = sanitizeIdentifier(sourceFromProperties || installId, "unknown-source");
-  const service = sanitizeIdentifier(eventName, "event");
+  const service = normalizeLegacyService(eventName);
   const status = deriveLegacyStatus(eventName, properties);
   const message = deriveLegacyMessage(properties);
+  const sessionId = deriveLegacySessionId(installId, properties);
 
   const metrics: Record<string, unknown> = {
-    install_id: installId
+    install_id: installId,
+    session_id: sessionId,
   };
 
   if (appVersion) {
@@ -297,6 +302,32 @@ function sanitizeIdentifier(value: string, fallback: string): string {
     .slice(0, 64);
 
   return normalized.length > 0 ? normalized : fallback;
+}
+
+function normalizeLegacyService(eventName: string): string {
+  const normalizedEvent = sanitizeIdentifier(eventName, "event");
+
+  switch (normalizedEvent) {
+    case "heartbeat":
+      return SESSION_ACTIVE;
+    case "app_start":
+      return SESSION_START;
+    case "app_exit":
+    case "app_stop":
+    case "shutdown":
+      return SESSION_END;
+    default:
+      return normalizedEvent;
+  }
+}
+
+function deriveLegacySessionId(installId: string, properties: Record<string, unknown>): string {
+  const explicitSessionId = toText(properties.session_id);
+  if (explicitSessionId) {
+    return explicitSessionId;
+  }
+
+  return `install:${installId}`;
 }
 
 function deriveLegacyStatus(eventName: string, properties: Record<string, unknown>): TelemetryStatus {

@@ -818,12 +818,14 @@ function tryNormalizeLegacyPayload(raw) {
   const sourceFromProperties = toText(properties.worker_name) || toText(properties.source);
 
   const source = sanitizeIdentifier(sourceFromProperties || installId, "unknown-source");
-  const service = sanitizeIdentifier(eventName, "event");
+  const service = normalizeLegacyService(eventName);
   const status = deriveLegacyStatus(eventName, properties);
   const message = deriveLegacyMessage(properties);
+  const sessionId = deriveLegacySessionId(installId, properties);
 
   const metrics = {
-    install_id: installId
+    install_id: installId,
+    session_id: sessionId
   };
 
   if (appVersion) {
@@ -917,6 +919,32 @@ function sanitizeIdentifier(value, fallback) {
     .slice(0, 64);
 
   return normalized.length > 0 ? normalized : fallback;
+}
+
+function normalizeLegacyService(eventName) {
+  const normalizedEvent = sanitizeIdentifier(eventName, "event");
+
+  switch (normalizedEvent) {
+    case "heartbeat":
+      return SESSION_ACTIVE;
+    case "app_start":
+      return SESSION_START;
+    case "app_exit":
+    case "app_stop":
+    case "shutdown":
+      return SESSION_END;
+    default:
+      return normalizedEvent;
+  }
+}
+
+function deriveLegacySessionId(installId, properties) {
+  const explicitSessionId = toText(properties.session_id);
+  if (explicitSessionId) {
+    return explicitSessionId;
+  }
+
+  return `install:${installId}`;
 }
 
 function deriveLegacyStatus(eventName, properties) {

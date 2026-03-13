@@ -316,6 +316,7 @@ body::before {
   font-size: 14px;
   font-weight: 600;
   color: hsl(var(--foreground));
+  overflow-wrap: anywhere;
 }
 
 .sidebar-command-foot {
@@ -805,6 +806,7 @@ body::before {
   letter-spacing: -0.06em;
   font-weight: 700;
   color: hsl(var(--foreground));
+  overflow-wrap: anywhere;
 }
 
 .stat-card-sub {
@@ -1017,6 +1019,7 @@ body::before {
   font-weight: 600;
   color: hsl(var(--foreground));
   text-align: right;
+  overflow-wrap: anywhere;
 }
 
 .section-actions {

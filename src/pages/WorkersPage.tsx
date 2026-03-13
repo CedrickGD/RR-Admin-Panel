@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { StatusBadge } from "../components/StatusBadge";
 import type { AppSessionRecord, SummaryPayload } from "../types/telemetry";
 import { downloadSessionExport } from "../utils/api";
-import { formatDate, formatDuration, formatNumber, timeAgo } from "../utils/format";
+import { formatDate, formatEventName, formatNumber, timeAgo } from "../utils/format";
 
 interface WorkersPageProps {
   summary: SummaryPayload;
@@ -32,6 +32,7 @@ export function WorkersPage({ summary }: WorkersPageProps) {
         session.clientCountry ?? "",
         session.appVersion ?? "",
         session.platform ?? "",
+        session.lastEvent ?? "",
       ]
         .join(" ")
         .toLowerCase();
@@ -39,6 +40,9 @@ export function WorkersPage({ summary }: WorkersPageProps) {
       return haystack.includes(q);
     });
   }, [query, summary.recentSessions]);
+
+  const activeInResults = sessions.filter((session) => session.isActive).length;
+  const resultsWithErrors = sessions.filter((session) => session.errorCount > 0).length;
 
   async function handleExport() {
     if (exporting) {
@@ -63,7 +67,7 @@ export function WorkersPage({ summary }: WorkersPageProps) {
         <div>
           <p className="page-kicker">Session Archive</p>
           <h1 className="page-title">Sessions</h1>
-          <p className="page-subtitle">Searchable session history and TXT export.</p>
+          <p className="page-subtitle">Searchable session history with the fields that are useful when checking real user state.</p>
         </div>
         <div className="page-actions">
           <button type="button" className="btn-ghost" onClick={() => void handleExport()} disabled={exporting}>
@@ -75,22 +79,22 @@ export function WorkersPage({ summary }: WorkersPageProps) {
 
       <div className="stats-grid stats-grid-3">
         <Stat label="Visible Rows" value={formatNumber(sessions.length)} />
-        <Stat label="Total Sessions" value={formatNumber(summary.stats.totalSessions)} />
-        <Stat label="Ended Today" value={formatNumber(summary.stats.sessionsEndedToday)} />
+        <Stat label="Active In Results" value={formatNumber(activeInResults)} />
+        <Stat label="Rows With Errors" value={formatNumber(resultsWithErrors)} />
       </div>
 
       <section className="panel">
         <div className="panel-header">
           <div>
             <h2 className="panel-title">Session History</h2>
-            <p className="panel-subtitle">One row per session.</p>
+            <p className="panel-subtitle">User, location, version, last visibility, last event, and error count.</p>
           </div>
           <div className="input-group search-small">
             <Search className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
             <input
               type="text"
               className="input"
-              placeholder="Search user, IP, country..."
+              placeholder="Search user, IP, version, event..."
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />
@@ -106,12 +110,12 @@ export function WorkersPage({ summary }: WorkersPageProps) {
                 <thead>
                   <tr>
                     <th>User</th>
-                    <th>IP</th>
-                    <th>Opened</th>
-                    <th>Closed</th>
-                    <th>Status</th>
-                    <th className="text-right">Duration</th>
+                    <th>Location</th>
+                    <th>Version</th>
+                    <th>Last seen</th>
+                    <th>Last event</th>
                     <th className="text-right">Errors</th>
+                    <th>Status</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -122,30 +126,22 @@ export function WorkersPage({ summary }: WorkersPageProps) {
                         <div className="table-subline">{session.installId}</div>
                       </td>
                       <td>
-                        <div className="font-[JetBrains_Mono,monospace]">{session.clientIp ?? "unknown"}</div>
-                        <div className="table-subline">{session.clientCountry ?? "unknown"}</div>
+                        <div>{session.clientCountry ?? "unknown"}</div>
+                        <div className="table-subline font-[IBM_Plex_Mono,monospace]">{session.clientIp ?? "unknown"}</div>
                       </td>
                       <td>
-                        <div>{formatDate(session.startedAt)}</div>
-                        <div className="table-subline">{timeAgo(session.startedAt)}</div>
+                        <div>{session.appVersion ?? "unknown"}</div>
+                        <div className="table-subline">{session.platform ?? "unknown"}</div>
                       </td>
                       <td>
-                        {session.endedAt ? (
-                          <>
-                            <div>{formatDate(session.endedAt)}</div>
-                            <div className="table-subline">{timeAgo(session.endedAt)}</div>
-                          </>
-                        ) : (
-                          <span className="table-subline">Still open</span>
-                        )}
+                        <div>{formatDate(session.lastSeenAt)}</div>
+                        <div className="table-subline">{timeAgo(session.lastSeenAt)}</div>
                       </td>
+                      <td>{formatEventName(session.lastEvent)}</td>
+                      <td className="text-right font-[IBM_Plex_Mono,monospace]">{session.errorCount}</td>
                       <td>
                         <StatusBadge status={session.lastStatus} />
                       </td>
-                      <td className="text-right font-[JetBrains_Mono,monospace]">
-                        {session.isActive ? "open" : formatDuration(session.durationSeconds)}
-                      </td>
-                      <td className="text-right font-[JetBrains_Mono,monospace]">{session.errorCount}</td>
                     </tr>
                   ))}
 

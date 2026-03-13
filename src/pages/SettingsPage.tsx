@@ -1,6 +1,6 @@
 import { LogOut } from "lucide-react";
 import type { AuthMode, AuthUser, HealthPayload, SummaryPayload } from "../types/telemetry";
-import { formatDate, formatDuration, formatNumber } from "../utils/format";
+import { formatDate, formatNumber } from "../utils/format";
 
 interface SettingsPageProps {
   user: AuthUser;
@@ -74,7 +74,7 @@ export function SettingsPage({
         <div className="panel-header">
           <div>
             <h2 className="panel-title">Data Summary</h2>
-            <p className="panel-subtitle">Current loaded totals.</p>
+            <p className="panel-subtitle">Current loaded totals without the low-signal session close metrics.</p>
           </div>
         </div>
 
@@ -82,9 +82,9 @@ export function SettingsPage({
           <Summary label="Total Events" value={formatNumber(summary.stats.totalEvents)} />
           <Summary label="Total Sessions" value={formatNumber(summary.stats.totalSessions)} />
           <Summary label="Active Users" value={formatNumber(summary.stats.activeUsers)} />
-          <Summary label="Average Session" value={formatDuration(summary.stats.averageSessionDurationSeconds)} />
           <Summary label="Started Today" value={formatNumber(summary.stats.sessionsStartedToday)} />
-          <Summary label="Ended Today" value={formatNumber(summary.stats.sessionsEndedToday)} />
+          <Summary label="Errors 24h" value={formatNumber(summary.stats.errorsLast24Hours)} />
+          <Summary label="Recent Errors Loaded" value={formatNumber(summary.recentErrors.length)} />
           <Summary label="Last Ingest" value={summary.stats.lastIngestAt ? formatDate(summary.stats.lastIngestAt) : "Waiting"} />
         </div>
       </section>

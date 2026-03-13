@@ -1,6 +1,8 @@
 import type { AppSessionRecord, SummaryPayload } from "../types/telemetry";
 
 const HOUR_MS = 60 * 60 * 1000;
+const SESSION_START = "session_start";
+const APP_ERROR = "app_error";
 
 export interface TrafficTimelinePoint {
   label: string;
@@ -63,19 +65,26 @@ export function buildTrafficTimeline(summary: SummaryPayload, hours = 24): Traff
     point[key] += 1;
   };
 
-  for (const session of summary.recentSessions) {
-    applyBucket(session.startedAt, "started");
-    applyBucket(session.endedAt, "ended");
+  for (const event of summary.recentEvents) {
+    const timestamp = Date.parse(event.timestamp);
+    if (!Number.isFinite(timestamp) || timestamp < start || timestamp > end + HOUR_MS) {
+      continue;
+    }
+
+    const bucketIndex = Math.floor((timestamp - start) / HOUR_MS);
+    const point = points[Math.min(points.length - 1, Math.max(0, bucketIndex))];
+    point.activity += 1;
+
+    if (event.service === SESSION_START) {
+      point.started += 1;
+    }
+
+    if (event.service === APP_ERROR) {
+      point.errors += 1;
+    }
   }
 
-  for (const event of summary.recentErrors) {
-    applyBucket(event.timestamp, "errors");
-  }
-
-  return points.map((point) => ({
-    ...point,
-    activity: point.started + point.ended + point.errors,
-  }));
+  return points;
 }
 
 export function buildCountryBreakdown(summary: SummaryPayload): BreakdownPoint[] {
@@ -121,4 +130,19 @@ export function buildDurationBreakdown(sessions: AppSessionRecord[]): BreakdownP
   }
 
   return values;
+}
+
+export function buildVersionBreakdown(summary: SummaryPayload): BreakdownPoint[] {
+  const source = summary.activeSessions.length > 0 ? summary.activeSessions : summary.recentSessions;
+  const counts = new Map<string, number>();
+
+  for (const session of source) {
+    const label = session.appVersion?.trim() || "Unknown";
+    counts.set(label, (counts.get(label) ?? 0) + 1);
+  }
+
+  return Array.from(counts.entries())
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .slice(0, 6)
+    .map(([label, value]) => ({ label, value }));
 }

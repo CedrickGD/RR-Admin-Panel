@@ -55,3 +55,18 @@ export function formatDuration(seconds: number | null): string {
 
   return `${remainingSeconds}s`;
 }
+
+export function formatEventName(value: string | null): string {
+  switch (value) {
+    case "session_start":
+      return "Started";
+    case "session_active":
+      return "Heartbeat";
+    case "session_end":
+      return "Ended";
+    case "app_error":
+      return "App error";
+    default:
+      return value ? value.replaceAll("_", " ") : "Unknown";
+  }
+}

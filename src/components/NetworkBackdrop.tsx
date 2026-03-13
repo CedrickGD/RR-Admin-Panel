@@ -8,6 +8,7 @@ interface NodePoint {
   vy: number;
   size: number;
   pulseOffset: number;
+  tone: number;
 }
 
 interface NetworkBackdropProps {
@@ -44,14 +45,15 @@ export function NetworkBackdrop({ theme }: NetworkBackdropProps) {
 
     const palette =
       theme === "dark"
-        ? {
-            line: "139, 92, 246",
-            node: "196, 181, 253",
-          }
-        : {
-            line: "139, 92, 246",
-            node: "109, 40, 217",
-          };
+        ? [
+            { line: "139, 92, 246", node: "196, 181, 253", glow: "139, 92, 246" },
+            { line: "56, 189, 248", node: "125, 211, 252", glow: "59, 130, 246" },
+            { line: "249, 115, 22", node: "253, 186, 116", glow: "239, 68, 68" },
+          ]
+        : [
+            { line: "139, 92, 246", node: "109, 40, 217", glow: "139, 92, 246" },
+            { line: "14, 165, 233", node: "2, 132, 199", glow: "14, 165, 233" },
+          ];
 
     const resizeCanvas = () => {
       width = window.innerWidth;
@@ -66,14 +68,15 @@ export function NetworkBackdrop({ theme }: NetworkBackdropProps) {
     };
 
     const createNodes = () => {
-      const count = Math.max(10, Math.min(28, Math.round((width * height) / 78000)));
+      const count = Math.max(14, Math.min(36, Math.round((width * height) / 70000)));
       nodes = Array.from({ length: count }, () => ({
         x: Math.random() * width,
         y: Math.random() * height,
-        vx: (Math.random() - 0.5) * 0.14,
-        vy: (Math.random() - 0.5) * 0.14,
-        size: Math.random() * 1.2 + 0.6,
+        vx: (Math.random() - 0.5) * 0.18,
+        vy: (Math.random() - 0.5) * 0.18,
+        size: Math.random() * 1.4 + 0.7,
         pulseOffset: Math.random() * Math.PI * 2,
+        tone: Math.floor(Math.random() * palette.length),
       }));
     };
 
@@ -114,30 +117,42 @@ export function NetworkBackdrop({ theme }: NetworkBackdropProps) {
           for (let otherIndex = index + 1; otherIndex < nodes.length; otherIndex += 1) {
             const other = nodes[otherIndex];
             const distance = Math.hypot(other.x - node.x, other.y - node.y);
-            const maxDistance = 180;
+            const maxDistance = 210;
 
             if (distance > maxDistance) {
               continue;
             }
 
-            const alpha = Math.pow(1 - distance / maxDistance, 1.45) * (theme === "dark" ? 0.12 : 0.09);
+            const alpha = Math.pow(1 - distance / maxDistance, 1.45) * (theme === "dark" ? 0.18 : 0.1);
+            const gradient = context.createLinearGradient(node.x, node.y, other.x, other.y);
+            gradient.addColorStop(0, `rgba(${palette[node.tone].line}, ${alpha})`);
+            gradient.addColorStop(1, `rgba(${palette[other.tone].line}, ${alpha * 0.72})`);
 
             context.beginPath();
             context.moveTo(node.x, node.y);
             context.lineTo(other.x, other.y);
-            context.strokeStyle = `rgba(${palette.line}, ${alpha})`;
-            context.lineWidth = 0.8;
+            context.strokeStyle = gradient;
+            context.lineWidth = theme === "dark" ? 0.95 : 0.8;
             context.stroke();
           }
         }
 
         for (const node of nodes) {
           const radius = node.size + Math.sin(time + node.pulseOffset) * 0.15;
+          const tone = palette[node.tone];
 
           context.beginPath();
-          context.arc(node.x, node.y, Math.max(0.5, radius), 0, Math.PI * 2);
-          context.fillStyle = `rgba(${palette.node}, ${theme === "dark" ? 0.5 : 0.3})`;
+          context.arc(node.x, node.y, Math.max(1.8, radius * 3.1), 0, Math.PI * 2);
+          context.fillStyle = `rgba(${tone.glow}, ${theme === "dark" ? 0.045 : 0.026})`;
           context.fill();
+
+          context.beginPath();
+          context.arc(node.x, node.y, Math.max(0.55, radius), 0, Math.PI * 2);
+          context.shadowBlur = theme === "dark" ? 16 : 10;
+          context.shadowColor = `rgba(${tone.glow}, ${theme === "dark" ? 0.36 : 0.22})`;
+          context.fillStyle = `rgba(${tone.node}, ${theme === "dark" ? 0.72 : 0.42})`;
+          context.fill();
+          context.shadowBlur = 0;
         }
       }
 

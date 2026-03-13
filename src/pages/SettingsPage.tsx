@@ -25,6 +25,23 @@ export function SettingsPage({
           <h1 className="page-title">Settings</h1>
           <p className="page-subtitle">Account and backend information.</p>
         </div>
+
+        <div className="page-header-side">
+          <div className="page-meta-stack">
+            <div className="page-meta">
+              <span>Auth mode</span>
+              <strong>{authMode === "access" ? "Zero Trust" : "App auth"}</strong>
+            </div>
+            <div className="page-meta">
+              <span>Storage</span>
+              <strong>{summary.storage.toUpperCase()}</strong>
+            </div>
+            <div className="page-meta">
+              <span>Last ingest</span>
+              <strong>{summary.stats.lastIngestAt ? formatDate(summary.stats.lastIngestAt) : "Waiting"}</strong>
+            </div>
+          </div>
+        </div>
       </section>
 
       <div className="content-grid">

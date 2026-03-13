@@ -30,6 +30,7 @@ export function LogsPage({ summary }: LogsPageProps) {
       return haystack.includes(q);
     });
   }, [query, summary.recentErrors]);
+  const latestError = summary.recentErrors[0];
 
   return (
     <div className="page-content page-content-wide page-stack">
@@ -39,9 +40,22 @@ export function LogsPage({ summary }: LogsPageProps) {
           <h1 className="page-title">Errors</h1>
           <p className="page-subtitle">Only real application errors.</p>
         </div>
-        <div className="page-meta">
-          <span>Errors 24h</span>
-          <strong>{formatNumber(summary.stats.errorsLast24Hours)}</strong>
+
+        <div className="page-header-side">
+          <div className="page-meta-stack">
+            <div className="page-meta">
+              <span>Errors 24h</span>
+              <strong>{formatNumber(summary.stats.errorsLast24Hours)}</strong>
+            </div>
+            <div className="page-meta">
+              <span>Visible rows</span>
+              <strong>{formatNumber(errors.length)}</strong>
+            </div>
+            <div className="page-meta">
+              <span>Latest</span>
+              <strong>{latestError ? timeAgo(latestError.timestamp) : "None"}</strong>
+            </div>
+          </div>
         </div>
       </section>
 

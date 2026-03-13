@@ -68,7 +68,7 @@ export function OverviewPage({ summary, theme }: OverviewPageProps) {
             grid: "rgba(255,255,255,0.08)",
             axis: "rgba(255,255,255,0.58)",
             axisSoft: "rgba(255,255,255,0.46)",
-            activityBar: "rgba(139,92,246,0.44)",
+            activityBar: "rgba(56,189,248,0.36)",
             sessionsLine: "rgba(196,181,253,0.96)",
             errorsLine: "rgba(248,113,113,0.92)",
             tooltipCursor: false as const,
@@ -77,7 +77,7 @@ export function OverviewPage({ summary, theme }: OverviewPageProps) {
             grid: "rgba(19,37,57,0.12)",
             axis: "rgba(19,37,57,0.72)",
             axisSoft: "rgba(19,37,57,0.54)",
-            activityBar: "rgba(109,40,217,0.32)",
+            activityBar: "rgba(14,165,233,0.3)",
             sessionsLine: "rgba(139,92,246,0.88)",
             errorsLine: "rgba(220,38,38,0.86)",
             tooltipCursor: false as const,
@@ -114,18 +114,20 @@ export function OverviewPage({ summary, theme }: OverviewPageProps) {
           </p>
         </div>
 
-        <div className="page-meta-stack">
-          <div className="page-meta">
-            <span>Last ingest</span>
-            <strong>{summary.stats.lastIngestAt ? timeAgo(summary.stats.lastIngestAt) : "Waiting"}</strong>
-          </div>
-          <div className="page-meta">
-            <span>Active now</span>
-            <strong>{formatNumber(summary.stats.activeUsers)}</strong>
-          </div>
-          <div className="page-meta">
-            <span>Errors 24h</span>
-            <strong>{formatNumber(summary.stats.errorsLast24Hours)}</strong>
+        <div className="page-header-side">
+          <div className="page-meta-stack">
+            <div className="page-meta">
+              <span>Last ingest</span>
+              <strong>{summary.stats.lastIngestAt ? timeAgo(summary.stats.lastIngestAt) : "Waiting"}</strong>
+            </div>
+            <div className="page-meta">
+              <span>Active now</span>
+              <strong>{formatNumber(summary.stats.activeUsers)}</strong>
+            </div>
+            <div className="page-meta">
+              <span>Errors 24h</span>
+              <strong>{formatNumber(summary.stats.errorsLast24Hours)}</strong>
+            </div>
           </div>
         </div>
       </section>

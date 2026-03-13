@@ -69,19 +69,30 @@ export function WorkersPage({ summary }: WorkersPageProps) {
           <h1 className="page-title">Sessions</h1>
           <p className="page-subtitle">Searchable session history with the fields that are useful when checking real user state.</p>
         </div>
-        <div className="page-actions">
-          <button type="button" className="btn-ghost" onClick={() => void handleExport()} disabled={exporting}>
-            <Download className="h-4 w-4" />
-            {exporting ? "Preparing TXT..." : "Download TXT Report"}
-          </button>
+
+        <div className="page-header-side">
+          <div className="page-actions">
+            <button type="button" className="btn-primary" onClick={() => void handleExport()} disabled={exporting}>
+              <Download className="h-4 w-4" />
+              {exporting ? "Preparing TXT..." : "Download TXT Report"}
+            </button>
+          </div>
+          <div className="page-meta-stack">
+            <div className="page-meta">
+              <span>Visible rows</span>
+              <strong>{formatNumber(sessions.length)}</strong>
+            </div>
+            <div className="page-meta">
+              <span>Active in results</span>
+              <strong>{formatNumber(activeInResults)}</strong>
+            </div>
+            <div className="page-meta">
+              <span>Rows with errors</span>
+              <strong>{formatNumber(resultsWithErrors)}</strong>
+            </div>
+          </div>
         </div>
       </section>
-
-      <div className="stats-grid stats-grid-3">
-        <Stat label="Visible Rows" value={formatNumber(sessions.length)} />
-        <Stat label="Active In Results" value={formatNumber(activeInResults)} />
-        <Stat label="Rows With Errors" value={formatNumber(resultsWithErrors)} />
-      </div>
 
       <section className="panel">
         <div className="panel-header">
@@ -158,15 +169,6 @@ export function WorkersPage({ summary }: WorkersPageProps) {
           </div>
         </div>
       </section>
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="simple-stat">
-      <p className="simple-stat-label">{label}</p>
-      <p className="simple-stat-value">{value}</p>
     </div>
   );
 }

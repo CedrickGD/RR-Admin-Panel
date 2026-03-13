@@ -42,17 +42,24 @@ export function LivePage({ summary }: LivePageProps) {
             Who is active right now, what build they run, and whether their session is clean. Rows stay in a stable user order so they do not jump while you copy data.
           </p>
         </div>
-        <div className="page-meta">
-          <span>Active now</span>
-          <strong>{formatNumber(activeSessions.length)}</strong>
+
+        <div className="page-header-side">
+          <div className="page-meta-stack">
+            <div className="page-meta">
+              <span>Active now</span>
+              <strong>{formatNumber(activeSessions.length)}</strong>
+            </div>
+            <div className="page-meta">
+              <span>Live errors</span>
+              <strong>{formatNumber(liveErrors)}</strong>
+            </div>
+            <div className="page-meta">
+              <span>Last ingest</span>
+              <strong>{summary.stats.lastIngestAt ? timeAgo(summary.stats.lastIngestAt) : "Waiting"}</strong>
+            </div>
+          </div>
         </div>
       </section>
-
-      <div className="stats-grid stats-grid-3">
-        <Stat label="Active Users" value={formatNumber(activeSessions.length)} />
-        <Stat label="Live Errors" value={formatNumber(liveErrors)} />
-        <Stat label="Last Ingest" value={summary.stats.lastIngestAt ? timeAgo(summary.stats.lastIngestAt) : "waiting"} />
-      </div>
 
       <section className="panel">
         <div className="panel-header">
@@ -122,15 +129,6 @@ export function LivePage({ summary }: LivePageProps) {
           </div>
         </div>
       </section>
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="simple-stat">
-      <p className="simple-stat-label">{label}</p>
-      <p className="simple-stat-value">{value}</p>
     </div>
   );
 }

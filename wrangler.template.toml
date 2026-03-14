@@ -7,14 +7,14 @@ STORAGE_BACKEND = "d1"
 AUTH_MODE = "access"
 ACCESS_ENFORCEMENT = "strict"
 ACCESS_ALLOWED_EMAIL = ""
-ACCESS_ADMIN_EMAIL = "cedrickgrabe@outlook.de"
+ACCESS_ADMIN_EMAIL = ""
 
 [[d1_databases]]
 binding = "DB"
 database_name = "rr_admin_panel"
-database_id = "6f077e22-3dff-4202-a9c8-675506c9a55a"
+database_id = "replace-with-d1-database-id"
 
 [[kv_namespaces]]
 binding = "KV"
-id = "6b55cdede8f34f8b80a83a46df97aee5"
-preview_id = "e1c5c1a1860f43f1a81b5e9b72e4c3c1"
+id = "replace-with-kv-namespace-id"
+preview_id = "replace-with-kv-preview-id"

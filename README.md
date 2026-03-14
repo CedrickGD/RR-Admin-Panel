@@ -49,7 +49,7 @@ The frontend uses same-origin API routes by default. Leave `VITE_API_BASE_URL` u
 .
 |-- backend-worker/
 |   |-- index.js
-|   `-- wrangler.toml
+|   `-- wrangler.template.toml
 |-- functions/
 |   |-- _lib/
 |   |   |-- admin.ts
@@ -96,7 +96,7 @@ The frontend uses same-origin API routes by default. Leave `VITE_API_BASE_URL` u
 |-- README.md
 |-- schema.sql
 |-- vite.config.ts
-`-- wrangler.toml
+`-- wrangler.template.toml
 ```
 
 ## Requirements
@@ -115,7 +115,7 @@ npm install
 
 ### Pages app
 
-The root [`wrangler.toml`](./wrangler.toml) is configured for the Pages dashboard app.
+The tracked Pages config is [`wrangler.template.toml`](./wrangler.template.toml). Keep your real Pages config in a local ignored `wrangler.toml` copied from that template.
 
 Required bindings:
 
@@ -136,9 +136,21 @@ npx wrangler kv namespace create RR_ADMIN_PANEL
 npx wrangler kv namespace create RR_ADMIN_PANEL --preview
 ```
 
+Create your local real config from the template and fill in the live IDs:
+
+```powershell
+Copy-Item wrangler.template.toml wrangler.toml
+```
+
 ### Standalone ingest worker
 
 The worker in [`/backend-worker`](./backend-worker) uses D1 and is meant for ingest and health endpoints only.
+
+Create its local real config from the template:
+
+```powershell
+Copy-Item backend-worker/wrangler.template.toml backend-worker/wrangler.toml
+```
 
 Deploy it with:
 
@@ -173,6 +185,8 @@ Copy-Item .dev.vars.example .dev.vars
 ```
 
 Then fill the secrets in `.dev.vars`.
+
+The real Cloudflare binding IDs and any personal allowlists should stay in your local ignored `wrangler.toml` files, not in tracked files.
 
 Useful commands:
 
@@ -212,6 +226,16 @@ npx wrangler pages deploy dist --project-name rr-admin-panel --branch main
 cd backend-worker
 npx wrangler deploy
 ```
+
+## Public Repo Hygiene
+
+If you want the repo public:
+
+- keep secrets in Cloudflare dashboard secrets or local `.dev.vars`
+- keep live Cloudflare binding IDs and personal emails in local ignored `wrangler.toml` files only
+- commit only the `wrangler.template.toml` files with placeholders
+
+Important: cleaning the current files does not erase old commits. If you want the old email or Cloudflare IDs removed from git history too, you need a history rewrite and force-push.
 
 ## Authentication
 

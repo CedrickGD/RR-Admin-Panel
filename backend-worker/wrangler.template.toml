@@ -5,4 +5,4 @@ compatibility_date = "2026-03-03"
 [[d1_databases]]
 binding = "DB"
 database_name = "rr_admin_panel"
-database_id = "6f077e22-3dff-4202-a9c8-675506c9a55a"
+database_id = "replace-with-d1-database-id"

@@ -20,6 +20,8 @@ coverage/
 .dev.vars
 .dev.vars.*
 !.dev.vars.example
+/wrangler.toml
+/backend-worker/wrangler.toml
 
 # Environment and secrets
 .env

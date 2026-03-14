@@ -1,5 +1,5 @@
 import { Radio } from "lucide-react";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { StatusBadge } from "../components/StatusBadge";
 import type { AppSessionRecord, SummaryPayload } from "../types/telemetry";
 import { formatDate, formatNumber, timeAgo } from "../utils/format";
@@ -15,10 +15,18 @@ function displayUser(session: AppSessionRecord): string {
 }
 
 export function LivePage({ summary }: LivePageProps) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setNow(Date.now());
+    }, 1_000);
+
+    return () => window.clearInterval(id);
+  }, []);
+
   const activeSessions = useMemo(
     () => {
-      const now = Date.now();
-
       return [...summary.activeSessions]
         .filter((session) => {
           const lastSeenTs = Date.parse(session.lastSeenAt);
@@ -38,7 +46,7 @@ export function LivePage({ summary }: LivePageProps) {
           return left.id.localeCompare(right.id, undefined, { sensitivity: "base" });
         });
     },
-    [summary.activeSessions],
+    [now, summary.activeSessions],
   );
   const liveErrors = activeSessions.filter((session) => session.errorCount > 0).length;
 
@@ -54,7 +62,7 @@ export function LivePage({ summary }: LivePageProps) {
         </div>
 
         <div className="page-header-side">
-          <div className="page-meta-stack">
+          <div className="page-meta-stack page-meta-stack-live">
             <div className="page-meta">
               <span>Active now</span>
               <strong>{formatNumber(activeSessions.length)}</strong>
@@ -66,6 +74,10 @@ export function LivePage({ summary }: LivePageProps) {
             <div className="page-meta">
               <span>Last ingest</span>
               <strong>{summary.stats.lastIngestAt ? timeAgo(summary.stats.lastIngestAt) : "Waiting"}</strong>
+            </div>
+            <div className="page-meta">
+              <span>Updated</span>
+              <strong>{timeAgo(summary.generatedAt)}</strong>
             </div>
           </div>
         </div>

@@ -41,6 +41,7 @@ function getInitialSidebarWidth() {
 
 export default function App() {
   const { theme, toggle: toggleTheme } = useTheme();
+  const [page, setPage] = useState<PageKey>("overview");
   const {
     authMode,
     ready,
@@ -55,9 +56,7 @@ export default function App() {
     authenticate,
     logout,
     refresh,
-  } = useDashboard();
-
-  const [page, setPage] = useState<PageKey>("overview");
+  } = useDashboard(page);
   const [sidebarWidth, setSidebarWidth] = useState(getInitialSidebarWidth);
   const [sidebarResizing, setSidebarResizing] = useState(false);
 

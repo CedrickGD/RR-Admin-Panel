@@ -4,13 +4,15 @@ import type {
   AuthMode,
   AuthUser,
   HealthPayload,
+  PageKey,
   SummaryPayload,
 } from "../types/telemetry";
 import { fetchAdminData, fetchSession, postAuth, postLogout } from "../utils/api";
 
-const REFRESH_MS = 15_000;
+const DEFAULT_REFRESH_MS = 15_000;
+const LIVE_REFRESH_MS = 5_000;
 
-export function useDashboard() {
+export function useDashboard(activePage: PageKey) {
   const [authMode, setAuthMode] = useState<AuthMode>("access");
   const [ready, setReady] = useState(false);
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -21,8 +23,6 @@ export function useDashboard() {
   const [health, setHealth] = useState<HealthPayload | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [tick, setTick] = useState(0);
-
   const loadDashboard = useCallback(
     async (silent: boolean) => {
       try {
@@ -80,17 +80,44 @@ export function useDashboard() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Auto-refresh timer
   useEffect(() => {
     if (!user) return;
-    const id = window.setInterval(() => setTick((t) => t + 1), REFRESH_MS);
+
+    const refreshMs = activePage === "live" ? LIVE_REFRESH_MS : DEFAULT_REFRESH_MS;
+    const id = window.setInterval(() => {
+      void loadDashboard(true);
+    }, refreshMs);
+
     return () => window.clearInterval(id);
-  }, [user]);
+  }, [activePage, loadDashboard, user]);
 
   useEffect(() => {
-    if (!user || tick === 0) return;
+    if (!user || activePage !== "live") {
+      return;
+    }
+
     void loadDashboard(true);
-  }, [tick, user, loadDashboard]);
+  }, [activePage, loadDashboard, user]);
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+
+    const syncVisibleState = () => {
+      if (document.visibilityState === "visible") {
+        void loadDashboard(true);
+      }
+    };
+
+    window.addEventListener("focus", syncVisibleState);
+    document.addEventListener("visibilitychange", syncVisibleState);
+
+    return () => {
+      window.removeEventListener("focus", syncVisibleState);
+      document.removeEventListener("visibilitychange", syncVisibleState);
+    };
+  }, [loadDashboard, user]);
 
   const authenticate = async (
     email: string,

@@ -1019,8 +1019,8 @@ html:not(.dark) .network-backdrop-canvas {
 
 .chart-tooltip-dot,
 .status-dot {
-  width: 6px;
-  height: 6px;
+  width: 4px;
+  height: 4px;
   border-radius: 999px;
   background: currentColor;
 }
@@ -1028,16 +1028,22 @@ html:not(.dark) .network-backdrop-canvas {
 .status-dot {
   position: relative;
   isolation: isolate;
-  box-shadow: 0 0 12px currentColor;
+  background:
+    radial-gradient(circle at 35% 35%, rgb(255 255 255 / 0.95) 0%, rgb(255 255 255 / 0.4) 24%, transparent 30%),
+    currentColor;
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.14),
+    0 0 10px currentColor;
 }
 
 .status-dot::after {
   content: "";
   position: absolute;
-  inset: -3px;
+  inset: -4px;
   border-radius: inherit;
-  border: 1px solid currentColor;
-  opacity: 0.54;
+  border: 1px solid rgb(255 255 255 / 0.4);
+  box-shadow: 0 0 0 1px currentColor;
+  opacity: 0.62;
   animation: statusPulse 1.8s ease-out infinite;
 }
 

@@ -1,4 +1,4 @@
-import { AlertTriangle, Globe2, Radio, ShieldAlert } from "lucide-react";
+import { AlertTriangle, Clock3, Globe2, Radio, ShieldAlert } from "lucide-react";
 import { useMemo } from "react";
 import {
   Area,
@@ -12,55 +12,48 @@ import {
   YAxis,
 } from "recharts";
 import { StatCard } from "../components/StatCard";
+import { GeoDonutChart } from "../components/charts/GeoDonutChart";
+import { TelemetryChartTooltip } from "../components/charts/TelemetryChartTooltip";
+import { TimezoneUsageChart } from "../components/charts/TimezoneUsageChart";
 import type { SummaryPayload, ThemeMode } from "../types/telemetry";
-import { buildCountryBreakdown, buildTrafficTimeline, buildVersionBreakdown } from "../utils/dashboardInsights";
-import { formatDate, formatEventName, formatNumber, timeAgo } from "../utils/format";
+import {
+  buildCountryBreakdown,
+  buildRegionBreakdown,
+  buildTimezoneActivity,
+  buildTrafficTimeline,
+  buildVersionBreakdown,
+} from "../utils/dashboardInsights";
+import { getRegionColor } from "../utils/geography";
+import { formatNumber, timeAgo } from "../utils/format";
 
 interface OverviewPageProps {
   summary: SummaryPayload;
   theme: ThemeMode;
 }
 
-function ChartTooltip({
-  active,
-  payload,
-  label,
-}: {
-  active?: boolean;
-  payload?: Array<{ name?: string; value?: number; color?: string }>;
-  label?: string;
-}) {
-  if (!active || !payload || payload.length === 0) {
-    return null;
-  }
-
-  return (
-    <div className="chart-tooltip">
-      <p className="chart-tooltip-label">{label}</p>
-      <div className="chart-tooltip-grid">
-        {payload.map((entry) => (
-          <div key={entry.name} className="chart-tooltip-row">
-            <span className="chart-tooltip-key">
-              <span
-                className="chart-tooltip-dot"
-                style={{ backgroundColor: entry.color ?? "rgba(255,255,255,0.72)" }}
-              />
-              {String(entry.name)}
-            </span>
-            <strong>{formatNumber(Number(entry.value ?? 0))}</strong>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+const COUNTRY_COLORS = ["#38bdf8", "#a78bfa", "#f59e0b", "#2dd4bf", "#fb7185", "#f97316"];
+const TIMEZONE_PANELS = [
+  { title: "UTC", subtitle: "Universal reference clock", timeZone: "UTC", accent: "#38bdf8" },
+  { title: "New York", subtitle: "America/New_York", timeZone: "America/New_York", accent: "#a78bfa" },
+  { title: "London", subtitle: "Europe/London", timeZone: "Europe/London", accent: "#f59e0b" },
+  { title: "Tokyo", subtitle: "Asia/Tokyo", timeZone: "Asia/Tokyo", accent: "#2dd4bf" },
+];
 
 export function OverviewPage({ summary, theme }: OverviewPageProps) {
-  const traffic = useMemo(() => buildTrafficTimeline(summary), [summary]);
-  const countries = useMemo(() => buildCountryBreakdown(summary), [summary]);
+  const traffic = useMemo(() => buildTrafficTimeline(summary, 24, "UTC"), [summary]);
+  const regions = useMemo(() => buildRegionBreakdown(summary), [summary]);
+  const countries = useMemo(() => buildCountryBreakdown(summary, 5, true), [summary]);
   const versions = useMemo(() => buildVersionBreakdown(summary), [summary]);
+  const timezoneCharts = useMemo(
+    () =>
+      TIMEZONE_PANELS.map((panel) => ({
+        ...panel,
+        data: buildTimezoneActivity(summary, panel.timeZone),
+      })),
+    [summary],
+  );
   const latestError = summary.recentErrors[0];
-
+  const recentSignals = summary.recentErrors.slice(0, 4);
   const chartPalette = useMemo(
     () =>
       theme === "dark"
@@ -68,23 +61,20 @@ export function OverviewPage({ summary, theme }: OverviewPageProps) {
             grid: "rgba(255,255,255,0.08)",
             axis: "rgba(255,255,255,0.58)",
             axisSoft: "rgba(255,255,255,0.46)",
-            activityBar: "rgba(56,189,248,0.36)",
+            activityBar: "rgba(45,212,191,0.26)",
             sessionsLine: "rgba(196,181,253,0.96)",
-            errorsLine: "rgba(248,113,113,0.92)",
-            tooltipCursor: false as const,
+            errorsLine: "rgba(251,113,133,0.9)",
           }
         : {
             grid: "rgba(19,37,57,0.12)",
             axis: "rgba(19,37,57,0.72)",
             axisSoft: "rgba(19,37,57,0.54)",
-            activityBar: "rgba(14,165,233,0.3)",
-            sessionsLine: "rgba(139,92,246,0.88)",
-            errorsLine: "rgba(220,38,38,0.86)",
-            tooltipCursor: false as const,
+            activityBar: "rgba(20,184,166,0.22)",
+            sessionsLine: "rgba(139,92,246,0.86)",
+            errorsLine: "rgba(225,29,72,0.88)",
           },
     [theme],
   );
-
   const totals = useMemo(
     () =>
       traffic.reduce(
@@ -98,10 +88,33 @@ export function OverviewPage({ summary, theme }: OverviewPageProps) {
       ),
     [traffic],
   );
-
   const sessionsWithErrors = summary.recentSessions.filter((session) => session.errorCount > 0).length;
   const liveWithErrors = summary.activeSessions.filter((session) => session.errorCount > 0).length;
-  const mostUsedVersion = versions[0]?.label ?? "Unknown";
+  const topRegion = regions[0]?.label ?? "Unknown";
+  const geographyMode = summary.activeSessions.length > 0 ? "Active-first session view" : "Recent session view";
+  const regionDonutData = useMemo(
+    () =>
+      regions.map((region) => ({
+        label: region.label,
+        value: region.value,
+        share: region.share,
+        color: getRegionColor(region.label),
+        note: `${formatNumber(region.value)} sessions`,
+      })),
+    [regions],
+  );
+  const countryDonutData = useMemo(
+    () =>
+      countries.map((country, index) => ({
+        label: country.label,
+        value: country.value,
+        share: country.share,
+        color: COUNTRY_COLORS[index % COUNTRY_COLORS.length],
+        note: country.region,
+        flag: country.flag,
+      })),
+    [countries],
+  );
 
   return (
     <div className="page-content page-content-wide overview-page">
@@ -110,7 +123,7 @@ export function OverviewPage({ summary, theme }: OverviewPageProps) {
           <p className="page-kicker">Operator View</p>
           <h1 className="page-title">Overview</h1>
           <p className="page-subtitle">
-            Summary only. Live rows, session history, and full error lists stay on their own pages so this page stays clean.
+            Fixed-zone telemetry view for production operations. Usage charts are rendered in UTC, New York, London, and Tokyo, while the live heatmap stays isolated on its own page.
           </p>
         </div>
 
@@ -136,21 +149,21 @@ export function OverviewPage({ summary, theme }: OverviewPageProps) {
         <StatCard
           label="Active Users"
           value={formatNumber(summary.stats.activeUsers)}
-          sub="Full active table lives on the Live page"
+          sub="Live geography now has its own page"
           icon={<Radio className="h-5 w-5" />}
           tone="primary"
         />
         <StatCard
           label="Sessions With Errors"
           value={formatNumber(sessionsWithErrors)}
-          sub={`${formatNumber(liveWithErrors)} are currently active`}
+          sub={`${formatNumber(liveWithErrors)} are active right now`}
           icon={<ShieldAlert className="h-5 w-5" />}
           tone="rose"
         />
         <StatCard
-          label="Top Version"
-          value={mostUsedVersion}
-          sub={`${versions[0]?.value ?? 0} sessions in loaded range`}
+          label="Top Region"
+          value={topRegion}
+          sub={regions[0] ? `${formatNumber(regions[0].value)} sessions in focus` : "No geographic data"}
           icon={<Globe2 className="h-5 w-5" />}
           tone="accent"
         />
@@ -168,8 +181,10 @@ export function OverviewPage({ summary, theme }: OverviewPageProps) {
           <div className="panel-header">
             <div>
               <p className="panel-kicker">Traffic</p>
-              <h2 className="panel-title">Recent activity</h2>
-              <p className="panel-subtitle">All telemetry events, new sessions, and errors over the last 24 hours.</p>
+              <h2 className="panel-title">Recent activity (UTC)</h2>
+              <p className="panel-subtitle">
+                All telemetry events, new sessions, and errors over the last 24 hours, labeled against a fixed UTC clock for production consistency.
+              </p>
             </div>
             <div className="panel-inline-metrics">
               <div>
@@ -204,7 +219,22 @@ export function OverviewPage({ summary, theme }: OverviewPageProps) {
                   width={32}
                   tick={{ fill: chartPalette.axisSoft, fontSize: 11 }}
                 />
-                <Tooltip cursor={chartPalette.tooltipCursor} content={<ChartTooltip />} />
+                <Tooltip
+                  cursor={false}
+                  content={({ active, payload, label }) => (
+                    <TelemetryChartTooltip
+                      active={active}
+                      label={label}
+                      payload={
+                        payload?.map((entry) => ({
+                          name: String(entry.name ?? "Value"),
+                          value: typeof entry.value === "number" ? entry.value : Number(entry.value ?? 0),
+                          color: entry.color,
+                        })) ?? []
+                      }
+                    />
+                  )}
+                />
                 <Bar dataKey="activity" name="Events" fill={chartPalette.activityBar} radius={[6, 6, 0, 0]} barSize={14} />
                 <Area
                   type="monotone"
@@ -235,23 +265,23 @@ export function OverviewPage({ summary, theme }: OverviewPageProps) {
           <div className="panel-header">
             <div>
               <p className="panel-kicker">Quick Checks</p>
-              <h2 className="panel-title">Current operating state</h2>
-              <p className="panel-subtitle">High-signal checks only, without re-listing rows from the dedicated pages.</p>
+              <h2 className="panel-title">Operating context</h2>
+              <p className="panel-subtitle">The high-signal checks that matter before you drill into live sessions or the heatmap.</p>
             </div>
           </div>
 
           <div className="info-list">
             <div className="info-row">
-              <span className="info-label">Last ingest</span>
-              <span className="info-value">{summary.stats.lastIngestAt ? formatDate(summary.stats.lastIngestAt) : "Waiting"}</span>
+              <span className="info-label">Traffic clock</span>
+              <span className="info-value">UTC fixed</span>
             </div>
             <div className="info-row">
-              <span className="info-label">Started today</span>
-              <span className="info-value">{formatNumber(summary.stats.sessionsStartedToday)}</span>
+              <span className="info-label">Timezone overlays</span>
+              <span className="info-value">UTC / New York / London / Tokyo</span>
             </div>
             <div className="info-row">
-              <span className="info-label">Active sessions with errors</span>
-              <span className="info-value">{formatNumber(liveWithErrors)}</span>
+              <span className="info-label">Geography source</span>
+              <span className="info-value">{geographyMode}</span>
             </div>
             <div className="info-row">
               <span className="info-label">Storage backend</span>
@@ -261,67 +291,128 @@ export function OverviewPage({ summary, theme }: OverviewPageProps) {
               <span className="info-label">Latest error source</span>
               <span className="info-value">{latestError ? latestError.source : "No recent failures"}</span>
             </div>
+            <div className="info-row">
+              <span className="info-label">Heatmap mode</span>
+              <span className="info-value">Active users only</span>
+            </div>
           </div>
         </section>
       </div>
+
+      <section className="panel panel-dense">
+        <div className="panel-header">
+          <div>
+            <p className="panel-kicker">Timezones</p>
+            <h2 className="panel-title">Usage by fixed timezone</h2>
+            <p className="panel-subtitle">
+              The same 24-hour event frame rendered against fixed production clocks so operators can scan usage without relying on browser locale.
+            </p>
+          </div>
+          <span className="panel-count">
+            <Clock3 className="mr-1 inline h-4 w-4" />
+            4 zones
+          </span>
+        </div>
+
+        <div className="timezone-grid">
+          {timezoneCharts.map((panel) => (
+            <TimezoneUsageChart
+              key={panel.timeZone}
+              title={panel.title}
+              subtitle={panel.subtitle}
+              data={panel.data}
+              accentColor={panel.accent}
+              theme={theme}
+            />
+          ))}
+        </div>
+      </section>
 
       <div className="content-grid">
         <section className="panel panel-dense">
           <div className="panel-header">
             <div>
-              <p className="panel-kicker">Versions</p>
-              <h2 className="panel-title">Version spread</h2>
-              <p className="panel-subtitle">Which client versions dominate the currently loaded sessions.</p>
+              <p className="panel-kicker">Regions</p>
+              <h2 className="panel-title">Geography split</h2>
+              <p className="panel-subtitle">
+                Donut views for macro-regions and top countries, with hover-locked labels so you can inspect the active mix quickly.
+              </p>
             </div>
           </div>
 
-          <div className="chart-shell chart-shell-professional chart-shell-compact">
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={versions} layout="vertical" margin={{ top: 8, right: 6, left: 4, bottom: 4 }}>
-                <CartesianGrid stroke={chartPalette.grid} horizontal={false} />
-                <XAxis type="number" hide />
-                <YAxis
-                  type="category"
-                  dataKey="label"
-                  tickLine={false}
-                  axisLine={false}
-                  width={92}
-                  tick={{ fill: chartPalette.axis, fontSize: 11 }}
-                />
-                <Tooltip cursor={chartPalette.tooltipCursor} content={<ChartTooltip />} />
-                <Bar dataKey="value" name="Sessions" fill={chartPalette.sessionsLine} radius={[0, 6, 6, 0]} barSize={12} />
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="donut-grid">
+            <GeoDonutChart data={regionDonutData} totalLabel="Regional share" metricLabel="Sessions" />
+            <GeoDonutChart data={countryDonutData} totalLabel="Top countries" metricLabel="Sessions" />
           </div>
         </section>
 
         <section className="panel panel-dense">
           <div className="panel-header">
             <div>
-              <p className="panel-kicker">Regions</p>
-              <h2 className="panel-title">Geography</h2>
-              <p className="panel-subtitle">Country distribution across active or recent sessions.</p>
+              <p className="panel-kicker">Versions</p>
+              <h2 className="panel-title">Version spread and recent failures</h2>
+              <p className="panel-subtitle">
+                Client version concentration stays visible here, with the latest error stream beneath it for a quick production read.
+              </p>
             </div>
-            <Globe2 className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
           </div>
 
-          <div className="chart-shell chart-shell-professional chart-shell-compact">
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={countries} layout="vertical" margin={{ top: 8, right: 6, left: 4, bottom: 4 }}>
-                <CartesianGrid stroke={chartPalette.grid} horizontal={false} />
-                <XAxis type="number" hide />
-                <YAxis
-                  type="category"
-                  dataKey="label"
-                  tickLine={false}
-                  axisLine={false}
-                  width={72}
-                  tick={{ fill: chartPalette.axis, fontSize: 11 }}
-                />
-                <Tooltip cursor={chartPalette.tooltipCursor} content={<ChartTooltip />} />
-                <Bar dataKey="value" name="Sessions" fill={chartPalette.activityBar} radius={[0, 6, 6, 0]} barSize={12} />
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="panel-stack">
+            <div className="chart-shell chart-shell-professional chart-shell-compact">
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={versions} layout="vertical" margin={{ top: 8, right: 6, left: 4, bottom: 4 }}>
+                  <CartesianGrid stroke={chartPalette.grid} horizontal={false} />
+                  <XAxis type="number" hide />
+                  <YAxis
+                    type="category"
+                    dataKey="label"
+                    tickLine={false}
+                    axisLine={false}
+                    width={96}
+                    tick={{ fill: chartPalette.axis, fontSize: 11 }}
+                  />
+                  <Tooltip
+                    cursor={false}
+                    content={({ active, payload, label }) => (
+                      <TelemetryChartTooltip
+                        active={active}
+                        label={label}
+                        payload={
+                          payload?.map((entry) => ({
+                            name: String(entry.name ?? "Value"),
+                            value: typeof entry.value === "number" ? entry.value : Number(entry.value ?? 0),
+                            color: entry.color,
+                          })) ?? []
+                        }
+                      />
+                    )}
+                  />
+                  <Bar dataKey="value" name="Sessions" fill={chartPalette.sessionsLine} radius={[0, 6, 6, 0]} barSize={12} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="signal-list">
+              {recentSignals.length > 0 ? (
+                recentSignals.map((error) => (
+                  <div key={error.id} className="signal-row">
+                    <div className="signal-copy">
+                      <p className="signal-title">
+                        {String(error.metrics["exception_type"] ?? error.service)}
+                      </p>
+                      <p className="signal-meta">
+                        {error.source} · {error.message ?? "No message provided"}
+                      </p>
+                    </div>
+                    <div className="signal-side">
+                      <strong className="signal-time">{timeAgo(error.timestamp)}</strong>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="empty-panel small">No recent failures to highlight.</div>
+              )}
+            </div>
           </div>
         </section>
       </div>

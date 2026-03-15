@@ -3,6 +3,7 @@ import {
   BarChart3,
   History,
   LogOut,
+  Map,
   Moon,
   Radio,
   RefreshCw,
@@ -37,6 +38,7 @@ interface NavEntry {
 
 const NAV_ITEMS: NavEntry[] = [
   { key: "overview", label: "Overview", icon: <BarChart3 className="h-[17px] w-[17px]" /> },
+  { key: "heatmap", label: "Map", icon: <Map className="h-[17px] w-[17px]" /> },
   { key: "live", label: "Live", icon: <Radio className="h-[17px] w-[17px]" /> },
   { key: "workers", label: "Sessions", icon: <History className="h-[17px] w-[17px]" /> },
   { key: "logs", label: "Errors", icon: <AlertTriangle className="h-[17px] w-[17px]" /> },

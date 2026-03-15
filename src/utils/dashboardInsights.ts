@@ -1,7 +1,9 @@
 import type { AppSessionRecord, SummaryPayload } from "../types/telemetry";
+import { formatCountryLabel, getMacroRegion, resolveCountry } from "./geography";
 
 const HOUR_MS = 60 * 60 * 1000;
 const SESSION_START = "session_start";
+const SESSION_END = "session_end";
 const APP_ERROR = "app_error";
 
 export interface TrafficTimelinePoint {
@@ -18,52 +20,158 @@ export interface BreakdownPoint {
   value: number;
 }
 
+export interface GeoBreakdownPoint extends BreakdownPoint {
+  code: string | null;
+  region: string;
+  share: number;
+  active: number;
+  errors: number;
+  flag: string | null;
+  latitude: number | null;
+  longitude: number | null;
+}
+
+export interface HeatmapPoint extends GeoBreakdownPoint {
+  intensity: number;
+}
+
+export interface HeatmapSessionPoint {
+  key: string;
+  marketKey: string;
+  label: string;
+  region: string;
+  flag: string | null;
+  latitude: number;
+  longitude: number;
+  anchorLatitude: number;
+  anchorLongitude: number;
+  marketValue: number;
+  marketErrors: number;
+  errors: number;
+  intensity: number;
+  locationLabel: string;
+  userLabel: string | null;
+  precise: boolean;
+}
+
+export interface TimezoneActivityPoint {
+  hour: number;
+  label: string;
+  activity: number;
+  started: number;
+  errors: number;
+}
+
+const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
+
 function startOfHour(value: number): number {
   const date = new Date(value);
   date.setMinutes(0, 0, 0);
   return date.getTime();
 }
 
-export function buildTrafficTimeline(summary: SummaryPayload, hours = 24): TrafficTimelinePoint[] {
+function getDashboardSessions(summary: SummaryPayload): AppSessionRecord[] {
+  return summary.activeSessions.length > 0 ? summary.activeSessions : summary.recentSessions;
+}
+
+function buildTimelineLabel(timestamp: number, timeZone?: string) {
+  const date = new Date(timestamp);
+
+  return {
+    label: date.toLocaleString([], {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone,
+    }),
+    shortLabel: date.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone,
+    }),
+  };
+}
+
+function sortBreakdown<T extends BreakdownPoint>(left: T, right: T): number {
+  if (right.value !== left.value) {
+    return right.value - left.value;
+  }
+
+  if (left.label === "Unknown") {
+    return 1;
+  }
+
+  if (right.label === "Unknown") {
+    return -1;
+  }
+
+  return left.label.localeCompare(right.label);
+}
+
+function addShares<T extends BreakdownPoint>(points: T[]): Array<T & { share: number }> {
+  const total = points.reduce((sum, point) => sum + point.value, 0);
+
+  return points.map((point) => ({
+    ...point,
+    share: total > 0 ? point.value / total : 0,
+  }));
+}
+
+function buildCountryAggregationFromSessions(sessions: AppSessionRecord[]): GeoBreakdownPoint[] {
+  const counts = new Map<string, GeoBreakdownPoint>();
+
+  for (const session of sessions) {
+    const country = resolveCountry(session.clientCountry);
+    const label = country?.label ?? formatCountryLabel(session.clientCountry);
+    const key = country?.code ?? `raw:${label.toLowerCase()}`;
+    const current = counts.get(key) ?? {
+      code: country?.code ?? null,
+      label,
+      value: 0,
+      region: country ? getMacroRegion(country) : "Unknown",
+      share: 0,
+      active: 0,
+      errors: 0,
+      flag: country?.flag ?? null,
+      latitude: country?.latitude ?? null,
+      longitude: country?.longitude ?? null,
+    };
+
+    current.value += 1;
+    current.active += session.isActive ? 1 : 0;
+    current.errors += session.errorCount;
+    counts.set(key, current);
+  }
+
+  return Array.from(counts.values()).sort(sortBreakdown);
+}
+
+function buildCountryAggregation(summary: SummaryPayload): GeoBreakdownPoint[] {
+  return buildCountryAggregationFromSessions(getDashboardSessions(summary));
+}
+
+export function buildTrafficTimeline(
+  summary: SummaryPayload,
+  hours = 24,
+  timeZone?: string,
+): TrafficTimelinePoint[] {
   const end = startOfHour(Date.now());
   const start = end - (hours - 1) * HOUR_MS;
 
   const points = Array.from({ length: hours }, (_, index) => {
     const timestamp = start + index * HOUR_MS;
-    const date = new Date(timestamp);
+    const labels = buildTimelineLabel(timestamp, timeZone);
 
     return {
-      label: date.toLocaleString([], {
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-      shortLabel: date.toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
+      label: labels.label,
+      shortLabel: labels.shortLabel,
       started: 0,
       ended: 0,
       errors: 0,
       activity: 0,
     };
   });
-
-  const applyBucket = (value: string | null, key: "started" | "ended" | "errors") => {
-    if (!value) {
-      return;
-    }
-
-    const timestamp = Date.parse(value);
-    if (!Number.isFinite(timestamp) || timestamp < start || timestamp > end + HOUR_MS) {
-      return;
-    }
-
-    const bucketIndex = Math.floor((timestamp - start) / HOUR_MS);
-    const point = points[Math.min(points.length - 1, Math.max(0, bucketIndex))];
-    point[key] += 1;
-  };
 
   for (const event of summary.recentEvents) {
     const timestamp = Date.parse(event.timestamp);
@@ -79,6 +187,10 @@ export function buildTrafficTimeline(summary: SummaryPayload, hours = 24): Traff
       point.started += 1;
     }
 
+    if (event.service === SESSION_END) {
+      point.ended += 1;
+    }
+
     if (event.service === APP_ERROR) {
       point.errors += 1;
     }
@@ -87,19 +199,229 @@ export function buildTrafficTimeline(summary: SummaryPayload, hours = 24): Traff
   return points;
 }
 
-export function buildCountryBreakdown(summary: SummaryPayload): BreakdownPoint[] {
-  const source = summary.activeSessions.length > 0 ? summary.activeSessions : summary.recentSessions;
-  const counts = new Map<string, number>();
+export function buildCountryBreakdown(
+  summary: SummaryPayload,
+  limit = 6,
+  collapseOther = false,
+): GeoBreakdownPoint[] {
+  const countries = buildCountryAggregation(summary);
 
-  for (const session of source) {
-    const label = session.clientCountry?.trim() || "Unknown";
-    counts.set(label, (counts.get(label) ?? 0) + 1);
+  if (collapseOther && countries.length > limit) {
+    const visible = countries.slice(0, limit);
+    const others = countries.slice(limit).reduce<GeoBreakdownPoint>(
+      (accumulator, point) => {
+        accumulator.value += point.value;
+        accumulator.active += point.active;
+        accumulator.errors += point.errors;
+        return accumulator;
+      },
+      {
+        code: null,
+        label: "Other",
+        value: 0,
+        region: "Mixed",
+        share: 0,
+        active: 0,
+        errors: 0,
+        flag: null,
+        latitude: null,
+        longitude: null,
+      },
+    );
+
+    return addShares(others.value > 0 ? [...visible, others] : visible);
   }
 
-  return Array.from(counts.entries())
-    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
-    .slice(0, 6)
-    .map(([label, value]) => ({ label, value }));
+  return addShares(countries.slice(0, limit));
+}
+
+export function buildRegionBreakdown(summary: SummaryPayload): GeoBreakdownPoint[] {
+  const counts = new Map<string, GeoBreakdownPoint>();
+
+  for (const point of buildCountryAggregation(summary)) {
+    const current = counts.get(point.region) ?? {
+      code: null,
+      label: point.region,
+      value: 0,
+      region: point.region,
+      share: 0,
+      active: 0,
+      errors: 0,
+      flag: null,
+      latitude: null,
+      longitude: null,
+    };
+
+    current.value += point.value;
+    current.active += point.active;
+    current.errors += point.errors;
+    counts.set(point.region, current);
+  }
+
+  return addShares(Array.from(counts.values()).sort(sortBreakdown));
+}
+
+export function buildHeatmapPoints(summary: SummaryPayload): HeatmapPoint[] {
+  const points = buildCountryAggregationFromSessions(summary.activeSessions).filter(
+    (point) =>
+      Number.isFinite(point.latitude ?? Number.NaN) &&
+      Number.isFinite(point.longitude ?? Number.NaN),
+  );
+  const peak = Math.max(1, ...points.map((point) => point.value));
+
+  return points.map((point) => ({
+    ...point,
+    intensity: point.value / peak,
+  }));
+}
+
+function stableHash(value: string): number {
+  let hash = 2166136261;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return hash >>> 0;
+}
+
+function clampLatitude(value: number): number {
+  return Math.max(-85, Math.min(85, value));
+}
+
+function normalizeLongitude(value: number): number {
+  const normalized = ((value + 180) % 360 + 360) % 360 - 180;
+  return normalized === -180 ? 180 : normalized;
+}
+
+function offsetCoordinates(
+  latitude: number,
+  longitude: number,
+  distanceKm: number,
+  bearing: number,
+): { latitude: number; longitude: number } {
+  const latitudeOffset = (distanceKm / 110.574) * Math.cos(bearing);
+  const longitudeOffset =
+    (distanceKm / (111.32 * Math.max(0.28, Math.cos((latitude * Math.PI) / 180)))) *
+    Math.sin(bearing);
+
+  return {
+    latitude: clampLatitude(latitude + latitudeOffset),
+    longitude: normalizeLongitude(longitude + longitudeOffset),
+  };
+}
+
+function buildSessionSpreadPoint(
+  latitude: number,
+  longitude: number,
+  seed: string,
+  index: number,
+  total: number,
+): { latitude: number; longitude: number } {
+  if (total <= 1) {
+    return { latitude, longitude };
+  }
+
+  const maxSpreadKm = Math.min(88, 12 + Math.sqrt(total) * 8);
+  const ring = Math.floor(index / 6);
+  const radialBias = 8 + (ring * 9);
+  const distanceKm = Math.min(maxSpreadKm, radialBias + (stableHash(`${seed}:radius`) % 9));
+  const angle =
+    ((stableHash(`${seed}:angle`) % 360) * Math.PI) / 180 +
+    (index * GOLDEN_ANGLE);
+
+  return offsetCoordinates(latitude, longitude, distanceKm, angle);
+}
+
+export function buildHeatmapSessionPoints(summary: SummaryPayload): HeatmapSessionPoint[] {
+  const markets = buildHeatmapPoints(summary);
+  const marketLookup = new Map<string, HeatmapPoint>();
+  const groupedSessions = new Map<string, AppSessionRecord[]>();
+
+  for (const market of markets) {
+    marketLookup.set(market.code ?? market.label, market);
+  }
+
+  for (const session of summary.activeSessions) {
+    const country = resolveCountry(session.clientCountry);
+    const key = country?.code ?? null;
+
+    if (!key) {
+      continue;
+    }
+
+    const market = marketLookup.get(key);
+
+    if (!market) {
+      continue;
+    }
+
+    const sessions = groupedSessions.get(key) ?? [];
+    sessions.push(session);
+    groupedSessions.set(key, sessions);
+  }
+
+  const sessionPoints: HeatmapSessionPoint[] = [];
+
+  for (const market of markets) {
+    const marketKey = market.code ?? market.label;
+    const sessions = [...(groupedSessions.get(marketKey) ?? [])].sort(
+      (left, right) =>
+        Date.parse(right.lastSeenAt) - Date.parse(left.lastSeenAt) ||
+        left.id.localeCompare(right.id),
+    );
+
+    for (let index = 0; index < sessions.length; index += 1) {
+      const session = sessions[index];
+      const exactLatitude = session.clientLatitude;
+      const exactLongitude = session.clientLongitude;
+      const hasExactCoordinates =
+        Number.isFinite(exactLatitude ?? Number.NaN) &&
+        Number.isFinite(exactLongitude ?? Number.NaN);
+      const coordinates = hasExactCoordinates
+        ? {
+            latitude: clampLatitude(Number(exactLatitude)),
+            longitude: normalizeLongitude(Number(exactLongitude)),
+          }
+        : buildSessionSpreadPoint(
+            Number(market.latitude),
+            Number(market.longitude),
+            `${session.id}:${session.installId}:${session.clientIp ?? "na"}`,
+            index,
+            sessions.length,
+          );
+      const locationParts = [session.clientCity, session.clientRegion].filter(
+        (value): value is string => Boolean(value?.trim()),
+      );
+
+      sessionPoints.push({
+        key: session.id,
+        marketKey,
+        label: market.label,
+        region: market.region,
+        flag: market.flag,
+        latitude: coordinates.latitude,
+        longitude: coordinates.longitude,
+        anchorLatitude: Number(market.latitude),
+        anchorLongitude: Number(market.longitude),
+        marketValue: market.value,
+        marketErrors: market.errors,
+        errors: session.errorCount,
+        intensity: market.intensity,
+        locationLabel: locationParts.length > 0 ? locationParts.join(", ") : market.label,
+        userLabel: session.userLabel,
+        precise: hasExactCoordinates,
+      });
+    }
+  }
+
+  return sessionPoints.sort(
+    (left, right) =>
+      right.marketValue - left.marketValue ||
+      left.label.localeCompare(right.label) ||
+      left.key.localeCompare(right.key),
+  );
 }
 
 export function buildDurationBreakdown(sessions: AppSessionRecord[]): BreakdownPoint[] {
@@ -132,8 +454,8 @@ export function buildDurationBreakdown(sessions: AppSessionRecord[]): BreakdownP
   return values;
 }
 
-export function buildVersionBreakdown(summary: SummaryPayload): BreakdownPoint[] {
-  const source = summary.activeSessions.length > 0 ? summary.activeSessions : summary.recentSessions;
+export function buildVersionBreakdown(summary: SummaryPayload, limit = 6): BreakdownPoint[] {
+  const source = getDashboardSessions(summary);
   const counts = new Map<string, number>();
 
   for (const session of source) {
@@ -142,7 +464,54 @@ export function buildVersionBreakdown(summary: SummaryPayload): BreakdownPoint[]
   }
 
   return Array.from(counts.entries())
-    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
-    .slice(0, 6)
-    .map(([label, value]) => ({ label, value }));
+    .map(([label, value]) => ({ label, value }))
+    .sort(sortBreakdown)
+    .slice(0, limit)
+    .map((point) => ({ label: point.label, value: point.value }));
+}
+
+export function buildTimezoneActivity(
+  summary: SummaryPayload,
+  timeZone: string,
+): TimezoneActivityPoint[] {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour: "2-digit",
+    hourCycle: "h23",
+  });
+  const cutoff = Date.now() - 24 * HOUR_MS;
+  const points = Array.from({ length: 24 }, (_, hour) => ({
+    hour,
+    label: `${String(hour).padStart(2, "0")}:00`,
+    activity: 0,
+    started: 0,
+    errors: 0,
+  }));
+
+  for (const event of summary.recentEvents) {
+    const timestamp = Date.parse(event.timestamp);
+
+    if (!Number.isFinite(timestamp) || timestamp < cutoff) {
+      continue;
+    }
+
+    const hour = Number.parseInt(formatter.format(timestamp), 10);
+
+    if (!Number.isFinite(hour) || hour < 0 || hour >= points.length) {
+      continue;
+    }
+
+    const point = points[hour];
+    point.activity += 1;
+
+    if (event.service === SESSION_START) {
+      point.started += 1;
+    }
+
+    if (event.service === APP_ERROR) {
+      point.errors += 1;
+    }
+  }
+
+  return points;
 }

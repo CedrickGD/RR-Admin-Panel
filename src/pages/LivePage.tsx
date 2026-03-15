@@ -1,11 +1,15 @@
-import { Radio } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Globe2, Radio } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { StatusBadge } from "../components/StatusBadge";
 import type { AppSessionRecord, SummaryPayload } from "../types/telemetry";
 import { formatDate, formatNumber, timeAgo } from "../utils/format";
+import { resolveCountry } from "../utils/geography";
 
 interface LivePageProps {
   summary: SummaryPayload;
+  focusedSessionId?: string | null;
+  focusedSessionToken?: number;
+  onOpenMapSession: (sessionId: string) => void;
 }
 
 const LIVE_SESSION_MAX_AGE_MS = 6 * 60 * 1000;
@@ -14,8 +18,30 @@ function displayUser(session: AppSessionRecord): string {
   return session.userLabel?.trim() || session.installId;
 }
 
-export function LivePage({ summary }: LivePageProps) {
+function displayLocation(session: AppSessionRecord): string {
+  const locationParts = [session.clientCity?.trim(), session.clientRegion?.trim()].filter(
+    (value): value is string => Boolean(value),
+  );
+
+  if (locationParts.length > 0) {
+    if (session.clientCountry?.trim()) {
+      locationParts.push(session.clientCountry.trim());
+    }
+
+    return locationParts.join(", ");
+  }
+
+  return session.clientCountry ?? "unknown";
+}
+
+export function LivePage({
+  summary,
+  focusedSessionId = null,
+  focusedSessionToken = 0,
+  onOpenMapSession,
+}: LivePageProps) {
   const [now, setNow] = useState(() => Date.now());
+  const rowRefs = useRef(new Map<string, HTMLTableRowElement>());
 
   useEffect(() => {
     const id = window.setInterval(() => {
@@ -49,6 +75,30 @@ export function LivePage({ summary }: LivePageProps) {
     [now, summary.activeSessions],
   );
   const liveErrors = activeSessions.filter((session) => session.errorCount > 0).length;
+  const focusedSession = activeSessions.find((session) => session.id === focusedSessionId) ?? null;
+
+  useEffect(() => {
+    if (!focusedSessionId || focusedSessionToken <= 0) {
+      return;
+    }
+
+    const row = rowRefs.current.get(focusedSessionId);
+
+    if (!row) {
+      return;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      row.scrollIntoView({ behavior: "smooth", block: "center" });
+      row.focus({ preventScroll: true });
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [focusedSessionId, focusedSessionToken]);
+
+  function canFocusSessionOnMap(session: AppSessionRecord): boolean {
+    return resolveCountry(session.clientCountry) !== null;
+  }
 
   return (
     <div className="page-content page-content-wide page-stack live-page">
@@ -87,7 +137,11 @@ export function LivePage({ summary }: LivePageProps) {
         <div className="panel-header">
           <div>
             <h2 className="panel-title">Open Sessions</h2>
-            <p className="panel-subtitle">Only sessions that are currently active stay in this table.</p>
+            <p className="panel-subtitle">
+              {focusedSession
+                ? `Focused from map: ${displayUser(focusedSession)} is highlighted below.`
+                : "Only sessions that are currently active stay in this table."}
+            </p>
           </div>
           <span className="panel-count">
             <Radio className="mr-1 inline h-4 w-4" />
@@ -107,17 +161,33 @@ export function LivePage({ summary }: LivePageProps) {
                   <th>Last seen</th>
                   <th className="text-right">Errors</th>
                   <th>Status</th>
+                  <th className="text-right">Map</th>
                 </tr>
               </thead>
               <tbody>
                 {activeSessions.map((session) => (
-                  <tr key={session.id}>
+                  <tr
+                    key={session.id}
+                    ref={(node) => {
+                      if (node) {
+                        rowRefs.current.set(session.id, node);
+                      } else {
+                        rowRefs.current.delete(session.id);
+                      }
+                    }}
+                    tabIndex={-1}
+                    className={session.id === focusedSessionId ? "live-session-row live-session-row-focused" : "live-session-row"}
+                    aria-current={session.id === focusedSessionId ? "true" : undefined}
+                  >
                     <td>
                       <div className="font-semibold">{displayUser(session)}</div>
                       <div className="table-subline">{session.installId}</div>
+                      {session.id === focusedSessionId ? (
+                        <div className="live-session-focus-tag">Focused from map</div>
+                      ) : null}
                     </td>
                     <td>
-                      <div>{session.clientCountry ?? "unknown"}</div>
+                      <div>{displayLocation(session)}</div>
                       <div className="table-subline font-[IBM_Plex_Mono,monospace]">{session.clientIp ?? "unknown"}</div>
                     </td>
                     <td>
@@ -136,12 +206,23 @@ export function LivePage({ summary }: LivePageProps) {
                     <td>
                       <StatusBadge status={session.lastStatus} />
                     </td>
+                    <td className="text-right">
+                      <button
+                        type="button"
+                        className="btn-ghost live-session-map-button"
+                        onClick={() => onOpenMapSession(session.id)}
+                        disabled={!canFocusSessionOnMap(session)}
+                      >
+                        <Globe2 className="h-4 w-4" />
+                        Show on map
+                      </button>
+                    </td>
                   </tr>
                 ))}
 
                 {activeSessions.length === 0 ? (
                   <tr>
-                    <td colSpan={7}>
+                    <td colSpan={8}>
                       <div className="empty-panel small">No active sessions right now.</div>
                     </td>
                   </tr>

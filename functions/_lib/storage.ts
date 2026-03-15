@@ -18,6 +18,8 @@ const RECENT_SESSION_LIMIT = 200;
 const RECENT_ERROR_LIMIT = 50;
 const MAX_KV_SESSIONS = 500;
 const ACTIVE_SESSION_TIMEOUT_MS = 6 * 60 * 1000;
+const SESSION_SELECT_COLUMNS =
+  "session_id, install_id, source, user_label, client_ip, client_country, client_city, client_region, client_latitude, client_longitude, client_timezone, app_version, platform, started_at, last_seen_at, ended_at, duration_seconds, is_active, last_event, last_status, error_count, updated_at";
 
 const SESSION_START = "session_start";
 const SESSION_ACTIVE = "session_active";
@@ -42,6 +44,11 @@ interface D1SessionRow {
   user_label: string | null;
   client_ip: string | null;
   client_country: string | null;
+  client_city: string | null;
+  client_region: string | null;
+  client_latitude: number | string | null;
+  client_longitude: number | string | null;
+  client_timezone: string | null;
   app_version: string | null;
   platform: string | null;
   started_at: string;
@@ -201,8 +208,7 @@ async function loadSummaryD1(env: RuntimeEnv): Promise<SummaryPayload> {
   const [activeRows, recentSessionRows, recentErrorRows, recentEventRows, eventStats, sessionStats] = await Promise.all([
     db
       .prepare(
-        `SELECT session_id, install_id, source, user_label, client_ip, client_country, app_version, platform,
-                started_at, last_seen_at, ended_at, duration_seconds, is_active, last_event, last_status, error_count, updated_at
+        `SELECT ${SESSION_SELECT_COLUMNS}
          FROM app_sessions
          WHERE is_active = 1
          ORDER BY last_seen_at DESC
@@ -212,8 +218,7 @@ async function loadSummaryD1(env: RuntimeEnv): Promise<SummaryPayload> {
       .all<D1SessionRow>(),
     db
       .prepare(
-        `SELECT session_id, install_id, source, user_label, client_ip, client_country, app_version, platform,
-                started_at, last_seen_at, ended_at, duration_seconds, is_active, last_event, last_status, error_count, updated_at
+        `SELECT ${SESSION_SELECT_COLUMNS}
          FROM app_sessions
          ORDER BY updated_at DESC
          LIMIT ?`
@@ -384,8 +389,7 @@ async function loadSessionExportTextD1(env: RuntimeEnv): Promise<string> {
 
   const rows = await db
     .prepare(
-      `SELECT session_id, install_id, source, user_label, client_ip, client_country, app_version, platform,
-              started_at, last_seen_at, ended_at, duration_seconds, is_active, last_event, last_status, error_count, updated_at
+      `SELECT ${SESSION_SELECT_COLUMNS}
        FROM app_sessions
        ORDER BY updated_at DESC`
     )
@@ -496,6 +500,11 @@ async function ensureTelemetrySchema(db: RuntimeEnv["DB"]): Promise<void> {
       user_label TEXT,
       client_ip TEXT,
       client_country TEXT,
+      client_city TEXT,
+      client_region TEXT,
+      client_latitude REAL,
+      client_longitude REAL,
+      client_timezone TEXT,
       app_version TEXT,
       platform TEXT,
       started_at TEXT NOT NULL,
@@ -512,9 +521,27 @@ async function ensureTelemetrySchema(db: RuntimeEnv["DB"]): Promise<void> {
     `CREATE INDEX IF NOT EXISTS idx_sessions_updated ON app_sessions(updated_at DESC)`,
     `CREATE INDEX IF NOT EXISTS idx_sessions_install ON app_sessions(install_id, updated_at DESC)`,
   ];
+  const alterStatements = [
+    `ALTER TABLE app_sessions ADD COLUMN client_city TEXT`,
+    `ALTER TABLE app_sessions ADD COLUMN client_region TEXT`,
+    `ALTER TABLE app_sessions ADD COLUMN client_latitude REAL`,
+    `ALTER TABLE app_sessions ADD COLUMN client_longitude REAL`,
+    `ALTER TABLE app_sessions ADD COLUMN client_timezone TEXT`,
+  ];
 
   for (const statement of statements) {
     await db.prepare(statement).run();
+  }
+
+  for (const statement of alterStatements) {
+    try {
+      await db.prepare(statement).run();
+    } catch (error) {
+      const message = error instanceof Error ? error.message.toLowerCase() : "";
+      if (!message.includes("duplicate column name") && !message.includes("already exists")) {
+        throw error;
+      }
+    }
   }
 }
 
@@ -555,8 +582,7 @@ async function upsertSessionD1(db: RuntimeEnv["DB"], event: TelemetryEvent): Pro
 
   const existingRow = await db
     .prepare(
-      `SELECT session_id, install_id, source, user_label, client_ip, client_country, app_version, platform,
-              started_at, last_seen_at, ended_at, duration_seconds, is_active, last_event, last_status, error_count, updated_at
+      `SELECT ${SESSION_SELECT_COLUMNS}
        FROM app_sessions
        WHERE session_id = ?`
     )
@@ -571,15 +597,20 @@ async function upsertSessionD1(db: RuntimeEnv["DB"], event: TelemetryEvent): Pro
   await db
     .prepare(
       `INSERT INTO app_sessions
-        (session_id, install_id, source, user_label, client_ip, client_country, app_version, platform,
+        (session_id, install_id, source, user_label, client_ip, client_country, client_city, client_region, client_latitude, client_longitude, client_timezone, app_version, platform,
          started_at, last_seen_at, ended_at, duration_seconds, is_active, last_event, last_status, error_count, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(session_id) DO UPDATE SET
          install_id = excluded.install_id,
          source = excluded.source,
          user_label = excluded.user_label,
          client_ip = excluded.client_ip,
          client_country = excluded.client_country,
+         client_city = excluded.client_city,
+         client_region = excluded.client_region,
+         client_latitude = excluded.client_latitude,
+         client_longitude = excluded.client_longitude,
+         client_timezone = excluded.client_timezone,
          app_version = excluded.app_version,
          platform = excluded.platform,
          started_at = excluded.started_at,
@@ -599,6 +630,11 @@ async function upsertSessionD1(db: RuntimeEnv["DB"], event: TelemetryEvent): Pro
       next.userLabel,
       next.clientIp,
       next.clientCountry,
+      next.clientCity,
+      next.clientRegion,
+      next.clientLatitude,
+      next.clientLongitude,
+      next.clientTimezone,
       next.appVersion,
       next.platform,
       next.startedAt,
@@ -625,6 +661,11 @@ function mergeSessionRecord(existing: AppSessionRecord | undefined, event: Telem
   const userLabel = readMetricText(event.metrics, ["user_label", "machine_name"]) ?? existing?.userLabel ?? null;
   const clientIp = readMetricText(event.metrics, ["client_ip", "ip"]) ?? existing?.clientIp ?? null;
   const clientCountry = readMetricText(event.metrics, ["client_country", "country"]) ?? existing?.clientCountry ?? null;
+  const clientCity = readMetricText(event.metrics, ["client_city", "city"]) ?? existing?.clientCity ?? null;
+  const clientRegion = readMetricText(event.metrics, ["client_region", "region"]) ?? existing?.clientRegion ?? null;
+  const clientLatitude = readMetricFloat(event.metrics, ["client_latitude", "latitude"]) ?? existing?.clientLatitude ?? null;
+  const clientLongitude = readMetricFloat(event.metrics, ["client_longitude", "longitude"]) ?? existing?.clientLongitude ?? null;
+  const clientTimezone = readMetricText(event.metrics, ["client_timezone", "timezone"]) ?? existing?.clientTimezone ?? null;
   const appVersion = readMetricText(event.metrics, ["app_version", "version"]) ?? existing?.appVersion ?? null;
   const platform = readMetricText(event.metrics, ["platform", "os_platform", "os"]) ?? existing?.platform ?? null;
   const metricStartedAt = readMetricText(event.metrics, ["session_started_at"]);
@@ -667,6 +708,11 @@ function mergeSessionRecord(existing: AppSessionRecord | undefined, event: Telem
     userLabel,
     clientIp,
     clientCountry,
+    clientCity,
+    clientRegion,
+    clientLatitude,
+    clientLongitude,
+    clientTimezone,
     appVersion,
     platform,
     startedAt,
@@ -689,15 +735,24 @@ function trimSessionMap(sessionsMap: Record<string, AppSessionRecord>): Record<s
 }
 
 function normalizeSessionRecord(session: AppSessionRecord): AppSessionRecord {
-  if (!session.isActive || !isSessionStale(session.lastSeenAt)) {
-    return session;
+  const normalized = {
+    ...session,
+    clientCity: session.clientCity ?? null,
+    clientRegion: session.clientRegion ?? null,
+    clientLatitude: session.clientLatitude ?? null,
+    clientLongitude: session.clientLongitude ?? null,
+    clientTimezone: session.clientTimezone ?? null,
+  };
+
+  if (!normalized.isActive || !isSessionStale(normalized.lastSeenAt)) {
+    return normalized;
   }
 
   return {
-    ...session,
+    ...normalized,
     isActive: false,
-    endedAt: session.endedAt ?? session.lastSeenAt,
-    durationSeconds: session.durationSeconds ?? durationBetween(session.startedAt, session.lastSeenAt),
+    endedAt: normalized.endedAt ?? normalized.lastSeenAt,
+    durationSeconds: normalized.durationSeconds ?? durationBetween(normalized.startedAt, normalized.lastSeenAt),
   };
 }
 
@@ -722,6 +777,11 @@ function mapD1Session(row: D1SessionRow): AppSessionRecord {
     userLabel: row.user_label ?? null,
     clientIp: row.client_ip ?? null,
     clientCountry: row.client_country ?? null,
+    clientCity: row.client_city ?? null,
+    clientRegion: row.client_region ?? null,
+    clientLatitude: toNullableFloat(row.client_latitude),
+    clientLongitude: toNullableFloat(row.client_longitude),
+    clientTimezone: row.client_timezone ?? null,
     appVersion: row.app_version ?? null,
     platform: row.platform ?? null,
     startedAt: row.started_at,
@@ -795,6 +855,23 @@ function readMetricNumber(metrics: Record<string, unknown>, keys: string[]): num
   return null;
 }
 
+function readMetricFloat(metrics: Record<string, unknown>, keys: string[]): number | null {
+  for (const key of keys) {
+    const value = metrics[key];
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+    if (typeof value === "string") {
+      const parsed = Number.parseFloat(value);
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
+  }
+
+  return null;
+}
+
 function startOfUtcDayIso(): string {
   const now = new Date();
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString();
@@ -842,6 +919,15 @@ function durationBetween(startedAt: string, endedAt: string): number | null {
   return Math.round((endTs - startTs) / 1000);
 }
 
+function toNullableFloat(value: number | string | null): number | null {
+  if (value === null || value === "") {
+    return null;
+  }
+
+  const parsed = typeof value === "number" ? value : Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function formatSessionExportBlock(session: AppSessionRecord, index: number): string {
   const duration =
     session.durationSeconds ??
@@ -862,7 +948,9 @@ function formatSessionExportBlock(session: AppSessionRecord, index: number): str
     `Source: ${sanitizeExportValue(session.source)}`,
     `Version: ${sanitizeExportValue(session.appVersion ?? "-")}`,
     `Platform: ${sanitizeExportValue(session.platform ?? "-")}`,
+    `Location: ${sanitizeExportValue(formatExportLocation(session))}`,
     `Country: ${sanitizeExportValue(session.clientCountry ?? "-")}`,
+    `Timezone: ${sanitizeExportValue(session.clientTimezone ?? "-")}`,
     `IP: ${sanitizeExportValue(session.clientIp ?? "-")}`,
     `Started: ${sanitizeExportValue(session.startedAt)}`,
     `Last seen: ${sanitizeExportValue(session.lastSeenAt)}`,
@@ -870,6 +958,14 @@ function formatSessionExportBlock(session: AppSessionRecord, index: number): str
     `Duration: ${sanitizeExportValue(formatExportDuration(duration))}`,
     "",
   ].join("\n");
+}
+
+function formatExportLocation(session: AppSessionRecord): string {
+  const parts = [session.clientCity, session.clientRegion, session.clientCountry]
+    .map((value) => value?.trim() ?? "")
+    .filter((value) => value.length > 0);
+
+  return parts.length > 0 ? parts.join(", ") : "-";
 }
 
 function formatExportState(session: AppSessionRecord): string {

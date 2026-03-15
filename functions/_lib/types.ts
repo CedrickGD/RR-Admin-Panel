@@ -74,6 +74,11 @@ export interface AppSessionRecord {
   userLabel: string | null;
   clientIp: string | null;
   clientCountry: string | null;
+  clientCity: string | null;
+  clientRegion: string | null;
+  clientLatitude: number | null;
+  clientLongitude: number | null;
+  clientTimezone: string | null;
   appVersion: string | null;
   platform: string | null;
   startedAt: string;

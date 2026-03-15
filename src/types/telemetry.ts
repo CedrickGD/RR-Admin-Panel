@@ -1,7 +1,7 @@
 export type TelemetryStatus = "ok" | "degraded" | "down";
 export type AuthMode = "app" | "access";
 export type ThemeMode = "dark" | "light";
-export type PageKey = "overview" | "live" | "workers" | "logs" | "settings";
+export type PageKey = "overview" | "heatmap" | "live" | "workers" | "logs" | "settings";
 
 export interface TelemetryEvent {
   id: string;
@@ -21,6 +21,11 @@ export interface AppSessionRecord {
   userLabel: string | null;
   clientIp: string | null;
   clientCountry: string | null;
+  clientCity?: string | null;
+  clientRegion?: string | null;
+  clientLatitude?: number | null;
+  clientLongitude?: number | null;
+  clientTimezone?: string | null;
   appVersion: string | null;
   platform: string | null;
   startedAt: string;

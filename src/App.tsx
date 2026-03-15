@@ -12,6 +12,7 @@ import {
 import { useDashboard } from "./hooks/useDashboard";
 import { useTheme } from "./hooks/useTheme";
 import { LogsPage } from "./pages/LogsPage";
+import { HeatmapPage } from "./pages/HeatmapPage";
 import { LivePage } from "./pages/LivePage";
 import { OverviewPage } from "./pages/OverviewPage";
 import { SettingsPage } from "./pages/SettingsPage";
@@ -19,6 +20,7 @@ import { WorkersPage } from "./pages/WorkersPage";
 import type { PageKey } from "./types/telemetry";
 
 const SIDEBAR_WIDTH_KEY = "rr-admin-sidebar-width";
+type FocusedSession = { id: string; token: number } | null;
 
 function clampSidebarWidth(value: number) {
   return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, Math.round(value)));
@@ -42,6 +44,8 @@ function getInitialSidebarWidth() {
 export default function App() {
   const { theme, toggle: toggleTheme } = useTheme();
   const [page, setPage] = useState<PageKey>("overview");
+  const [focusedLiveSession, setFocusedLiveSession] = useState<FocusedSession>(null);
+  const [focusedHeatmapSession, setFocusedHeatmapSession] = useState<FocusedSession>(null);
   const {
     authMode,
     ready,
@@ -67,6 +71,23 @@ export default function App() {
   const shellStyle = {
     "--sidebar-width-user": `${sidebarWidth}px`,
   } as CSSProperties;
+
+  function nextFocusedSession(current: FocusedSession, sessionId: string): FocusedSession {
+    return {
+      id: sessionId,
+      token: current?.id === sessionId ? current.token + 1 : 1,
+    };
+  }
+
+  function handleOpenLiveSession(sessionId: string) {
+    setFocusedLiveSession((current) => nextFocusedSession(current, sessionId));
+    setPage("live");
+  }
+
+  function handleOpenHeatmapSession(sessionId: string) {
+    setFocusedHeatmapSession((current) => nextFocusedSession(current, sessionId));
+    setPage("heatmap");
+  }
 
   /* ─── Loading ─── */
   if (!ready) {
@@ -153,7 +174,23 @@ export default function App() {
         {summary && health ? (
           <>
             {page === "overview" ? <OverviewPage summary={summary} theme={theme} /> : null}
-            {page === "live" ? <LivePage summary={summary} /> : null}
+            {page === "heatmap" ? (
+              <HeatmapPage
+                summary={summary}
+                theme={theme}
+                onOpenSession={handleOpenLiveSession}
+                focusedSessionId={focusedHeatmapSession?.id ?? null}
+                focusedSessionToken={focusedHeatmapSession?.token ?? 0}
+              />
+            ) : null}
+            {page === "live" ? (
+              <LivePage
+                summary={summary}
+                focusedSessionId={focusedLiveSession?.id ?? null}
+                focusedSessionToken={focusedLiveSession?.token ?? 0}
+                onOpenMapSession={handleOpenHeatmapSession}
+              />
+            ) : null}
             {page === "workers" ? <WorkersPage summary={summary} /> : null}
             {page === "logs" ? <LogsPage summary={summary} /> : null}
             {page === "settings" ? (

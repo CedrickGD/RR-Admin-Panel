@@ -27,6 +27,27 @@ type HandlerContext = {
   env: RuntimeEnv;
 };
 
+type RequestWithCf = Request & {
+  cf?: {
+    city?: string | null;
+    region?: string | null;
+    country?: string | null;
+    latitude?: string | number | null;
+    longitude?: string | number | null;
+    timezone?: string | null;
+  } | null;
+};
+
+type RequestContext = {
+  clientIp: string | null;
+  country: string | null;
+  city: string | null;
+  region: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  timezone: string | null;
+};
+
 const SESSION_START = "session_start";
 const SESSION_ACTIVE = "session_active";
 const SESSION_END = "session_end";
@@ -64,13 +85,15 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
     return error(400, validation.message, validation.details);
   }
 
+  const requestContext = readRequestContext(context.request);
+
   const event: TelemetryEvent = {
     id: crypto.randomUUID(),
     source: payload.source,
     service: payload.service,
     timestamp: new Date(payload.timestamp).toISOString(),
     status: payload.status,
-    metrics: payload.metrics,
+    metrics: attachRequestContext(payload.metrics, requestContext),
     message: payload.message ?? null,
     receivedAt: nowIso()
   };
@@ -110,6 +133,74 @@ function validateIngestAuthorization(request: Request, env: RuntimeEnv): Respons
   }
 
   return null;
+}
+
+function readRequestContext(request: Request): RequestContext {
+  const requestWithCf = request as RequestWithCf;
+  const cf = requestWithCf.cf ?? null;
+  const directIp = toText(request.headers.get("cf-connecting-ip"));
+  const forwarded = toText(request.headers.get("x-forwarded-for"));
+  const fallbackIp = forwarded ? toText(forwarded.split(",")[0]) : null;
+
+  return {
+    clientIp: directIp || fallbackIp,
+    country: toText(cf?.country) ?? toText(request.headers.get("cf-ipcountry")),
+    city: toText(cf?.city),
+    region: toText(cf?.region),
+    latitude: normalizeCoordinate(toFiniteNumber(cf?.latitude), -90, 90),
+    longitude: normalizeCoordinate(toFiniteNumber(cf?.longitude), -180, 180),
+    timezone: toText(cf?.timezone)
+  };
+}
+
+function attachRequestContext(metricsRaw: Record<string, unknown>, context: RequestContext): Record<string, unknown> {
+  const metrics = isObject(metricsRaw) ? { ...metricsRaw } : {};
+
+  if (context.clientIp && toText(metrics.client_ip) === null) {
+    metrics.client_ip = context.clientIp;
+  }
+
+  if (context.clientIp && toText(metrics.client_ip_version) === null) {
+    metrics.client_ip_version = ipVersion(context.clientIp);
+  }
+
+  if (context.country && toText(metrics.client_country) === null) {
+    metrics.client_country = context.country;
+  }
+
+  if (context.city && toText(metrics.client_city) === null) {
+    metrics.client_city = context.city;
+  }
+
+  if (context.region && toText(metrics.client_region) === null) {
+    metrics.client_region = context.region;
+  }
+
+  if (context.latitude !== null && toFiniteNumber(metrics.client_latitude) === null) {
+    metrics.client_latitude = context.latitude;
+  }
+
+  if (context.longitude !== null && toFiniteNumber(metrics.client_longitude) === null) {
+    metrics.client_longitude = context.longitude;
+  }
+
+  if (context.timezone && toText(metrics.client_timezone) === null) {
+    metrics.client_timezone = context.timezone;
+  }
+
+  return metrics;
+}
+
+function ipVersion(value: string): string {
+  if (value.includes(":")) {
+    return "ipv6";
+  }
+
+  if (value.includes(".")) {
+    return "ipv4";
+  }
+
+  return "unknown";
 }
 
 function normalizePayload(raw: unknown): { valid: true; payload: IngestPayload } | { valid: false; message: string; details?: unknown } {
@@ -402,4 +493,27 @@ function toText(value: unknown): string | null {
 
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function toFiniteNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number.parseFloat(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return null;
+}
+
+function normalizeCoordinate(value: number | null, min: number, max: number): number | null {
+  if (value === null || value < min || value > max) {
+    return null;
+  }
+
+  return Math.round(value * 1_000_000) / 1_000_000;
 }

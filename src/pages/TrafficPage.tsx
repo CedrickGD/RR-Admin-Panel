@@ -1,6 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   Area,
+  AreaChart,
   Bar,
   CartesianGrid,
   ComposedChart,
@@ -12,7 +13,11 @@ import {
 import { TelemetryChartTooltip } from "../components/charts/TelemetryChartTooltip";
 import { TimezoneUsageChart } from "../components/charts/TimezoneUsageChart";
 import type { SummaryPayload, ThemeMode } from "../types/telemetry";
-import { buildTrafficTimeline, buildTimezoneActivity } from "../utils/dashboardInsights";
+import {
+  buildDailyUserTimeline,
+  buildTrafficTimeline,
+  buildTimezoneActivity,
+} from "../utils/dashboardInsights";
 import { formatDuration, formatNumber, timeAgo } from "../utils/format";
 import { buildDashboardChartPalette, TIMEZONE_PANELS } from "./dashboardShared";
 
@@ -21,8 +26,18 @@ interface TrafficPageProps {
   theme: ThemeMode;
 }
 
+const TIME_RANGE_OPTIONS = [
+  { value: 7, label: "7D" },
+  { value: 14, label: "14D" },
+  { value: 30, label: "30D" },
+  { value: 90, label: "90D" },
+] as const;
+
 export function TrafficPage({ summary, theme }: TrafficPageProps) {
+  const [insightView, setInsightView] = useState<"daily" | "timezones">("daily");
+  const [rangeDays, setRangeDays] = useState<number>(30);
   const traffic = useMemo(() => buildTrafficTimeline(summary, 24, "UTC"), [summary]);
+  const dailyUsers = useMemo(() => buildDailyUserTimeline(summary, rangeDays), [summary, rangeDays]);
   const timezoneCharts = useMemo(
     () =>
       TIMEZONE_PANELS.map((panel) => ({
@@ -45,6 +60,11 @@ export function TrafficPage({ summary, theme }: TrafficPageProps) {
       ),
     [traffic],
   );
+  const peakUsers = useMemo(
+    () => Math.max(0, ...dailyUsers.map((point) => point.users)),
+    [dailyUsers],
+  );
+  const latestUsers = dailyUsers[dailyUsers.length - 1]?.users ?? 0;
 
   return (
     <div className="page-content page-content-wide page-stack">
@@ -166,31 +186,132 @@ export function TrafficPage({ summary, theme }: TrafficPageProps) {
           </div>
         </section>
 
-        <section className="panel panel-dense">
-          <div className="panel-header">
-            <div>
-              <p className="panel-kicker">Timezone clocks</p>
-              <h2 className="panel-title">Fixed operating zones</h2>
-              <p className="panel-subtitle">
-                The same data rendered against the clocks most relevant during support and handoff coverage.
-              </p>
-            </div>
-          </div>
+        <div className="panel-stack">
+          <section className="panel panel-dense">
+            <div className="panel-header">
+              <div>
+                <p className="panel-kicker">User history</p>
+                <h2 className="panel-title">
+                  {insightView === "daily" ? "Unique users per day" : "Fixed operating zones"}
+                </h2>
+                <p className="panel-subtitle">
+                  {insightView === "daily"
+                    ? "UTC day buckets built from loaded session history. Hover the curve to inspect the exact user count for that day."
+                    : "The same data rendered against the clocks most relevant during support and handoff coverage."}
+                </p>
+              </div>
 
-          <div className="traffic-timezone-grid">
-            {timezoneCharts.map((panel) => (
-              <TimezoneUsageChart
-                key={panel.timeZone}
-                title={panel.title}
-                subtitle={panel.subtitle}
-                data={panel.data}
-                accentColor={panel.accent}
-                theme={theme}
-                chartHeight={138}
-              />
-            ))}
-          </div>
-        </section>
+              <div className="control-strip">
+                <button
+                  type="button"
+                  className={`control-strip-button ${insightView === "daily" ? "control-strip-button-active" : ""}`}
+                  onClick={() => setInsightView("daily")}
+                >
+                  Daily users
+                </button>
+                <button
+                  type="button"
+                  className={`control-strip-button ${insightView === "timezones" ? "control-strip-button-active" : ""}`}
+                  onClick={() => setInsightView("timezones")}
+                >
+                  Timezones
+                </button>
+              </div>
+            </div>
+
+            {insightView === "daily" ? (
+              <div className="panel-stack">
+                <div className="panel-inline-metrics">
+                  <div>
+                    <span>Latest day</span>
+                    <strong>{formatNumber(latestUsers)}</strong>
+                  </div>
+                  <div>
+                    <span>Peak day</span>
+                    <strong>{formatNumber(peakUsers)}</strong>
+                  </div>
+                  <div>
+                    <span>Range</span>
+                    <strong>{rangeDays} days</strong>
+                  </div>
+                </div>
+
+                <div className="control-strip control-strip-compact">
+                  {TIME_RANGE_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      className={`control-strip-button ${rangeDays === option.value ? "control-strip-button-active" : ""}`}
+                      onClick={() => setRangeDays(option.value)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="chart-shell chart-shell-compact">
+                  <ResponsiveContainer width="100%" height={248}>
+                    <AreaChart data={dailyUsers} margin={{ top: 12, right: 8, left: -14, bottom: 0 }}>
+                      <CartesianGrid stroke={chartPalette.grid} vertical={false} />
+                      <XAxis
+                        dataKey="shortLabel"
+                        tickLine={false}
+                        axisLine={false}
+                        minTickGap={rangeDays >= 30 ? 24 : 14}
+                        tick={{ fill: chartPalette.axis, fontSize: 11 }}
+                      />
+                      <YAxis
+                        tickLine={false}
+                        axisLine={false}
+                        width={30}
+                        tick={{ fill: chartPalette.axisSoft, fontSize: 11 }}
+                      />
+                      <Tooltip
+                        cursor={false}
+                        content={({ active, payload }) => (
+                          <TelemetryChartTooltip
+                            active={active}
+                            label={typeof payload?.[0]?.payload?.label === "string" ? payload[0].payload.label : undefined}
+                            payload={
+                              payload?.map((entry) => ({
+                                name: String(entry.name ?? "Value"),
+                                value: typeof entry.value === "number" ? entry.value : Number(entry.value ?? 0),
+                                color: entry.color,
+                              })) ?? []
+                            }
+                          />
+                        )}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="users"
+                        name="Unique users"
+                        stroke={chartPalette.sessionsLine}
+                        strokeWidth={2.4}
+                        fill={chartPalette.activityBar}
+                        activeDot={{ r: 4, fill: chartPalette.sessionsLine, strokeWidth: 0 }}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            ) : (
+              <div className="traffic-timezone-grid">
+                {timezoneCharts.map((panel) => (
+                  <TimezoneUsageChart
+                    key={panel.timeZone}
+                    title={panel.title}
+                    subtitle={panel.subtitle}
+                    data={panel.data}
+                    accentColor={panel.accent}
+                    theme={theme}
+                    chartHeight={138}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
       </div>
     </div>
   );

@@ -2,6 +2,7 @@ import type { AppSessionRecord, SummaryPayload } from "../types/telemetry";
 import { formatCountryLabel, getMacroRegion, resolveCountry } from "./geography";
 
 const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
 const SESSION_START = "session_start";
 const SESSION_END = "session_end";
 const APP_ERROR = "app_error";
@@ -62,6 +63,26 @@ export interface TimezoneActivityPoint {
   errors: number;
 }
 
+export interface DailyUserTimelinePoint {
+  isoDate: string;
+  label: string;
+  shortLabel: string;
+  users: number;
+}
+
+export interface VersionBreakdownPoint extends BreakdownPoint {
+  source: string;
+  version: string;
+  share: number;
+  activeUsers: number;
+  sessionCount: number;
+  totalErrors: number;
+  lastSeenAt: string | null;
+  isCurrent: boolean;
+}
+
+export const CURRENT_RAZORREAPER_VERSION = "1.4.0";
+
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 
 function startOfHour(value: number): number {
@@ -70,8 +91,85 @@ function startOfHour(value: number): number {
   return date.getTime();
 }
 
+function startOfUtcDay(value: number): number {
+  const date = new Date(value);
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+}
+
+function buildUtcDayLabel(timestamp: number) {
+  const date = new Date(timestamp);
+
+  return {
+    label: date.toLocaleDateString([], {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      timeZone: "UTC",
+    }),
+    shortLabel: date.toLocaleDateString([], {
+      month: "short",
+      day: "numeric",
+      timeZone: "UTC",
+    }),
+  };
+}
+
+function getSessionIdentity(session: AppSessionRecord): string {
+  const userLabel = session.userLabel?.trim().toLowerCase();
+
+  if (userLabel) {
+    return `user:${userLabel}`;
+  }
+
+  return `install:${session.installId.trim().toLowerCase()}`;
+}
+
+function getVersionLabel(session: AppSessionRecord): string {
+  return session.appVersion?.trim() || "Unknown";
+}
+
+function getSessionSource(session: AppSessionRecord): string {
+  return session.source?.trim() || "razorreaper";
+}
+
+function getUserSourceIdentity(session: AppSessionRecord): string {
+  return `${getSessionIdentity(session)}::${getSessionSource(session).trim().toLowerCase()}`;
+}
+
+function isRazorReaperSource(source: string): boolean {
+  return source.trim().toLowerCase().includes("razorreaper");
+}
+
+function parseTimestamp(value: string | null | undefined): number {
+  const timestamp = Date.parse(value ?? "");
+
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function getSessionRecency(session: AppSessionRecord): number {
+  return Math.max(
+    parseTimestamp(session.lastSeenAt),
+    parseTimestamp(session.endedAt),
+    parseTimestamp(session.startedAt),
+  );
+}
+
 function getDashboardSessions(summary: SummaryPayload): AppSessionRecord[] {
   return summary.activeSessions.length > 0 ? summary.activeSessions : summary.recentSessions;
+}
+
+function getHistoricalSessions(summary: SummaryPayload): AppSessionRecord[] {
+  const sessions = new Map<string, AppSessionRecord>();
+
+  for (const session of summary.recentSessions) {
+    sessions.set(session.id, session);
+  }
+
+  for (const session of summary.activeSessions) {
+    sessions.set(session.id, session);
+  }
+
+  return Array.from(sessions.values());
 }
 
 function buildTimelineLabel(timestamp: number, timeZone?: string) {
@@ -454,20 +552,83 @@ export function buildDurationBreakdown(sessions: AppSessionRecord[]): BreakdownP
   return values;
 }
 
-export function buildVersionBreakdown(summary: SummaryPayload, limit = 6): BreakdownPoint[] {
-  const source = getDashboardSessions(summary);
-  const counts = new Map<string, number>();
+export function buildVersionBreakdown(summary: SummaryPayload): VersionBreakdownPoint[] {
+  const source = getHistoricalSessions(summary);
+  const latestUserSources = new Map<string, AppSessionRecord>();
+  const counts = new Map<string, VersionBreakdownPoint>();
 
   for (const session of source) {
-    const label = session.appVersion?.trim() || "Unknown";
-    counts.set(label, (counts.get(label) ?? 0) + 1);
+    const releaseSource = getSessionSource(session);
+    const version = getVersionLabel(session);
+    const key = `${releaseSource.trim().toLowerCase()}::${version.trim().toLowerCase()}`;
+    const current = counts.get(key) ?? {
+      label: version,
+      source: releaseSource,
+      version,
+      value: 0,
+      share: 0,
+      activeUsers: 0,
+      sessionCount: 0,
+      totalErrors: 0,
+      lastSeenAt: null,
+      isCurrent: isRazorReaperSource(releaseSource) && version === CURRENT_RAZORREAPER_VERSION,
+    };
+
+    current.sessionCount += 1;
+    current.totalErrors += session.errorCount;
+
+    if (getSessionRecency(session) >= parseTimestamp(current.lastSeenAt)) {
+      current.lastSeenAt = session.lastSeenAt;
+    }
+
+    counts.set(key, current);
+
+    const identity = getUserSourceIdentity(session);
+    const previous = latestUserSources.get(identity);
+
+    if (!previous || getSessionRecency(session) >= getSessionRecency(previous)) {
+      latestUserSources.set(identity, session);
+    }
   }
 
-  return Array.from(counts.entries())
-    .map(([label, value]) => ({ label, value }))
-    .sort(sortBreakdown)
-    .slice(0, limit)
-    .map((point) => ({ label: point.label, value: point.value }));
+  for (const session of latestUserSources.values()) {
+    const releaseSource = getSessionSource(session);
+    const version = getVersionLabel(session);
+    const key = `${releaseSource.trim().toLowerCase()}::${version.trim().toLowerCase()}`;
+    const current = counts.get(key) ?? {
+      label: version,
+      source: releaseSource,
+      version,
+      value: 0,
+      share: 0,
+      activeUsers: 0,
+      sessionCount: 0,
+      totalErrors: 0,
+      lastSeenAt: null,
+      isCurrent: isRazorReaperSource(releaseSource) && version === CURRENT_RAZORREAPER_VERSION,
+    };
+
+    current.value += 1;
+    current.activeUsers += session.isActive ? 1 : 0;
+
+    if (getSessionRecency(session) >= parseTimestamp(current.lastSeenAt)) {
+      current.lastSeenAt = session.lastSeenAt;
+    }
+
+    counts.set(key, current);
+  }
+
+  const totalUsers = latestUserSources.size;
+  const points = Array.from(counts.values()).filter((point) => point.value > 0);
+  const sourceCount = new Set(points.map((point) => point.source.trim().toLowerCase())).size;
+
+  return points
+    .map((point) => ({
+      ...point,
+      label: sourceCount > 1 ? `${point.source} ${point.version}` : point.version,
+      share: totalUsers > 0 ? point.value / totalUsers : 0,
+    }))
+    .sort(sortBreakdown);
 }
 
 export function buildTimezoneActivity(
@@ -514,4 +675,58 @@ export function buildTimezoneActivity(
   }
 
   return points;
+}
+
+export function buildDailyUserTimeline(
+  summary: SummaryPayload,
+  days = 30,
+): DailyUserTimelinePoint[] {
+  const dayCount = Math.max(1, days);
+  const end = startOfUtcDay(Date.now());
+  const start = end - ((dayCount - 1) * DAY_MS);
+  const points = Array.from({ length: dayCount }, (_, index) => {
+    const timestamp = start + (index * DAY_MS);
+    const labels = buildUtcDayLabel(timestamp);
+
+    return {
+      isoDate: new Date(timestamp).toISOString().slice(0, 10),
+      label: labels.label,
+      shortLabel: labels.shortLabel,
+      users: 0,
+    };
+  });
+  const usersByDay = points.map(() => new Set<string>());
+
+  for (const session of getHistoricalSessions(summary)) {
+    const startedAt = Date.parse(session.startedAt);
+    const endedAt = Date.parse(session.endedAt ?? session.lastSeenAt ?? session.startedAt);
+
+    if (!Number.isFinite(startedAt) || !Number.isFinite(endedAt)) {
+      continue;
+    }
+
+    const rangeStart = startOfUtcDay(Math.min(startedAt, endedAt));
+    const rangeEnd = startOfUtcDay(Math.max(startedAt, endedAt));
+
+    if (rangeEnd < start || rangeStart > end) {
+      continue;
+    }
+
+    const identity = getSessionIdentity(session);
+    const clampedStart = Math.max(rangeStart, start);
+    const clampedEnd = Math.min(rangeEnd, end);
+
+    for (let day = clampedStart; day <= clampedEnd; day += DAY_MS) {
+      const index = Math.round((day - start) / DAY_MS);
+
+      if (index >= 0 && index < usersByDay.length) {
+        usersByDay[index].add(identity);
+      }
+    }
+  }
+
+  return points.map((point, index) => ({
+    ...point,
+    users: usersByDay[index].size,
+  }));
 }

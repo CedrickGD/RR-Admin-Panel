@@ -1,48 +1,23 @@
 import { AlertTriangle, RefreshCw } from "lucide-react";
-import { useEffect, useState, type CSSProperties } from "react";
+import { useState } from "react";
 import { LoginForm } from "./components/LoginForm";
-import { NetworkBackdrop } from "./components/NetworkBackdrop";
-import {
-  DEFAULT_SIDEBAR_WIDTH,
-  MobileNav,
-  SIDEBAR_MAX_WIDTH,
-  SIDEBAR_MIN_WIDTH,
-  Sidebar,
-} from "./components/Sidebar";
+import { TopNav } from "./components/Sidebar";
 import { useDashboard } from "./hooks/useDashboard";
 import { useTheme } from "./hooks/useTheme";
 import { LogsPage } from "./pages/LogsPage";
 import { HeatmapPage } from "./pages/HeatmapPage";
 import { LivePage } from "./pages/LivePage";
 import { OverviewPage } from "./pages/OverviewPage";
+import { SignalsPage } from "./pages/SignalsPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { TrafficPage } from "./pages/TrafficPage";
 import { WorkersPage } from "./pages/WorkersPage";
 import type { PageKey } from "./types/telemetry";
 
-const SIDEBAR_WIDTH_KEY = "rr-admin-sidebar-width";
 type FocusedSession = { id: string; token: number } | null;
 
-function clampSidebarWidth(value: number) {
-  return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, Math.round(value)));
-}
-
-function getInitialSidebarWidth() {
-  if (typeof window === "undefined") {
-    return DEFAULT_SIDEBAR_WIDTH;
-  }
-
-  const stored = window.localStorage.getItem(SIDEBAR_WIDTH_KEY);
-  const parsed = Number(stored);
-
-  if (!Number.isFinite(parsed)) {
-    return DEFAULT_SIDEBAR_WIDTH;
-  }
-
-  return clampSidebarWidth(parsed);
-}
-
 export default function App() {
-  const { theme, toggle: toggleTheme } = useTheme();
+  const { theme } = useTheme();
   const [page, setPage] = useState<PageKey>("overview");
   const [focusedLiveSession, setFocusedLiveSession] = useState<FocusedSession>(null);
   const [focusedHeatmapSession, setFocusedHeatmapSession] = useState<FocusedSession>(null);
@@ -61,16 +36,6 @@ export default function App() {
     logout,
     refresh,
   } = useDashboard(page);
-  const [sidebarWidth, setSidebarWidth] = useState(getInitialSidebarWidth);
-  const [sidebarResizing, setSidebarResizing] = useState(false);
-
-  useEffect(() => {
-    window.localStorage.setItem(SIDEBAR_WIDTH_KEY, String(sidebarWidth));
-  }, [sidebarWidth]);
-
-  const shellStyle = {
-    "--sidebar-width-user": `${sidebarWidth}px`,
-  } as CSSProperties;
 
   function nextFocusedSession(current: FocusedSession, sessionId: string): FocusedSession {
     return {
@@ -126,28 +91,20 @@ export default function App() {
 
   /* ─── Dashboard ─── */
   return (
-    <div className={`app-shell ${sidebarResizing ? "sidebar-resizing" : ""}`} style={shellStyle}>
-      <NetworkBackdrop theme={theme} />
-
-      <Sidebar
+    <div className="app-shell">
+      <TopNav
         page={page}
         onNavigate={setPage}
         user={user}
         authMode={authMode}
         summary={summary}
         health={health}
-        theme={theme}
-        onToggleTheme={toggleTheme}
         onRefresh={refresh}
         refreshing={refreshing}
         onLogout={() => void logout()}
-        sidebarWidth={sidebarWidth}
-        onResizeWidth={(value) => setSidebarWidth(clampSidebarWidth(value))}
-        onResizeStart={() => setSidebarResizing(true)}
-        onResizeEnd={() => setSidebarResizing(false)}
       />
 
-      <div className="main-area">
+      <main className="main-area">
         {loadError ? (
           <div className="px-4 pt-4 md:px-8 md:pt-8">
             <div className="card border-rose-500/25 bg-rose-500/5 p-4 text-sm text-rose-500">
@@ -174,6 +131,8 @@ export default function App() {
         {summary && health ? (
           <>
             {page === "overview" ? <OverviewPage summary={summary} theme={theme} /> : null}
+            {page === "traffic" ? <TrafficPage summary={summary} theme={theme} /> : null}
+            {page === "signals" ? <SignalsPage summary={summary} theme={theme} /> : null}
             {page === "heatmap" ? (
               <HeatmapPage
                 summary={summary}
@@ -217,9 +176,7 @@ export default function App() {
             </div>
           </div>
         ) : null}
-      </div>
-
-      <MobileNav page={page} onNavigate={setPage} />
+      </main>
     </div>
   );
 }

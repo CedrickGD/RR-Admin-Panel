@@ -44,13 +44,13 @@ export function NetworkBackdrop({ theme }: NetworkBackdropProps) {
     const palette =
       theme === "dark"
         ? [
-            { line: "139, 92, 246", node: "196, 181, 253", glow: "139, 92, 246" },
-            { line: "56, 189, 248", node: "125, 211, 252", glow: "59, 130, 246" },
-            { line: "249, 115, 22", node: "253, 186, 116", glow: "239, 68, 68" },
+            { line: "102, 118, 150", node: "167, 182, 204", glow: "93, 109, 139" },
+            { line: "100, 139, 153", node: "163, 194, 201", glow: "90, 129, 148" },
+            { line: "151, 121, 112", node: "197, 173, 163", glow: "136, 110, 101" },
           ]
         : [
-            { line: "139, 92, 246", node: "109, 40, 217", glow: "139, 92, 246" },
-            { line: "14, 165, 233", node: "2, 132, 199", glow: "14, 165, 233" },
+            { line: "122, 141, 171", node: "96, 118, 156", glow: "112, 130, 160" },
+            { line: "118, 153, 166", node: "90, 129, 148", glow: "118, 153, 166" },
           ];
 
     const resizeCanvas = () => {
@@ -122,7 +122,7 @@ export function NetworkBackdrop({ theme }: NetworkBackdropProps) {
               continue;
             }
 
-            const alpha = Math.pow(1 - distance / maxDistance, 1.45) * (theme === "dark" ? 0.24 : 0.16);
+            const alpha = Math.pow(1 - distance / maxDistance, 1.45) * (theme === "dark" ? 0.16 : 0.1);
             const gradient = context.createLinearGradient(node.x, node.y, other.x, other.y);
             gradient.addColorStop(0, `rgba(${palette[node.tone].line}, ${alpha})`);
             gradient.addColorStop(1, `rgba(${palette[other.tone].line}, ${alpha * 0.72})`);
@@ -131,7 +131,7 @@ export function NetworkBackdrop({ theme }: NetworkBackdropProps) {
             context.moveTo(node.x, node.y);
             context.lineTo(other.x, other.y);
             context.strokeStyle = gradient;
-            context.lineWidth = theme === "dark" ? 1.05 : 0.9;
+            context.lineWidth = theme === "dark" ? 0.9 : 0.8;
             context.stroke();
           }
         }
@@ -142,14 +142,14 @@ export function NetworkBackdrop({ theme }: NetworkBackdropProps) {
 
           context.beginPath();
           context.arc(node.x, node.y, Math.max(2.2, radius * 4), 0, Math.PI * 2);
-          context.fillStyle = `rgba(${tone.glow}, ${theme === "dark" ? 0.062 : 0.04})`;
+          context.fillStyle = `rgba(${tone.glow}, ${theme === "dark" ? 0.04 : 0.025})`;
           context.fill();
 
           context.beginPath();
           context.arc(node.x, node.y, Math.max(0.55, radius), 0, Math.PI * 2);
-          context.shadowBlur = theme === "dark" ? 18 : 12;
-          context.shadowColor = `rgba(${tone.glow}, ${theme === "dark" ? 0.42 : 0.28})`;
-          context.fillStyle = `rgba(${tone.node}, ${theme === "dark" ? 0.78 : 0.54})`;
+          context.shadowBlur = theme === "dark" ? 12 : 8;
+          context.shadowColor = `rgba(${tone.glow}, ${theme === "dark" ? 0.22 : 0.14})`;
+          context.fillStyle = `rgba(${tone.node}, ${theme === "dark" ? 0.58 : 0.42})`;
           context.fill();
           context.shadowBlur = 0;
         }

@@ -1,6 +1,4 @@
-import { Globe2, Radio, ShieldAlert, Waypoints } from "lucide-react";
 import { useMemo } from "react";
-import { StatCard } from "../components/StatCard";
 import { WorldHeatmap } from "../components/charts/WorldHeatmap";
 import type { SummaryPayload, ThemeMode } from "../types/telemetry";
 import { getRegionColor } from "../utils/geography";
@@ -14,6 +12,8 @@ interface HeatmapPageProps {
   focusedSessionId?: string | null;
   focusedSessionToken?: number;
 }
+
+type MetricTone = "primary" | "accent" | "warning" | "danger" | "neutral";
 
 export function HeatmapPage({
   summary,
@@ -46,6 +46,44 @@ export function HeatmapPage({
   }, [mappedUsers, points]);
   const topMarket = points[0];
   const errorTotal = summary.activeSessions.reduce((sum, session) => sum + session.errorCount, 0);
+  const metrics: Array<{ label: string; value: string; note: string; tone: MetricTone }> = [
+    {
+      label: "Active users",
+      value: formatNumber(summary.activeSessions.length),
+      note: "Current online session count",
+      tone: "primary",
+    },
+    {
+      label: "Mapped users",
+      value: formatNumber(mappedUsers),
+      note: "Sessions with a resolved country centroid",
+      tone: "accent",
+    },
+    {
+      label: "Regions online",
+      value: formatNumber(regionRows.length),
+      note: "Macro regions represented right now",
+      tone: "neutral",
+    },
+    {
+      label: "Countries live",
+      value: formatNumber(points.length),
+      note: topMarket ? `Largest market: ${topMarket.label}` : "No active geo data",
+      tone: "accent",
+    },
+    {
+      label: "Active errors",
+      value: formatNumber(errorTotal),
+      note: "Errors across currently active sessions",
+      tone: "danger",
+    },
+    {
+      label: "Unmapped",
+      value: formatNumber(unresolvedUsers),
+      note: "Active sessions without map coordinates",
+      tone: "warning",
+    },
+  ];
 
   return (
     <div className="page-content page-content-wide page-stack heatmap-page">
@@ -54,72 +92,80 @@ export function HeatmapPage({
           <p className="page-kicker">Live Geography</p>
           <h1 className="page-title">Heatmap</h1>
           <p className="page-subtitle">
-            A production-facing live world view on a free deep-zoom map stack. Only active sessions render here, and the turquoise pulse field tracks users who are online right now.
+            A live geographic command surface for active sessions only. The map stays central while regional load and
+            top markets sit beside it as a compact command rail instead of separate stat widgets.
           </p>
         </div>
 
         <div className="page-header-side">
           <div className="page-meta-stack page-meta-stack-live">
             <div className="page-meta">
-              <span>Active now</span>
-              <strong>{formatNumber(summary.activeSessions.length)}</strong>
+              <span>Last ingest</span>
+              <strong>{summary.stats.lastIngestAt ? timeAgo(summary.stats.lastIngestAt) : "Waiting"}</strong>
+            </div>
+            <div className="page-meta">
+              <span>Generated</span>
+              <strong>{timeAgo(summary.generatedAt)}</strong>
             </div>
             <div className="page-meta">
               <span>Mapped users</span>
               <strong>{formatNumber(mappedUsers)}</strong>
             </div>
             <div className="page-meta">
-              <span>Countries live</span>
-              <strong>{formatNumber(points.length)}</strong>
-            </div>
-            <div className="page-meta">
-              <span>Last ingest</span>
-              <strong>{summary.stats.lastIngestAt ? timeAgo(summary.stats.lastIngestAt) : "Waiting"}</strong>
+              <span>Top market</span>
+              <strong>{topMarket ? topMarket.label : "None"}</strong>
             </div>
           </div>
         </div>
       </section>
 
-      <div className="overview-stat-grid">
-        <StatCard
-          label="Mapped Live Users"
-          value={formatNumber(mappedUsers)}
-          sub="Active sessions with a resolved country centroid"
-          icon={<Radio className="h-5 w-5" />}
-          tone="primary"
-        />
-        <StatCard
-          label="Regions Online"
-          value={formatNumber(regionRows.length)}
-          sub="Macro-regions represented on the map right now"
-          icon={<Waypoints className="h-5 w-5" />}
-          tone="accent"
-        />
-        <StatCard
-          label="Top Live Market"
-          value={topMarket ? `${topMarket.flag ? `${topMarket.flag} ` : ""}${topMarket.label}` : "None"}
-          sub={topMarket ? `${formatNumber(topMarket.value)} active sessions` : "No active geo data"}
-          icon={<Globe2 className="h-5 w-5" />}
-          tone="accent"
-        />
-        <StatCard
-          label="Active Errors"
-          value={formatNumber(errorTotal)}
-          sub={`${formatNumber(unresolvedUsers)} users could not be mapped`}
-          icon={<ShieldAlert className="h-5 w-5" />}
-          tone="rose"
-        />
-      </div>
+      <section className="command-slab">
+        <div className="command-slab-head">
+          <div>
+            <p className="panel-kicker">Live geography posture</p>
+            <h2 className="panel-title">Current map coverage</h2>
+            <p className="panel-subtitle">
+              A single command strip for coverage, geo resolution, and pressure before you start drilling into
+              individual sessions.
+            </p>
+          </div>
+        </div>
+
+        <div className="command-strip command-strip-tight">
+          {metrics.map((metric) => (
+            <article key={metric.label} className={`command-metric command-metric-${metric.tone}`}>
+              <span className="command-metric-label">{metric.label}</span>
+              <strong className="command-metric-value">{metric.value}</strong>
+              <p className="command-metric-note">{metric.note}</p>
+            </article>
+          ))}
+        </div>
+      </section>
 
       <div className="heatmap-layout">
         <section className="panel panel-dense">
           <div className="panel-header">
             <div>
-              <p className="panel-kicker">World View</p>
+              <p className="panel-kicker">World view</p>
               <h2 className="panel-title">Active user field</h2>
               <p className="panel-subtitle">
-                Turquoise micro-nodes mark each active session on the world map. Click a node to lock its label and open that exact session in Live.
+                Every active session gets its own map node. Lock a node, then jump straight into that session on the
+                live page.
               </p>
+            </div>
+            <div className="panel-inline-metrics">
+              <div>
+                <span>Markets</span>
+                <strong>{formatNumber(points.length)}</strong>
+              </div>
+              <div>
+                <span>Regions</span>
+                <strong>{formatNumber(regionRows.length)}</strong>
+              </div>
+              <div>
+                <span>Errors</span>
+                <strong>{formatNumber(errorTotal)}</strong>
+              </div>
             </div>
           </div>
 

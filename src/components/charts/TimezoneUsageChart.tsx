@@ -19,6 +19,7 @@ interface TimezoneUsageChartProps {
   data: TimezoneActivityPoint[];
   accentColor: string;
   theme: ThemeMode;
+  chartHeight?: number;
 }
 
 function withAlpha(hex: string, alpha: number): string {
@@ -38,6 +39,7 @@ export function TimezoneUsageChart({
   data,
   accentColor,
   theme,
+  chartHeight = 180,
 }: TimezoneUsageChartProps) {
   const totalActivity = data.reduce((sum, point) => sum + point.activity, 0);
   const totalErrors = data.reduce((sum, point) => sum + point.errors, 0);
@@ -48,16 +50,16 @@ export function TimezoneUsageChart({
   const palette =
     theme === "dark"
       ? {
-          grid: "rgba(255,255,255,0.08)",
-          axis: "rgba(255,255,255,0.58)",
+          grid: "rgba(255,255,255,0.07)",
+          axis: "rgba(255,255,255,0.56)",
           axisSoft: "rgba(255,255,255,0.38)",
-          error: "rgba(251,113,133,0.94)",
+          error: "rgba(214,135,126,0.88)",
         }
       : {
-          grid: "rgba(19,37,57,0.1)",
-          axis: "rgba(19,37,57,0.7)",
-          axisSoft: "rgba(19,37,57,0.42)",
-          error: "rgba(225,29,72,0.9)",
+          grid: "rgba(24,43,66,0.1)",
+          axis: "rgba(24,43,66,0.66)",
+          axisSoft: "rgba(24,43,66,0.42)",
+          error: "rgba(181,93,84,0.82)",
         };
 
   return (
@@ -85,7 +87,7 @@ export function TimezoneUsageChart({
       </div>
 
       <div className="timezone-card-shell">
-        <ResponsiveContainer width="100%" height={180}>
+        <ResponsiveContainer width="100%" height={chartHeight}>
           <AreaChart data={data} margin={{ top: 12, right: 10, left: -24, bottom: 0 }}>
             <CartesianGrid stroke={palette.grid} vertical={false} />
             <XAxis

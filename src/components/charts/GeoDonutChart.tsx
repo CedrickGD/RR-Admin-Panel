@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
-import { Cell, Pie, PieChart, ResponsiveContainer, Sector, Tooltip, type SectorProps } from "recharts";
+import { Cell, Pie, PieChart, ResponsiveContainer, Sector, type SectorProps } from "recharts";
 import { formatNumber } from "../../utils/format";
-import { TelemetryChartTooltip } from "./TelemetryChartTooltip";
 
 export interface DonutDatum {
   label: string;
@@ -55,45 +54,22 @@ export function GeoDonutChart({
                 </filter>
               ))}
             </defs>
-            <Tooltip
-              content={({ active, payload }) => {
-                const entry = payload?.[0]?.payload as DonutDatum | undefined;
-
-                if (!entry) {
-                  return null;
-                }
-
-                return (
-                  <TelemetryChartTooltip
-                    active={active}
-                    label={`${entry.flag ? `${entry.flag} ` : ""}${entry.label}`}
-                    payload={[
-                      { name: metricLabel, value: entry.value, color: entry.color },
-                      {
-                        name: "Share",
-                        value: `${(entry.share * 100).toFixed(1)}%`,
-                        color: entry.color,
-                      },
-                    ]}
-                  />
-                );
-              }}
-            />
+            {/* Tooltip disabled — info shown in center label instead */}
             <Pie
               data={data}
               dataKey="value"
               nameKey="label"
               cx="50%"
               cy="50%"
-              innerRadius="74%"
-              outerRadius="84%"
-              paddingAngle={1.5}
+              innerRadius="78%"
+              outerRadius="86%"
+              paddingAngle={1}
               activeIndex={resolvedIndex}
               onMouseEnter={(_, index) => setActiveIndex(index)}
               activeShape={(props: SectorProps) => (
                 <Sector
                   {...props}
-                  outerRadius={Number(props.outerRadius ?? 0) + 3}
+                  outerRadius={Number(props.outerRadius ?? 0) + 2}
                   style={{ filter: `drop-shadow(0 0 3px ${data[resolvedIndex]?.color ?? "#fff"}60)` }}
                 />
               )}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 const UPDATE_XML_URL = "https://raw.githubusercontent.com/CedrickGD/RazorReaper/master/update.xml";
-const FALLBACK_VERSION = "1.4.0";
+const FALLBACK_VERSION = "1.4.1";
 const CACHE_KEY = "rr-latest-version";
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 
@@ -29,8 +29,9 @@ function saveCache(version: string) {
 function parseVersionFromXml(xml: string): string | null {
   const match = xml.match(/<version>\s*([\d.]+)\s*<\/version>/);
   if (!match) return null;
-  // Strip trailing .0 segments (1.4.0.0 → 1.4.0)
-  return match[1].replace(/(\.0)+$/, "");
+  // Normalize to 3-part semver: 1.4.1.0 → 1.4.1, 1.4.0.0 → 1.4.0
+  const parts = match[1].split(".");
+  return parts.slice(0, 3).join(".");
 }
 
 export function useLatestVersion(): string {

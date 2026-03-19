@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { Download } from "lucide-react";
+import { useCallback, useMemo } from "react";
 import {
   Bar,
   BarChart,
@@ -53,6 +54,20 @@ export function SignalsPage({ summary, theme, accentHue = 217 }: SignalsPageProp
   const regionDonutData  = useMemo(() => regions.map((r, i)  => ({ label: r.label, value: r.value, share: r.share, color: donutColors[i % donutColors.length], note: `${formatNumber(r.value)} sessions` })), [regions, donutColors]);
   const countryDonutData = useMemo(() => countries.map((c, i) => ({ label: c.label, value: c.value, share: c.share, color: donutColors[i % donutColors.length], note: c.region, flag: c.flag })), [countries, donutColors]);
 
+  const downloadVersionCsv = useCallback(() => {
+    const header = "Source,Version,Users,Active Now,Sessions,Errors,Share,Is Current\n";
+    const rows = versions.map((v) =>
+      [v.source, v.version, v.value, v.activeUsers, v.sessionCount, v.totalErrors, `${(v.share * 100).toFixed(1)}%`, v.isCurrent].join(","),
+    ).join("\n");
+    const blob = new Blob([header + rows], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `version-distribution-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [versions]);
+
   return (
     <div className="page-content page-stack-lg">
       {/* Header */}
@@ -97,6 +112,9 @@ export function SignalsPage({ summary, theme, accentHue = 217 }: SignalsPageProp
                   <div className="meta-item" key={m.label}><span>{m.label}</span><strong>{m.val}</strong></div>
                 ))}
               </div>
+              <button type="button" className="btn-icon" title="Download version distribution CSV" onClick={downloadVersionCsv} style={{ marginLeft: 8 }}>
+                <Download className="h-3.5 w-3.5" />
+              </button>
             </div>
           </div>
           <div className="panel-body">

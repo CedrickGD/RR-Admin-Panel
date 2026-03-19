@@ -113,11 +113,21 @@ export function LivePage({ summary, focusedSessionId = null, focusedSessionToken
   }, []);
 
   const activeSessions = useMemo(() => {
-    return [...summary.activeSessions]
-      .filter((s) => {
-        const lastSeenTs = Date.parse(s.lastSeenAt);
-        return s.isActive && Number.isFinite(lastSeenTs) && now - lastSeenTs <= LIVE_SESSION_MAX_AGE_MS;
-      })
+    const filtered = [...summary.activeSessions].filter((s) => {
+      const lastSeenTs = Date.parse(s.lastSeenAt);
+      return s.isActive && Number.isFinite(lastSeenTs) && now - lastSeenTs <= LIVE_SESSION_MAX_AGE_MS;
+    });
+
+    // Deduplicate by installId — keep most recent session per user
+    const byUser = new Map<string, AppSessionRecord>();
+    for (const s of filtered) {
+      const prev = byUser.get(s.installId);
+      if (!prev || Date.parse(s.lastSeenAt) > Date.parse(prev.lastSeenAt)) {
+        byUser.set(s.installId, s);
+      }
+    }
+
+    return [...byUser.values()]
       .sort((a, b) => displayUser(a).localeCompare(displayUser(b), undefined, { sensitivity: "base" }) || a.installId.localeCompare(b.installId, undefined, { sensitivity: "base" }));
   }, [now, summary.activeSessions]);
 

@@ -235,9 +235,18 @@ function buildPopupMarkup(point: SessionMapPoint): string {
 function fitToPoints(
   map: maplibregl.Map,
   points: Array<{ coordinates: [number, number] }>,
+  forceClose = false,
 ) {
   if (points.length === 0) {
     map.easeTo({ center: INITIAL_CENTER, zoom: INITIAL_ZOOM, duration: 700 });
+    return;
+  }
+
+  // When not forced (initial load), always show the full globe so every region is visible
+  if (!forceClose) {
+    const bounds = new LngLatBounds(points[0].coordinates, points[0].coordinates);
+    for (const point of points.slice(1)) bounds.extend(point.coordinates);
+    map.fitBounds(bounds, { padding: 90, maxZoom: 2.8, duration: 900 });
     return;
   }
 
@@ -834,7 +843,7 @@ export function WorldHeatmap({
       return;
     }
 
-    fitToPoints(map, sessionMarkerPoints);
+    fitToPoints(map, sessionMarkerPoints, true);
   }
 
   function focusPrimaryMarket() {

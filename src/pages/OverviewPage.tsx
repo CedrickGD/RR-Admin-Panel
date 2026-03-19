@@ -131,15 +131,15 @@ export function OverviewPage({ summary, theme, accentHue = 217 }: OverviewPagePr
 
   return (
     <div className="page-content page-stack-lg">
-      {/* Everything in a single main-side grid so right column starts at the very top */}
+      {/* Page header — full width above the grid */}
+      <div>
+        <p className="kicker">Production Operations</p>
+        <h1 className="page-title" style={{ marginTop: 6 }}>Overview</h1>
+      </div>
+
+      {/* Two-column grid: left (stats + chart), right (side panels) */}
       <div className="main-side main-side-stretch">
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          {/* Page header — inside left column */}
-          <div>
-            <p className="kicker">Production Operations</p>
-            <h1 className="page-title" style={{ marginTop: 6 }}>Overview</h1>
-          </div>
-
           {/* Stat grid */}
           <div className="stat-grid">
             {metrics.map((m) => (

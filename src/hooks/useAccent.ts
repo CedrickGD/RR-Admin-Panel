@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 const STORAGE_KEY = "rr-accent-hue";
-const DEFAULT_HUE = 262;
+const DEFAULT_HUE = 217;
 
 export interface AccentPreset {
   label: string;

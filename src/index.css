@@ -1025,6 +1025,10 @@ h1, h2, h3, h4, h5, h6 {
   .three-col { grid-template-columns: 1fr; }
 }
 
+/* Stretch variant — side column fills full grid height */
+.main-side.main-side-stretch { align-items: stretch; }
+.main-side-lg.main-side-stretch { align-items: stretch; }
+
 /* Stack inside side column */
 .side-stack { display: flex; flex-direction: column; gap: 14px; }
 

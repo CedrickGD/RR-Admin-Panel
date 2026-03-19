@@ -132,7 +132,7 @@ export function OverviewPage({ summary, theme, accentHue = 217 }: OverviewPagePr
   return (
     <div className="page-content page-stack-lg">
       {/* Everything in a single main-side grid so right column starts at the very top */}
-      <div className="main-side" style={{ alignItems: "stretch" }}>
+      <div className="main-side main-side-stretch">
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {/* Page header — inside left column */}
           <div>
@@ -298,7 +298,7 @@ export function OverviewPage({ summary, theme, accentHue = 217 }: OverviewPagePr
         </div>
 
         {/* Side panels — stretch to match left column height */}
-        <div className="side-stack" style={{ alignSelf: "stretch" }}>
+        <div className="side-stack">
           {/* System context */}
           <section className="panel">
             <div className="panel-head">

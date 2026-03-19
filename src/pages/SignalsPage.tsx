@@ -24,13 +24,14 @@ import { buildDashboardChartPalette, COUNTRY_COLORS } from "./dashboardShared";
 interface SignalsPageProps {
   summary: SummaryPayload;
   theme: ThemeMode;
+  accentHue?: number;
 }
 
-export function SignalsPage({ summary, theme }: SignalsPageProps) {
+export function SignalsPage({ summary, theme, accentHue = 217 }: SignalsPageProps) {
   const regions    = useMemo(() => buildRegionBreakdown(summary), [summary]);
   const countries  = useMemo(() => buildCountryBreakdown(summary, 6, true), [summary]);
   const versions   = useMemo(() => buildVersionBreakdown(summary), [summary]);
-  const chartPalette = useMemo(() => buildDashboardChartPalette(theme), [theme]);
+  const chartPalette = useMemo(() => buildDashboardChartPalette(theme, accentHue), [theme, accentHue]);
 
   const topRegion  = regions[0];
   const topCountry = countries[0];

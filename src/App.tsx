@@ -17,7 +17,7 @@ import type { PageKey } from "./types/telemetry";
 type FocusedSession = { id: string; token: number } | null;
 
 export default function App() {
-  useAccent(); // Apply accent hue from localStorage on mount
+  const { hue: accentHue } = useAccent();
   const [page, setPage] = useState<PageKey>("overview");
   const [focusedLiveSession, setFocusedLiveSession] = useState<FocusedSession>(null);
   const [focusedHeatmapSession, setFocusedHeatmapSession] = useState<FocusedSession>(null);
@@ -128,9 +128,9 @@ export default function App() {
 
         {summary && health ? (
           <div className="page-enter">
-            {page === "overview"  ? <OverviewPage  summary={summary} theme="dark" /> : null}
-            {page === "traffic"   ? <TrafficPage   summary={summary} theme="dark" /> : null}
-            {page === "signals"   ? <SignalsPage   summary={summary} theme="dark" /> : null}
+            {page === "overview"  ? <OverviewPage  summary={summary} theme="dark" accentHue={accentHue} /> : null}
+            {page === "traffic"   ? <TrafficPage   summary={summary} theme="dark" accentHue={accentHue} /> : null}
+            {page === "signals"   ? <SignalsPage   summary={summary} theme="dark" accentHue={accentHue} /> : null}
             {page === "heatmap"   ? (
               <HeatmapPage
                 summary={summary}

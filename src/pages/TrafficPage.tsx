@@ -1,3 +1,4 @@
+import { Maximize2, Minimize2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
   Area,
@@ -24,6 +25,7 @@ import { buildDashboardChartPalette, TIMEZONE_PANELS } from "./dashboardShared";
 interface TrafficPageProps {
   summary: SummaryPayload;
   theme: ThemeMode;
+  accentHue?: number;
 }
 
 const RANGE_OPTIONS = [
@@ -33,14 +35,15 @@ const RANGE_OPTIONS = [
   { value: 90, label: "90D" },
 ] as const;
 
-export function TrafficPage({ summary, theme }: TrafficPageProps) {
+export function TrafficPage({ summary, theme, accentHue = 217 }: TrafficPageProps) {
   const [insightView, setInsightView] = useState<"daily" | "timezones">("daily");
   const [rangeDays, setRangeDays] = useState<number>(30);
+  const [chartExpanded, setChartExpanded] = useState(false);
 
   const traffic     = useMemo(() => buildTrafficTimeline(summary, 24, "UTC"), [summary]);
   const dailyUsers  = useMemo(() => buildDailyUserTimeline(summary, rangeDays), [summary, rangeDays]);
   const tzCharts    = useMemo(() => TIMEZONE_PANELS.map((p) => ({ ...p, data: buildTimezoneActivity(summary, p.timeZone) })), [summary]);
-  const chartPalette = useMemo(() => buildDashboardChartPalette(theme), [theme]);
+  const chartPalette = useMemo(() => buildDashboardChartPalette(theme, accentHue), [theme, accentHue]);
 
   const totals = useMemo(
     () => traffic.reduce((acc, p) => ({ activity: acc.activity + p.activity, started: acc.started + p.started, errors: acc.errors + p.errors, peakUsers: Math.max(acc.peakUsers, p.users) }), { activity: 0, started: 0, errors: 0, peakUsers: 0 }),
@@ -82,7 +85,7 @@ export function TrafficPage({ summary, theme }: TrafficPageProps) {
             <h2 className="section-title">Last 24 Hours — Users &amp; Sessions</h2>
             <p className="section-sub">Active users per hour (area), new sessions (bars), and errors.</p>
           </div>
-          <div className="panel-head-right">
+          <div className="panel-head-right" style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div className="meta-row">
               {[
                 { label: "Peak Users/h", val: formatNumber(totals.peakUsers) },
@@ -95,11 +98,14 @@ export function TrafficPage({ summary, theme }: TrafficPageProps) {
                 </div>
               ))}
             </div>
+            <button type="button" className="btn-icon" style={{ padding: 5 }} onClick={() => setChartExpanded((v) => !v)} title={chartExpanded ? "Collapse chart" : "Expand chart"}>
+              {chartExpanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+            </button>
           </div>
         </div>
         <div className="panel-body">
-          <div className="chart-wrap chart-wrap-tall">
-            <ResponsiveContainer width="100%" height={300}>
+          <div className="chart-wrap" style={{ transition: "height 0.3s ease" }}>
+            <ResponsiveContainer width="100%" height={chartExpanded ? 520 : 300}>
               <ComposedChart data={traffic} margin={{ top: 8, right: 8, left: -14, bottom: 0 }}>
                 <defs>
                   <linearGradient id="usersFillTraffic" x1="0" y1="0" x2="0" y2="1">

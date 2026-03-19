@@ -9,15 +9,16 @@ export const TIMEZONE_PANELS = [
   { title: "Tokyo", subtitle: "Asia/Tokyo", timeZone: "Asia/Tokyo", accent: "#8e6bb0" },
 ] as const;
 
-export function buildDashboardChartPalette(theme: ThemeMode) {
+export function buildDashboardChartPalette(theme: ThemeMode, accentHue = 217) {
+  const h = accentHue;
   if (theme === "dark") {
     return {
       grid: "rgba(255,255,255,0.08)",
       axis: "rgba(255,255,255,0.58)",
       axisSoft: "rgba(255,255,255,0.4)",
-      activityBar: "rgba(92,121,185,0.22)",
-      sessionsLine: "rgba(145,170,226,0.94)",
-      errorsLine: "rgba(214,113,113,0.88)",
+      activityBar: `hsl(${h} 45% 55% / 0.25)`,
+      sessionsLine: `hsl(${h} 55% 72% / 0.94)`,
+      errorsLine: "hsl(4 60% 64% / 0.88)",
     };
   }
 
@@ -25,8 +26,8 @@ export function buildDashboardChartPalette(theme: ThemeMode) {
     grid: "rgba(24,43,66,0.1)",
     axis: "rgba(24,43,66,0.66)",
     axisSoft: "rgba(24,43,66,0.5)",
-    activityBar: "rgba(92,121,185,0.18)",
-    sessionsLine: "rgba(96,118,156,0.82)",
-    errorsLine: "rgba(181,93,84,0.8)",
+    activityBar: `hsl(${h} 40% 45% / 0.18)`,
+    sessionsLine: `hsl(${h} 40% 50% / 0.82)`,
+    errorsLine: "hsl(4 50% 52% / 0.8)",
   };
 }

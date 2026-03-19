@@ -1,7 +1,8 @@
-import { BarChart3, Check, LogOut, Palette, Server, Shield, Sliders } from "lucide-react";
+import { BarChart3, Check, CircleDot, LogOut, Palette, Server, Shield, Sliders } from "lucide-react";
 import { useState } from "react";
 import { ACCENT_PRESETS, useAccent } from "../hooks/useAccent";
 import { useChartColors } from "../hooks/useChartColors";
+import { useDonutColors } from "../hooks/useDonutColors";
 import type { AuthMode, AuthUser, HealthPayload, SummaryPayload } from "../types/telemetry";
 import { formatDate, formatNumber } from "../utils/format";
 
@@ -16,6 +17,7 @@ interface SettingsPageProps {
 export function SettingsPage({ user, authMode, summary, health, onLogout }: SettingsPageProps) {
   const { hue, setHue, activePreset } = useAccent();
   const { override: chartColorOverride, setPreset: setChartPreset, activeLabel: chartActiveLabel, presets: chartPresets } = useChartColors();
+  const { setPreset: setDonutPreset, activeLabel: donutActiveLabel, presets: donutPresets } = useDonutColors();
   const [copied, setCopied] = useState<string | null>(null);
 
   function copyToClipboard(value: string, key: string) {
@@ -254,6 +256,56 @@ export function SettingsPage({ user, authMode, summary, health, onLogout }: Sett
                   <div style={{ display: "flex", gap: 4 }}>
                     <span style={{ width: 12, height: 12, borderRadius: "50%", background: preset.users, boxShadow: isActive ? `0 0 8px ${preset.users}` : "none" }} />
                     <span style={{ width: 12, height: 12, borderRadius: "50%", background: preset.errors, boxShadow: isActive ? `0 0 8px ${preset.errors}` : "none" }} />
+                  </div>
+                  <span style={{ fontSize: "0.8rem", color: isActive ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.55)", fontWeight: isActive ? 500 : 400 }}>
+                    {preset.label}
+                  </span>
+                  {isActive && <Check className="h-3.5 w-3.5" style={{ color: "var(--accent-text)", marginLeft: 2 }} />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* Donut chart color preset */}
+      <section className="panel">
+        <div className="panel-head">
+          <div className="panel-head-left">
+            <p className="kicker" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <CircleDot className="h-3 w-3" /> Donut Charts
+            </p>
+            <h2 className="section-title">Donut Colors</h2>
+            <p className="section-sub">
+              Choose a color palette for geographic donut charts. Saved to your browser.
+            </p>
+          </div>
+        </div>
+        <div className="panel-body">
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {donutPresets.map((preset) => {
+              const isActive = donutActiveLabel === preset.label;
+              return (
+                <button
+                  key={preset.label}
+                  type="button"
+                  onClick={() => setDonutPreset(preset.label === "Default" ? null : preset)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "10px 16px",
+                    borderRadius: 10,
+                    border: isActive ? "1px solid rgba(255,255,255,0.18)" : "1px solid rgba(255,255,255,0.06)",
+                    cursor: "pointer",
+                    background: isActive ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.02)",
+                    transition: "all 0.15s",
+                  }}
+                >
+                  <div style={{ display: "flex", gap: 3 }}>
+                    {preset.colors.slice(0, 4).map((c, i) => (
+                      <span key={i} style={{ width: 10, height: 10, borderRadius: "50%", background: c, boxShadow: isActive ? `0 0 6px ${c}` : "none" }} />
+                    ))}
                   </div>
                   <span style={{ fontSize: "0.8rem", color: isActive ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.55)", fontWeight: isActive ? 500 : 400 }}>
                     {preset.label}

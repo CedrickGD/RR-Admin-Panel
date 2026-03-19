@@ -11,6 +11,7 @@ import {
 import { GeoDonutChart } from "../components/charts/GeoDonutChart";
 import { TelemetryChartTooltip } from "../components/charts/TelemetryChartTooltip";
 import { useChartColors } from "../hooks/useChartColors";
+import { useDonutColors } from "../hooks/useDonutColors";
 import type { SummaryPayload, ThemeMode } from "../types/telemetry";
 import {
   CURRENT_RAZORREAPER_VERSION,
@@ -18,9 +19,8 @@ import {
   buildRegionBreakdown,
   buildVersionBreakdown,
 } from "../utils/dashboardInsights";
-import { getRegionColor } from "../utils/geography";
 import { formatNumber, timeAgo } from "../utils/format";
-import { applyChartColorOverride, buildDashboardChartPalette, COUNTRY_COLORS } from "./dashboardShared";
+import { applyChartColorOverride, buildDashboardChartPalette } from "./dashboardShared";
 
 interface SignalsPageProps {
   summary: SummaryPayload;
@@ -35,6 +35,7 @@ export function SignalsPage({ summary, theme, accentHue = 217 }: SignalsPageProp
   const basePalette = useMemo(() => buildDashboardChartPalette(theme, accentHue), [theme, accentHue]);
   const { override: colorOverride } = useChartColors();
   const chartPalette = useMemo(() => applyChartColorOverride(basePalette, colorOverride), [basePalette, colorOverride]);
+  const { colors: donutColors } = useDonutColors();
 
   const topRegion  = regions[0];
   const topCountry = countries[0];
@@ -51,8 +52,8 @@ export function SignalsPage({ summary, theme, accentHue = 217 }: SignalsPageProp
   const visibleVersions    = versions.slice(0, 7);
   const versionChartHeight = Math.max(220, visibleVersions.length * 48);
 
-  const regionDonutData  = useMemo(() => regions.map((r)  => ({ label: r.label, value: r.value, share: r.share, color: getRegionColor(r.label), note: `${formatNumber(r.value)} sessions` })), [regions]);
-  const countryDonutData = useMemo(() => countries.map((c, i) => ({ label: c.label, value: c.value, share: c.share, color: COUNTRY_COLORS[i % COUNTRY_COLORS.length], note: c.region, flag: c.flag })), [countries]);
+  const regionDonutData  = useMemo(() => regions.map((r, i)  => ({ label: r.label, value: r.value, share: r.share, color: donutColors[i % donutColors.length], note: `${formatNumber(r.value)} sessions` })), [regions, donutColors]);
+  const countryDonutData = useMemo(() => countries.map((c, i) => ({ label: c.label, value: c.value, share: c.share, color: donutColors[i % donutColors.length], note: c.region, flag: c.flag })), [countries, donutColors]);
 
   return (
     <div className="page-content page-stack-lg">

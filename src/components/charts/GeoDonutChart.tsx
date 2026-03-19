@@ -94,7 +94,7 @@ export function GeoDonutChart({
                 <Sector
                   {...props}
                   outerRadius={Number(props.outerRadius ?? 0) + 8}
-                  style={{ filter: `drop-shadow(0 0 8px ${data[resolvedIndex]?.color ?? "#fff"})` }}
+                  style={{ filter: `drop-shadow(0 0 4px ${data[resolvedIndex]?.color ?? "#fff"}80)` }}
                 />
               )}
               animationDuration={500}
@@ -109,8 +109,8 @@ export function GeoDonutChart({
                   strokeWidth={index === resolvedIndex ? 2 : 1}
                   style={{
                     filter: index === resolvedIndex
-                      ? `drop-shadow(0 0 6px ${entry.color})`
-                      : `drop-shadow(0 0 3px ${entry.color}40)`,
+                      ? `drop-shadow(0 0 3px ${entry.color}70)`
+                      : "none",
                     transition: "filter 0.2s ease",
                   }}
                 />
@@ -146,7 +146,7 @@ export function GeoDonutChart({
                   className="donut-legend-dot"
                   style={{
                     backgroundColor: entry.color,
-                    boxShadow: `0 0 6px ${entry.color}`,
+                    boxShadow: `0 0 4px ${entry.color}50`,
                   }}
                 />
                 {entry.flag ? `${entry.flag} ${entry.label}` : entry.label}

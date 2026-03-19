@@ -1,3 +1,4 @@
+import type { ChartColorPreset } from "../hooks/useChartColors";
 import type { ThemeMode } from "../types/telemetry";
 
 export const COUNTRY_COLORS = ["#5c79b9", "#3f8790", "#8e6bb0", "#9d7c4e", "#587189", "#7f5f69"];
@@ -29,5 +30,18 @@ export function buildDashboardChartPalette(theme: ThemeMode, accentHue = 217) {
     activityBar: `hsl(${h} 40% 45% / 0.18)`,
     sessionsLine: `hsl(${h} 40% 50% / 0.82)`,
     errorsLine: "hsl(4 50% 52% / 0.8)",
+  };
+}
+
+export type ChartPalette = ReturnType<typeof buildDashboardChartPalette>;
+
+/** Apply a user-chosen chart color preset on top of the base palette. */
+export function applyChartColorOverride(base: ChartPalette, override: ChartColorPreset | null): ChartPalette {
+  if (!override) return base;
+  return {
+    ...base,
+    activityBar: override.sessions,
+    sessionsLine: override.users,
+    errorsLine: override.errors,
   };
 }

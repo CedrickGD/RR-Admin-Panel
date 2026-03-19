@@ -10,6 +10,7 @@ import {
 } from "recharts";
 import { GeoDonutChart } from "../components/charts/GeoDonutChart";
 import { TelemetryChartTooltip } from "../components/charts/TelemetryChartTooltip";
+import { useChartColors } from "../hooks/useChartColors";
 import type { SummaryPayload, ThemeMode } from "../types/telemetry";
 import {
   CURRENT_RAZORREAPER_VERSION,
@@ -19,7 +20,7 @@ import {
 } from "../utils/dashboardInsights";
 import { getRegionColor } from "../utils/geography";
 import { formatNumber, timeAgo } from "../utils/format";
-import { buildDashboardChartPalette, COUNTRY_COLORS } from "./dashboardShared";
+import { applyChartColorOverride, buildDashboardChartPalette, COUNTRY_COLORS } from "./dashboardShared";
 
 interface SignalsPageProps {
   summary: SummaryPayload;
@@ -31,7 +32,9 @@ export function SignalsPage({ summary, theme, accentHue = 217 }: SignalsPageProp
   const regions    = useMemo(() => buildRegionBreakdown(summary), [summary]);
   const countries  = useMemo(() => buildCountryBreakdown(summary, 6, true), [summary]);
   const versions   = useMemo(() => buildVersionBreakdown(summary), [summary]);
-  const chartPalette = useMemo(() => buildDashboardChartPalette(theme, accentHue), [theme, accentHue]);
+  const basePalette = useMemo(() => buildDashboardChartPalette(theme, accentHue), [theme, accentHue]);
+  const { override: colorOverride } = useChartColors();
+  const chartPalette = useMemo(() => applyChartColorOverride(basePalette, colorOverride), [basePalette, colorOverride]);
 
   const topRegion  = regions[0];
   const topCountry = countries[0];

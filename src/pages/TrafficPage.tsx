@@ -13,6 +13,7 @@ import {
 } from "recharts";
 import { TelemetryChartTooltip } from "../components/charts/TelemetryChartTooltip";
 import { TimezoneUsageChart } from "../components/charts/TimezoneUsageChart";
+import { useChartColors } from "../hooks/useChartColors";
 import { useChartZoom } from "../hooks/useChartZoom";
 import type { SummaryPayload, ThemeMode } from "../types/telemetry";
 import {
@@ -21,7 +22,7 @@ import {
   buildTrafficTimeline,
 } from "../utils/dashboardInsights";
 import { formatDuration, formatNumber, timeAgo } from "../utils/format";
-import { buildDashboardChartPalette, TIMEZONE_PANELS } from "./dashboardShared";
+import { applyChartColorOverride, buildDashboardChartPalette, TIMEZONE_PANELS } from "./dashboardShared";
 
 interface TrafficPageProps {
   summary: SummaryPayload;
@@ -43,7 +44,9 @@ export function TrafficPage({ summary, theme, accentHue = 217 }: TrafficPageProp
   const traffic     = useMemo(() => buildTrafficTimeline(summary, 24, "UTC"), [summary]);
   const dailyUsers  = useMemo(() => buildDailyUserTimeline(summary, rangeDays), [summary, rangeDays]);
   const tzCharts    = useMemo(() => TIMEZONE_PANELS.map((p) => ({ ...p, data: buildTimezoneActivity(summary, p.timeZone) })), [summary]);
-  const chartPalette = useMemo(() => buildDashboardChartPalette(theme, accentHue), [theme, accentHue]);
+  const basePalette = useMemo(() => buildDashboardChartPalette(theme, accentHue), [theme, accentHue]);
+  const { override: colorOverride } = useChartColors();
+  const chartPalette = useMemo(() => applyChartColorOverride(basePalette, colorOverride), [basePalette, colorOverride]);
 
   const zoom = useChartZoom(traffic.length);
   const visibleTraffic = useMemo(() => traffic.slice(zoom.visibleStart, zoom.visibleEnd), [traffic, zoom.visibleStart, zoom.visibleEnd]);

@@ -16,7 +16,7 @@ import { useChartZoom } from "../hooks/useChartZoom";
 import type { SummaryPayload, ThemeMode } from "../types/telemetry";
 import { buildRegionBreakdown, buildTrafficTimeline } from "../utils/dashboardInsights";
 import { formatDuration, formatNumber, timeAgo } from "../utils/format";
-import { buildDashboardChartPalette } from "./dashboardShared";
+import { applyChartColorOverride, buildDashboardChartPalette } from "./dashboardShared";
 
 interface OverviewPageProps {
   summary: SummaryPayload;
@@ -43,11 +43,12 @@ const TIME_WINDOWS = [
 export function OverviewPage({ summary, theme, accentHue = 217 }: OverviewPageProps) {
   const traffic = useMemo(() => buildTrafficTimeline(summary, 24, "UTC"), [summary]);
   const regions = useMemo(() => buildRegionBreakdown(summary), [summary]);
-  const defaultPalette = useMemo(() => buildDashboardChartPalette(theme, accentHue), [theme, accentHue]);
+  const basePalette = useMemo(() => buildDashboardChartPalette(theme, accentHue), [theme, accentHue]);
+  const { override: colorOverride } = useChartColors();
+  const chartColors = useMemo(() => applyChartColorOverride(basePalette, colorOverride), [basePalette, colorOverride]);
 
   const [activeWindow, setActiveWindow] = useState(24);
   const [dismissedErrors, setDismissedErrors] = useState<Set<string>>(new Set());
-  const { override: colorOverride } = useChartColors();
 
   const zoom = useChartZoom(traffic.length);
   const visibleTraffic = useMemo(() => traffic.slice(zoom.visibleStart, zoom.visibleEnd), [traffic, zoom.visibleStart, zoom.visibleEnd]);
@@ -63,20 +64,6 @@ export function OverviewPage({ summary, theme, accentHue = 217 }: OverviewPagePr
   const latestError = summary.recentErrors[0];
   const recentSignals = summary.recentErrors.slice(0, 6).filter((e) => !dismissedErrors.has(e.id));
   const windowHours = zoom.visibleEnd - zoom.visibleStart;
-
-  const chartColors = useMemo(() => {
-    if (colorOverride) {
-      return {
-        grid: defaultPalette.grid,
-        axis: defaultPalette.axis,
-        axisSoft: defaultPalette.axisSoft,
-        activityBar: colorOverride.sessions,
-        sessionsLine: colorOverride.users,
-        errorsLine: colorOverride.errors,
-      };
-    }
-    return defaultPalette;
-  }, [colorOverride, defaultPalette]);
 
   const handleTimeWindow = useCallback((hours: number) => {
     setActiveWindow(hours);
@@ -144,17 +131,15 @@ export function OverviewPage({ summary, theme, accentHue = 217 }: OverviewPagePr
 
   return (
     <div className="page-content page-stack-lg">
-      {/* Page header */}
-      <section className="page-header">
-        <div>
-          <p className="kicker">Production Operations</p>
-          <h1 className="page-title" style={{ marginTop: 6 }}>Overview</h1>
-        </div>
-      </section>
-
-      {/* Stat grid + side panels at same level */}
-      <div className="main-side">
+      {/* Everything in a single main-side grid so right column starts at the very top */}
+      <div className="main-side" style={{ alignItems: "start" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {/* Page header — inside left column */}
+          <div>
+            <p className="kicker">Production Operations</p>
+            <h1 className="page-title" style={{ marginTop: 6 }}>Overview</h1>
+          </div>
+
           {/* Stat grid */}
           <div className="stat-grid">
             {metrics.map((m) => (

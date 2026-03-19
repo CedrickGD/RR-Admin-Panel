@@ -1,4 +1,4 @@
-import { Maximize2, Minimize2 } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
   Area,
@@ -13,6 +13,7 @@ import {
 } from "recharts";
 import { TelemetryChartTooltip } from "../components/charts/TelemetryChartTooltip";
 import { TimezoneUsageChart } from "../components/charts/TimezoneUsageChart";
+import { useChartZoom } from "../hooks/useChartZoom";
 import type { SummaryPayload, ThemeMode } from "../types/telemetry";
 import {
   buildDailyUserTimeline,
@@ -38,17 +39,21 @@ const RANGE_OPTIONS = [
 export function TrafficPage({ summary, theme, accentHue = 217 }: TrafficPageProps) {
   const [insightView, setInsightView] = useState<"daily" | "timezones">("daily");
   const [rangeDays, setRangeDays] = useState<number>(30);
-  const [chartExpanded, setChartExpanded] = useState(false);
 
   const traffic     = useMemo(() => buildTrafficTimeline(summary, 24, "UTC"), [summary]);
   const dailyUsers  = useMemo(() => buildDailyUserTimeline(summary, rangeDays), [summary, rangeDays]);
   const tzCharts    = useMemo(() => TIMEZONE_PANELS.map((p) => ({ ...p, data: buildTimezoneActivity(summary, p.timeZone) })), [summary]);
   const chartPalette = useMemo(() => buildDashboardChartPalette(theme, accentHue), [theme, accentHue]);
 
+  const zoom = useChartZoom(traffic.length);
+  const visibleTraffic = useMemo(() => traffic.slice(zoom.visibleStart, zoom.visibleEnd), [traffic, zoom.visibleStart, zoom.visibleEnd]);
+
   const totals = useMemo(
     () => traffic.reduce((acc, p) => ({ activity: acc.activity + p.activity, started: acc.started + p.started, errors: acc.errors + p.errors, peakUsers: Math.max(acc.peakUsers, p.users) }), { activity: 0, started: 0, errors: 0, peakUsers: 0 }),
     [traffic],
   );
+
+  const windowHours = zoom.visibleEnd - zoom.visibleStart;
 
   return (
     <div className="page-content page-stack-lg">
@@ -83,7 +88,12 @@ export function TrafficPage({ summary, theme, accentHue = 217 }: TrafficPageProp
           <div className="panel-head-left">
             <p className="kicker">Realtime</p>
             <h2 className="section-title">Last 24 Hours — Users &amp; Sessions</h2>
-            <p className="section-sub">Active users per hour (area), new sessions (bars), and errors.</p>
+            <p className="section-sub">
+              {zoom.isZoomed
+                ? `Viewing ${windowHours}h window — scroll to zoom, `
+                : "Scroll inside chart to zoom in — "}
+              active users (area), new sessions (bars), errors.
+            </p>
           </div>
           <div className="panel-head-right" style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div className="meta-row">
@@ -98,15 +108,18 @@ export function TrafficPage({ summary, theme, accentHue = 217 }: TrafficPageProp
                 </div>
               ))}
             </div>
-            <button type="button" className="btn-icon" style={{ padding: 5 }} onClick={() => setChartExpanded((v) => !v)} title={chartExpanded ? "Collapse chart" : "Expand chart"}>
-              {chartExpanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-            </button>
+            {zoom.isZoomed ? (
+              <button type="button" className="btn btn-ghost btn-sm" onClick={zoom.resetZoom} title="Reset zoom">
+                <RotateCcw className="h-3 w-3" /> Reset
+              </button>
+            ) : null}
           </div>
         </div>
         <div className="panel-body">
-          <div className="chart-wrap" style={{ transition: "height 0.3s ease" }}>
-            <ResponsiveContainer width="100%" height={chartExpanded ? 520 : 300}>
-              <ComposedChart data={traffic} margin={{ top: 8, right: 8, left: -14, bottom: 0 }}>
+          {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
+          <div className="chart-wrap chart-wrap-tall" ref={zoom.containerRef} onWheel={zoom.onWheel} style={{ cursor: "ns-resize" }}>
+            <ResponsiveContainer width="100%" height={300}>
+              <ComposedChart data={visibleTraffic} margin={{ top: 8, right: 8, left: -14, bottom: 0 }}>
                 <defs>
                   <linearGradient id="usersFillTraffic" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%"   stopColor={chartPalette.sessionsLine} stopOpacity={0.18} />
@@ -120,7 +133,7 @@ export function TrafficPage({ summary, theme, accentHue = 217 }: TrafficPageProp
                   <TelemetryChartTooltip active={active} label={label} payload={payload?.map((e) => ({ name: String(e.name ?? ""), value: typeof e.value === "number" ? e.value : Number(e.value ?? 0), color: e.color })) ?? []} />
                 )} />
                 <Area type="monotone" dataKey="users" name="Active users" stroke={chartPalette.sessionsLine} strokeWidth={2.2} fill="url(#usersFillTraffic)" dot={false} activeDot={{ r:4, strokeWidth:0, fill: chartPalette.sessionsLine }} />
-                <Bar dataKey="started" name="New sessions" fill={chartPalette.activityBar} radius={[5,5,0,0]} barSize={10} />
+                <Bar dataKey="started" name="New sessions" fill={chartPalette.activityBar} radius={[5,5,0,0]} barSize={zoom.isZoomed ? 18 : 10} />
                 <Area type="monotone" dataKey="errors" name="Errors" stroke={chartPalette.errorsLine} strokeWidth={1.8} fill="none" dot={false} activeDot={{ r:4, strokeWidth:0, fill: chartPalette.errorsLine }} />
               </ComposedChart>
             </ResponsiveContainer>

@@ -43,7 +43,7 @@ export function TrafficPage({ summary, theme }: TrafficPageProps) {
   const chartPalette = useMemo(() => buildDashboardChartPalette(theme), [theme]);
 
   const totals = useMemo(
-    () => traffic.reduce((acc, p) => ({ activity: acc.activity + p.activity, started: acc.started + p.started, errors: acc.errors + p.errors }), { activity: 0, started: 0, errors: 0 }),
+    () => traffic.reduce((acc, p) => ({ activity: acc.activity + p.activity, started: acc.started + p.started, errors: acc.errors + p.errors, peakUsers: Math.max(acc.peakUsers, p.users) }), { activity: 0, started: 0, errors: 0, peakUsers: 0 }),
     [traffic],
   );
 
@@ -61,7 +61,7 @@ export function TrafficPage({ summary, theme }: TrafficPageProps) {
         <div className="page-header-right">
           <div className="meta-row">
             {[
-              { label: "Events 24h",  val: formatNumber(totals.activity) },
+              { label: "Peak Users/h", val: formatNumber(totals.peakUsers) },
               { label: "Sessions 24h", val: formatNumber(totals.started) },
               { label: "Errors 24h",  val: formatNumber(totals.errors) },
             ].map((m) => (
@@ -79,15 +79,15 @@ export function TrafficPage({ summary, theme }: TrafficPageProps) {
         <div className="panel-head">
           <div className="panel-head-left">
             <p className="kicker">Realtime</p>
-            <h2 className="section-title">Last 24 Hours — Hourly Curve</h2>
-            <p className="section-sub">Events (bars), new sessions, and errors in the same window.</p>
+            <h2 className="section-title">Last 24 Hours — Users &amp; Sessions</h2>
+            <p className="section-sub">Active users per hour (area), new sessions (bars), and errors.</p>
           </div>
           <div className="panel-head-right">
             <div className="meta-row">
               {[
-                { label: "Events",    val: formatNumber(totals.activity) },
-                { label: "Sessions",  val: formatNumber(totals.started) },
-                { label: "Errors",    val: formatNumber(totals.errors) },
+                { label: "Peak Users/h", val: formatNumber(totals.peakUsers) },
+                { label: "Sessions",     val: formatNumber(totals.started) },
+                { label: "Errors",       val: formatNumber(totals.errors) },
               ].map((m) => (
                 <div className="meta-item" key={m.label}>
                   <span>{m.label}</span>
@@ -101,15 +101,21 @@ export function TrafficPage({ summary, theme }: TrafficPageProps) {
           <div className="chart-wrap chart-wrap-tall">
             <ResponsiveContainer width="100%" height={300}>
               <ComposedChart data={traffic} margin={{ top: 8, right: 8, left: -14, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="usersFillTraffic" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%"   stopColor={chartPalette.sessionsLine} stopOpacity={0.18} />
+                    <stop offset="100%" stopColor={chartPalette.sessionsLine} stopOpacity={0.01} />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid stroke={chartPalette.grid} vertical={false} />
                 <XAxis dataKey="shortLabel" tickLine={false} axisLine={false} minTickGap={20} tick={{ fill: chartPalette.axis, fontSize: 10.5 }} />
-                <YAxis tickLine={false} axisLine={false} width={32} tick={{ fill: chartPalette.axisSoft, fontSize: 10.5 }} />
+                <YAxis tickLine={false} axisLine={false} width={32} allowDecimals={false} tick={{ fill: chartPalette.axisSoft, fontSize: 10.5 }} />
                 <Tooltip cursor={false} content={({ active, payload, label }) => (
                   <TelemetryChartTooltip active={active} label={label} payload={payload?.map((e) => ({ name: String(e.name ?? ""), value: typeof e.value === "number" ? e.value : Number(e.value ?? 0), color: e.color })) ?? []} />
                 )} />
-                <Bar dataKey="activity" name="Events"       fill={chartPalette.activityBar} radius={[5,5,0,0]} barSize={12} />
-                <Area type="monotone" dataKey="started" name="New sessions" stroke={chartPalette.sessionsLine} strokeWidth={2.2} fill="none" dot={false} activeDot={{ r:4, strokeWidth:0, fill: chartPalette.sessionsLine }} />
-                <Area type="monotone" dataKey="errors"  name="Errors"       stroke={chartPalette.errorsLine}   strokeWidth={1.8} fill="none" dot={false} activeDot={{ r:4, strokeWidth:0, fill: chartPalette.errorsLine   }} />
+                <Area type="monotone" dataKey="users" name="Active users" stroke={chartPalette.sessionsLine} strokeWidth={2.2} fill="url(#usersFillTraffic)" dot={false} activeDot={{ r:4, strokeWidth:0, fill: chartPalette.sessionsLine }} />
+                <Bar dataKey="started" name="New sessions" fill={chartPalette.activityBar} radius={[5,5,0,0]} barSize={10} />
+                <Area type="monotone" dataKey="errors" name="Errors" stroke={chartPalette.errorsLine} strokeWidth={1.8} fill="none" dot={false} activeDot={{ r:4, strokeWidth:0, fill: chartPalette.errorsLine }} />
               </ComposedChart>
             </ResponsiveContainer>
           </div>

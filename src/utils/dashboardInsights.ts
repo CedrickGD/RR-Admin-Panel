@@ -14,6 +14,7 @@ export interface TrafficTimelinePoint {
   ended: number;
   errors: number;
   activity: number;
+  users: number;
 }
 
 export interface BreakdownPoint {
@@ -268,9 +269,11 @@ export function buildTrafficTimeline(
       ended: 0,
       errors: 0,
       activity: 0,
+      users: 0,
     };
   });
 
+  // Count events per hour bucket
   for (const event of summary.recentEvents) {
     const timestamp = Date.parse(event.timestamp);
     if (!Number.isFinite(timestamp) || timestamp < start || timestamp > end + HOUR_MS) {
@@ -292,6 +295,33 @@ export function buildTrafficTimeline(
     if (event.service === APP_ERROR) {
       point.errors += 1;
     }
+  }
+
+  // Count unique users active per hour bucket from sessions
+  const userSets = points.map(() => new Set<string>());
+  const allSessions = getHistoricalSessions(summary);
+
+  for (const session of allSessions) {
+    const sessionStart = parseTimestamp(session.startedAt);
+    if (!Number.isFinite(sessionStart)) continue;
+
+    const sessionEnd = parseTimestamp(session.endedAt ?? session.lastSeenAt ?? session.startedAt);
+    const effectiveEnd = Number.isFinite(sessionEnd) && sessionEnd >= sessionStart ? sessionEnd : sessionStart;
+    const identity = getSessionIdentity(session);
+
+    // For each hour bucket, check if this session overlaps
+    const firstBucket = Math.max(0, Math.floor((Math.min(sessionStart, effectiveEnd) - start) / HOUR_MS));
+    const lastBucket = Math.min(points.length - 1, Math.floor((Math.max(sessionStart, effectiveEnd) - start) / HOUR_MS));
+
+    for (let i = firstBucket; i <= lastBucket; i++) {
+      if (i >= 0 && i < userSets.length) {
+        userSets[i].add(identity);
+      }
+    }
+  }
+
+  for (let i = 0; i < points.length; i++) {
+    points[i].users = userSets[i].size;
   }
 
   return points;

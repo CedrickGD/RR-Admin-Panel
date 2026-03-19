@@ -35,7 +35,7 @@ export function OverviewPage({ summary, theme }: OverviewPageProps) {
   const chartPalette = useMemo(() => buildDashboardChartPalette(theme), [theme]);
 
   const totals = useMemo(
-    () => traffic.reduce((acc, p) => ({ activity: acc.activity + p.activity, started: acc.started + p.started, errors: acc.errors + p.errors }), { activity: 0, started: 0, errors: 0 }),
+    () => traffic.reduce((acc, p) => ({ activity: acc.activity + p.activity, started: acc.started + p.started, errors: acc.errors + p.errors, peakUsers: Math.max(acc.peakUsers, p.users) }), { activity: 0, started: 0, errors: 0, peakUsers: 0 }),
     [traffic],
   );
 
@@ -143,12 +143,12 @@ export function OverviewPage({ summary, theme }: OverviewPageProps) {
             <div className="panel-head-left">
               <p className="kicker">Traffic</p>
               <h2 className="section-title">Last 24 Hours</h2>
-              <p className="section-sub">Events, new sessions, and error pressure by hour.</p>
+              <p className="section-sub">Active users, new sessions, and errors by hour.</p>
             </div>
             <div className="panel-head-right">
               <div className="meta-row">
                 {[
-                  { label: "Events", val: formatNumber(totals.activity) },
+                  { label: "Peak Users/h", val: formatNumber(totals.peakUsers) },
                   { label: "Sessions", val: formatNumber(totals.started) },
                   { label: "Errors", val: formatNumber(totals.errors) },
                 ].map((m) => (
@@ -164,6 +164,12 @@ export function OverviewPage({ summary, theme }: OverviewPageProps) {
             <div className="chart-wrap chart-wrap-tall">
               <ResponsiveContainer width="100%" height={300}>
                 <ComposedChart data={traffic} margin={{ top: 8, right: 8, left: -14, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="usersFillOverview" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%"   stopColor={chartPalette.sessionsLine} stopOpacity={0.18} />
+                      <stop offset="100%" stopColor={chartPalette.sessionsLine} stopOpacity={0.01} />
+                    </linearGradient>
+                  </defs>
                   <CartesianGrid stroke={chartPalette.grid} vertical={false} />
                   <XAxis
                     dataKey="shortLabel"
@@ -176,6 +182,7 @@ export function OverviewPage({ summary, theme }: OverviewPageProps) {
                     tickLine={false}
                     axisLine={false}
                     width={32}
+                    allowDecimals={false}
                     tick={{ fill: chartPalette.axisSoft, fontSize: 10.5 }}
                   />
                   <Tooltip
@@ -192,9 +199,9 @@ export function OverviewPage({ summary, theme }: OverviewPageProps) {
                       />
                     )}
                   />
-                  <Bar dataKey="activity" name="Events" fill={chartPalette.activityBar} radius={[5, 5, 0, 0]} barSize={12} />
-                  <Area type="monotone" dataKey="started" name="New sessions" stroke={chartPalette.sessionsLine} strokeWidth={2.2} fill="none" dot={false} activeDot={{ r: 4, strokeWidth: 0, fill: chartPalette.sessionsLine }} />
-                  <Area type="monotone" dataKey="errors"  name="Errors"       stroke={chartPalette.errorsLine}   strokeWidth={1.8} fill="none" dot={false} activeDot={{ r: 4, strokeWidth: 0, fill: chartPalette.errorsLine  }} />
+                  <Area type="monotone" dataKey="users" name="Active users" stroke={chartPalette.sessionsLine} strokeWidth={2.2} fill="url(#usersFillOverview)" dot={false} activeDot={{ r: 4, strokeWidth: 0, fill: chartPalette.sessionsLine }} />
+                  <Bar dataKey="started" name="New sessions" fill={chartPalette.activityBar} radius={[5, 5, 0, 0]} barSize={10} />
+                  <Area type="monotone" dataKey="errors" name="Errors" stroke={chartPalette.errorsLine} strokeWidth={1.8} fill="none" dot={false} activeDot={{ r: 4, strokeWidth: 0, fill: chartPalette.errorsLine }} />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>

@@ -132,7 +132,7 @@ export function OverviewPage({ summary, theme, accentHue = 217 }: OverviewPagePr
   return (
     <div className="page-content page-stack-lg">
       {/* Everything in a single main-side grid so right column starts at the very top */}
-      <div className="main-side" style={{ alignItems: "start" }}>
+      <div className="main-side" style={{ alignItems: "stretch" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {/* Page header — inside left column */}
           <div>
@@ -297,8 +297,8 @@ export function OverviewPage({ summary, theme, accentHue = 217 }: OverviewPagePr
           </section>
         </div>
 
-        {/* Side panels — aligned to top of stat grid */}
-        <div className="side-stack">
+        {/* Side panels — stretch to match left column height */}
+        <div className="side-stack" style={{ height: "100%" }}>
           {/* System context */}
           <section className="panel">
             <div className="panel-head">
@@ -320,7 +320,7 @@ export function OverviewPage({ summary, theme, accentHue = 217 }: OverviewPagePr
           </section>
 
           {/* Recent failures */}
-          <section className="panel">
+          <section className="panel" style={{ flex: 1 }}>
             <div className="panel-head">
               <div className="panel-head-left">
                 <p className="kicker">Failures</p>

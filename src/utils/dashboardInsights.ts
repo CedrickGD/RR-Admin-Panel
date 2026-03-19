@@ -582,7 +582,7 @@ export function buildDurationBreakdown(sessions: AppSessionRecord[]): BreakdownP
   return values;
 }
 
-export function buildVersionBreakdown(summary: SummaryPayload): VersionBreakdownPoint[] {
+export function buildVersionBreakdown(summary: SummaryPayload, currentVersion = CURRENT_RAZORREAPER_VERSION): VersionBreakdownPoint[] {
   const source = getHistoricalSessions(summary);
   const latestUserSources = new Map<string, AppSessionRecord>();
   const counts = new Map<string, VersionBreakdownPoint>();
@@ -601,7 +601,7 @@ export function buildVersionBreakdown(summary: SummaryPayload): VersionBreakdown
       sessionCount: 0,
       totalErrors: 0,
       lastSeenAt: null,
-      isCurrent: isRazorReaperSource(releaseSource) && version === CURRENT_RAZORREAPER_VERSION,
+      isCurrent: isRazorReaperSource(releaseSource) && version === currentVersion,
     };
 
     current.sessionCount += 1;
@@ -635,7 +635,7 @@ export function buildVersionBreakdown(summary: SummaryPayload): VersionBreakdown
       sessionCount: 0,
       totalErrors: 0,
       lastSeenAt: null,
-      isCurrent: isRazorReaperSource(releaseSource) && version === CURRENT_RAZORREAPER_VERSION,
+      isCurrent: isRazorReaperSource(releaseSource) && version === currentVersion,
     };
 
     current.value += 1;

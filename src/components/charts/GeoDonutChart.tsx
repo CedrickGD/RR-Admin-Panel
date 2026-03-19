@@ -85,16 +85,16 @@ export function GeoDonutChart({
               nameKey="label"
               cx="50%"
               cy="50%"
-              innerRadius="58%"
-              outerRadius="84%"
-              paddingAngle={3}
+              innerRadius="62%"
+              outerRadius="82%"
+              paddingAngle={2}
               activeIndex={resolvedIndex}
               onMouseEnter={(_, index) => setActiveIndex(index)}
               activeShape={(props: SectorProps) => (
                 <Sector
                   {...props}
-                  outerRadius={Number(props.outerRadius ?? 0) + 8}
-                  style={{ filter: `drop-shadow(0 0 4px ${data[resolvedIndex]?.color ?? "#fff"}80)` }}
+                  outerRadius={Number(props.outerRadius ?? 0) + 5}
+                  style={{ filter: `drop-shadow(0 0 3px ${data[resolvedIndex]?.color ?? "#fff"}60)` }}
                 />
               )}
               animationDuration={500}

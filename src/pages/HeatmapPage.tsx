@@ -25,17 +25,18 @@ export function HeatmapPage({
   const mappedUsers  = sessionPoints.length;
   const unresolvedUsers = Math.max(0, summary.activeSessions.length - mappedUsers);
 
+  const ALL_REGIONS = ["North America", "South America", "Europe", "Asia", "Africa", "Oceania"];
+
   const regionRows = useMemo(() => {
-    const counts = new Map<string, { label: string; value: number }>();
-    const total  = Math.max(1, mappedUsers);
+    const counts = new Map<string, number>();
+    for (const region of ALL_REGIONS) counts.set(region, 0);
     for (const point of points) {
-      const curr = counts.get(point.region) ?? { label: point.region, value: 0 };
-      curr.value += point.value;
-      counts.set(point.region, curr);
+      counts.set(point.region, (counts.get(point.region) ?? 0) + point.value);
     }
-    return Array.from(counts.values())
-      .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label))
-      .map((row) => ({ ...row, share: row.value / total, color: getRegionColor(row.label) }));
+    const total = Math.max(1, mappedUsers);
+    return Array.from(counts.entries())
+      .map(([label, value]) => ({ label, value, share: value / total, color: getRegionColor(label) }))
+      .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label));
   }, [mappedUsers, points]);
 
   const topMarket  = points[0];
@@ -71,7 +72,7 @@ export function HeatmapPage({
         {[
           { label: "Active Users",    val: formatNumber(summary.activeSessions.length), sub: "Online right now" },
           { label: "Mapped Sessions", val: formatNumber(mappedUsers),  sub: "With geo coordinates" },
-          { label: "Regions Online",  val: formatNumber(regionRows.length), sub: "Macro regions active" },
+          { label: "Regions Online",  val: `${regionRows.filter((r) => r.value > 0).length} / ${regionRows.length}`, sub: "Macro regions active" },
           { label: "Countries Live",  val: formatNumber(points.length), sub: topMarket ? `Top: ${topMarket.label}` : "No data" },
           { label: "Active Errors",   val: formatNumber(errorTotal), sub: "Across active sessions", tone: errorTotal > 0 ? "danger" : undefined },
           { label: "Unmapped",        val: formatNumber(unresolvedUsers), sub: "No geo data available" },

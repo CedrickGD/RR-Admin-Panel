@@ -1,9 +1,9 @@
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { LoginForm } from "./components/LoginForm";
-import { TopNav } from "./components/Sidebar";
+import { Navbar } from "./components/Navbar";
 import { useDashboard } from "./hooks/useDashboard";
-import { useTheme } from "./hooks/useTheme";
+import { useAccent } from "./hooks/useAccent";
 import { LogsPage } from "./pages/LogsPage";
 import { HeatmapPage } from "./pages/HeatmapPage";
 import { LivePage } from "./pages/LivePage";
@@ -17,7 +17,7 @@ import type { PageKey } from "./types/telemetry";
 type FocusedSession = { id: string; token: number } | null;
 
 export default function App() {
-  const { theme } = useTheme();
+  useAccent(); // Apply accent hue from localStorage on mount
   const [page, setPage] = useState<PageKey>("overview");
   const [focusedLiveSession, setFocusedLiveSession] = useState<FocusedSession>(null);
   const [focusedHeatmapSession, setFocusedHeatmapSession] = useState<FocusedSession>(null);
@@ -38,36 +38,35 @@ export default function App() {
   } = useDashboard(page);
 
   function nextFocusedSession(current: FocusedSession, sessionId: string): FocusedSession {
-    return {
-      id: sessionId,
-      token: current?.id === sessionId ? current.token + 1 : 1,
-    };
+    return { id: sessionId, token: current?.id === sessionId ? current.token + 1 : 1 };
   }
-
   function handleOpenLiveSession(sessionId: string) {
-    setFocusedLiveSession((current) => nextFocusedSession(current, sessionId));
+    setFocusedLiveSession((c) => nextFocusedSession(c, sessionId));
     setPage("live");
   }
-
   function handleOpenHeatmapSession(sessionId: string) {
-    setFocusedHeatmapSession((current) => nextFocusedSession(current, sessionId));
+    setFocusedHeatmapSession((c) => nextFocusedSession(c, sessionId));
     setPage("heatmap");
   }
 
   /* ─── Loading ─── */
   if (!ready) {
     return (
-      <div className="flex min-h-screen items-center justify-center px-4">
-        <div className="card w-full max-w-xl p-8 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-[20px] bg-[hsl(var(--primary)/0.12)] text-[hsl(var(--primary))]">
-            <RefreshCw className="h-6 w-6 animate-spin" />
+      <div className="login-wrap">
+        <div className="login-card" style={{ textAlign: "center" }}>
+          <div style={{
+            width: 48, height: 48, borderRadius: 14,
+            background: "var(--accent-subtle)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            margin: "0 auto 16px",
+            color: "var(--accent-text)",
+          }}>
+            <RefreshCw className="h-5 w-5 animate-spin" />
           </div>
-          <p className="mt-5 text-[11px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">
-            Loading
-          </p>
-          <h1 className="mt-3 text-2xl font-black tracking-[-0.06em]">Preparing dashboard</h1>
-          <p className="mx-auto mt-3 max-w-md text-sm leading-7 text-[hsl(var(--muted-foreground))]">
-            Loading auth state and session data.
+          <p className="kicker" style={{ marginBottom: 8 }}>Initializing</p>
+          <h1 style={{ fontSize: "1.5rem", marginBottom: 8 }}>Preparing Console</h1>
+          <p style={{ fontSize: "0.875rem", color: "var(--text-2)", lineHeight: 1.7 }}>
+            Loading auth state and session data…
           </p>
         </div>
       </div>
@@ -82,9 +81,7 @@ export default function App() {
         authMode={authMode}
         busy={authBusy}
         error={authError}
-        onSubmit={(email, password, confirm) =>
-          void authenticate(email, password, confirm)
-        }
+        onSubmit={(email, password, confirm) => void authenticate(email, password, confirm)}
       />
     );
   }
@@ -92,7 +89,7 @@ export default function App() {
   /* ─── Dashboard ─── */
   return (
     <div className="app-shell">
-      <TopNav
+      <Navbar
         page={page}
         onNavigate={setPage}
         user={user}
@@ -106,37 +103,38 @@ export default function App() {
 
       <main className="main-area">
         {loadError ? (
-          <div className="px-4 pt-4 md:px-8 md:pt-8">
-            <div className="card border-rose-500/25 bg-rose-500/5 p-4 text-sm text-rose-500">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-start gap-3">
-                  <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-rose-500/10 text-rose-500">
-                    <AlertTriangle className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-rose-500/80">Load error</p>
-                    <p className="mt-1 font-semibold text-[hsl(var(--foreground))]">The dashboard could not refresh.</p>
-                    <p className="mt-1 text-sm leading-6 text-rose-500">{loadError}</p>
-                  </div>
-                </div>
-
-                <button type="button" className="btn-ghost self-start sm:self-center" onClick={refresh}>
-                  Retry fetch
-                </button>
+          <div className="page-content" style={{ paddingBottom: 0, paddingTop: 20 }}>
+            <div style={{
+              background: "hsl(4 86% 58% / 0.07)",
+              border: "1px solid hsl(4 86% 58% / 0.22)",
+              borderRadius: 12,
+              padding: "14px 18px",
+              display: "flex",
+              alignItems: "flex-start",
+              gap: 12,
+            }}>
+              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" style={{ color: "var(--danger)" }} />
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--danger)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 2 }}>
+                  Load error
+                </p>
+                <p style={{ fontSize: "0.8125rem", color: "var(--text-1)", marginBottom: 4 }}>The dashboard could not refresh.</p>
+                <p style={{ fontSize: "0.8125rem", color: "hsl(4 86% 68%)" }}>{loadError}</p>
               </div>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={refresh}>Retry</button>
             </div>
           </div>
         ) : null}
 
         {summary && health ? (
-          <>
-            {page === "overview" ? <OverviewPage summary={summary} theme={theme} /> : null}
-            {page === "traffic" ? <TrafficPage summary={summary} theme={theme} /> : null}
-            {page === "signals" ? <SignalsPage summary={summary} theme={theme} /> : null}
-            {page === "heatmap" ? (
+          <div className="page-enter">
+            {page === "overview"  ? <OverviewPage  summary={summary} theme="dark" /> : null}
+            {page === "traffic"   ? <TrafficPage   summary={summary} theme="dark" /> : null}
+            {page === "signals"   ? <SignalsPage   summary={summary} theme="dark" /> : null}
+            {page === "heatmap"   ? (
               <HeatmapPage
                 summary={summary}
-                theme={theme}
+                theme="dark"
                 onOpenSession={handleOpenLiveSession}
                 focusedSessionId={focusedHeatmapSession?.id ?? null}
                 focusedSessionToken={focusedHeatmapSession?.token ?? 0}
@@ -150,9 +148,9 @@ export default function App() {
                 onOpenMapSession={handleOpenHeatmapSession}
               />
             ) : null}
-            {page === "workers" ? <WorkersPage summary={summary} /> : null}
-            {page === "logs" ? <LogsPage summary={summary} /> : null}
-            {page === "settings" ? (
+            {page === "workers"   ? <WorkersPage   summary={summary} /> : null}
+            {page === "logs"      ? <LogsPage      summary={summary} /> : null}
+            {page === "settings"  ? (
               <SettingsPage
                 user={user}
                 authMode={authMode}
@@ -161,17 +159,15 @@ export default function App() {
                 onLogout={() => void logout()}
               />
             ) : null}
-          </>
+          </div>
         ) : !loadError ? (
-          <div className="flex min-h-[70vh] items-center justify-center px-4 md:px-8">
-            <div className="card w-full max-w-lg p-8 text-center">
-              <div className="spinner mx-auto" />
-              <p className="mt-5 text-[11px] font-semibold uppercase tracking-[0.16em] text-[hsl(var(--muted-foreground))]">
-                Loading
-              </p>
-              <h2 className="mt-3 text-2xl font-black tracking-[-0.06em]">Loading dashboard data</h2>
-              <p className="mx-auto mt-3 max-w-md text-sm leading-7 text-[hsl(var(--muted-foreground))]">
-                Fetching session summary and recent errors.
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "70vh", padding: "24px" }}>
+            <div className="login-card" style={{ textAlign: "center", maxWidth: 380 }}>
+              <div className="spinner" style={{ margin: "0 auto 16px" }} />
+              <p className="kicker" style={{ marginBottom: 8 }}>Loading</p>
+              <h2 style={{ fontSize: "1.25rem", marginBottom: 8 }}>Fetching dashboard data</h2>
+              <p style={{ fontSize: "0.8125rem", color: "var(--text-2)", lineHeight: 1.7 }}>
+                Loading session summary and telemetry…
               </p>
             </div>
           </div>

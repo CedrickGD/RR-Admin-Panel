@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { Activity, AlertTriangle, Clock, Globe2, TrendingUp, Users } from "lucide-react";
+import { type ReactNode, useMemo } from "react";
 import {
   Area,
   Bar,
@@ -20,269 +21,243 @@ interface OverviewPageProps {
   theme: ThemeMode;
 }
 
-type MetricTone = "primary" | "accent" | "warning" | "danger" | "neutral";
+interface MetricCard {
+  label: string;
+  value: string;
+  sub: string;
+  icon: ReactNode;
+  tone?: "success" | "warning" | "danger" | "default";
+}
 
 export function OverviewPage({ summary, theme }: OverviewPageProps) {
   const traffic = useMemo(() => buildTrafficTimeline(summary, 24, "UTC"), [summary]);
   const regions = useMemo(() => buildRegionBreakdown(summary), [summary]);
-  const latestError = summary.recentErrors[0];
-  const recentSignals = summary.recentErrors.slice(0, 5);
   const chartPalette = useMemo(() => buildDashboardChartPalette(theme), [theme]);
+
   const totals = useMemo(
-    () =>
-      traffic.reduce(
-        (accumulator, point) => {
-          accumulator.activity += point.activity;
-          accumulator.started += point.started;
-          accumulator.errors += point.errors;
-          return accumulator;
-        },
-        { activity: 0, started: 0, errors: 0 },
-      ),
+    () => traffic.reduce((acc, p) => ({ activity: acc.activity + p.activity, started: acc.started + p.started, errors: acc.errors + p.errors }), { activity: 0, started: 0, errors: 0 }),
     [traffic],
   );
-  const sessionsWithErrors = summary.recentSessions.filter((session) => session.errorCount > 0).length;
-  const liveWithErrors = summary.activeSessions.filter((session) => session.errorCount > 0).length;
+
+  const sessionsWithErrors = summary.recentSessions.filter((s) => s.errorCount > 0).length;
+  const liveWithErrors = summary.activeSessions.filter((s) => s.errorCount > 0).length;
   const topRegion = regions[0]?.label ?? "Unknown";
-  const geographyMode = summary.activeSessions.length > 0 ? "Active-first session view" : "Recent session view";
-  const metrics: Array<{ label: string; value: string; note: string; tone: MetricTone }> = [
+  const latestError = summary.recentErrors[0];
+  const recentSignals = summary.recentErrors.slice(0, 6);
+
+  const metrics: MetricCard[] = [
     {
-      label: "Active users",
+      label: "Active Users",
       value: formatNumber(summary.stats.activeUsers),
-      note: `${formatNumber(summary.activeSessions.length)} sessions currently visible`,
-      tone: "primary",
+      sub: `${formatNumber(summary.activeSessions.length)} sessions open`,
+      icon: <Users className="h-[15px] w-[15px]" />,
+      tone: summary.stats.activeUsers > 0 ? "success" : "default",
     },
     {
-      label: "Started today",
+      label: "Started Today",
       value: formatNumber(summary.stats.sessionsStartedToday),
-      note: `${formatNumber(summary.stats.totalSessions)} total sessions loaded`,
-      tone: "neutral",
+      sub: `${formatNumber(summary.stats.totalSessions)} total loaded`,
+      icon: <TrendingUp className="h-[15px] w-[15px]" />,
     },
     {
-      label: "Average session",
+      label: "Avg Session",
       value: formatDuration(summary.stats.averageSessionDurationSeconds),
-      note: `${formatNumber(summary.stats.totalEvents)} events processed`,
-      tone: "accent",
+      sub: `${formatNumber(summary.stats.totalEvents)} events total`,
+      icon: <Clock className="h-[15px] w-[15px]" />,
     },
     {
-      label: "Sessions with errors",
+      label: "Sessions w/ Errors",
       value: formatNumber(sessionsWithErrors),
-      note: `${formatNumber(liveWithErrors)} of them are active now`,
-      tone: "danger",
+      sub: `${formatNumber(liveWithErrors)} active now`,
+      icon: <AlertTriangle className="h-[15px] w-[15px]" />,
+      tone: sessionsWithErrors > 0 ? "warning" : "success",
     },
     {
-      label: "Primary region",
+      label: "Primary Region",
       value: topRegion,
-      note: regions[0] ? `${formatNumber(regions[0].value)} sessions in focus` : "No geographic data",
-      tone: "accent",
+      sub: regions[0] ? `${formatNumber(regions[0].value)} sessions` : "No geo data",
+      icon: <Globe2 className="h-[15px] w-[15px]" />,
     },
     {
-      label: "Latest error",
+      label: "Latest Error",
       value: latestError ? timeAgo(latestError.timestamp) : "Clear",
-      note: latestError ? String(latestError.metrics["exception_type"] ?? latestError.service) : "No recent failures",
-      tone: "warning",
+      sub: latestError ? String(latestError.metrics["exception_type"] ?? latestError.service) : "No recent failures",
+      icon: <Activity className="h-[15px] w-[15px]" />,
+      tone: latestError ? "danger" : "success",
     },
   ];
+
   const directives = [
-    { label: "Traffic clock", value: "UTC fixed" },
-    { label: "Geography source", value: geographyMode },
-    { label: "Storage backend", value: summary.storage.toUpperCase() },
-    { label: "Last ingest", value: summary.stats.lastIngestAt ? timeAgo(summary.stats.lastIngestAt) : "Waiting" },
-    { label: "Generated", value: timeAgo(summary.generatedAt) },
-    { label: "Route split", value: "Traffic / Signals / Heatmap / Live" },
+    { key: "Traffic Clock",    val: "UTC fixed" },
+    { key: "Geography Source", val: summary.activeSessions.length > 0 ? "Active-first" : "Recent sessions" },
+    { key: "Storage Backend",  val: summary.storage.toUpperCase() },
+    { key: "Last Ingest",      val: summary.stats.lastIngestAt ? timeAgo(summary.stats.lastIngestAt) : "Waiting" },
+    { key: "Generated",        val: timeAgo(summary.generatedAt) },
+    { key: "Errors 24h",       val: formatNumber(summary.stats.errorsLast24Hours) },
   ];
 
   return (
-    <div className="page-content page-content-wide overview-page page-stack">
+    <div className="page-content page-stack-lg">
+      {/* Page header */}
       <section className="page-header">
         <div>
-          <p className="page-kicker">Production Operations</p>
-          <h1 className="page-title">Overview</h1>
+          <p className="kicker">Production Operations</p>
+          <h1 className="page-title" style={{ marginTop: 6 }}>Overview</h1>
           <p className="page-subtitle">
-            The summary page only shows the operational posture, the current traffic curve, and the most recent failure
-            pressure. Detailed traffic and deeper signal analysis now live on their own pages.
+            Operational posture at a glance. Use the navbar to drill into Traffic, Signals, or Live sessions.
           </p>
         </div>
-
-        <div className="page-header-side">
-          <div className="page-meta-stack page-meta-stack-live">
-            <div className="page-meta">
-              <span>Last ingest</span>
-              <strong>{summary.stats.lastIngestAt ? timeAgo(summary.stats.lastIngestAt) : "Waiting"}</strong>
-            </div>
-            <div className="page-meta">
-              <span>Generated</span>
-              <strong>{timeAgo(summary.generatedAt)}</strong>
-            </div>
-            <div className="page-meta">
-              <span>Errors 24h</span>
-              <strong>{formatNumber(summary.stats.errorsLast24Hours)}</strong>
-            </div>
-            <div className="page-meta">
-              <span>Storage</span>
-              <strong>{summary.storage.toUpperCase()}</strong>
-            </div>
+        <div className="page-header-right">
+          <div className="meta-row">
+            {[
+              { label: "Active", val: formatNumber(summary.stats.activeUsers) },
+              { label: "Errors 24h", val: formatNumber(summary.stats.errorsLast24Hours) },
+              { label: "Storage", val: summary.storage.toUpperCase() },
+            ].map((m) => (
+              <div className="meta-item" key={m.label}>
+                <span>{m.label}</span>
+                <strong>{m.val}</strong>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
-      <section className="command-slab">
-        <div className="command-slab-head">
-          <div>
-            <p className="panel-kicker">Production posture</p>
-            <h2 className="panel-title">Current operating signal</h2>
-            <p className="panel-subtitle">
-              This page is intentionally short. Use it for the headline read, then jump into the dedicated traffic or
-              signals pages when you need detail.
-            </p>
+      {/* Stat grid */}
+      <div className="stat-grid">
+        {metrics.map((m) => (
+          <div key={m.label} className={`stat-card${m.tone === "success" ? " tone-success" : m.tone === "warning" ? " tone-warning" : m.tone === "danger" ? " tone-danger" : ""}`}>
+            <div className="stat-icon">{m.icon}</div>
+            <span className="stat-label">{m.label}</span>
+            <strong className="stat-value">{m.value}</strong>
+            <p className="stat-sub">{m.sub}</p>
           </div>
-        </div>
+        ))}
+      </div>
 
-        <div className="command-strip">
-          {metrics.map((metric) => (
-            <article key={metric.label} className={`command-metric command-metric-${metric.tone}`}>
-              <span className="command-metric-label">{metric.label}</span>
-              <strong className="command-metric-value">{metric.value}</strong>
-              <p className="command-metric-note">{metric.note}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <div className="overview-primary-grid">
-        <section className="panel panel-dense">
-          <div className="panel-header">
-            <div>
-              <p className="panel-kicker">Traffic</p>
-              <h2 className="panel-title">Last 24 hours</h2>
-              <p className="panel-subtitle">
-                The traffic curve stays on the overview. Timezone breakdowns moved out so this page stays readable at a
-                glance.
-              </p>
+      {/* Main + side */}
+      <div className="main-side">
+        {/* Traffic chart */}
+        <section className="panel">
+          <div className="panel-head">
+            <div className="panel-head-left">
+              <p className="kicker">Traffic</p>
+              <h2 className="section-title">Last 24 Hours</h2>
+              <p className="section-sub">Events, new sessions, and error pressure by hour.</p>
             </div>
-            <div className="panel-inline-metrics">
-              <div>
-                <span>Events</span>
-                <strong>{formatNumber(totals.activity)}</strong>
-              </div>
-              <div>
-                <span>New sessions</span>
-                <strong>{formatNumber(totals.started)}</strong>
-              </div>
-              <div>
-                <span>Errors</span>
-                <strong>{formatNumber(totals.errors)}</strong>
+            <div className="panel-head-right">
+              <div className="meta-row">
+                {[
+                  { label: "Events", val: formatNumber(totals.activity) },
+                  { label: "Sessions", val: formatNumber(totals.started) },
+                  { label: "Errors", val: formatNumber(totals.errors) },
+                ].map((m) => (
+                  <div className="meta-item" key={m.label}>
+                    <span>{m.label}</span>
+                    <strong>{m.val}</strong>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
-
-          <div className="chart-shell chart-shell-tall">
-            <ResponsiveContainer width="100%" height={320}>
-              <ComposedChart data={traffic} margin={{ top: 16, right: 8, left: -10, bottom: 4 }}>
-                <CartesianGrid stroke={chartPalette.grid} vertical={false} />
-                <XAxis
-                  dataKey="shortLabel"
-                  tickLine={false}
-                  axisLine={false}
-                  minTickGap={18}
-                  tick={{ fill: chartPalette.axis, fontSize: 11 }}
-                />
-                <YAxis
-                  tickLine={false}
-                  axisLine={false}
-                  width={34}
-                  tick={{ fill: chartPalette.axisSoft, fontSize: 11 }}
-                />
-                <Tooltip
-                  cursor={false}
-                  content={({ active, payload, label }) => (
-                    <TelemetryChartTooltip
-                      active={active}
-                      label={label}
-                      payload={
-                        payload?.map((entry) => ({
-                          name: String(entry.name ?? "Value"),
-                          value: typeof entry.value === "number" ? entry.value : Number(entry.value ?? 0),
-                          color: entry.color,
-                        })) ?? []
-                      }
-                    />
-                  )}
-                />
-                <Bar dataKey="activity" name="Events" fill={chartPalette.activityBar} radius={[8, 8, 0, 0]} barSize={14} />
-                <Area
-                  type="monotone"
-                  dataKey="started"
-                  name="New sessions"
-                  stroke={chartPalette.sessionsLine}
-                  strokeWidth={2.4}
-                  fill="rgba(255,255,255,0)"
-                  dot={false}
-                  activeDot={{ r: 4, strokeWidth: 0, fill: chartPalette.sessionsLine }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="errors"
-                  name="Errors"
-                  stroke={chartPalette.errorsLine}
-                  strokeWidth={2}
-                  fill="rgba(255,255,255,0)"
-                  dot={false}
-                  activeDot={{ r: 4, strokeWidth: 0, fill: chartPalette.errorsLine }}
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
+          <div className="panel-body">
+            <div className="chart-wrap chart-wrap-tall">
+              <ResponsiveContainer width="100%" height={300}>
+                <ComposedChart data={traffic} margin={{ top: 8, right: 8, left: -14, bottom: 0 }}>
+                  <CartesianGrid stroke={chartPalette.grid} vertical={false} />
+                  <XAxis
+                    dataKey="shortLabel"
+                    tickLine={false}
+                    axisLine={false}
+                    minTickGap={20}
+                    tick={{ fill: chartPalette.axis, fontSize: 10.5 }}
+                  />
+                  <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    width={32}
+                    tick={{ fill: chartPalette.axisSoft, fontSize: 10.5 }}
+                  />
+                  <Tooltip
+                    cursor={false}
+                    content={({ active, payload, label }) => (
+                      <TelemetryChartTooltip
+                        active={active}
+                        label={label}
+                        payload={payload?.map((e) => ({
+                          name: String(e.name ?? ""),
+                          value: typeof e.value === "number" ? e.value : Number(e.value ?? 0),
+                          color: e.color,
+                        })) ?? []}
+                      />
+                    )}
+                  />
+                  <Bar dataKey="activity" name="Events" fill={chartPalette.activityBar} radius={[5, 5, 0, 0]} barSize={12} />
+                  <Area type="monotone" dataKey="started" name="New sessions" stroke={chartPalette.sessionsLine} strokeWidth={2.2} fill="none" dot={false} activeDot={{ r: 4, strokeWidth: 0, fill: chartPalette.sessionsLine }} />
+                  <Area type="monotone" dataKey="errors"  name="Errors"       stroke={chartPalette.errorsLine}   strokeWidth={1.8} fill="none" dot={false} activeDot={{ r: 4, strokeWidth: 0, fill: chartPalette.errorsLine  }} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         </section>
 
-        <div className="overview-side-stack">
-          <section className="panel panel-dense">
-            <div className="panel-header">
-              <div>
-                <p className="panel-kicker">Directives</p>
-                <h2 className="panel-title">Navigation context</h2>
-                <p className="panel-subtitle">
-                  The summary page now routes operators into focused pages instead of forcing one long scan.
-                </p>
+        {/* Side panels */}
+        <div className="side-stack">
+          {/* System context */}
+          <section className="panel">
+            <div className="panel-head">
+              <div className="panel-head-left">
+                <p className="kicker">System</p>
+                <h2 className="section-title">Context</h2>
               </div>
             </div>
-
-            <div className="directive-list">
-              {directives.map((directive) => (
-                <div key={directive.label} className="directive-row">
-                  <span className="directive-label">{directive.label}</span>
-                  <strong className="directive-value">{directive.value}</strong>
-                </div>
-              ))}
+            <div className="panel-body-tight">
+              <div className="kv-list">
+                {directives.map((d) => (
+                  <div className="kv-row" key={d.key}>
+                    <span className="kv-key">{d.key}</span>
+                    <span className="kv-val">{d.val}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </section>
 
-          <section className="panel panel-dense">
-            <div className="panel-header">
-              <div>
-                <p className="panel-kicker">Failures</p>
-                <h2 className="panel-title">Latest pressure</h2>
-                <p className="panel-subtitle">Recent application failures surfaced without leaving the summary view.</p>
+          {/* Recent failures */}
+          <section className="panel">
+            <div className="panel-head">
+              <div className="panel-head-left">
+                <p className="kicker">Failures</p>
+                <h2 className="section-title">Recent Errors</h2>
               </div>
-            </div>
-
-            <div className="signal-list">
               {recentSignals.length > 0 ? (
-                recentSignals.map((error) => (
-                  <div key={error.id} className="signal-row">
-                    <div className="signal-copy">
-                      <p className="signal-title">{String(error.metrics["exception_type"] ?? error.service)}</p>
-                      <p className="signal-meta">
-                        {error.source} · {error.message ?? "No message provided"}
-                      </p>
-                    </div>
-                    <div className="signal-side">
-                      <strong className="signal-time">{timeAgo(error.timestamp)}</strong>
-                    </div>
-                  </div>
-                ))
+                <span className="badge badge-danger">{recentSignals.length}</span>
               ) : (
-                <div className="empty-panel small">No recent failures to highlight.</div>
+                <span className="badge badge-success">Clear</span>
+              )}
+            </div>
+            <div className="panel-body-tight">
+              {recentSignals.length > 0 ? (
+                <div className="signal-list">
+                  {recentSignals.map((error) => (
+                    <div key={error.id} className="signal-row">
+                      <div className="signal-dot" />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p className="signal-title" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {String(error.metrics["exception_type"] ?? error.service)}
+                        </p>
+                        <p className="signal-meta" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {error.source} · {error.message ?? "No message"}
+                        </p>
+                      </div>
+                      <span className="signal-time">{timeAgo(error.timestamp)}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state" style={{ padding: "24px 16px" }}>
+                  <p>No recent failures.</p>
+                </div>
               )}
             </div>
           </section>

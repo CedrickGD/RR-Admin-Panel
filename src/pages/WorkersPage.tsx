@@ -31,12 +31,8 @@ function displayUser(session: AppSessionRecord): string {
 }
 
 function userIdentity(session: AppSessionRecord): string {
-  const userLabel = session.userLabel?.trim().toLowerCase();
-  if (userLabel) {
-    return `user:${userLabel}`;
-  }
-
-  return `install:${session.installId.trim().toLowerCase()}`;
+  const label = session.userLabel?.trim().toLowerCase();
+  return label ? `user:${label}` : `install:${session.installId.trim().toLowerCase()}`;
 }
 
 function resolveSessionEnd(session: AppSessionRecord): string {
@@ -44,95 +40,60 @@ function resolveSessionEnd(session: AppSessionRecord): string {
 }
 
 function parseTimestamp(value: string | null | undefined): number {
-  const timestamp = Date.parse(value ?? "");
-  return Number.isFinite(timestamp) ? timestamp : Number.NaN;
+  const ts = Date.parse(value ?? "");
+  return Number.isFinite(ts) ? ts : Number.NaN;
 }
 
 function resolveSessionDuration(session: AppSessionRecord): string {
-  if (session.durationSeconds !== null && Number.isFinite(session.durationSeconds)) {
-    return formatDuration(session.durationSeconds);
-  }
-
+  if (session.durationSeconds !== null && Number.isFinite(session.durationSeconds)) return formatDuration(session.durationSeconds);
   const startedAt = Date.parse(session.startedAt);
-  const endedAt = Date.parse(resolveSessionEnd(session));
-
-  if (!Number.isFinite(startedAt) || !Number.isFinite(endedAt) || endedAt < startedAt) {
-    return "open";
-  }
-
+  const endedAt   = Date.parse(resolveSessionEnd(session));
+  if (!Number.isFinite(startedAt) || !Number.isFinite(endedAt) || endedAt < startedAt) return "open";
   return formatDuration((endedAt - startedAt) / 1000);
 }
 
 function buildLocationLabel(session: AppSessionRecord): string {
-  return [session.clientCity, session.clientRegion, session.clientCountry]
-    .filter((value): value is string => Boolean(value?.trim()))
-    .join(", ");
+  return [session.clientCity, session.clientRegion, session.clientCountry].filter((v): v is string => Boolean(v?.trim())).join(", ");
 }
 
 function readMetricText(metrics: Record<string, unknown>, keys: string[]): string | null {
   for (const key of keys) {
     const value = metrics[key];
-
-    if (typeof value === "string" && value.trim().length > 0) {
-      return value.trim();
-    }
+    if (typeof value === "string" && value.trim().length > 0) return value.trim();
   }
-
   return null;
 }
 
 function eventMatchesSession(event: TelemetryEvent, session: AppSessionRecord): boolean {
   const sessionId = readMetricText(event.metrics, ["session_id"]);
-
-  if (sessionId && sessionId === session.id) {
-    return true;
-  }
-
-  const installId = readMetricText(event.metrics, ["install_id"]);
-  return installId === session.installId;
+  if (sessionId && sessionId === session.id) return true;
+  return readMetricText(event.metrics, ["install_id"]) === session.installId;
 }
 
-function buildSessionTimeline(
-  session: AppSessionRecord,
-  recentEvents: TelemetryEvent[],
-): SessionTimelineData {
+function buildSessionTimeline(session: AppSessionRecord, recentEvents: TelemetryEvent[]): SessionTimelineData {
   const startedAt = parseTimestamp(session.startedAt);
-  const endedAt = parseTimestamp(resolveSessionEnd(session));
-  const hasRange = Number.isFinite(startedAt) && Number.isFinite(endedAt);
+  const endedAt   = parseTimestamp(resolveSessionEnd(session));
+  const hasRange  = Number.isFinite(startedAt) && Number.isFinite(endedAt);
   const rangeStart = hasRange ? Math.min(startedAt, endedAt) : Number.NEGATIVE_INFINITY;
-  const rangeEnd = hasRange ? Math.max(startedAt, endedAt) : Number.POSITIVE_INFINITY;
-  const relevantEvents = recentEvents
-    .filter((event) => {
-      if (!eventMatchesSession(event, session)) {
-        return false;
-      }
-
-      const timestamp = parseTimestamp(event.timestamp);
-
-      if (!Number.isFinite(timestamp)) {
-        return false;
-      }
-
-      return timestamp >= rangeStart && timestamp <= rangeEnd;
-    })
-    .sort((left, right) => parseTimestamp(left.timestamp) - parseTimestamp(right.timestamp));
-  const errorEvents = relevantEvents.filter((event) => event.service === APP_ERROR);
+  const rangeEnd   = hasRange ? Math.max(startedAt, endedAt) : Number.POSITIVE_INFINITY;
+  const relevantEvents = recentEvents.filter((e) => {
+    if (!eventMatchesSession(e, session)) return false;
+    const ts = parseTimestamp(e.timestamp);
+    return Number.isFinite(ts) && ts >= rangeStart && ts <= rangeEnd;
+  }).sort((a, b) => parseTimestamp(a.timestamp) - parseTimestamp(b.timestamp));
+  const errorEvents   = relevantEvents.filter((e) => e.service === APP_ERROR);
   const visibleErrors = errorEvents.slice(-MAX_TIMELINE_MARKERS);
   const duration = hasRange ? Math.max(1, rangeEnd - rangeStart) : 1;
-
-  const markers = visibleErrors.map((event, index) => {
-    const timestamp = parseTimestamp(event.timestamp);
-    const rawPosition = hasRange ? ((timestamp - rangeStart) / duration) * 100 : 50;
-    const position = Math.max(3, Math.min(97, rawPosition));
-
+  const markers = visibleErrors.map((event, i) => {
+    const ts = parseTimestamp(event.timestamp);
+    const rawPos = hasRange ? ((ts - rangeStart) / duration) * 100 : 50;
     return {
-      id: `${event.id}-${index}`,
+      id: `${event.id}-${i}`,
       label: String(event.metrics["exception_type"] ?? event.message ?? "Error"),
       timestamp: event.timestamp,
-      position,
+      position: Math.max(3, Math.min(97, rawPos)),
     };
   });
-
   return {
     trackedEventCount: relevantEvents.length,
     visibleErrorCount: markers.length,
@@ -151,311 +112,173 @@ export function WorkersPage({ summary }: WorkersPageProps) {
     const q = query.trim().toLowerCase();
     const filtered = !q
       ? summary.recentSessions
-      : summary.recentSessions.filter((session) => {
-          const haystack = [
-            displayUser(session),
-            session.installId,
-            session.clientIp ?? "",
-            session.clientCountry ?? "",
-            session.appVersion ?? "",
-            session.platform ?? "",
-            session.lastEvent ?? "",
-          ]
-            .join(" ")
-            .toLowerCase();
-
-          return haystack.includes(q);
+      : summary.recentSessions.filter((s) => {
+          const hay = [displayUser(s), s.installId, s.clientIp ?? "", s.clientCountry ?? "", s.appVersion ?? "", s.platform ?? "", s.lastEvent ?? ""].join(" ").toLowerCase();
+          return hay.includes(q);
         });
-
-    const seenUsers = new Set<string>();
-    return [...filtered]
-      .sort((left, right) => Date.parse(right.lastSeenAt) - Date.parse(left.lastSeenAt))
-      .filter((session) => {
-        const identity = userIdentity(session);
-        if (seenUsers.has(identity)) {
-          return false;
-        }
-
-        seenUsers.add(identity);
-        return true;
-      });
+    const seen = new Set<string>();
+    return [...filtered].sort((a, b) => Date.parse(b.lastSeenAt) - Date.parse(a.lastSeenAt)).filter((s) => {
+      const id = userIdentity(s);
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
   }, [query, summary.recentSessions]);
 
-  const activeInResults = sessions.filter((session) => session.isActive).length;
-  const resultsWithErrors = sessions.filter((session) => session.errorCount > 0).length;
+  const activeInResults  = sessions.filter((s) => s.isActive).length;
+  const resultsWithErrors = sessions.filter((s) => s.errorCount > 0).length;
+
   const sessionTimelines = useMemo(() => {
-    const timelines = new Map<string, SessionTimelineData>();
-
-    for (const session of sessions) {
-      timelines.set(userIdentity(session), buildSessionTimeline(session, summary.recentEvents));
-    }
-
-    return timelines;
+    const map = new Map<string, SessionTimelineData>();
+    for (const session of sessions) map.set(userIdentity(session), buildSessionTimeline(session, summary.recentEvents));
+    return map;
   }, [sessions, summary.recentEvents]);
 
   function toggleExpanded(identity: string) {
-    setExpandedUsers((current) =>
-      current.includes(identity)
-        ? current.filter((entry) => entry !== identity)
-        : [...current, identity],
-    );
+    setExpandedUsers((curr) => curr.includes(identity) ? curr.filter((id) => id !== identity) : [...curr, identity]);
   }
 
   async function handleExport() {
-    if (exporting) {
-      return;
-    }
-
+    if (exporting) return;
     setExporting(true);
     setExportError(null);
-
-    try {
-      await downloadSessionExport();
-    } catch (err) {
-      setExportError(err instanceof Error ? err.message : "Failed to download session export.");
-    } finally {
-      setExporting(false);
-    }
+    try { await downloadSessionExport(); }
+    catch (err) { setExportError(err instanceof Error ? err.message : "Failed to download."); }
+    finally { setExporting(false); }
   }
 
   return (
-    <div className="page-content page-content-wide page-stack">
+    <div className="page-content page-stack-lg">
+      {/* Header */}
       <section className="page-header">
         <div>
-          <p className="page-kicker">Session Archive</p>
-          <h1 className="page-title">Sessions</h1>
-          <p className="page-subtitle">
-            Searchable user directory built from the latest session snapshot for each unique user.
-          </p>
+          <p className="kicker">Session Archive</p>
+          <h1 className="page-title" style={{ marginTop: 6 }}>Sessions</h1>
+          <p className="page-subtitle">Searchable user directory — one row per unique user, latest snapshot.</p>
         </div>
-
-        <div className="page-header-side">
-          <div className="page-actions">
-            <button type="button" className="btn-primary" onClick={() => void handleExport()} disabled={exporting}>
-              <Download className="h-4 w-4" />
-              {exporting ? "Preparing TXT..." : "Download TXT Report"}
-            </button>
-          </div>
-          <div className="page-meta-stack">
-            <div className="page-meta">
-              <span>Visible users</span>
-              <strong>{formatNumber(sessions.length)}</strong>
-            </div>
-            <div className="page-meta">
-              <span>Active users</span>
-              <strong>{formatNumber(activeInResults)}</strong>
-            </div>
-            <div className="page-meta">
-              <span>Users with errors</span>
-              <strong>{formatNumber(resultsWithErrors)}</strong>
-            </div>
+        <div className="page-header-right">
+          <button type="button" className="btn btn-primary btn-sm" onClick={() => void handleExport()} disabled={exporting}>
+            <Download className="h-3.5 w-3.5" />
+            {exporting ? "Preparing…" : "Export TXT"}
+          </button>
+          <div className="meta-row">
+            {[
+              { label: "Visible",  val: formatNumber(sessions.length) },
+              { label: "Active",   val: formatNumber(activeInResults) },
+              { label: "w/ Errors", val: formatNumber(resultsWithErrors) },
+            ].map((m) => (
+              <div className="meta-item" key={m.label}><span>{m.label}</span><strong>{m.val}</strong></div>
+            ))}
           </div>
         </div>
       </section>
 
+      {exportError ? (
+        <div style={{ background: "var(--danger-sub)", border: "1px solid hsl(4 86% 58% / 0.25)", borderRadius: 10, padding: "10px 14px", fontSize: "0.8125rem", color: "hsl(4 86% 72%)" }}>
+          {exportError}
+        </div>
+      ) : null}
+
+      {/* Table */}
       <section className="panel">
-        <div className="panel-header">
-          <div>
-            <h2 className="panel-title">Latest User Sessions</h2>
-            <p className="panel-subtitle">
-              One row per unique user, using the most recent session snapshot for location, version, visibility, and
-              last event. Export still includes the full text report.
-            </p>
+        <div className="panel-head">
+          <div className="panel-head-left">
+            <p className="kicker">Directory</p>
+            <h2 className="section-title">Latest User Sessions</h2>
+            <p className="section-sub">Most recent session per unique user. Expand for full timeline detail.</p>
           </div>
-          <div className="input-group search-small">
-            <Search className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
-            <input
-              type="text"
-              className="input"
-              placeholder="Search user, IP, version, event..."
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-            />
+          <div className="panel-head-right">
+            <div className="search-wrap" style={{ width: "min(280px,100%)" }}>
+              <Search className="search-icon h-3.5 w-3.5" />
+              <input type="search" className="glass-input" placeholder="Search user, IP, version…" value={query} onChange={(e) => setQuery(e.target.value)} />
+            </div>
           </div>
         </div>
 
-        <div className="panel-stack">
-          {exportError ? <div className="inline-error">{exportError}</div> : null}
-
-          <div className="table-shell">
-            <div className="table-scroller">
-              <table>
+        <div className="panel-body-flush">
+          {sessions.length > 0 ? (
+            <div className="data-table-wrap" style={{ borderRadius: 0, border: "none" }}>
+              <table className="data-table">
                 <thead>
                   <tr>
                     <th>User</th>
                     <th>Location</th>
                     <th>Version</th>
-                    <th>Last seen</th>
-                    <th>Last event</th>
-                    <th className="text-right">Errors</th>
+                    <th>Platform</th>
+                    <th>Duration</th>
+                    <th>Last Seen</th>
+                    <th>Errors</th>
                     <th>Status</th>
-                    <th className="text-right">Details</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
                   {sessions.map((session) => {
-                    const identity = userIdentity(session);
-                    const expanded = expandedUsers.includes(identity);
-                    const detailId = `session-detail-${identity.replace(/[^a-z0-9-_:]/gi, "-")}`;
-                    const locationLabel = buildLocationLabel(session);
-                    const sessionEnd = resolveSessionEnd(session);
-                    const durationLabel = resolveSessionDuration(session);
-                    const timeline = sessionTimelines.get(identity) ?? {
-                      trackedEventCount: 0,
-                      visibleErrorCount: 0,
-                      hiddenErrorCount: 0,
-                      markers: [],
-                    };
+                    const identity  = userIdentity(session);
+                    const isExpanded = expandedUsers.includes(identity);
+                    const timeline   = sessionTimelines.get(identity);
 
                     return (
                       <Fragment key={identity}>
-                        <tr className={expanded ? "session-directory-row session-directory-row-expanded" : "session-directory-row"}>
+                        <tr className={isExpanded ? "row-expanded" : ""}>
                           <td>
-                            <div className="font-semibold">{displayUser(session)}</div>
-                            <div className="table-subline">{session.installId}</div>
+                            <span style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 600, fontSize: "0.8125rem" }}>{displayUser(session)}</span>
                           </td>
+                          <td className="muted">{buildLocationLabel(session) || "—"}</td>
+                          <td><span className="badge badge-muted">{session.appVersion ?? "—"}</span></td>
+                          <td className="muted">{session.platform ?? "—"}</td>
+                          <td className="muted">{resolveSessionDuration(session)}</td>
+                          <td className="muted">{timeAgo(session.lastSeenAt)}</td>
                           <td>
-                            <div>{locationLabel || session.clientCountry || "unknown"}</div>
-                            <div className="table-subline font-[IBM_Plex_Mono,monospace]">{session.clientIp ?? "unknown"}</div>
+                            {session.errorCount > 0
+                              ? <span className="badge badge-danger">{session.errorCount}</span>
+                              : <span className="badge badge-success">0</span>
+                            }
                           </td>
+                          <td><StatusBadge status={session.lastStatus ?? "unknown"} /></td>
                           <td>
-                            <div>{session.appVersion ?? "unknown"}</div>
-                            <div className="table-subline">{session.platform ?? "unknown"}</div>
-                          </td>
-                          <td>
-                            <div>{formatDate(session.lastSeenAt)}</div>
-                            <div className="table-subline">{timeAgo(session.lastSeenAt)}</div>
-                          </td>
-                          <td>{formatEventName(session.lastEvent)}</td>
-                          <td className="text-right font-[IBM_Plex_Mono,monospace]">{session.errorCount}</td>
-                          <td>
-                            <StatusBadge status={session.lastStatus} />
-                          </td>
-                          <td className="text-right">
-                            <button
-                              type="button"
-                              className="btn-ghost session-expand-button"
-                              onClick={() => toggleExpanded(identity)}
-                              aria-expanded={expanded}
-                              aria-controls={detailId}
-                            >
-                              {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                              {expanded ? "Hide" : "Expand"}
+                            <button type="button" className="btn-icon" style={{ padding: 4 }} onClick={() => toggleExpanded(identity)} aria-label={isExpanded ? "Collapse" : "Expand"}>
+                              {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                             </button>
                           </td>
                         </tr>
 
-                        {expanded ? (
-                          <tr key={`${session.id}-details`} className="session-detail-row">
-                            <td colSpan={8} className="session-detail-cell">
-                              <div id={detailId} className="session-detail-shell">
-                                <div className="session-timeline-panel">
-                                  <div className="session-timeline-head">
-                                    <div className="session-timeline-head-copy">
-                                      <span className="session-timeline-label">Session timeline</span>
-                                      <strong>{durationLabel}</strong>
-                                    </div>
-                                    <div className="session-timeline-head-stats">
-                                      <span>{formatNumber(timeline.trackedEventCount)} events</span>
-                                      <span>{formatNumber(session.errorCount)} errors</span>
-                                    </div>
-                                  </div>
-
-                                  <div
-                                    className="session-timeline-chart"
-                                    role="img"
-                                    aria-label={`${displayUser(session)} session timeline from ${formatDate(session.startedAt)} to ${formatDate(sessionEnd)}`}
-                                  >
-                                    <div className="session-timeline-elapsed-badge">
-                                      <span>Time elapsed</span>
-                                      <strong>{durationLabel}</strong>
-                                    </div>
-
-                                    <div className="session-timeline-track-shell">
-                                      <div className="session-timeline-track" />
-                                      <span className="session-timeline-point session-timeline-point-start" />
+                        {isExpanded && timeline ? (
+                          <tr>
+                            <td colSpan={9} className="row-expand-panel">
+                              <div className="row-expand-inner">
+                                {timeline.markers.length > 0 ? (
+                                  <div style={{ marginBottom: 14 }}>
+                                    <p className="label-sm" style={{ marginBottom: 8 }}>Error Timeline</p>
+                                    <div className="timeline-track">
+                                      <div className="timeline-fill" style={{ width: "100%" }} />
                                       {timeline.markers.map((marker) => (
-                                        <span
-                                          key={marker.id}
-                                          className="session-timeline-point session-timeline-point-error"
-                                          style={{ left: `${marker.position}%` }}
-                                          title={`${marker.label} · ${formatDate(marker.timestamp)}`}
-                                        >
-                                          x
-                                        </span>
+                                        <div key={marker.id} className="timeline-marker is-error" style={{ left: `${marker.position}%` }} title={marker.label} />
                                       ))}
-                                      <span className="session-timeline-point session-timeline-point-end" />
                                     </div>
-
-                                    <div className="session-timeline-boundaries">
-                                      <div className="session-timeline-boundary">
-                                        <span className="session-timeline-label">Session start</span>
-                                        <strong>{formatDate(session.startedAt)}</strong>
-                                      </div>
-                                      <div className="session-timeline-boundary session-timeline-boundary-end">
-                                        <span className="session-timeline-label">
-                                          {session.endedAt ? "Session end" : "Latest activity"}
-                                        </span>
-                                        <strong>{formatDate(sessionEnd)}</strong>
-                                      </div>
-                                    </div>
-
-                                    <div className="session-timeline-note-strip">
-                                      {timeline.markers.length > 0 ? (
-                                        timeline.markers.map((marker) => (
-                                          <div key={`${marker.id}-note`} className="session-timeline-note">
-                                            <span className="session-timeline-note-icon">x</span>
-                                            <span>{timeAgo(marker.timestamp)}</span>
-                                          </div>
-                                        ))
-                                      ) : (
-                                        <div className="session-timeline-note session-timeline-note-muted">
-                                          <span>No recent error markers</span>
-                                        </div>
-                                      )}
-
-                                      {timeline.hiddenErrorCount > 0 ? (
-                                        <div className="session-timeline-note session-timeline-note-muted">
-                                          <span>+{formatNumber(timeline.hiddenErrorCount)} older errors</span>
-                                        </div>
-                                      ) : null}
+                                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+                                      <span style={{ fontSize: "0.6875rem", color: "var(--text-3)" }}>{formatDate(session.startedAt)}</span>
+                                      {timeline.hiddenErrorCount > 0 ? <span style={{ fontSize: "0.6875rem", color: "var(--danger)" }}>+{timeline.hiddenErrorCount} more</span> : null}
                                     </div>
                                   </div>
-                                </div>
+                                ) : null}
 
-                                <div className="session-detail-grid">
-                                  <div className="session-detail-item">
-                                    <span>User</span>
-                                    <strong>{displayUser(session)}</strong>
-                                  </div>
-                                  <div className="session-detail-item">
-                                    <span>Install</span>
-                                    <strong className="session-detail-mono">{session.installId}</strong>
-                                  </div>
-                                  <div className="session-detail-item">
-                                    <span>Version</span>
-                                    <strong>{session.appVersion ?? "unknown"}</strong>
-                                  </div>
-                                  <div className="session-detail-item">
-                                    <span>Platform</span>
-                                    <strong>{session.platform ?? "unknown"}</strong>
-                                  </div>
-                                  <div className="session-detail-item">
-                                    <span>Location</span>
-                                    <strong>{locationLabel || "unknown"}</strong>
-                                  </div>
-                                  <div className="session-detail-item">
-                                    <span>IP</span>
-                                    <strong className="session-detail-mono">{session.clientIp ?? "unknown"}</strong>
-                                  </div>
-                                  <div className="session-detail-item">
-                                    <span>Last event</span>
-                                    <strong>{formatEventName(session.lastEvent)}</strong>
-                                  </div>
-                                  <div className="session-detail-item">
-                                    <span>Status</span>
-                                    <strong>{session.lastStatus}</strong>
-                                  </div>
+                                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px,1fr))", gap: 10 }}>
+                                  {[
+                                    { k: "Install ID",  v: session.installId },
+                                    { k: "Session ID",  v: session.id },
+                                    { k: "Client IP",   v: session.clientIp ?? "—" },
+                                    { k: "Started",     v: formatDate(session.startedAt) },
+                                    { k: "Last Seen",   v: timeAgo(session.lastSeenAt) },
+                                    { k: "Events",      v: String(timeline.trackedEventCount) },
+                                    { k: "Timezone",    v: session.clientTimezone ?? "—" },
+                                    { k: "Last Event",  v: session.lastEvent ? formatEventName(session.lastEvent) : "—" },
+                                  ].map(({ k, v }) => (
+                                    <div key={k} className="glass-inset" style={{ padding: "8px 12px" }}>
+                                      <p className="label-sm" style={{ marginBottom: 3 }}>{k}</p>
+                                      <p style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "0.75rem", color: "var(--text-1)", wordBreak: "break-all" }}>{v}</p>
+                                    </div>
+                                  ))}
                                 </div>
                               </div>
                             </td>
@@ -464,18 +287,15 @@ export function WorkersPage({ summary }: WorkersPageProps) {
                       </Fragment>
                     );
                   })}
-
-                  {sessions.length === 0 ? (
-                    <tr>
-                      <td colSpan={8}>
-                        <div className="empty-panel small">No users match the current filter.</div>
-                      </td>
-                    </tr>
-                  ) : null}
                 </tbody>
               </table>
             </div>
-          </div>
+          ) : (
+            <div className="empty-state">
+              <strong>{query ? "No sessions match your search." : "No sessions recorded yet."}</strong>
+              <p>{query ? "Try a different search term." : "Sessions will appear as telemetry arrives."}</p>
+            </div>
+          )}
         </div>
       </section>
     </div>

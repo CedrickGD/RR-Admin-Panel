@@ -13,8 +13,6 @@ interface HeatmapPageProps {
   focusedSessionToken?: number;
 }
 
-type MetricTone = "primary" | "accent" | "warning" | "danger" | "neutral";
-
 export function HeatmapPage({
   summary,
   theme,
@@ -22,154 +20,88 @@ export function HeatmapPage({
   focusedSessionId = null,
   focusedSessionToken = 0,
 }: HeatmapPageProps) {
-  const points = useMemo(() => buildHeatmapPoints(summary), [summary]);
+  const points       = useMemo(() => buildHeatmapPoints(summary), [summary]);
   const sessionPoints = useMemo(() => buildHeatmapSessionPoints(summary), [summary]);
-  const mappedUsers = sessionPoints.length;
+  const mappedUsers  = sessionPoints.length;
   const unresolvedUsers = Math.max(0, summary.activeSessions.length - mappedUsers);
+
   const regionRows = useMemo(() => {
     const counts = new Map<string, { label: string; value: number }>();
-    const total = Math.max(1, mappedUsers);
-
+    const total  = Math.max(1, mappedUsers);
     for (const point of points) {
-      const current = counts.get(point.region) ?? { label: point.region, value: 0 };
-      current.value += point.value;
-      counts.set(point.region, current);
+      const curr = counts.get(point.region) ?? { label: point.region, value: 0 };
+      curr.value += point.value;
+      counts.set(point.region, curr);
     }
-
     return Array.from(counts.values())
-      .sort((left, right) => right.value - left.value || left.label.localeCompare(right.label))
-      .map((row) => ({
-        ...row,
-        share: row.value / total,
-        color: getRegionColor(row.label),
-      }));
+      .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label))
+      .map((row) => ({ ...row, share: row.value / total, color: getRegionColor(row.label) }));
   }, [mappedUsers, points]);
-  const topMarket = points[0];
-  const errorTotal = summary.activeSessions.reduce((sum, session) => sum + session.errorCount, 0);
-  const metrics: Array<{ label: string; value: string; note: string; tone: MetricTone }> = [
-    {
-      label: "Active users",
-      value: formatNumber(summary.activeSessions.length),
-      note: "Current online session count",
-      tone: "primary",
-    },
-    {
-      label: "Mapped users",
-      value: formatNumber(mappedUsers),
-      note: "Sessions with a resolved country centroid",
-      tone: "accent",
-    },
-    {
-      label: "Regions online",
-      value: formatNumber(regionRows.length),
-      note: "Macro regions represented right now",
-      tone: "neutral",
-    },
-    {
-      label: "Countries live",
-      value: formatNumber(points.length),
-      note: topMarket ? `Largest market: ${topMarket.label}` : "No active geo data",
-      tone: "accent",
-    },
-    {
-      label: "Active errors",
-      value: formatNumber(errorTotal),
-      note: "Errors across currently active sessions",
-      tone: "danger",
-    },
-    {
-      label: "Unmapped",
-      value: formatNumber(unresolvedUsers),
-      note: "Active sessions without map coordinates",
-      tone: "warning",
-    },
-  ];
+
+  const topMarket  = points[0];
+  const errorTotal = summary.activeSessions.reduce((sum, s) => sum + s.errorCount, 0);
 
   return (
-    <div className="page-content page-content-wide page-stack heatmap-page">
+    <div className="page-content page-stack-lg">
+      {/* Header */}
       <section className="page-header">
         <div>
-          <p className="page-kicker">Live Geography</p>
-          <h1 className="page-title">Heatmap</h1>
+          <p className="kicker">Live Geography</p>
+          <h1 className="page-title" style={{ marginTop: 6 }}>Heatmap</h1>
           <p className="page-subtitle">
-            A live geographic command surface for active sessions only. The map stays central while regional load and
-            top markets sit beside it as a compact command rail instead of separate stat widgets.
+            Active session distribution across the globe. Click a node to jump to that session's live view.
           </p>
         </div>
-
-        <div className="page-header-side">
-          <div className="page-meta-stack page-meta-stack-live">
-            <div className="page-meta">
-              <span>Last ingest</span>
-              <strong>{summary.stats.lastIngestAt ? timeAgo(summary.stats.lastIngestAt) : "Waiting"}</strong>
-            </div>
-            <div className="page-meta">
-              <span>Generated</span>
-              <strong>{timeAgo(summary.generatedAt)}</strong>
-            </div>
-            <div className="page-meta">
-              <span>Mapped users</span>
-              <strong>{formatNumber(mappedUsers)}</strong>
-            </div>
-            <div className="page-meta">
-              <span>Top market</span>
-              <strong>{topMarket ? topMarket.label : "None"}</strong>
-            </div>
+        <div className="page-header-right">
+          <div className="meta-row">
+            {[
+              { label: "Active",   val: formatNumber(summary.activeSessions.length) },
+              { label: "Mapped",   val: formatNumber(mappedUsers) },
+              { label: "Errors",   val: formatNumber(errorTotal) },
+              { label: "Ingest",   val: summary.stats.lastIngestAt ? timeAgo(summary.stats.lastIngestAt) : "Waiting" },
+            ].map((m) => (
+              <div className="meta-item" key={m.label}><span>{m.label}</span><strong>{m.val}</strong></div>
+            ))}
           </div>
         </div>
       </section>
 
-      <section className="command-slab">
-        <div className="command-slab-head">
-          <div>
-            <p className="panel-kicker">Live geography posture</p>
-            <h2 className="panel-title">Current map coverage</h2>
-            <p className="panel-subtitle">
-              A single command strip for coverage, geo resolution, and pressure before you start drilling into
-              individual sessions.
-            </p>
+      {/* Stat row */}
+      <div className="stat-grid" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))" }}>
+        {[
+          { label: "Active Users",    val: formatNumber(summary.activeSessions.length), sub: "Online right now" },
+          { label: "Mapped Sessions", val: formatNumber(mappedUsers),  sub: "With geo coordinates" },
+          { label: "Regions Online",  val: formatNumber(regionRows.length), sub: "Macro regions active" },
+          { label: "Countries Live",  val: formatNumber(points.length), sub: topMarket ? `Top: ${topMarket.label}` : "No data" },
+          { label: "Active Errors",   val: formatNumber(errorTotal), sub: "Across active sessions", tone: errorTotal > 0 ? "danger" : undefined },
+          { label: "Unmapped",        val: formatNumber(unresolvedUsers), sub: "No geo data available" },
+        ].map((s) => (
+          <div className={`stat-card${s.tone ? ` tone-${s.tone}` : ""}`} key={s.label}>
+            <span className="stat-label">{s.label}</span>
+            <strong className="stat-value" style={{ fontSize: "1.5rem" }}>{s.val}</strong>
+            <p className="stat-sub">{s.sub}</p>
           </div>
-        </div>
+        ))}
+      </div>
 
-        <div className="command-strip command-strip-tight">
-          {metrics.map((metric) => (
-            <article key={metric.label} className={`command-metric command-metric-${metric.tone}`}>
-              <span className="command-metric-label">{metric.label}</span>
-              <strong className="command-metric-value">{metric.value}</strong>
-              <p className="command-metric-note">{metric.note}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <div className="heatmap-layout">
-        <section className="panel panel-dense">
-          <div className="panel-header">
-            <div>
-              <p className="panel-kicker">World view</p>
-              <h2 className="panel-title">Active user field</h2>
-              <p className="panel-subtitle">
-                Every active session gets its own map node. Lock a node, then jump straight into that session on the
-                live page.
-              </p>
+      {/* Map + regions */}
+      <div className="main-side-lg">
+        {/* World map */}
+        <section className="panel">
+          <div className="panel-head">
+            <div className="panel-head-left">
+              <p className="kicker">World View</p>
+              <h2 className="section-title">Active User Field</h2>
+              <p className="section-sub">Each node is an active session. Click to jump to the Live page for that session.</p>
             </div>
-            <div className="panel-inline-metrics">
-              <div>
-                <span>Markets</span>
-                <strong>{formatNumber(points.length)}</strong>
-              </div>
-              <div>
-                <span>Regions</span>
-                <strong>{formatNumber(regionRows.length)}</strong>
-              </div>
-              <div>
-                <span>Errors</span>
-                <strong>{formatNumber(errorTotal)}</strong>
+            <div className="panel-head-right">
+              <div className="meta-row">
+                <div className="meta-item"><span>Markets</span><strong>{formatNumber(points.length)}</strong></div>
+                <div className="meta-item"><span>Sessions</span><strong>{formatNumber(mappedUsers)}</strong></div>
               </div>
             </div>
           </div>
-
-          <div className="world-map-shell">
+          <div className="panel-body-flush" style={{ minHeight: 480 }}>
             <WorldHeatmap
               marketPoints={points}
               sessionPoints={sessionPoints}
@@ -181,71 +113,37 @@ export function HeatmapPage({
           </div>
         </section>
 
-        <div className="overview-side-stack">
-          <section className="panel panel-dense">
-            <div className="panel-header">
-              <div>
-                <p className="panel-kicker">Regions</p>
-                <h2 className="panel-title">Live regional load</h2>
-                <p className="panel-subtitle">Current active users grouped into macro regions.</p>
-              </div>
+        {/* Regional breakdown */}
+        <section className="panel">
+          <div className="panel-head">
+            <div className="panel-head-left">
+              <p className="kicker">Regions</p>
+              <h2 className="section-title">Regional Load</h2>
             </div>
-
-            <div className="heatmap-region-list">
-              {regionRows.length > 0 ? (
-                regionRows.map((row) => (
-                  <div key={row.label} className="heatmap-region-row">
-                    <div className="heatmap-region-copy">
-                      <strong>{row.label}</strong>
-                      <span>{(row.share * 100).toFixed(1)}% of mapped live users</span>
+          </div>
+          <div className="panel-body-tight">
+            {regionRows.length > 0 ? (
+              <div className="progress-wrap">
+                {regionRows.map((row) => (
+                  <div className="progress-row" key={row.label}>
+                    <div className="progress-head">
+                      <span className="progress-label" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ width: 8, height: 8, borderRadius: 50, background: row.color, display: "inline-block", flexShrink: 0 }} />
+                        {row.label}
+                      </span>
+                      <span className="progress-val">{formatNumber(row.value)}</span>
                     </div>
-                    <div className="heatmap-region-bar">
-                      <span
-                        className="heatmap-region-bar-fill"
-                        style={{
-                          width: `${Math.max(8, row.share * 100)}%`,
-                          backgroundColor: row.color,
-                        }}
-                      />
-                    </div>
-                    <span className="heatmap-region-value">{formatNumber(row.value)}</span>
-                  </div>
-                ))
-              ) : (
-                <div className="empty-panel small">No mapped active regions yet.</div>
-              )}
-            </div>
-          </section>
-
-          <section className="panel panel-dense">
-            <div className="panel-header">
-              <div>
-                <p className="panel-kicker">Markets</p>
-                <h2 className="panel-title">Top live locations</h2>
-                <p className="panel-subtitle">Highest-volume active countries in the current frame.</p>
-              </div>
-            </div>
-
-            <div className="heatmap-location-list">
-              {points.length > 0 ? (
-                points.slice(0, 8).map((point) => (
-                  <div key={point.code ?? point.label} className="heatmap-location-row">
-                    <div className="heatmap-location-copy">
-                      <strong>{point.flag ? `${point.flag} ${point.label}` : point.label}</strong>
-                      <span>{point.region}</span>
-                    </div>
-                    <div className="heatmap-location-side">
-                      <strong>{formatNumber(point.value)}</strong>
-                      <span>{formatNumber(point.errors)} errors</span>
+                    <div className="progress-track">
+                      <div className="progress-fill" style={{ width: `${Math.round(row.share * 100)}%`, background: row.color }} />
                     </div>
                   </div>
-                ))
-              ) : (
-                <div className="empty-panel small">No active locations to rank right now.</div>
-              )}
-            </div>
-          </section>
-        </div>
+                ))}
+              </div>
+            ) : (
+              <div className="empty-state" style={{ padding: "24px 16px" }}><p>No active geographic data.</p></div>
+            )}
+          </div>
+        </section>
       </div>
     </div>
   );

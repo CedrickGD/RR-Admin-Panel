@@ -1,4 +1,6 @@
-import { LogOut } from "lucide-react";
+import { Check, LogOut, Palette, Server, Shield, Sliders } from "lucide-react";
+import { useState } from "react";
+import { ACCENT_PRESETS, useAccent } from "../hooks/useAccent";
 import type { AuthMode, AuthUser, HealthPayload, SummaryPayload } from "../types/telemetry";
 import { formatDate, formatNumber } from "../utils/format";
 
@@ -10,119 +12,240 @@ interface SettingsPageProps {
   onLogout: () => void;
 }
 
-export function SettingsPage({
-  user,
-  authMode,
-  summary,
-  health,
-  onLogout,
-}: SettingsPageProps) {
+export function SettingsPage({ user, authMode, summary, health, onLogout }: SettingsPageProps) {
+  const { hue, setHue, activePreset } = useAccent();
+  const [copied, setCopied] = useState<string | null>(null);
+
+  function copyToClipboard(value: string, key: string) {
+    void navigator.clipboard.writeText(value).then(() => {
+      setCopied(key);
+      setTimeout(() => setCopied(null), 1800);
+    });
+  }
+
   return (
-    <div className="page-content page-content-wide page-stack">
+    <div className="page-content page-stack-lg">
+      {/* Header */}
       <section className="page-header">
         <div>
-          <p className="page-kicker">Configuration</p>
-          <h1 className="page-title">Settings</h1>
-          <p className="page-subtitle">Account and backend information.</p>
+          <p className="kicker">Configuration</p>
+          <h1 className="page-title" style={{ marginTop: 6 }}>Settings</h1>
+          <p className="page-subtitle">Account identity, appearance, and backend configuration.</p>
         </div>
-
-        <div className="page-header-side">
-          <div className="page-meta-stack">
-            <div className="page-meta">
-              <span>Auth mode</span>
-              <strong>{authMode === "access" ? "Zero Trust" : "App auth"}</strong>
-            </div>
-            <div className="page-meta">
-              <span>Storage</span>
-              <strong>{summary.storage.toUpperCase()}</strong>
-            </div>
-            <div className="page-meta">
-              <span>Last ingest</span>
-              <strong>{summary.stats.lastIngestAt ? formatDate(summary.stats.lastIngestAt) : "Waiting"}</strong>
-            </div>
+        <div className="page-header-right">
+          <div className="meta-row">
+            {[
+              { label: "Auth Mode", val: authMode === "access" ? "Zero Trust" : "App Auth" },
+              { label: "Storage",   val: summary.storage.toUpperCase() },
+              { label: "API",       val: health.api === "alive" ? "Online" : "Offline" },
+            ].map((m) => (
+              <div className="meta-item" key={m.label}><span>{m.label}</span><strong>{m.val}</strong></div>
+            ))}
           </div>
         </div>
       </section>
 
-      <div className="content-grid">
+      <div className="two-col">
+        {/* Account */}
         <section className="panel">
-          <div className="panel-header">
-            <div>
-              <h2 className="panel-title">Account</h2>
-              <p className="panel-subtitle">Current dashboard identity.</p>
+          <div className="panel-head">
+            <div className="panel-head-left">
+              <p className="kicker" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <Shield className="h-3 w-3" /> Account
+              </p>
+              <h2 className="section-title">Identity</h2>
             </div>
           </div>
-
-          <div className="info-list">
-            <InfoRow label="Email" value={user.email} />
-            <InfoRow label="Role" value={user.role} />
-            <InfoRow label="Auth mode" value={authMode === "access" ? "Cloudflare Access" : "Email & Password"} />
-          </div>
-
-          {authMode === "app" ? (
-            <div className="section-actions">
-              <button type="button" className="btn-danger" onClick={onLogout}>
-                <LogOut className="h-4 w-4" />
-                Sign Out
-              </button>
+          <div className="panel-body-tight">
+            <div className="kv-list">
+              {[
+                { k: "Email",     v: user.email },
+                { k: "Role",      v: user.role },
+                { k: "Auth Mode", v: authMode === "access" ? "Cloudflare Access (Zero Trust)" : "Email & Password" },
+              ].map(({ k, v }) => (
+                <div className="kv-row" key={k}>
+                  <span className="kv-key">{k}</span>
+                  <span className="kv-val">{v}</span>
+                </div>
+              ))}
             </div>
-          ) : null}
+
+            {authMode === "app" ? (
+              <div style={{ marginTop: 16 }}>
+                <button type="button" className="btn btn-danger btn-sm" onClick={onLogout}>
+                  <LogOut className="h-3.5 w-3.5" />
+                  Sign Out
+                </button>
+              </div>
+            ) : null}
+          </div>
         </section>
 
+        {/* System */}
         <section className="panel">
-          <div className="panel-header">
-            <div>
-              <h2 className="panel-title">System</h2>
-              <p className="panel-subtitle">Build and backend status.</p>
+          <div className="panel-head">
+            <div className="panel-head-left">
+              <p className="kicker" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <Server className="h-3 w-3" /> Backend
+              </p>
+              <h2 className="section-title">System Status</h2>
             </div>
+            <span className={`badge ${health.api === "alive" ? "badge-success" : "badge-danger"}`}>
+              {health.api === "alive" ? "Online" : "Offline"}
+            </span>
           </div>
-
-          <div className="info-list">
-            <InfoRow label="Storage" value={summary.storage.toUpperCase()} />
-            <InfoRow label="API" value={health.api === "alive" ? "Online" : "Offline"} />
-            <InfoRow label="Commit" value={health.build?.commit ?? "unknown"} />
-            <InfoRow label="Branch" value={health.build?.branch ?? "unknown"} />
-            <InfoRow label="Environment" value={health.build?.environment ?? "unknown"} />
+          <div className="panel-body-tight">
+            <div className="kv-list">
+              {[
+                { k: "Storage",     v: summary.storage.toUpperCase() },
+                { k: "API",         v: health.api === "alive" ? "Alive" : "Down" },
+                { k: "Commit",      v: health.build?.commit ?? "unknown" },
+                { k: "Branch",      v: health.build?.branch ?? "unknown" },
+                { k: "Environment", v: health.build?.environment ?? "unknown" },
+              ].map(({ k, v }) => (
+                <div className="kv-row" key={k}>
+                  <span className="kv-key">{k}</span>
+                  <button
+                    type="button"
+                    className="kv-val"
+                    style={{ cursor: "copy", background: "none", border: "none", padding: 0, font: "inherit", color: "inherit" }}
+                    onClick={() => copyToClipboard(v, k)}
+                    title="Click to copy"
+                  >
+                    {copied === k ? (
+                      <span style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--success)" }}>
+                        <Check className="h-3 w-3" /> Copied
+                      </span>
+                    ) : v}
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
       </div>
 
-      <section className="panel">
-        <div className="panel-header">
-          <div>
-            <h2 className="panel-title">Data Summary</h2>
-            <p className="panel-subtitle">Current loaded totals without the low-signal session close metrics.</p>
+      {/* Accent color picker */}
+      <section className="panel" style={{ position: "relative", overflow: "visible" }}>
+        <div className="panel-glow-accent" style={{ position: "absolute", top: 0, left: "10%", right: "10%", height: 1, background: "linear-gradient(90deg, transparent, var(--accent-glow), transparent)" }} />
+        <div className="panel-head">
+          <div className="panel-head-left">
+            <p className="kicker" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <Palette className="h-3 w-3" /> Appearance
+            </p>
+            <h2 className="section-title">Accent Color</h2>
+            <p className="section-sub">
+              Pick any accent hue — all interface highlights, buttons, and glows update instantly. Saved to your browser.
+            </p>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{
+              width: 28, height: 28, borderRadius: 8,
+              background: `hsl(${hue} 83% 62%)`,
+              border: "2px solid rgba(255,255,255,0.15)",
+              boxShadow: `0 0 16px hsl(${hue} 83% 62% / 0.5)`,
+            }} />
+            <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "0.75rem", color: "var(--text-2)" }}>
+              hsl({hue}°)
+            </span>
           </div>
         </div>
 
-        <div className="stats-grid">
-          <Summary label="Total Events" value={formatNumber(summary.stats.totalEvents)} />
-          <Summary label="Total Sessions" value={formatNumber(summary.stats.totalSessions)} />
-          <Summary label="Active Users" value={formatNumber(summary.stats.activeUsers)} />
-          <Summary label="Started Today" value={formatNumber(summary.stats.sessionsStartedToday)} />
-          <Summary label="Errors 24h" value={formatNumber(summary.stats.errorsLast24Hours)} />
-          <Summary label="Recent Errors Loaded" value={formatNumber(summary.recentErrors.length)} />
-          <Summary label="Last Ingest" value={summary.stats.lastIngestAt ? formatDate(summary.stats.lastIngestAt) : "Waiting"} />
+        <div className="panel-body">
+          {/* Preset swatches */}
+          <div style={{ marginBottom: 20 }}>
+            <p className="label-sm" style={{ marginBottom: 12 }}>Presets</p>
+            <div className="accent-picker-swatches">
+              {ACCENT_PRESETS.map((preset) => (
+                <button
+                  key={preset.hue}
+                  type="button"
+                  className={`accent-swatch${preset.hue === hue ? " active" : ""}`}
+                  style={{ background: preset.color }}
+                  onClick={() => setHue(preset.hue)}
+                  title={preset.label}
+                  aria-label={`Set accent to ${preset.label}`}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Hue slider */}
+          <div>
+            <p className="label-sm" style={{ marginBottom: 12 }}>
+              Custom Hue
+              <span style={{ marginLeft: 8, fontFamily: "JetBrains Mono, monospace", color: "var(--text-2)", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>
+                {hue}°
+                {activePreset ? ` — ${activePreset.label}` : ""}
+              </span>
+            </p>
+            <input
+              type="range"
+              min={0}
+              max={360}
+              step={1}
+              value={hue}
+              onChange={(e) => setHue(Number(e.target.value))}
+              className="accent-hue-slider"
+            />
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
+              <span style={{ fontSize: "0.6875rem", color: "var(--text-3)" }}>0°</span>
+              <span style={{ fontSize: "0.6875rem", color: "var(--text-3)" }}>360°</span>
+            </div>
+          </div>
+
+          {/* Preview */}
+          <div style={{ marginTop: 24, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+            <p className="label-sm" style={{ width: "100%", marginBottom: 4 }}>Preview</p>
+            <button type="button" className="btn btn-primary btn-sm">Primary Button</button>
+            <button type="button" className="btn btn-ghost btn-sm">Ghost Button</button>
+            <span className="badge badge-accent">Accent Badge</span>
+            <span className="badge-live">Live</span>
+            <div style={{
+              padding: "8px 14px",
+              borderRadius: 8,
+              background: "var(--accent-subtle)",
+              border: "1px solid var(--accent-glow)",
+              fontSize: "0.8125rem",
+              color: "var(--accent-text)",
+            }}>
+              Accent card
+            </div>
+          </div>
         </div>
       </section>
-    </div>
-  );
-}
 
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="info-row">
-      <span className="info-label">{label}</span>
-      <span className="info-value">{value}</span>
-    </div>
-  );
-}
-
-function Summary({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="simple-stat">
-      <p className="simple-stat-label">{label}</p>
-      <p className="simple-stat-value">{value}</p>
+      {/* Data summary */}
+      <section className="panel">
+        <div className="panel-head">
+          <div className="panel-head-left">
+            <p className="kicker" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <Sliders className="h-3 w-3" /> Telemetry
+            </p>
+            <h2 className="section-title">Data Summary</h2>
+            <p className="section-sub">Current loaded totals from the last dashboard refresh.</p>
+          </div>
+        </div>
+        <div className="panel-body">
+          <div className="stat-grid">
+            {[
+              { label: "Total Events",      val: formatNumber(summary.stats.totalEvents) },
+              { label: "Total Sessions",    val: formatNumber(summary.stats.totalSessions) },
+              { label: "Active Users",      val: formatNumber(summary.stats.activeUsers) },
+              { label: "Started Today",     val: formatNumber(summary.stats.sessionsStartedToday) },
+              { label: "Errors 24h",        val: formatNumber(summary.stats.errorsLast24Hours) },
+              { label: "Errors Loaded",     val: formatNumber(summary.recentErrors.length) },
+              { label: "Sessions Loaded",   val: formatNumber(summary.recentSessions.length) },
+              { label: "Last Ingest",       val: summary.stats.lastIngestAt ? formatDate(summary.stats.lastIngestAt) : "Waiting" },
+            ].map((s) => (
+              <div className="stat-card" key={s.label}>
+                <span className="stat-label">{s.label}</span>
+                <strong className="stat-value" style={{ fontSize: "1.35rem" }}>{s.val}</strong>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
     </div>
   );
 }

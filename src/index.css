@@ -602,7 +602,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 .btn-primary:hover:not(:disabled) {
   background: var(--accent-bright);
-  box-shadow: 0 0 0 6px var(--accent-glow), 0 4px 16px -4px var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
 }
 
 .btn-ghost {

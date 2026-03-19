@@ -156,11 +156,7 @@ export function WorkersPage({ summary }: WorkersPageProps) {
           <h1 className="page-title" style={{ marginTop: 6 }}>Sessions</h1>
           <p className="page-subtitle">Searchable user directory — one row per unique user, latest snapshot.</p>
         </div>
-        <div className="page-header-right">
-          <button type="button" className="btn btn-primary btn-sm" onClick={() => void handleExport()} disabled={exporting}>
-            <Download className="h-3.5 w-3.5" />
-            {exporting ? "Preparing…" : "Export TXT"}
-          </button>
+        <div className="page-header-right" style={{ flexDirection: "column", alignItems: "flex-end", gap: 10 }}>
           <div className="meta-row">
             {[
               { label: "Visible",  val: formatNumber(sessions.length) },
@@ -170,6 +166,10 @@ export function WorkersPage({ summary }: WorkersPageProps) {
               <div className="meta-item" key={m.label}><span>{m.label}</span><strong>{m.val}</strong></div>
             ))}
           </div>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => void handleExport()} disabled={exporting}>
+            <Download className="h-3.5 w-3.5" />
+            {exporting ? "Preparing…" : "Export TXT"}
+          </button>
         </div>
       </section>
 

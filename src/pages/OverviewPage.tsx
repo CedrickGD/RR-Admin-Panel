@@ -298,7 +298,7 @@ export function OverviewPage({ summary, theme, accentHue = 217 }: OverviewPagePr
         </div>
 
         {/* Side panels — stretch to match left column height */}
-        <div className="side-stack" style={{ height: "100%" }}>
+        <div className="side-stack" style={{ alignSelf: "stretch" }}>
           {/* System context */}
           <section className="panel">
             <div className="panel-head">
@@ -320,7 +320,7 @@ export function OverviewPage({ summary, theme, accentHue = 217 }: OverviewPagePr
           </section>
 
           {/* Recent failures */}
-          <section className="panel" style={{ flex: 1 }}>
+          <section className="panel" style={{ flex: 1, display: "flex", flexDirection: "column" }}>
             <div className="panel-head">
               <div className="panel-head-left">
                 <p className="kicker">Failures</p>
@@ -332,7 +332,7 @@ export function OverviewPage({ summary, theme, accentHue = 217 }: OverviewPagePr
                 <span className="badge badge-success">Clear</span>
               )}
             </div>
-            <div className="panel-body-tight">
+            <div className="panel-body-tight" style={{ flex: 1 }}>
               {recentSignals.length > 0 ? (
                 <div className="signal-list">
                   {recentSignals.map((error) => (

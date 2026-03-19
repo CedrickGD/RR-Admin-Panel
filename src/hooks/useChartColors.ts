@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 
 const STORAGE_KEY = "rr-chart-color-preset";
 
@@ -18,7 +18,8 @@ export const CHART_COLOR_PRESETS: ChartColorPreset[] = [
   { label: "Violet", users: "#a78bfa", sessions: "rgba(167,139,250,0.25)", errors: "#fb923c" },
 ];
 
-function loadPreset(): ChartColorPreset | null {
+// Simple in-memory store that syncs to localStorage and notifies all subscribers
+let currentPreset: ChartColorPreset | null = (() => {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (!stored || stored === "Default") return null;
@@ -26,16 +27,32 @@ function loadPreset(): ChartColorPreset | null {
   } catch {
     return null;
   }
+})();
+
+const listeners = new Set<() => void>();
+
+function subscribe(callback: () => void) {
+  listeners.add(callback);
+  return () => { listeners.delete(callback); };
+}
+
+function getSnapshot(): ChartColorPreset | null {
+  return currentPreset;
+}
+
+function setPresetInternal(preset: ChartColorPreset | null) {
+  currentPreset = preset;
+  try {
+    localStorage.setItem(STORAGE_KEY, preset?.label ?? "Default");
+  } catch { /* ignore */ }
+  for (const listener of listeners) listener();
 }
 
 export function useChartColors() {
-  const [override, setOverrideState] = useState<ChartColorPreset | null>(loadPreset);
+  const override = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
   const setPreset = useCallback((preset: ChartColorPreset | null) => {
-    setOverrideState(preset);
-    try {
-      localStorage.setItem(STORAGE_KEY, preset?.label ?? "Default");
-    } catch { /* ignore */ }
+    setPresetInternal(preset);
   }, []);
 
   const activeLabel = override?.label ?? "Default";

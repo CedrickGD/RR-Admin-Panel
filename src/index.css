@@ -1304,6 +1304,19 @@ h1, h2, h3, h4, h5, h6 {
 .world-heatmap-floating-session { margin-top: 6px; font-family: "JetBrains Mono", monospace; font-size: 11px; color: var(--accent); }
 .world-heatmap-floating-actions { margin-top: 12px; gap: 6px; }
 
+.world-heatmap-info-btn {
+  position: absolute; top: 14px; left: 14px; z-index: 3;
+  display: flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(8,12,22,0.82);
+  backdrop-filter: blur(12px) saturate(160%);
+  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  color: var(--text-2); cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.world-heatmap-info-btn:hover { background: rgba(8,12,22,0.95); color: var(--accent); }
+
 .world-heatmap-action-stack {
   position: absolute; right: 14px; bottom: 14px;
   z-index: 3; flex-direction: column; gap: 6px;

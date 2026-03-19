@@ -1,4 +1,4 @@
-import { Crosshair, Globe2, LocateFixed } from "lucide-react";
+import { Crosshair, Globe2, Info, LocateFixed, X } from "lucide-react";
 import maplibregl, {
   type GeoJSONSource,
   LngLatBounds,
@@ -605,6 +605,7 @@ export function WorldHeatmap({
   const [mapReady, setMapReady] = useState(false);
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const [zoom, setZoom] = useState(INITIAL_ZOOM);
+  const [showPanel, setShowPanel] = useState(false);
   const marketMarkerPoints = useMemo(() => buildMarketPoints(marketPoints), [marketPoints]);
   const sessionMarkerPoints = useMemo(() => buildSessionPoints(sessionPoints), [sessionPoints]);
   const connections = useMemo(() => buildConnections(marketMarkerPoints), [marketMarkerPoints]);
@@ -889,33 +890,42 @@ export function WorldHeatmap({
         <div ref={containerRef} className="world-heatmap-map" />
         <div className="world-heatmap-overlay" />
 
-        <div className="world-heatmap-floating-panel">
-          <div className="world-heatmap-floating-head">
-            <Globe2 className="h-4 w-4" />
-            <span>Live Earth</span>
-          </div>
-          <strong>
-            {activePoint ? `${activePoint.flag ? `${activePoint.flag} ` : ""}${activePoint.label}` : "Select a live node"}
-          </strong>
-          {activePoint?.userLabel?.trim() ? (
-            <div className="world-heatmap-floating-session">{activePoint.userLabel.trim()}</div>
-          ) : null}
-          <p>
-            {activePoint
-              ? `${activePoint.locationLabel !== activePoint.label ? `${activePoint.locationLabel} · ` : ""}${formatNumber(activePoint.marketValue)} live sessions · ${activePoint.region}`
-              : "Click a turquoise pulse to lock its label. Click that same pulse again, or use the action below, to jump into the live session table."}
-          </p>
-          {activePoint ? (
-            <div className="world-heatmap-floating-actions">
-              <button type="button" className="btn-primary" onClick={openActiveSession}>
-                Open live session
-              </button>
-              <button type="button" className="btn-ghost" onClick={() => setActiveKey(null)}>
-                Clear
+        {showPanel ? (
+          <div className="world-heatmap-floating-panel">
+            <div className="world-heatmap-floating-head">
+              <Globe2 className="h-4 w-4" />
+              <span>Live Earth</span>
+              <button type="button" className="btn-icon" style={{ marginLeft: "auto", padding: 2 }} onClick={() => setShowPanel(false)} aria-label="Close">
+                <X className="h-3.5 w-3.5" />
               </button>
             </div>
-          ) : null}
-        </div>
+            <strong>
+              {activePoint ? `${activePoint.flag ? `${activePoint.flag} ` : ""}${activePoint.label}` : "Select a live node"}
+            </strong>
+            {activePoint?.userLabel?.trim() ? (
+              <div className="world-heatmap-floating-session">{activePoint.userLabel.trim()}</div>
+            ) : null}
+            <p>
+              {activePoint
+                ? `${activePoint.locationLabel !== activePoint.label ? `${activePoint.locationLabel} · ` : ""}${formatNumber(activePoint.marketValue)} live sessions · ${activePoint.region}`
+                : "Click a turquoise pulse to lock its label. Click that same pulse again, or use the action below, to jump into the live session table."}
+            </p>
+            {activePoint ? (
+              <div className="world-heatmap-floating-actions">
+                <button type="button" className="btn-primary" onClick={openActiveSession}>
+                  Open live session
+                </button>
+                <button type="button" className="btn-ghost" onClick={() => setActiveKey(null)}>
+                  Clear
+                </button>
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <button type="button" className="world-heatmap-info-btn" onClick={() => setShowPanel(true)} aria-label="Show info panel">
+            <Info className="h-4 w-4" />
+          </button>
+        )}
 
         <div className="world-heatmap-action-stack">
           <button type="button" className="world-heatmap-chip" onClick={focusLiveMarkets}>

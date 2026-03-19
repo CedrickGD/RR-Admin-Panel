@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Sector, Tooltip, type SectorProps } from "recharts";
 import { formatNumber } from "../../utils/format";
 import { TelemetryChartTooltip } from "./TelemetryChartTooltip";
@@ -30,6 +30,9 @@ export function GeoDonutChart({
   const activeItem = data[resolvedIndex] ?? null;
   const total = data.reduce((sum, item) => sum + item.value, 0);
 
+  // Generate unique filter IDs for glow effects
+  const filterId = useMemo(() => `donut-glow-${Math.random().toString(36).slice(2, 8)}`, []);
+
   if (data.length === 0) {
     return <div className="empty-panel small">{emptyLabel}</div>;
   }
@@ -39,6 +42,19 @@ export function GeoDonutChart({
       <div className="donut-chart-frame">
         <ResponsiveContainer width="100%" height={250}>
           <PieChart>
+            <defs>
+              {data.map((entry, index) => (
+                <filter key={`${filterId}-${index}`} id={`${filterId}-${index}`} x="-30%" y="-30%" width="160%" height="160%">
+                  <feGaussianBlur in="SourceGraphic" stdDeviation={index === resolvedIndex ? 4 : 2} result="blur" />
+                  <feFlood floodColor={entry.color} floodOpacity={index === resolvedIndex ? 0.5 : 0.25} />
+                  <feComposite in2="blur" operator="in" />
+                  <feMerge>
+                    <feMergeNode />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                </filter>
+              ))}
+            </defs>
             <Tooltip
               content={({ active, payload }) => {
                 const entry = payload?.[0]?.payload as DonutDatum | undefined;
@@ -78,16 +94,25 @@ export function GeoDonutChart({
                 <Sector
                   {...props}
                   outerRadius={Number(props.outerRadius ?? 0) + 8}
+                  style={{ filter: `drop-shadow(0 0 8px ${data[resolvedIndex]?.color ?? "#fff"})` }}
                 />
               )}
+              animationDuration={500}
+              animationEasing="ease-out"
             >
               {data.map((entry, index) => (
                 <Cell
                   key={`${entry.label}-${index}`}
                   fill={entry.color}
-                  fillOpacity={index === resolvedIndex ? 1 : 0.78}
-                  stroke="rgba(255,255,255,0.12)"
+                  fillOpacity={index === resolvedIndex ? 1 : 0.82}
+                  stroke={index === resolvedIndex ? entry.color : "rgba(255,255,255,0.12)"}
                   strokeWidth={index === resolvedIndex ? 2 : 1}
+                  style={{
+                    filter: index === resolvedIndex
+                      ? `drop-shadow(0 0 6px ${entry.color})`
+                      : `drop-shadow(0 0 3px ${entry.color}40)`,
+                    transition: "filter 0.2s ease",
+                  }}
                 />
               ))}
             </Pie>
@@ -119,7 +144,10 @@ export function GeoDonutChart({
               <span className="donut-legend-label">
                 <span
                   className="donut-legend-dot"
-                  style={{ backgroundColor: entry.color }}
+                  style={{
+                    backgroundColor: entry.color,
+                    boxShadow: `0 0 6px ${entry.color}`,
+                  }}
                 />
                 {entry.flag ? `${entry.flag} ${entry.label}` : entry.label}
               </span>

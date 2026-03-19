@@ -158,20 +158,20 @@ export function getMacroRegion(value: CountryGeo | string | null | undefined): s
 export function getRegionColor(region: string): string {
   switch (region) {
     case "North America":
-      return "#6f88a8";
+      return "#5b9cf5";
     case "South America":
-      return "#73937b";
+      return "#34d399";
     case "Europe":
-      return "#8d87a4";
+      return "#a78bfa";
     case "Asia":
-      return "#b79969";
+      return "#fbbf24";
     case "Africa":
-      return "#b27d63";
+      return "#fb923c";
     case "Oceania":
-      return "#aa7f86";
+      return "#f472b6";
     case "Antarctica":
-      return "#77a3a2";
+      return "#22d3ee";
     default:
-      return "#8e99a7";
+      return "#94a3b8";
   }
 }

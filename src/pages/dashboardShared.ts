@@ -1,7 +1,7 @@
 import type { ChartColorPreset } from "../hooks/useChartColors";
 import type { ThemeMode } from "../types/telemetry";
 
-export const COUNTRY_COLORS = ["#5c79b9", "#3f8790", "#8e6bb0", "#9d7c4e", "#587189", "#7f5f69"];
+export const COUNTRY_COLORS = ["#6b8de3", "#22d3ee", "#a78bfa", "#fbbf24", "#f472b6", "#34d399"];
 
 export const TIMEZONE_PANELS = [
   { title: "UTC", subtitle: "Universal reference clock", timeZone: "UTC", accent: "#5c79b9" },

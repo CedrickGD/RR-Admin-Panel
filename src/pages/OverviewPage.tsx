@@ -1,5 +1,5 @@
-import { Activity, AlertTriangle, Clock, Globe2, RotateCcw, TrendingUp, Users } from "lucide-react";
-import { type ReactNode, useMemo } from "react";
+import { Activity, AlertTriangle, Clock, Globe2, Palette, RotateCcw, TrendingUp, Users, X } from "lucide-react";
+import { type ReactNode, useCallback, useMemo, useState } from "react";
 import {
   Area,
   Bar,
@@ -31,10 +31,31 @@ interface MetricCard {
   tone?: "success" | "warning" | "danger" | "default";
 }
 
+const TIME_WINDOWS = [
+  { label: "1h", hours: 1 },
+  { label: "3h", hours: 3 },
+  { label: "6h", hours: 6 },
+  { label: "12h", hours: 12 },
+  { label: "24h", hours: 24 },
+] as const;
+
+const COLOR_PRESETS = [
+  { label: "Default", users: "#6b8de3", sessions: "rgba(107,141,227,0.25)", errors: "#e06b6b" },
+  { label: "Emerald", users: "#34d399", sessions: "rgba(52,211,153,0.25)", errors: "#f87171" },
+  { label: "Amber", users: "#fbbf24", sessions: "rgba(251,191,36,0.25)", errors: "#ef4444" },
+  { label: "Rose", users: "#fb7185", sessions: "rgba(251,113,133,0.25)", errors: "#a78bfa" },
+  { label: "Cyan", users: "#22d3ee", sessions: "rgba(34,211,238,0.25)", errors: "#f472b6" },
+  { label: "Violet", users: "#a78bfa", sessions: "rgba(167,139,250,0.25)", errors: "#fb923c" },
+] as const;
+
 export function OverviewPage({ summary, theme, accentHue = 217 }: OverviewPageProps) {
   const traffic = useMemo(() => buildTrafficTimeline(summary, 24, "UTC"), [summary]);
   const regions = useMemo(() => buildRegionBreakdown(summary), [summary]);
-  const chartPalette = useMemo(() => buildDashboardChartPalette(theme, accentHue), [theme, accentHue]);
+  const defaultPalette = useMemo(() => buildDashboardChartPalette(theme, accentHue), [theme, accentHue]);
+
+  const [activeWindow, setActiveWindow] = useState(24);
+  const [colorOverride, setColorOverride] = useState<typeof COLOR_PRESETS[number] | null>(null);
+  const [showColorPicker, setShowColorPicker] = useState(false);
 
   const zoom = useChartZoom(traffic.length);
   const visibleTraffic = useMemo(() => traffic.slice(zoom.visibleStart, zoom.visibleEnd), [traffic, zoom.visibleStart, zoom.visibleEnd]);
@@ -50,6 +71,30 @@ export function OverviewPage({ summary, theme, accentHue = 217 }: OverviewPagePr
   const latestError = summary.recentErrors[0];
   const recentSignals = summary.recentErrors.slice(0, 6);
   const windowHours = zoom.visibleEnd - zoom.visibleStart;
+
+  // Resolve chart colors
+  const chartColors = useMemo(() => {
+    if (colorOverride) {
+      return {
+        grid: defaultPalette.grid,
+        axis: defaultPalette.axis,
+        axisSoft: defaultPalette.axisSoft,
+        activityBar: colorOverride.sessions,
+        sessionsLine: colorOverride.users,
+        errorsLine: colorOverride.errors,
+      };
+    }
+    return defaultPalette;
+  }, [colorOverride, defaultPalette]);
+
+  const handleTimeWindow = useCallback((hours: number) => {
+    setActiveWindow(hours);
+    if (hours >= 24) {
+      zoom.resetZoom();
+    } else {
+      zoom.setWindow(hours);
+    }
+  }, [zoom]);
 
   const metrics: MetricCard[] = [
     {
@@ -109,9 +154,6 @@ export function OverviewPage({ summary, theme, accentHue = 217 }: OverviewPagePr
         <div>
           <p className="kicker">Production Operations</p>
           <h1 className="page-title" style={{ marginTop: 6 }}>Overview</h1>
-          <p className="page-subtitle">
-            Operational posture at a glance. Use the navbar to drill into Traffic, Signals, or Live sessions.
-          </p>
         </div>
         <div className="page-header-right">
           <div className="meta-row">
@@ -155,7 +197,7 @@ export function OverviewPage({ summary, theme, accentHue = 217 }: OverviewPagePr
                   : "Scroll inside chart to zoom in"}
               </p>
             </div>
-            <div className="panel-head-right" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div className="panel-head-right" style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <div className="meta-row">
                 {[
                   { label: "Peak Users/h", val: formatNumber(totals.peakUsers) },
@@ -168,29 +210,141 @@ export function OverviewPage({ summary, theme, accentHue = 217 }: OverviewPagePr
                   </div>
                 ))}
               </div>
-              {zoom.isZoomed ? (
-                <button type="button" className="btn btn-ghost btn-sm" onClick={zoom.resetZoom} title="Reset zoom">
-                  <RotateCcw className="h-3 w-3" /> Reset
-                </button>
-              ) : null}
             </div>
           </div>
+
+          {/* Time window buttons + controls */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px 4px", gap: 8 }}>
+            <div className="seg-control">
+              {TIME_WINDOWS.map((tw) => (
+                <button
+                  key={tw.label}
+                  type="button"
+                  className={`seg-btn${activeWindow === tw.hours && !zoom.isZoomed ? " active" : activeWindow === tw.hours && zoom.isZoomed ? "" : ""}`}
+                  onClick={() => handleTimeWindow(tw.hours)}
+                  style={activeWindow === tw.hours ? { color: "var(--text-1)" } : undefined}
+                >
+                  {tw.label}
+                </button>
+              ))}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              {/* Color picker toggle */}
+              <div style={{ position: "relative" }}>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setShowColorPicker((v) => !v)}
+                  title="Chart colors"
+                  style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 8px" }}
+                >
+                  <Palette className="h-3.5 w-3.5" />
+                </button>
+
+                {/* Color picker dropdown */}
+                {showColorPicker && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "calc(100% + 6px)",
+                      right: 0,
+                      zIndex: 50,
+                      background: "rgba(10, 10, 20, 0.94)",
+                      backdropFilter: "blur(20px) saturate(180%)",
+                      WebkitBackdropFilter: "blur(20px) saturate(180%)",
+                      border: "1px solid rgba(255,255,255,0.10)",
+                      borderRadius: 12,
+                      padding: 12,
+                      minWidth: 180,
+                      boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                      <span style={{ fontSize: "0.72rem", fontWeight: 600, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Chart Colors</span>
+                      <button type="button" onClick={() => setShowColorPicker(false)} style={{ color: "rgba(255,255,255,0.4)", background: "none", border: "none", cursor: "pointer", padding: 2 }}>
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      {COLOR_PRESETS.map((preset) => {
+                        const isActive = colorOverride === preset || (!colorOverride && preset.label === "Default");
+                        return (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            onClick={() => {
+                              setColorOverride(preset.label === "Default" ? null : preset);
+                              setShowColorPicker(false);
+                            }}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 10,
+                              padding: "7px 10px",
+                              borderRadius: 8,
+                              border: "none",
+                              cursor: "pointer",
+                              background: isActive ? "rgba(255,255,255,0.08)" : "transparent",
+                              transition: "background 0.15s",
+                            }}
+                            onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }}
+                            onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
+                          >
+                            <div style={{ display: "flex", gap: 3 }}>
+                              <span style={{ width: 10, height: 10, borderRadius: "50%", background: preset.users, boxShadow: `0 0 5px ${preset.users}` }} />
+                              <span style={{ width: 10, height: 10, borderRadius: "50%", background: preset.errors, boxShadow: `0 0 5px ${preset.errors}` }} />
+                            </div>
+                            <span style={{ fontSize: "0.78rem", color: isActive ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.6)", fontWeight: isActive ? 500 : 400 }}>
+                              {preset.label}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {zoom.isZoomed && (
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => { zoom.resetZoom(); setActiveWindow(24); }} title="Reset zoom" style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 8px" }}>
+                  <RotateCcw className="h-3 w-3" /> Reset
+                </button>
+              )}
+            </div>
+          </div>
+
           <div className="panel-body">
-            {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
-            <div className="chart-wrap chart-wrap-tall" ref={zoom.containerRef} onWheel={zoom.onWheel} style={{ cursor: "ns-resize" }}>
+            <div className="chart-wrap chart-wrap-tall" ref={zoom.containerRef} style={{ cursor: "ns-resize" }}>
               <ResponsiveContainer width="100%" height={300}>
                 <ComposedChart data={visibleTraffic} margin={{ top: 8, right: 8, left: -14, bottom: 0 }}>
                   <defs>
                     <linearGradient id="usersFillOverview" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%"   stopColor={chartPalette.sessionsLine} stopOpacity={0.18} />
-                      <stop offset="100%" stopColor={chartPalette.sessionsLine} stopOpacity={0.01} />
+                      <stop offset="0%"   stopColor={chartColors.sessionsLine} stopOpacity={0.22} />
+                      <stop offset="50%"  stopColor={chartColors.sessionsLine} stopOpacity={0.08} />
+                      <stop offset="100%" stopColor={chartColors.sessionsLine} stopOpacity={0.01} />
+                    </linearGradient>
+                    <linearGradient id="errorsFillOverview" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%"   stopColor={chartColors.errorsLine} stopOpacity={0.15} />
+                      <stop offset="100%" stopColor={chartColors.errorsLine} stopOpacity={0.01} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid stroke={chartPalette.grid} vertical={false} />
-                  <XAxis dataKey="shortLabel" tickLine={false} axisLine={false} minTickGap={20} tick={{ fill: chartPalette.axis, fontSize: 10.5 }} />
-                  <YAxis tickLine={false} axisLine={false} width={32} allowDecimals={false} tick={{ fill: chartPalette.axisSoft, fontSize: 10.5 }} />
+                  <CartesianGrid stroke={chartColors.grid} vertical={false} strokeDasharray="3 6" />
+                  <XAxis
+                    dataKey="shortLabel"
+                    tickLine={false}
+                    axisLine={false}
+                    minTickGap={20}
+                    tick={{ fill: chartColors.axis, fontSize: 10.5 }}
+                  />
+                  <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    width={32}
+                    allowDecimals={false}
+                    tick={{ fill: chartColors.axisSoft, fontSize: 10.5 }}
+                  />
                   <Tooltip
-                    cursor={false}
+                    cursor={{ stroke: "rgba(255,255,255,0.08)", strokeWidth: 1 }}
                     content={({ active, payload, label }) => (
                       <TelemetryChartTooltip
                         active={active}
@@ -203,9 +357,51 @@ export function OverviewPage({ summary, theme, accentHue = 217 }: OverviewPagePr
                       />
                     )}
                   />
-                  <Area type="monotone" dataKey="users" name="Active users" stroke={chartPalette.sessionsLine} strokeWidth={2.2} fill="url(#usersFillOverview)" dot={false} activeDot={{ r: 4, strokeWidth: 0, fill: chartPalette.sessionsLine }} />
-                  <Bar dataKey="started" name="New sessions" fill={chartPalette.activityBar} radius={[5, 5, 0, 0]} barSize={zoom.isZoomed ? 18 : 10} />
-                  <Area type="monotone" dataKey="errors" name="Errors" stroke={chartPalette.errorsLine} strokeWidth={1.8} fill="none" dot={false} activeDot={{ r: 4, strokeWidth: 0, fill: chartPalette.errorsLine }} />
+                  <Area
+                    type="natural"
+                    dataKey="users"
+                    name="Active users"
+                    stroke={chartColors.sessionsLine}
+                    strokeWidth={2.4}
+                    fill="url(#usersFillOverview)"
+                    dot={false}
+                    activeDot={{
+                      r: 5,
+                      strokeWidth: 2,
+                      stroke: "rgba(0,0,0,0.3)",
+                      fill: chartColors.sessionsLine,
+                      style: { filter: `drop-shadow(0 0 4px ${chartColors.sessionsLine})` },
+                    }}
+                    animationDuration={600}
+                    animationEasing="ease-out"
+                  />
+                  <Bar
+                    dataKey="started"
+                    name="New sessions"
+                    fill={chartColors.activityBar}
+                    radius={[6, 6, 0, 0]}
+                    barSize={zoom.isZoomed ? 18 : 10}
+                    animationDuration={600}
+                    animationEasing="ease-out"
+                  />
+                  <Area
+                    type="natural"
+                    dataKey="errors"
+                    name="Errors"
+                    stroke={chartColors.errorsLine}
+                    strokeWidth={1.8}
+                    fill="url(#errorsFillOverview)"
+                    dot={false}
+                    activeDot={{
+                      r: 4,
+                      strokeWidth: 2,
+                      stroke: "rgba(0,0,0,0.3)",
+                      fill: chartColors.errorsLine,
+                      style: { filter: `drop-shadow(0 0 4px ${chartColors.errorsLine})` },
+                    }}
+                    animationDuration={600}
+                    animationEasing="ease-out"
+                  />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>

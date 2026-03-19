@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type WheelEvent } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const MIN_WINDOW = 4;
 
@@ -15,23 +15,26 @@ export function useChartZoom(totalPoints: number) {
   const visibleEnd = Math.min(totalPoints, Math.max(range.end, visibleStart + MIN_WINDOW));
   const isZoomed = visibleStart > 0 || visibleEnd < totalPoints;
 
-  const onWheel = useCallback(
-    (e: WheelEvent<HTMLDivElement>) => {
+  // Use native event listener so we can call preventDefault on a non-passive wheel event
+  // This prevents the page from scrolling when the user scrolls inside the chart
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handler = (e: WheelEvent) => {
       e.preventDefault();
-      const container = containerRef.current;
-      if (!container) return;
+      e.stopPropagation();
 
       const rect = container.getBoundingClientRect();
-      const mouseX = (e.clientX - rect.left) / rect.width; // 0..1 position
+      const mouseX = (e.clientX - rect.left) / rect.width;
 
       setRange((prev) => {
         const currentWindow = prev.end - prev.start;
-        const zoomFactor = e.deltaY > 0 ? 1.25 : 0.8; // scroll down = zoom out, up = zoom in
+        const zoomFactor = e.deltaY > 0 ? 1.25 : 0.8;
         const newWindow = Math.max(MIN_WINDOW, Math.min(totalPoints, Math.round(currentWindow * zoomFactor)));
 
         if (newWindow === currentWindow) return prev;
 
-        // Anchor zoom around mouse position
         const anchor = prev.start + mouseX * currentWindow;
         const newStart = Math.round(anchor - mouseX * newWindow);
         const clampedStart = Math.max(0, Math.min(totalPoints - newWindow, newStart));
@@ -39,13 +42,21 @@ export function useChartZoom(totalPoints: number) {
 
         return { start: clampedStart, end: clampedEnd };
       });
-    },
-    [totalPoints],
-  );
+    };
+
+    container.addEventListener("wheel", handler, { passive: false });
+    return () => container.removeEventListener("wheel", handler);
+  }, [totalPoints]);
+
+  const setWindow = useCallback((hours: number) => {
+    const end = totalPoints;
+    const start = Math.max(0, end - hours);
+    setRange({ start, end });
+  }, [totalPoints]);
 
   const resetZoom = useCallback(() => {
     setRange({ start: 0, end: totalPoints });
   }, [totalPoints]);
 
-  return { visibleStart, visibleEnd, isZoomed, onWheel, resetZoom, containerRef };
+  return { visibleStart, visibleEnd, isZoomed, resetZoom, setWindow, containerRef };
 }

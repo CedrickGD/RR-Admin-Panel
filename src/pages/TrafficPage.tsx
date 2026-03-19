@@ -116,8 +116,7 @@ export function TrafficPage({ summary, theme, accentHue = 217 }: TrafficPageProp
           </div>
         </div>
         <div className="panel-body">
-          {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
-          <div className="chart-wrap chart-wrap-tall" ref={zoom.containerRef} onWheel={zoom.onWheel} style={{ cursor: "ns-resize" }}>
+          <div className="chart-wrap chart-wrap-tall" ref={zoom.containerRef} style={{ cursor: "ns-resize" }}>
             <ResponsiveContainer width="100%" height={300}>
               <ComposedChart data={visibleTraffic} margin={{ top: 8, right: 8, left: -14, bottom: 0 }}>
                 <defs>

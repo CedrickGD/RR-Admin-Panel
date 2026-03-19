@@ -117,8 +117,8 @@ function readDownloadFilename(contentDisposition: string | null): string | null 
     return null;
   }
 
-  const match = contentDisposition.match(/filename="?([^"]+)"?/i);
-  return match?.[1]?.trim() || null;
+  const match = contentDisposition.match(/filename="([^"]+)"|filename=([^\s;]+)/i);
+  return (match?.[1] ?? match?.[2])?.trim() || null;
 }
 
 function defaultExportName(): string {

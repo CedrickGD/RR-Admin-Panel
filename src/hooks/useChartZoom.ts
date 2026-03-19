@@ -7,9 +7,11 @@ export function useChartZoom(totalPoints: number) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Reset range when data size changes
-  if (range.end > totalPoints) {
-    setRange({ start: 0, end: totalPoints });
-  }
+  useEffect(() => {
+    if (range.end > totalPoints) {
+      setRange({ start: 0, end: totalPoints });
+    }
+  }, [totalPoints, range.end]);
 
   const visibleStart = Math.max(0, Math.min(range.start, totalPoints - MIN_WINDOW));
   const visibleEnd = Math.min(totalPoints, Math.max(range.end, visibleStart + MIN_WINDOW));

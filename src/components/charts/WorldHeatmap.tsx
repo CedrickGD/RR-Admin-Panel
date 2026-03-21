@@ -868,16 +868,12 @@ export function WorldHeatmap({
     onOpenSession(activePoint.key);
   }
 
-  if (sessionMarkerPoints.length === 0) {
-    return <div className="empty-panel small">No active geo signals are available right now.</div>;
-  }
-
   return (
     <div className={`world-heatmap world-heatmap-live world-heatmap-${theme}`}>
       <div className="world-heatmap-toolbar">
         <div className="world-heatmap-hint">
           <span>Interactive map</span>
-          <strong>Every active session gets its own micro-node. Click a pulse to lock its label, then open that exact user in Live.</strong>
+          <strong>{sessionMarkerPoints.length > 0 ? "Every active session gets its own micro-node. Click a pulse to lock its label, then open that exact user in Live." : "No active sessions right now. The map stays ready for when users come online."}</strong>
         </div>
         <div className="world-heatmap-toolbar-metrics">
           <div>

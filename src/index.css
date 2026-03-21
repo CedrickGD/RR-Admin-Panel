@@ -1337,6 +1337,17 @@ h1, h2, h3, h4, h5, h6 {
 .world-heatmap-chip:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.14); }
 .world-heatmap-chip:disabled { opacity: 0.4; cursor: not-allowed; }
 
+.world-heatmap-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: var(--bg-1, #0a0e14);
+  overflow-y: auto;
+}
+.world-heatmap-fullscreen .world-heatmap-map-shell {
+  min-height: calc(100vh - 100px);
+}
+
 .world-heatmap-map canvas { filter: saturate(0.8) contrast(1.04); }
 .world-heatmap-map .maplibregl-map { font-family: "Inter", system-ui, sans-serif; }
 .world-heatmap-map .maplibregl-canvas-container.maplibregl-interactive { cursor: grab; }

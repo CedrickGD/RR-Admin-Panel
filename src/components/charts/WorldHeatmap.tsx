@@ -1,4 +1,4 @@
-import { Crosshair, Globe2, Info, LocateFixed, X } from "lucide-react";
+import { Crosshair, Globe2, Info, LocateFixed, Maximize2, Minimize2, X } from "lucide-react";
 import maplibregl, {
   type GeoJSONSource,
   LngLatBounds,
@@ -615,6 +615,7 @@ export function WorldHeatmap({
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const [zoom, setZoom] = useState(INITIAL_ZOOM);
   const [showPanel, setShowPanel] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
   const marketMarkerPoints = useMemo(() => buildMarketPoints(marketPoints), [marketPoints]);
   const sessionMarkerPoints = useMemo(() => buildSessionPoints(sessionPoints), [sessionPoints]);
   const connections = useMemo(() => buildConnections(marketMarkerPoints), [marketMarkerPoints]);
@@ -632,6 +633,21 @@ export function WorldHeatmap({
   useEffect(() => {
     connectionsRef.current = connections;
   }, [connections]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    requestAnimationFrame(() => map.resize());
+  }, [fullscreen]);
+
+  useEffect(() => {
+    if (!fullscreen) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setFullscreen(false);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [fullscreen]);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) {
@@ -869,7 +885,7 @@ export function WorldHeatmap({
   }
 
   return (
-    <div className={`world-heatmap world-heatmap-live world-heatmap-${theme}`}>
+    <div className={`world-heatmap world-heatmap-live world-heatmap-${theme}${fullscreen ? " world-heatmap-fullscreen" : ""}`}>
       <div className="world-heatmap-toolbar">
         <div className="world-heatmap-hint">
           <span>Interactive map</span>
@@ -940,6 +956,10 @@ export function WorldHeatmap({
           <button type="button" className="world-heatmap-chip" onClick={focusPrimaryMarket} disabled={!activePoint}>
             <Crosshair className="h-4 w-4" />
             Zoom selected
+          </button>
+          <button type="button" className="world-heatmap-chip" onClick={() => setFullscreen((f) => !f)}>
+            {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            {fullscreen ? "Exit fullscreen" : "Fullscreen"}
           </button>
         </div>
       </div>

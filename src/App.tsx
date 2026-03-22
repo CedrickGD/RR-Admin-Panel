@@ -127,7 +127,7 @@ export default function App() {
         ) : null}
 
         {summary && health ? (
-          <div className="page-enter">
+          <div key={page} className="page-enter">
             {page === "overview"  ? <OverviewPage  summary={summary} theme="dark" accentHue={accentHue} /> : null}
             {page === "traffic"   ? <TrafficPage   summary={summary} theme="dark" accentHue={accentHue} /> : null}
             {page === "signals"   ? <SignalsPage   summary={summary} theme="dark" accentHue={accentHue} /> : null}

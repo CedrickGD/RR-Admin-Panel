@@ -12,6 +12,7 @@ import {
 import { TelemetryChartTooltip } from "../components/charts/TelemetryChartTooltip";
 import { useChartColors } from "../hooks/useChartColors";
 import { useLatestVersion } from "../hooks/useLatestVersion";
+import { useReleaseVersions } from "../hooks/useReleaseVersions";
 import type { SummaryPayload, ThemeMode } from "../types/telemetry";
 import { buildVersionBreakdown } from "../utils/dashboardInsights";
 import { formatNumber } from "../utils/format";
@@ -35,6 +36,7 @@ const TIME_SPANS: { key: TimeSpan; label: string; ms: number }[] = [
 
 export function SignalsPage({ summary, theme, accentHue = 217 }: SignalsPageProps) {
   const latestVersion = useLatestVersion();
+  const knownVersions = useReleaseVersions();
   const [timeSpan, setTimeSpan] = useState<TimeSpan>("all");
   const [versionListExpanded, setVersionListExpanded] = useState(true);
   const [errorListExpanded, setErrorListExpanded] = useState(true);
@@ -65,7 +67,7 @@ export function SignalsPage({ summary, theme, accentHue = 217 }: SignalsPageProp
     };
   }, [summary, timeSpan]);
 
-  const allVersions = useMemo(() => buildVersionBreakdown(filteredSummary, latestVersion), [filteredSummary, latestVersion]);
+  const allVersions = useMemo(() => buildVersionBreakdown(filteredSummary, latestVersion, knownVersions), [filteredSummary, latestVersion, knownVersions]);
 
   // RazorReaper-only versions
   const rrVersions = useMemo(

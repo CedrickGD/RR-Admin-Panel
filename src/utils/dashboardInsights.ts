@@ -137,10 +137,25 @@ function normalizeVersion(raw: string): string {
   return parts.join(".");
 }
 
-function getVersionLabel(session: AppSessionRecord): string {
+function resolveVersionLabel(raw: string, knownVersions: string[]): string {
+  const stripped = normalizeVersion(raw);
+  // Direct match against known releases
+  if (knownVersions.length > 0) {
+    if (knownVersions.includes(stripped)) return stripped;
+    // Try 3-part: "1.0.0.1" → "1.0.0"
+    const parts = raw.split(".");
+    if (parts.length >= 3) {
+      const threePart = parts.slice(0, 3).join(".");
+      if (knownVersions.includes(threePart)) return threePart;
+    }
+  }
+  return stripped;
+}
+
+function getVersionLabel(session: AppSessionRecord, knownVersions: string[] = []): string {
   const raw = session.appVersion?.trim();
   if (!raw) return "Unknown";
-  return normalizeVersion(raw);
+  return resolveVersionLabel(raw, knownVersions);
 }
 
 function getSessionSource(session: AppSessionRecord): string {
@@ -610,14 +625,14 @@ export function buildDurationBreakdown(sessions: AppSessionRecord[]): BreakdownP
   return values;
 }
 
-export function buildVersionBreakdown(summary: SummaryPayload, currentVersion = CURRENT_RAZORREAPER_VERSION): VersionBreakdownPoint[] {
+export function buildVersionBreakdown(summary: SummaryPayload, currentVersion = CURRENT_RAZORREAPER_VERSION, knownVersions: string[] = []): VersionBreakdownPoint[] {
   const source = getHistoricalSessions(summary);
   const latestUserSources = new Map<string, AppSessionRecord>();
   const counts = new Map<string, VersionBreakdownPoint>();
 
   for (const session of source) {
     const releaseSource = getSessionSource(session);
-    const version = getVersionLabel(session);
+    const version = getVersionLabel(session, knownVersions);
     const key = `${releaseSource.trim().toLowerCase()}::${version.trim().toLowerCase()}`;
     const current = counts.get(key) ?? {
       label: version,
@@ -651,7 +666,7 @@ export function buildVersionBreakdown(summary: SummaryPayload, currentVersion = 
 
   for (const session of latestUserSources.values()) {
     const releaseSource = getSessionSource(session);
-    const version = getVersionLabel(session);
+    const version = getVersionLabel(session, knownVersions);
     const key = `${releaseSource.trim().toLowerCase()}::${version.trim().toLowerCase()}`;
     const current = counts.get(key) ?? {
       label: version,

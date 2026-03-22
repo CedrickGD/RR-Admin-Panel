@@ -52,7 +52,7 @@ export function TrafficPage({ summary, theme, accentHue = 217 }: TrafficPageProp
   const visibleTraffic = useMemo(() => traffic.slice(zoom.visibleStart, zoom.visibleEnd), [traffic, zoom.visibleStart, zoom.visibleEnd]);
 
   const totals = useMemo(
-    () => traffic.reduce((acc, p) => ({ activity: acc.activity + p.activity, started: acc.started + p.started, errors: acc.errors + p.errors, peakUsers: Math.max(acc.peakUsers, p.users) }), { activity: 0, started: 0, errors: 0, peakUsers: 0 }),
+    () => traffic.reduce((acc, p) => ({ activity: acc.activity + p.activity, started: acc.started + p.started, peakUsers: Math.max(acc.peakUsers, p.users) }), { activity: 0, started: 0, peakUsers: 0 }),
     [traffic],
   );
 
@@ -74,7 +74,7 @@ export function TrafficPage({ summary, theme, accentHue = 217 }: TrafficPageProp
             {[
               { label: "Peak Users/h", val: formatNumber(totals.peakUsers) },
               { label: "Sessions 24h", val: formatNumber(totals.started) },
-              { label: "Errors 24h",  val: formatNumber(totals.errors) },
+              { label: "Events 24h",   val: formatNumber(totals.activity) },
             ].map((m) => (
               <div className="meta-item" key={m.label}>
                 <span>{m.label}</span>
@@ -95,22 +95,10 @@ export function TrafficPage({ summary, theme, accentHue = 217 }: TrafficPageProp
               {zoom.isZoomed
                 ? `Viewing ${windowHours}h window — scroll to zoom, `
                 : "Scroll inside chart to zoom in — "}
-              active users (area), new sessions (bars), errors.
+              active users (area), new sessions (bars), total events (dashed).
             </p>
           </div>
           <div className="panel-head-right" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div className="meta-row">
-              {[
-                { label: "Peak Users/h", val: formatNumber(totals.peakUsers) },
-                { label: "Sessions",     val: formatNumber(totals.started) },
-                { label: "Errors",       val: formatNumber(totals.errors) },
-              ].map((m) => (
-                <div className="meta-item" key={m.label}>
-                  <span>{m.label}</span>
-                  <strong>{m.val}</strong>
-                </div>
-              ))}
-            </div>
             {zoom.isZoomed ? (
               <button type="button" className="btn btn-ghost btn-sm" onClick={zoom.resetZoom} title="Reset zoom">
                 <RotateCcw className="h-3 w-3" /> Reset
@@ -136,7 +124,7 @@ export function TrafficPage({ summary, theme, accentHue = 217 }: TrafficPageProp
                 )} />
                 <Area type="monotone" dataKey="users" name="Active users" stroke={chartPalette.sessionsLine} strokeWidth={2.2} fill="url(#usersFillTraffic)" dot={false} activeDot={{ r:4, strokeWidth:0, fill: chartPalette.sessionsLine }} />
                 <Bar dataKey="started" name="New sessions" fill={chartPalette.activityBar} radius={[5,5,0,0]} barSize={zoom.isZoomed ? 18 : 10} />
-                <Area type="monotone" dataKey="errors" name="Errors" stroke={chartPalette.errorsLine} strokeWidth={1.8} fill="none" dot={false} activeDot={{ r:4, strokeWidth:0, fill: chartPalette.errorsLine }} />
+                <Area type="monotone" dataKey="activity" name="Events" stroke={chartPalette.axisSoft} strokeWidth={1.4} strokeDasharray="4 3" fill="none" dot={false} activeDot={{ r:3, strokeWidth:0, fill: chartPalette.axisSoft }} />
               </ComposedChart>
             </ResponsiveContainer>
           </div>

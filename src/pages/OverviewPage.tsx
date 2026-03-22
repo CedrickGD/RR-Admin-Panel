@@ -61,8 +61,10 @@ export function OverviewPage({ summary, theme, accentHue = 217 }: OverviewPagePr
   const sessionsWithErrors = summary.recentSessions.filter((s) => s.errorCount > 0).length;
   const liveWithErrors = summary.activeSessions.filter((s) => s.errorCount > 0).length;
   const topRegion = regions[0]?.label ?? "Unknown";
-  const latestError = summary.recentErrors[0];
-  const recentSignals = summary.recentErrors.slice(0, 6).filter((e) => !dismissedErrors.has(e.id));
+  const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
+  const recentErrors24h = summary.recentErrors.filter((e) => Date.parse(e.timestamp) >= twentyFourHoursAgo);
+  const latestError = recentErrors24h[0];
+  const recentSignals = recentErrors24h.slice(0, 6).filter((e) => !dismissedErrors.has(e.id));
   const windowHours = zoom.visibleEnd - zoom.visibleStart;
 
   const handleTimeWindow = useCallback((hours: number) => {

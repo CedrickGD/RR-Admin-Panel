@@ -53,6 +53,9 @@ export interface HeatmapSessionPoint {
   intensity: number;
   locationLabel: string;
   userLabel: string | null;
+  geoSource: string | null;
+  geoSignalSource: string | null;
+  accuracyMeters: number | null;
   precise: boolean;
 }
 
@@ -507,6 +510,17 @@ export function buildHeatmapSessionPoints(summary: SummaryPayload): HeatmapSessi
       const hasExactCoordinates =
         Number.isFinite(exactLatitude ?? Number.NaN) &&
         Number.isFinite(exactLongitude ?? Number.NaN);
+      const geoSource = session.clientGeoSource ?? null;
+      const geoSignalSource = session.clientGeoSignalSource ?? null;
+      const accuracyMeters = Number.isFinite(session.clientAccuracyMeters ?? Number.NaN)
+        ? Number(session.clientAccuracyMeters)
+        : null;
+      const preciseCoordinates =
+        hasExactCoordinates &&
+        (
+          (((geoSource?.startsWith("device")) ?? false) && geoSignalSource !== "ip") ||
+          (accuracyMeters !== null && accuracyMeters <= 250)
+        );
       const coordinates = hasExactCoordinates
         ? {
             latitude: clampLatitude(Number(exactLatitude)),
@@ -539,7 +553,10 @@ export function buildHeatmapSessionPoints(summary: SummaryPayload): HeatmapSessi
         intensity: market.intensity,
         locationLabel: locationParts.length > 0 ? locationParts.join(", ") : market.label,
         userLabel: session.userLabel,
-        precise: hasExactCoordinates,
+        geoSource,
+        geoSignalSource,
+        accuracyMeters,
+        precise: preciseCoordinates,
       });
     }
   }

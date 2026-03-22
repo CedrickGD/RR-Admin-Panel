@@ -19,7 +19,7 @@ const RECENT_ERROR_LIMIT = 50;
 const MAX_KV_SESSIONS = 500;
 const ACTIVE_SESSION_TIMEOUT_MS = 6 * 60 * 1000;
 const SESSION_SELECT_COLUMNS =
-  "session_id, install_id, source, user_label, client_ip, client_country, client_city, client_region, client_latitude, client_longitude, client_timezone, app_version, platform, started_at, last_seen_at, ended_at, duration_seconds, is_active, last_event, last_status, error_count, updated_at";
+  "session_id, install_id, source, user_label, client_ip, client_country, client_city, client_region, client_latitude, client_longitude, client_timezone, client_geo_source, client_geo_signal_source, client_accuracy_meters, client_geo_captured_at, app_version, platform, started_at, last_seen_at, ended_at, duration_seconds, is_active, last_event, last_status, error_count, updated_at";
 
 const SESSION_START = "session_start";
 const SESSION_ACTIVE = "session_active";
@@ -49,6 +49,10 @@ interface D1SessionRow {
   client_latitude: number | string | null;
   client_longitude: number | string | null;
   client_timezone: string | null;
+  client_geo_source: string | null;
+  client_geo_signal_source: string | null;
+  client_accuracy_meters: number | string | null;
+  client_geo_captured_at: string | null;
   app_version: string | null;
   platform: string | null;
   started_at: string;
@@ -505,6 +509,10 @@ async function ensureTelemetrySchema(db: RuntimeEnv["DB"]): Promise<void> {
       client_latitude REAL,
       client_longitude REAL,
       client_timezone TEXT,
+      client_geo_source TEXT,
+      client_geo_signal_source TEXT,
+      client_accuracy_meters REAL,
+      client_geo_captured_at TEXT,
       app_version TEXT,
       platform TEXT,
       started_at TEXT NOT NULL,
@@ -527,6 +535,10 @@ async function ensureTelemetrySchema(db: RuntimeEnv["DB"]): Promise<void> {
     `ALTER TABLE app_sessions ADD COLUMN client_latitude REAL`,
     `ALTER TABLE app_sessions ADD COLUMN client_longitude REAL`,
     `ALTER TABLE app_sessions ADD COLUMN client_timezone TEXT`,
+    `ALTER TABLE app_sessions ADD COLUMN client_geo_source TEXT`,
+    `ALTER TABLE app_sessions ADD COLUMN client_geo_signal_source TEXT`,
+    `ALTER TABLE app_sessions ADD COLUMN client_accuracy_meters REAL`,
+    `ALTER TABLE app_sessions ADD COLUMN client_geo_captured_at TEXT`,
   ];
 
   for (const statement of statements) {
@@ -597,9 +609,9 @@ async function upsertSessionD1(db: RuntimeEnv["DB"], event: TelemetryEvent): Pro
   await db
     .prepare(
       `INSERT INTO app_sessions
-        (session_id, install_id, source, user_label, client_ip, client_country, client_city, client_region, client_latitude, client_longitude, client_timezone, app_version, platform,
+        (session_id, install_id, source, user_label, client_ip, client_country, client_city, client_region, client_latitude, client_longitude, client_timezone, client_geo_source, client_geo_signal_source, client_accuracy_meters, client_geo_captured_at, app_version, platform,
          started_at, last_seen_at, ended_at, duration_seconds, is_active, last_event, last_status, error_count, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(session_id) DO UPDATE SET
          install_id = excluded.install_id,
          source = excluded.source,
@@ -611,6 +623,10 @@ async function upsertSessionD1(db: RuntimeEnv["DB"], event: TelemetryEvent): Pro
          client_latitude = excluded.client_latitude,
          client_longitude = excluded.client_longitude,
          client_timezone = excluded.client_timezone,
+         client_geo_source = excluded.client_geo_source,
+         client_geo_signal_source = excluded.client_geo_signal_source,
+         client_accuracy_meters = excluded.client_accuracy_meters,
+         client_geo_captured_at = excluded.client_geo_captured_at,
          app_version = excluded.app_version,
          platform = excluded.platform,
          started_at = excluded.started_at,
@@ -635,6 +651,10 @@ async function upsertSessionD1(db: RuntimeEnv["DB"], event: TelemetryEvent): Pro
       next.clientLatitude,
       next.clientLongitude,
       next.clientTimezone,
+      next.clientGeoSource,
+      next.clientGeoSignalSource,
+      next.clientAccuracyMeters,
+      next.clientGeoCapturedAt,
       next.appVersion,
       next.platform,
       next.startedAt,
@@ -666,6 +686,10 @@ function mergeSessionRecord(existing: AppSessionRecord | undefined, event: Telem
   const clientLatitude = readMetricFloat(event.metrics, ["client_latitude", "latitude"]) ?? existing?.clientLatitude ?? null;
   const clientLongitude = readMetricFloat(event.metrics, ["client_longitude", "longitude"]) ?? existing?.clientLongitude ?? null;
   const clientTimezone = readMetricText(event.metrics, ["client_timezone", "timezone"]) ?? existing?.clientTimezone ?? null;
+  const clientGeoSource = readMetricText(event.metrics, ["client_geo_source", "geo_source"]) ?? existing?.clientGeoSource ?? null;
+  const clientGeoSignalSource = readMetricText(event.metrics, ["client_geo_signal_source", "geo_signal_source"]) ?? existing?.clientGeoSignalSource ?? null;
+  const clientAccuracyMeters = readMetricFloat(event.metrics, ["client_accuracy_meters", "accuracy_meters"]) ?? existing?.clientAccuracyMeters ?? null;
+  const clientGeoCapturedAt = readMetricText(event.metrics, ["client_geo_captured_at", "geo_captured_at"]) ?? existing?.clientGeoCapturedAt ?? null;
   const appVersion = readMetricText(event.metrics, ["app_version", "version"]) ?? existing?.appVersion ?? null;
   const platform = readMetricText(event.metrics, ["platform", "os_platform", "os"]) ?? existing?.platform ?? null;
   const metricStartedAt = readMetricText(event.metrics, ["session_started_at"]);
@@ -713,6 +737,10 @@ function mergeSessionRecord(existing: AppSessionRecord | undefined, event: Telem
     clientLatitude,
     clientLongitude,
     clientTimezone,
+    clientGeoSource,
+    clientGeoSignalSource,
+    clientAccuracyMeters,
+    clientGeoCapturedAt,
     appVersion,
     platform,
     startedAt,
@@ -742,6 +770,10 @@ function normalizeSessionRecord(session: AppSessionRecord): AppSessionRecord {
     clientLatitude: session.clientLatitude ?? null,
     clientLongitude: session.clientLongitude ?? null,
     clientTimezone: session.clientTimezone ?? null,
+    clientGeoSource: session.clientGeoSource ?? null,
+    clientGeoSignalSource: session.clientGeoSignalSource ?? null,
+    clientAccuracyMeters: session.clientAccuracyMeters ?? null,
+    clientGeoCapturedAt: session.clientGeoCapturedAt ?? null,
   };
 
   if (!normalized.isActive || !isSessionStale(normalized.lastSeenAt)) {
@@ -782,6 +814,10 @@ function mapD1Session(row: D1SessionRow): AppSessionRecord {
     clientLatitude: toNullableFloat(row.client_latitude),
     clientLongitude: toNullableFloat(row.client_longitude),
     clientTimezone: row.client_timezone ?? null,
+    clientGeoSource: row.client_geo_source ?? null,
+    clientGeoSignalSource: row.client_geo_signal_source ?? null,
+    clientAccuracyMeters: toNullableFloat(row.client_accuracy_meters),
+    clientGeoCapturedAt: row.client_geo_captured_at ?? null,
     appVersion: row.app_version ?? null,
     platform: row.platform ?? null,
     startedAt: row.started_at,
@@ -951,6 +987,10 @@ function formatSessionExportBlock(session: AppSessionRecord, index: number): str
     `Location: ${sanitizeExportValue(formatExportLocation(session))}`,
     `Country: ${sanitizeExportValue(session.clientCountry ?? "-")}`,
     `Timezone: ${sanitizeExportValue(session.clientTimezone ?? "-")}`,
+    `Geo source: ${sanitizeExportValue(session.clientGeoSource ?? "-")}`,
+    `Geo signal: ${sanitizeExportValue(session.clientGeoSignalSource ?? "-")}`,
+    `Geo accuracy: ${sanitizeExportValue(formatExportAccuracy(session.clientAccuracyMeters))}`,
+    `Geo captured: ${sanitizeExportValue(session.clientGeoCapturedAt ?? "-")}`,
     `IP: ${sanitizeExportValue(session.clientIp ?? "-")}`,
     `Started: ${sanitizeExportValue(session.startedAt)}`,
     `Last seen: ${sanitizeExportValue(session.lastSeenAt)}`,
@@ -1014,6 +1054,18 @@ function formatExportDuration(seconds: number | null): string {
   }
 
   return `${remainingSeconds}s`;
+}
+
+function formatExportAccuracy(value: number | null): string {
+  if (value === null || !Number.isFinite(value) || value <= 0) {
+    return "-";
+  }
+
+  if (value >= 1000) {
+    return `${(value / 1000).toFixed(value >= 10_000 ? 0 : 1)} km`;
+  }
+
+  return `${Math.round(value)} m`;
 }
 
 function sanitizeExportValue(value: string): string {

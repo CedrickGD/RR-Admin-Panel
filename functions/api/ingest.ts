@@ -168,6 +168,17 @@ function attachRequestContext(metricsRaw: Record<string, unknown>, context: Requ
     metrics.client_country = context.country;
   }
 
+  if (
+    toText(metrics.client_geo_source) === null &&
+    (context.country || context.city || context.region || context.latitude !== null || context.longitude !== null)
+  ) {
+    metrics.client_geo_source = "edge_ip";
+  }
+
+  if (toText(metrics.client_geo_signal_source) === null && context.country) {
+    metrics.client_geo_signal_source = "ip";
+  }
+
   if (context.city && toText(metrics.client_city) === null) {
     metrics.client_city = context.city;
   }

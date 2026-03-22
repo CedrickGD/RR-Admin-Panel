@@ -79,6 +79,10 @@ export interface AppSessionRecord {
   clientLatitude: number | null;
   clientLongitude: number | null;
   clientTimezone: string | null;
+  clientGeoSource: string | null;
+  clientGeoSignalSource: string | null;
+  clientAccuracyMeters: number | null;
+  clientGeoCapturedAt: string | null;
   appVersion: string | null;
   platform: string | null;
   startedAt: string;

@@ -1635,7 +1635,7 @@ h1, h2, h3, h4, h5, h6 {
    RESPONSIVE — TABLET (≤ 768px)
    ═══════════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
-  .page-content { padding-top: 14px; padding-bottom: 24px; }
+  .page-content { padding-top: 20px; padding-bottom: 24px; }
   .page-stack-lg { gap: 16px; }
 
   .panel-head { padding: 14px 14px 10px; gap: 12px; }
@@ -1666,7 +1666,7 @@ h1, h2, h3, h4, h5, h6 {
    ═══════════════════════════════════════════════════════════════ */
 @media (max-width: 480px) {
   /* Page layout */
-  .page-content { padding: 10px 10px 20px; }
+  .page-content { padding: 18px 10px 20px; }
   .page-wrap { padding: 0 10px; }
   .page-stack-lg { gap: 12px; }
 

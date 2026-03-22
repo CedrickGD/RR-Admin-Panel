@@ -1,4 +1,4 @@
-import { Crosshair, Globe2, Info, LocateFixed, Maximize2, Menu, Minimize2, Minus, Plus, X } from "lucide-react";
+import { Crosshair, Globe2, Info, LocateFixed, Map, Maximize2, Menu, Minimize2, Minus, Plus, X } from "lucide-react";
 import maplibregl, {
   type GeoJSONSource,
   LngLatBounds,
@@ -629,6 +629,7 @@ export function WorldHeatmap({
   const [zoom, setZoom] = useState(INITIAL_ZOOM);
   const [showPanel, setShowPanel] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const [globe, setGlobe] = useState(true);
   const marketMarkerPoints = useMemo(() => buildMarketPoints(marketPoints), [marketPoints]);
   const sessionMarkerPoints = useMemo(() => buildSessionPoints(sessionPoints), [sessionPoints]);
   const connections = useMemo(() => buildConnections(marketMarkerPoints), [marketMarkerPoints]);
@@ -699,7 +700,6 @@ export function WorldHeatmap({
       className: `map-node-popup-shell map-node-popup-shell-${themeRef.current}`,
     });
 
-    map.addControl(new maplibregl.GlobeControl(), "top-right");
     map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
 
     map.on("load", () => {
@@ -902,6 +902,14 @@ export function WorldHeatmap({
     onOpenSession(activePoint.key);
   }
 
+  function toggleProjection() {
+    const map = mapRef.current;
+    if (!map) return;
+    const next = globe ? "mercator" : "globe";
+    map.setProjection({ type: next as "mercator" | "globe" });
+    setGlobe(!globe);
+  }
+
   return (
     <div className={`world-heatmap world-heatmap-live world-heatmap-${theme}${fullscreen ? " world-heatmap-fullscreen" : ""}`}>
       <div className="world-heatmap-toolbar">
@@ -967,6 +975,7 @@ export function WorldHeatmap({
             <Menu className="h-4 w-4" />
           </button>
           <div className="world-heatmap-hovbar-items">
+            {/* Zoom */}
             <button type="button" onClick={() => mapRef.current?.zoomIn({ duration: 300 })} aria-label="Zoom in">
               <Plus className="h-4 w-4" />
             </button>
@@ -974,9 +983,7 @@ export function WorldHeatmap({
               <Minus className="h-4 w-4" />
             </button>
             <span className="world-heatmap-hovbar-sep" />
-            <button type="button" onClick={() => setShowPanel((p) => !p)} aria-label="Toggle info panel">
-              <Info className="h-4 w-4" />
-            </button>
+            {/* Navigate */}
             <button type="button" onClick={focusLiveMarkets} aria-label="Focus live markets">
               <LocateFixed className="h-4 w-4" />
             </button>
@@ -984,8 +991,15 @@ export function WorldHeatmap({
               <Crosshair className="h-4 w-4" />
             </button>
             <span className="world-heatmap-hovbar-sep" />
+            {/* View */}
+            <button type="button" onClick={toggleProjection} aria-label={globe ? "Switch to flat map" : "Switch to globe"}>
+              {globe ? <Map className="h-4 w-4" /> : <Globe2 className="h-4 w-4" />}
+            </button>
             <button type="button" onClick={() => setFullscreen((f) => !f)} aria-label={fullscreen ? "Exit fullscreen" : "Fullscreen"}>
               {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </button>
+            <button type="button" onClick={() => setShowPanel((p) => !p)} aria-label="Toggle info panel">
+              <Info className="h-4 w-4" />
             </button>
           </div>
         </div>

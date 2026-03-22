@@ -1412,7 +1412,7 @@ h1, h2, h3, h4, h5, h6 {
 .world-heatmap-map .maplibregl-map { font-family: "Inter", system-ui, sans-serif; }
 .world-heatmap-map .maplibregl-canvas-container.maplibregl-interactive { cursor: grab; }
 .world-heatmap-map .maplibregl-canvas-container.maplibregl-interactive:active { cursor: grabbing; }
-.world-heatmap-map .maplibregl-ctrl-top-right { top: 60px; right: 14px; }
+.world-heatmap-map .maplibregl-ctrl-top-right { display: none; }
 
 .world-heatmap-map .maplibregl-ctrl-group {
   overflow: hidden;

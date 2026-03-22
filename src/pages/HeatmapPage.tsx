@@ -47,8 +47,10 @@ export function HeatmapPage({
       {/* Header */}
       <section className="page-header">
         <div>
-          <p className="kicker">Live Geography</p>
-          <h1 className="page-title" style={{ marginTop: 6 }}>Heatmap</h1>
+          <h1 className="page-title">
+            Heatmap
+            <span className="kicker" style={{ marginLeft: 10, verticalAlign: "middle" }}>Live Geography</span>
+          </h1>
         </div>
         <div className="page-header-right">
           <div className="meta-row">

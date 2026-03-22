@@ -49,7 +49,7 @@ export function HeatmapPage({
         <div>
           <h1 className="page-title">
             Heatmap
-            <span style={{ fontSize: "0.45em", fontWeight: 400, opacity: 0.45, marginLeft: 8, letterSpacing: "0.04em" }}>Live Geography</span>
+            <span style={{ fontSize: "0.35em", fontWeight: 400, color: "var(--text-3)", marginLeft: 8, letterSpacing: "0.04em" }}>Live Geography</span>
           </h1>
         </div>
         <div className="page-header-right">

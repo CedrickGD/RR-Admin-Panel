@@ -1608,6 +1608,8 @@ h1, h2, h3, h4, h5, h6 {
 }
 .input::placeholder { color: var(--text-3); }
 
+.heatmap-map-container { min-height: 480px; }
+
 /* Heatmap region styles */
 .heatmap-region-row {
   display: grid;
@@ -1627,4 +1629,143 @@ h1, h2, h3, h4, h5, h6 {
 @media (max-width: 900px) {
   .donut-panel { grid-template-columns: 1fr; }
   .world-heatmap-map-shell { min-height: 360px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   RESPONSIVE — TABLET (≤ 768px)
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .page-content { padding-top: 14px; padding-bottom: 24px; }
+  .page-stack-lg { gap: 16px; }
+
+  .panel-head { padding: 14px 14px 10px; gap: 12px; }
+  .panel-body { padding: 12px 14px; }
+  .panel-body-tight { padding: 8px 14px; }
+
+  .stat-card { padding: 10px 12px 8px; }
+  .stat-value { font-size: 1.3rem !important; }
+
+  .chart-wrap-tall { min-height: 220px; }
+  .chart-wrap-med  { min-height: 160px; }
+
+  .data-table thead th { padding: 8px 10px; font-size: 0.625rem; }
+  .data-table tbody td { padding: 9px 10px; font-size: 0.775rem; }
+
+  .row-expand-inner { padding: 10px 12px; }
+
+  .seg-btn { padding: 5px 10px; font-size: 0.7rem; }
+
+  .empty-state { padding: 32px 16px; }
+
+  .heatmap-region-row { padding: 8px 10px; gap: 8px; }
+  .heatmap-map-container { min-height: 360px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   RESPONSIVE — PHONE (≤ 480px)
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 480px) {
+  /* Page layout */
+  .page-content { padding: 10px 10px 20px; }
+  .page-wrap { padding: 0 10px; }
+  .page-stack-lg { gap: 12px; }
+
+  /* Page header — stack vertically */
+  .page-header { flex-direction: column; gap: 8px; }
+  .page-header-right { width: 100%; }
+  .meta-row { width: 100%; justify-content: flex-start; gap: 8px; }
+  .meta-item { text-align: left; }
+
+  /* Typography */
+  .page-title { font-size: 1.35rem; }
+  .section-title { font-size: 0.95rem; }
+  .section-sub { font-size: 0.75rem; }
+  .page-subtitle { font-size: 0.8rem; margin-top: 4px; }
+
+  /* Stat cards — single column on very small screens */
+  .stat-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .stat-card { padding: 8px 10px 6px; border-radius: 12px; }
+  .stat-label { font-size: 0.6rem; }
+  .stat-value { font-size: 1.1rem !important; }
+  .stat-sub { font-size: 0.6rem; }
+
+  /* Panels */
+  .panel { border-radius: 14px; }
+  .panel-head { padding: 12px 12px 10px; gap: 10px; }
+  .panel-body { padding: 10px 12px; }
+  .panel-body-tight { padding: 8px 12px; }
+
+  /* Tables */
+  .data-table-wrap { border-radius: 10px; }
+  .data-table thead th { padding: 7px 8px; font-size: 0.6rem; letter-spacing: 0.06em; }
+  .data-table tbody td { padding: 8px; font-size: 0.725rem; }
+  .data-table tbody td.mono { font-size: 0.675rem; }
+  .row-expand-inner { padding: 8px 10px; }
+
+  /* Segment controls — allow wrapping */
+  .seg-control { flex-wrap: wrap; }
+  .seg-btn { padding: 4px 8px; font-size: 0.65rem; }
+
+  /* KV rows */
+  .kv-row { padding: 7px 0; gap: 8px; }
+  .kv-key { font-size: 0.7rem; }
+  .kv-val { font-size: 0.7rem; }
+
+  /* Signal rows */
+  .signal-row { gap: 8px; padding: 8px 0; }
+  .signal-title { font-size: 0.75rem; }
+  .signal-meta { font-size: 0.7rem; }
+
+  /* Progress bars */
+  .progress-label { font-size: 0.7rem; }
+  .progress-val { font-size: 0.7rem; }
+
+  /* Charts */
+  .chart-wrap-tall { min-height: 180px; }
+  .chart-wrap-med  { min-height: 140px; }
+
+  /* Heatmap map */
+  .world-heatmap-map-shell { min-height: 280px; }
+  .heatmap-map-container { min-height: 280px; }
+
+  /* Settings — accent swatches */
+  .accent-swatch { width: 24px; height: 24px; }
+  .accent-picker-swatches { gap: 6px; }
+
+  /* Buttons */
+  .btn-sm { padding: 6px 10px; font-size: 0.75rem; }
+
+  /* Badges */
+  .badge { font-size: 0.6rem; padding: 3px 7px; }
+
+  /* Navbar */
+  .navbar-inner { height: 52px; }
+  .main-area { padding-top: 52px; }
+  .navbar-mobile-drawer { top: 52px; padding: 10px 10px 16px; }
+  .navbar-brand-logo { width: 24px; height: 24px; }
+  .navbar-brand-name { font-size: 0.85rem; }
+
+  /* Grid layouts — force single column */
+  .two-col { grid-template-columns: 1fr; gap: 10px; }
+
+  /* Heatmap region rows */
+  .heatmap-region-row {
+    grid-template-columns: 1fr auto;
+    gap: 6px;
+    padding: 8px 10px;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   RESPONSIVE — VERY SMALL PHONE (≤ 360px)
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 360px) {
+  .stat-grid { grid-template-columns: 1fr; gap: 6px; }
+  .page-title { font-size: 1.15rem; }
+  .section-title { font-size: 0.875rem; }
+  .panel { border-radius: 12px; }
+  .navbar-brand-name { font-size: 0.8rem; }
+  .meta-row { gap: 6px; }
+  .meta-item span { font-size: 0.55rem; }
+  .meta-item strong { font-size: 0.7rem; }
 }

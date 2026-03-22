@@ -222,7 +222,7 @@ export function TrafficPage({ summary, theme, accentHue = 217 }: TrafficPageProp
           </div>
         ) : (
           <div className="panel-body">
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px,1fr))", gap: 20 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(280px, 100%),1fr))", gap: 20 }}>
               {tzCharts.map((tz) => (
                 <div key={tz.timeZone} className="glass-flat" style={{ borderRadius: 12, padding: "14px 16px" }}>
                   <p className="kicker" style={{ marginBottom: 4 }}>{tz.timeZone}</p>

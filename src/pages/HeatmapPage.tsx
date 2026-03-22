@@ -89,7 +89,7 @@ export function HeatmapPage({
               <p className="kicker">World View</p>
             </div>
           </div>
-          <div className="panel-body-flush" style={{ minHeight: 480 }}>
+          <div className="panel-body-flush heatmap-map-container">
             <WorldHeatmap
               marketPoints={points}
               sessionPoints={sessionPoints}

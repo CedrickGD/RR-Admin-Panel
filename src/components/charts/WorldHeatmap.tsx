@@ -1,4 +1,4 @@
-import { Crosshair, Globe2, Info, LocateFixed, Map, Maximize2, Menu, Minimize2, Minus, Plus, X } from "lucide-react";
+import { Crosshair, Globe2, Info, LocateFixed, Map as MapIcon, Maximize2, Menu, Minimize2, Minus, Plus, X } from "lucide-react";
 import maplibregl, {
   type GeoJSONSource,
   LngLatBounds,
@@ -131,7 +131,7 @@ function buildSessionPoints(points: HeatmapSessionPoint[]): SessionMapPoint[] {
 }
 
 function buildConnections(points: MarketMapPoint[]): FeatureCollection<LineString> {
-  const edges = new Map<
+  const edges = new globalThis.Map<
     string,
     { coordinates: [[number, number], [number, number]]; weight: number }
   >();
@@ -993,7 +993,7 @@ export function WorldHeatmap({
             <span className="world-heatmap-hovbar-sep" />
             {/* View */}
             <button type="button" onClick={toggleProjection} aria-label={globe ? "Switch to flat map" : "Switch to globe"}>
-              {globe ? <Map className="h-4 w-4" /> : <Globe2 className="h-4 w-4" />}
+              {globe ? <MapIcon className="h-4 w-4" /> : <Globe2 className="h-4 w-4" />}
             </button>
             <button type="button" onClick={() => setFullscreen((f) => !f)} aria-label={fullscreen ? "Exit fullscreen" : "Fullscreen"}>
               {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}

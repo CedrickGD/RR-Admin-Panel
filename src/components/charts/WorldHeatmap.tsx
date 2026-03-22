@@ -278,9 +278,11 @@ function createMarkerElement(point: SessionMapPoint) {
   button.className = `map-node-marker ${point.precise ? "map-node-marker-precise" : "map-node-marker-spread"}`;
   button.setAttribute("aria-label", `${point.label}: ${point.marketValue} active users`);
   button.title = `${point.label} · ${formatNumber(point.marketValue)} live sessions`;
+  const breathDelay = (Math.random() * 3).toFixed(2);
   button.style.setProperty("--map-node-size", `${size}px`);
   button.style.setProperty("--map-node-pulse-scale", pulseScale.toFixed(2));
   button.style.setProperty("--map-node-pulse-opacity", pulseOpacity.toFixed(3));
+  button.style.setProperty("--map-node-breath-delay", `${breathDelay}s`);
   button.innerHTML = `
     <span class="map-node-pulse"></span>
     <span class="map-node-halo"></span>
@@ -957,11 +959,11 @@ export function WorldHeatmap({
             <Crosshair className="h-4 w-4" />
             Zoom selected
           </button>
-          <button type="button" className="world-heatmap-chip" onClick={() => setFullscreen((f) => !f)}>
-            {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-            {fullscreen ? "Exit fullscreen" : "Fullscreen"}
-          </button>
         </div>
+
+        <button type="button" className="world-heatmap-fullscreen-btn" onClick={() => setFullscreen((f) => !f)} aria-label={fullscreen ? "Exit fullscreen" : "Fullscreen"}>
+          {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+        </button>
       </div>
     </div>
   );

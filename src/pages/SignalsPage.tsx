@@ -15,7 +15,7 @@ import { useLatestVersion } from "../hooks/useLatestVersion";
 import { useReleaseVersions } from "../hooks/useReleaseVersions";
 import type { SummaryPayload, ThemeMode } from "../types/telemetry";
 import { buildVersionBreakdown } from "../utils/dashboardInsights";
-import { formatNumber } from "../utils/format";
+import { formatNumber, timeAgo } from "../utils/format";
 import { applyChartColorOverride, buildDashboardChartPalette } from "./dashboardShared";
 
 interface SignalsPageProps {
@@ -28,9 +28,9 @@ type TimeSpan = "24h" | "7d" | "30d" | "all";
 
 const HOUR_MS = 60 * 60 * 1000;
 const TIME_SPANS: { key: TimeSpan; label: string; ms: number }[] = [
-  { key: "24h", label: "24h", ms: 24 * HOUR_MS },
-  { key: "7d", label: "7d", ms: 7 * 24 * HOUR_MS },
-  { key: "30d", label: "30d", ms: 30 * 24 * HOUR_MS },
+  { key: "24h", label: "24 h", ms: 24 * HOUR_MS },
+  { key: "7d", label: "7 d", ms: 7 * 24 * HOUR_MS },
+  { key: "30d", label: "30 d", ms: 30 * 24 * HOUR_MS },
   { key: "all", label: "All", ms: 0 },
 ];
 
@@ -95,6 +95,9 @@ export function SignalsPage({ summary, theme, accentHue = 217 }: SignalsPageProp
   const visibleErrorVersions = errorListExpanded ? rrErrorVersions : rrErrorVersions.slice(0, 3);
   const noisiestVersion = rrErrorVersions[0];
 
+  // Adoption rate
+  const adoptionPct = trackedUsers > 0 ? Math.round((currentReleaseUsers / trackedUsers) * 100) : 0;
+
   const downloadVersionCsv = useCallback(() => {
     const header = "Version,Users,Active Now,Sessions,Errors,Share,Is Current\n";
     const rows = rrVersions
@@ -123,24 +126,13 @@ export function SignalsPage({ summary, theme, accentHue = 217 }: SignalsPageProp
           </p>
         </div>
         <div className="page-header-right" style={{ display: "flex", alignItems: "flex-start", gap: 16 }}>
-          {/* Timespan filter */}
-          <div style={{ display: "flex", gap: 4, background: "var(--surface-2)", borderRadius: 6, padding: 2 }}>
+          <div className="seg-control">
             {TIME_SPANS.map((s) => (
               <button
                 key={s.key}
                 type="button"
+                className={`seg-btn${timeSpan === s.key ? " active" : ""}`}
                 onClick={() => setTimeSpan(s.key)}
-                style={{
-                  padding: "4px 10px",
-                  fontSize: 11,
-                  fontWeight: 600,
-                  borderRadius: 4,
-                  border: "none",
-                  cursor: "pointer",
-                  background: timeSpan === s.key ? "var(--accent)" : "transparent",
-                  color: timeSpan === s.key ? "#fff" : "var(--text-2)",
-                  transition: "all .15s ease",
-                }}
               >
                 {s.label}
               </button>
@@ -293,6 +285,85 @@ export function SignalsPage({ summary, theme, accentHue = 217 }: SignalsPageProp
           </div>
         </section>
       </div>
+
+      {/* Version Health Detail */}
+      <section className="panel">
+        <div className="panel-head">
+          <div className="panel-head-left">
+            <p className="kicker">Health</p>
+            <h2 className="section-title">Version Detail</h2>
+            <p className="section-sub">Per-version breakdown — users, sessions, errors, and last activity.</p>
+          </div>
+          <div className="panel-head-right">
+            <div className="meta-row">
+              <div className="meta-item">
+                <span>Adoption</span>
+                <strong>{adoptionPct}%</strong>
+              </div>
+              <div className="meta-item">
+                <span>Versions</span>
+                <strong>{rrVersions.length}</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="panel-body-tight">
+          {rrVersions.length > 0 ? (
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid var(--border)", color: "var(--text-3)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                  <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600 }}>Version</th>
+                  <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600 }}>Users</th>
+                  <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600 }}>Active</th>
+                  <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600 }}>Sessions</th>
+                  <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600 }}>Errors</th>
+                  <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600 }}>Share</th>
+                  <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600 }}>Last Seen</th>
+                  <th style={{ padding: "8px 12px", textAlign: "center", fontWeight: 600 }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rrVersions.map((v) => (
+                  <tr key={v.version} style={{ borderBottom: "1px solid var(--border)" }}>
+                    <td style={{ padding: "8px 12px", fontWeight: 600, color: "var(--text-1)" }}>
+                      {v.version}
+                    </td>
+                    <td style={{ padding: "8px 12px", textAlign: "right", color: "var(--text-2)" }}>
+                      {formatNumber(v.value)}
+                    </td>
+                    <td style={{ padding: "8px 12px", textAlign: "right", color: v.activeUsers > 0 ? "var(--success)" : "var(--text-3)" }}>
+                      {formatNumber(v.activeUsers)}
+                    </td>
+                    <td style={{ padding: "8px 12px", textAlign: "right", color: "var(--text-2)" }}>
+                      {formatNumber(v.sessionCount)}
+                    </td>
+                    <td style={{ padding: "8px 12px", textAlign: "right", color: v.totalErrors > 0 ? "var(--danger)" : "var(--text-3)" }}>
+                      {formatNumber(v.totalErrors)}
+                    </td>
+                    <td style={{ padding: "8px 12px", textAlign: "right", color: "var(--text-2)" }}>
+                      {(v.share * 100).toFixed(1)}%
+                    </td>
+                    <td style={{ padding: "8px 12px", textAlign: "right", color: "var(--text-3)", fontSize: 11 }}>
+                      {v.lastSeenAt ? timeAgo(v.lastSeenAt) : "—"}
+                    </td>
+                    <td style={{ padding: "8px 12px", textAlign: "center" }}>
+                      {v.isCurrent ? (
+                        <span className="badge badge-accent" style={{ fontSize: 10 }}>Current</span>
+                      ) : v.version === "Unknown" ? (
+                        <span className="badge" style={{ fontSize: 10, background: "var(--surface-2)", color: "var(--text-3)" }}>Unknown</span>
+                      ) : (
+                        <span className="badge badge-warning" style={{ fontSize: 10 }}>Outdated</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="empty-state"><p>No version data available.</p></div>
+          )}
+        </div>
+      </section>
     </div>
   );
 }

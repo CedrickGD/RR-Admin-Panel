@@ -946,27 +946,6 @@ export function WorldHeatmap({
 
   return (
     <div className={`world-heatmap world-heatmap-live world-heatmap-${theme}${fullscreen ? " world-heatmap-fullscreen" : ""}`}>
-      <div className="world-heatmap-toolbar">
-        <div className="world-heatmap-hint">
-          <span>Interactive map</span>
-          <strong>{sessionMarkerPoints.length > 0 ? "Every active session gets its own micro-node. Click a pulse to lock its label, then open that exact user in Live." : "No active sessions right now. The map stays ready for when users come online."}</strong>
-        </div>
-        <div className="world-heatmap-toolbar-metrics">
-          <div>
-            <span>Zoom</span>
-            <strong>{zoom.toFixed(1)}x</strong>
-          </div>
-          <div>
-            <span>Live</span>
-            <strong>{formatNumber(sessionMarkerPoints.length)}</strong>
-          </div>
-          <div>
-            <span>Countries</span>
-            <strong>{formatNumber(marketMarkerPoints.length)}</strong>
-          </div>
-        </div>
-      </div>
-
       <div className="world-heatmap-map-shell">
         <div ref={containerRef} className="world-heatmap-map" />
         <div className="world-heatmap-overlay" />

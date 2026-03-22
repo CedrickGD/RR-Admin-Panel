@@ -50,7 +50,7 @@ export function HeatmapPage({
           <p className="kicker">Live Geography</p>
           <h1 className="page-title" style={{ marginTop: 6 }}>Heatmap</h1>
           <p className="page-subtitle">
-            Active session distribution across the globe. Click a node to jump to that session's live view.
+            Click a node to jump to that session's live view.
           </p>
         </div>
         <div className="page-header-right">
@@ -91,7 +91,6 @@ export function HeatmapPage({
             <div className="panel-head-left">
               <p className="kicker">World View</p>
               <h2 className="section-title">Active User Field</h2>
-              <p className="section-sub">Each node is an active session. Click to jump to the Live page for that session.</p>
             </div>
           </div>
           <div className="panel-body-flush" style={{ minHeight: 480 }}>

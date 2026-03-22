@@ -1462,29 +1462,29 @@ h1, h2, h3, h4, h5, h6 {
 .map-node-pulse {
   width: calc(var(--map-node-size) * var(--map-node-pulse-scale, 2.2));
   height: calc(var(--map-node-size) * var(--map-node-pulse-scale, 2.2));
-  background: rgb(92 135 166 / var(--map-node-pulse-opacity, 0.12));
+  background: hsl(var(--ah) var(--as) var(--al) / var(--map-node-pulse-opacity, 0.12));
   animation: heatPulse 2.8s ease-out infinite;
 }
 .map-node-halo {
   width: calc(var(--map-node-size) * 1.45);
   height: calc(var(--map-node-size) * 1.45);
-  background: rgb(92 135 166 / 0.18);
+  background: hsl(var(--ah) var(--as) var(--al) / 0.18);
   animation: nodeBreathHalo 2.6s ease-in-out infinite;
   animation-delay: var(--map-node-breath-delay, 0s);
 }
 .map-node-core {
   width: calc(var(--map-node-size) * 0.72);
   height: calc(var(--map-node-size) * 0.72);
-  background: rgb(190 214 228);
+  background: hsl(var(--ah) var(--as) 80%);
   box-shadow: 0 0 0 1px rgba(255,255,255,0.12);
   animation: nodeBreathCore 2.6s ease-in-out infinite;
   animation-delay: var(--map-node-breath-delay, 0s);
 }
-.map-node-marker-spread .map-node-core { background: rgb(153 191 204); }
-.map-node-marker-precise .map-node-halo { background: rgb(99 147 190 / 0.18); }
-.map-node-marker-precise .map-node-core { background: rgb(201 220 232); }
-.map-node-marker-active .map-node-pulse { background: rgb(87 122 204 / 0.2); }
-.map-node-marker-active .map-node-halo { background: rgb(87 122 204 / 0.26); }
+.map-node-marker-spread .map-node-core { background: hsl(var(--ah) var(--as) 70%); }
+.map-node-marker-precise .map-node-halo { background: hsl(var(--ah) var(--as) var(--al) / 0.22); }
+.map-node-marker-precise .map-node-core { background: hsl(var(--ah) var(--as) 85%); }
+.map-node-marker-active .map-node-pulse { background: hsl(var(--ah) var(--as) var(--al) / 0.2); }
+.map-node-marker-active .map-node-halo { background: hsl(var(--ah) var(--as) var(--al) / 0.26); }
 
 .map-node-popup-shell { z-index: 4; }
 .map-node-popup-shell .maplibregl-popup-content {
@@ -1522,7 +1522,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 @keyframes nodeBreathCore {
   0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; box-shadow: 0 0 0 1px rgba(255,255,255,0.12); }
-  50% { transform: translate(-50%, -50%) scale(1.5); opacity: 0.8; box-shadow: 0 0 6px 2px rgba(140,190,220,0.35); }
+  50% { transform: translate(-50%, -50%) scale(1.5); opacity: 0.8; box-shadow: 0 0 6px 2px var(--accent-glow); }
 }
 @keyframes nodeBreathHalo {
   0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }

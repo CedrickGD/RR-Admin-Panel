@@ -842,6 +842,26 @@ export function WorldHeatmap({
   const connectionsRef = useRef(connections);
   const accuracyZonesRef = useRef(accuracyZones);
   const activePoint = sessionMarkerPoints.find((point) => point.key === activeKey) ?? null;
+  const toolbarMetrics = [
+    {
+      key: "live",
+      label: "Live",
+      value: formatNumber(sessionMarkerPoints.length),
+      detail: `${sessionMarkerPoints.length === 1 ? "session" : "sessions"} on the map`,
+    },
+    {
+      key: "countries",
+      label: "Countries",
+      value: formatNumber(marketMarkerPoints.length),
+      detail: `${marketMarkerPoints.length === 1 ? "active country" : "active countries"} right now`,
+    },
+    {
+      key: "view",
+      label: "Mode",
+      value: globe ? "Globe" : "Flat",
+      detail: `${zoom.toFixed(1)}x zoom`,
+    },
+  ] as const;
 
   useEffect(() => {
     themeRef.current = theme;
@@ -1132,18 +1152,13 @@ export function WorldHeatmap({
           <strong>{sessionMarkerPoints.length > 0 ? "Every active session gets its own node. The center dot is the reported fix, and the ring widens when the location is less certain." : "No active sessions right now. The map stays ready for when users come online."}</strong>
         </div>
         <div className="world-heatmap-toolbar-metrics">
-          <div>
-            <span>Zoom</span>
-            <strong>{zoom.toFixed(1)}x</strong>
-          </div>
-          <div>
-            <span>Live users</span>
-            <strong>{formatNumber(sessionMarkerPoints.length)}</strong>
-          </div>
-          <div>
-            <span>Markets</span>
-            <strong>{formatNumber(marketMarkerPoints.length)}</strong>
-          </div>
+          {toolbarMetrics.map((metric) => (
+            <div key={metric.key} className={`world-heatmap-metric world-heatmap-metric-${metric.key}`}>
+              <span className="world-heatmap-metric-label">{metric.label}</span>
+              <strong className="world-heatmap-metric-value">{metric.value}</strong>
+              <small className="world-heatmap-metric-detail">{metric.detail}</small>
+            </div>
+          ))}
         </div>
       </div>
 

@@ -130,14 +130,48 @@ function buildSessionPoints(points: HeatmapSessionPoint[]): SessionMapPoint[] {
     }));
 }
 
-function buildConnections(points: MarketMapPoint[]): FeatureCollection<LineString> {
+interface MarketCentroid {
+  key: string;
+  coordinates: [number, number];
+  value: number;
+}
+
+function buildMarketCentroids(
+  marketPoints: MarketMapPoint[],
+  sessionPoints: SessionMapPoint[],
+): MarketCentroid[] {
+  const grouped = new globalThis.Map<string, [number, number][]>();
+
+  for (const sp of sessionPoints) {
+    const key = sp.marketKey;
+    const arr = grouped.get(key) ?? [];
+    arr.push(sp.coordinates);
+    grouped.set(key, arr);
+  }
+
+  return marketPoints.map((mp) => {
+    const coords = grouped.get(mp.key);
+    if (coords && coords.length > 0) {
+      const lng = coords.reduce((s, c) => s + c[0], 0) / coords.length;
+      const lat = coords.reduce((s, c) => s + c[1], 0) / coords.length;
+      return { key: mp.key, coordinates: [lng, lat] as [number, number], value: mp.value };
+    }
+    return { key: mp.key, coordinates: mp.coordinates, value: mp.value };
+  });
+}
+
+function buildConnections(
+  marketPoints: MarketMapPoint[],
+  sessionPoints: SessionMapPoint[],
+): FeatureCollection<LineString> {
+  const centroids = buildMarketCentroids(marketPoints, sessionPoints);
   const edges = new globalThis.Map<
     string,
     { coordinates: [[number, number], [number, number]]; weight: number }
   >();
-  const hubs = [...points].sort((left, right) => right.value - left.value).slice(0, 8);
+  const hubs = [...centroids].sort((left, right) => right.value - left.value).slice(0, 8);
 
-  const addEdge = (from: MarketMapPoint, to: MarketMapPoint, weight: number) => {
+  const addEdge = (from: MarketCentroid, to: MarketCentroid, weight: number) => {
     const key = from.key < to.key ? `${from.key}:${to.key}` : `${to.key}:${from.key}`;
     const current = edges.get(key);
 
@@ -149,8 +183,8 @@ function buildConnections(points: MarketMapPoint[]): FeatureCollection<LineStrin
     }
   };
 
-  for (const point of points) {
-    const neighbors = points
+  for (const point of centroids) {
+    const neighbors = centroids
       .filter((candidate) => candidate !== point)
       .map((candidate) => ({
         candidate,
@@ -632,7 +666,7 @@ export function WorldHeatmap({
   const [globe, setGlobe] = useState(true);
   const marketMarkerPoints = useMemo(() => buildMarketPoints(marketPoints), [marketPoints]);
   const sessionMarkerPoints = useMemo(() => buildSessionPoints(sessionPoints), [sessionPoints]);
-  const connections = useMemo(() => buildConnections(marketMarkerPoints), [marketMarkerPoints]);
+  const connections = useMemo(() => buildConnections(marketMarkerPoints, sessionMarkerPoints), [marketMarkerPoints, sessionMarkerPoints]);
   const connectionsRef = useRef(connections);
   const activePoint = sessionMarkerPoints.find((point) => point.key === activeKey) ?? null;
 

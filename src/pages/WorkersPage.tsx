@@ -146,8 +146,10 @@ export function WorkersPage({ summary }: WorkersPageProps) {
     });
   }, [query, summary.recentSessions]);
 
-  const activeInResults  = sessions.filter((s) => s.isActive).length;
+  const activeInResults   = sessions.filter((s) => s.isActive).length;
   const resultsWithErrors = sessions.filter((s) => s.errorCount > 0).length;
+  const endedCount        = sessions.filter((s) => !s.isActive && s.endedAt).length;
+  const unreachableCount  = sessions.filter((s) => resolvePresence(s) === "unreachable").length;
 
   const sessionTimelines = useMemo(() => {
     const map = new Map<string, SessionTimelineData>();
@@ -171,21 +173,11 @@ export function WorkersPage({ summary }: WorkersPageProps) {
   return (
     <div className="page-content page-stack-lg">
       {/* Header */}
-      <section className="page-header">
-        <div>
-          <p className="kicker">Session Archive</p>
-          <h1 className="page-title" style={{ marginTop: 6 }}>Sessions</h1>
-          <p className="page-subtitle">Searchable user directory — one row per unique user, latest snapshot.</p>
-        </div>
-        <div className="page-header-right" style={{ flexDirection: "column", alignItems: "flex-end", gap: 10 }}>
-          <div className="meta-row">
-            {[
-              { label: "Visible",  val: formatNumber(sessions.length) },
-              { label: "Active",   val: formatNumber(activeInResults) },
-              { label: "w/ Errors", val: formatNumber(resultsWithErrors) },
-            ].map((m) => (
-              <div className="meta-item" key={m.label}><span>{m.label}</span><strong>{m.val}</strong></div>
-            ))}
+      <section className="page-header" style={{ flexDirection: "column", gap: 12 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", width: "100%" }}>
+          <div>
+            <p className="kicker">Session Archive</p>
+            <h1 className="page-title" style={{ marginTop: 6 }}>Sessions</h1>
           </div>
           <button type="button" className="btn btn-ghost btn-sm" onClick={() => void handleExport()} disabled={exporting}>
             <Download className="h-3.5 w-3.5" />
@@ -193,6 +185,24 @@ export function WorkersPage({ summary }: WorkersPageProps) {
           </button>
         </div>
       </section>
+
+      {/* Stat cards */}
+      <div className="stat-grid">
+        {[
+          { label: "Total Users",   value: formatNumber(sessions.length), sub: "Unique users loaded", tone: "" },
+          { label: "Online",        value: formatNumber(activeInResults),  sub: "Active right now",    tone: activeInResults > 0 ? "tone-success" : "" },
+          { label: "Ended",         value: formatNumber(endedCount),       sub: "Sessions closed",     tone: "" },
+          { label: "Unreachable",   value: formatNumber(unreachableCount), sub: "Lost or uninstalled", tone: unreachableCount > 0 ? "tone-danger" : "" },
+          { label: "With Errors",   value: formatNumber(resultsWithErrors), sub: "At least 1 error",  tone: resultsWithErrors > 0 ? "tone-warning" : "tone-success" },
+          { label: "Avg Duration",  value: formatDuration(summary.stats.averageSessionDurationSeconds), sub: "Per session", tone: "" },
+        ].map((s) => (
+          <div className={`stat-card ${s.tone}`} key={s.label}>
+            <span className="stat-label">{s.label}</span>
+            <strong className="stat-value" style={{ fontSize: "1.5rem" }}>{s.value}</strong>
+            <p className="stat-sub">{s.sub}</p>
+          </div>
+        ))}
+      </div>
 
       {exportError ? (
         <div style={{ background: "var(--danger-sub)", border: "1px solid hsl(4 86% 58% / 0.25)", borderRadius: 10, padding: "10px 14px", fontSize: "0.8125rem", color: "hsl(4 86% 72%)" }}>

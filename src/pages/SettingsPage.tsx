@@ -1,10 +1,8 @@
-import { AlertTriangle, BarChart3, Check, CircleDot, LogOut, Palette, Server, Shield, Sun } from "lucide-react";
+import { BarChart3, Check, CircleDot, LogOut, Palette, Server, Shield } from "lucide-react";
 import { useState } from "react";
 import { ACCENT_PRESETS, useAccent } from "../hooks/useAccent";
 import { useChartColors } from "../hooks/useChartColors";
 import { useDonutColors } from "../hooks/useDonutColors";
-import { useStatusColors, STATUS_COLOR_PRESETS } from "../hooks/useStatusColors";
-import { useSurfaceBrightness } from "../hooks/useSurfaceBrightness";
 import type { AuthMode, AuthUser, HealthPayload, SummaryPayload } from "../types/telemetry";
 
 interface SettingsPageProps {
@@ -19,8 +17,6 @@ export function SettingsPage({ user, authMode, summary, health, onLogout }: Sett
   const { hue, setHue, activePreset } = useAccent();
   const { override: chartColorOverride, setPreset: setChartPreset, activeLabel: chartActiveLabel, presets: chartPresets } = useChartColors();
   const { setPreset: setDonutPreset, activeLabel: donutActiveLabel, presets: donutPresets } = useDonutColors();
-  const { active: statusActive, setPreset: setStatusPreset } = useStatusColors();
-  const { level: surfaceLevel, setLevel: setSurfaceLevel } = useSurfaceBrightness();
   const [copied, setCopied] = useState<string | null>(null);
 
   function copyToClipboard(value: string, key: string) {
@@ -142,7 +138,7 @@ export function SettingsPage({ user, authMode, summary, health, onLogout }: Sett
             </p>
             <h2 className="section-title">Accent Color</h2>
             <p className="section-sub">
-              All highlights, buttons, map dots, and glows follow this hue.
+              Pick any accent hue — all interface highlights, buttons, and glows update instantly. Saved to your browser.
             </p>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -222,211 +218,104 @@ export function SettingsPage({ user, authMode, summary, health, onLogout }: Sett
         </div>
       </section>
 
-      {/* Surface brightness + Status colors side by side */}
-      <div className="two-col">
-        {/* Surface brightness */}
-        <section className="panel">
-          <div className="panel-head">
-            <div className="panel-head-left">
-              <p className="kicker" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <Sun className="h-3 w-3" /> Surface
-              </p>
-              <h2 className="section-title">Panel Brightness</h2>
-              <p className="section-sub">Adjust glass layer opacity for panels and cards.</p>
-            </div>
-            <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "0.75rem", color: "var(--text-2)" }}>
-              {Math.round(surfaceLevel * 100)}%
-            </span>
+      {/* Chart color preset */}
+      <section className="panel">
+        <div className="panel-head">
+          <div className="panel-head-left">
+            <p className="kicker" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <BarChart3 className="h-3 w-3" /> Charts
+            </p>
+            <h2 className="section-title">Chart Colors</h2>
+            <p className="section-sub">
+              Choose a color theme for traffic and analytics charts. Saved to your browser.
+            </p>
           </div>
-          <div className="panel-body">
-            <input
-              type="range"
-              min={40}
-              max={200}
-              step={5}
-              value={Math.round(surfaceLevel * 100)}
-              onChange={(e) => setSurfaceLevel(Number(e.target.value) / 100)}
-              className="accent-hue-slider"
-              style={{ width: "100%" }}
-            />
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
-              <span style={{ fontSize: "0.6875rem", color: "var(--text-3)" }}>Dim</span>
-              <span style={{ fontSize: "0.6875rem", color: "var(--text-3)" }}>Bright</span>
-            </div>
-            <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
-              {[
-                { label: "Dim", val: 0.5 },
-                { label: "Default", val: 1 },
-                { label: "Bright", val: 1.5 },
-                { label: "Max", val: 2 },
-              ].map((p) => (
+        </div>
+        <div className="panel-body">
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {chartPresets.map((preset) => {
+              const isActive = chartActiveLabel === preset.label;
+              return (
                 <button
-                  key={p.label}
+                  key={preset.label}
                   type="button"
-                  className={`seg-btn${Math.abs(surfaceLevel - p.val) < 0.05 ? " active" : ""}`}
-                  onClick={() => setSurfaceLevel(p.val)}
+                  onClick={() => setChartPreset(preset.label === "Default" ? null : preset)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "10px 16px",
+                    borderRadius: 10,
+                    border: isActive ? "1px solid rgba(255,255,255,0.18)" : "1px solid rgba(255,255,255,0.06)",
+                    cursor: "pointer",
+                    background: isActive ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.02)",
+                    transition: "all 0.15s",
+                  }}
                 >
-                  {p.label}
+                  <div style={{ display: "flex", gap: 4 }}>
+                    <span style={{ width: 12, height: 12, borderRadius: "50%", background: preset.users, boxShadow: isActive ? `0 0 8px ${preset.users}` : "none" }} />
+                    <span style={{ width: 12, height: 12, borderRadius: "50%", background: preset.errors, boxShadow: isActive ? `0 0 8px ${preset.errors}` : "none" }} />
+                  </div>
+                  <span style={{ fontSize: "0.8rem", color: isActive ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.55)", fontWeight: isActive ? 500 : 400 }}>
+                    {preset.label}
+                  </span>
+                  {isActive && <Check className="h-3.5 w-3.5" style={{ color: "var(--accent-text)", marginLeft: 2 }} />}
                 </button>
-              ))}
-            </div>
+              );
+            })}
           </div>
-        </section>
+        </div>
+      </section>
 
-        {/* Status colors */}
-        <section className="panel">
-          <div className="panel-head">
-            <div className="panel-head-left">
-              <p className="kicker" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <AlertTriangle className="h-3 w-3" /> Status
-              </p>
-              <h2 className="section-title">Status Colors</h2>
-              <p className="section-sub">Success, warning, and error indicator colors.</p>
-            </div>
+      {/* Donut chart color preset */}
+      <section className="panel">
+        <div className="panel-head">
+          <div className="panel-head-left">
+            <p className="kicker" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <CircleDot className="h-3 w-3" /> Donut Charts
+            </p>
+            <h2 className="section-title">Donut Colors</h2>
+            <p className="section-sub">
+              Choose a color palette for geographic donut charts. Saved to your browser.
+            </p>
           </div>
-          <div className="panel-body">
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {STATUS_COLOR_PRESETS.map((preset) => {
-                const isActive = statusActive.label === preset.label;
-                return (
-                  <button
-                    key={preset.label}
-                    type="button"
-                    onClick={() => setStatusPreset(preset.label === "Default" ? null : preset)}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 10,
-                      padding: "10px 16px",
-                      borderRadius: 10,
-                      border: isActive ? "1px solid rgba(255,255,255,0.18)" : "1px solid rgba(255,255,255,0.06)",
-                      cursor: "pointer",
-                      background: isActive ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.02)",
-                      transition: "all 0.15s",
-                    }}
-                  >
-                    <div style={{ display: "flex", gap: 4 }}>
-                      <span style={{ width: 12, height: 12, borderRadius: "50%", background: preset.success, boxShadow: isActive ? `0 0 8px ${preset.success}` : "none" }} />
-                      <span style={{ width: 12, height: 12, borderRadius: "50%", background: preset.warning, boxShadow: isActive ? `0 0 8px ${preset.warning}` : "none" }} />
-                      <span style={{ width: 12, height: 12, borderRadius: "50%", background: preset.danger, boxShadow: isActive ? `0 0 8px ${preset.danger}` : "none" }} />
-                    </div>
-                    <span style={{ fontSize: "0.8rem", color: isActive ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.55)", fontWeight: isActive ? 500 : 400 }}>
-                      {preset.label}
-                    </span>
-                    {isActive && <Check className="h-3.5 w-3.5" style={{ color: "var(--accent-text)", marginLeft: 2 }} />}
-                  </button>
-                );
-              })}
-            </div>
-            {/* Live preview */}
-            <div style={{ marginTop: 16, display: "flex", gap: 10, alignItems: "center" }}>
-              <span className="badge badge-success">Online</span>
-              <span className="badge badge-warning">Warning</span>
-              <span className="badge badge-danger">Error</span>
-              <span style={{ fontSize: 11, color: "var(--text-3)" }}>Preview</span>
-            </div>
+        </div>
+        <div className="panel-body">
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {donutPresets.map((preset) => {
+              const isActive = donutActiveLabel === preset.label;
+              return (
+                <button
+                  key={preset.label}
+                  type="button"
+                  onClick={() => setDonutPreset(preset.label === "Default" ? null : preset)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "10px 16px",
+                    borderRadius: 10,
+                    border: isActive ? "1px solid rgba(255,255,255,0.18)" : "1px solid rgba(255,255,255,0.06)",
+                    cursor: "pointer",
+                    background: isActive ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.02)",
+                    transition: "all 0.15s",
+                  }}
+                >
+                  <div style={{ display: "flex", gap: 3 }}>
+                    {preset.colors.slice(0, 4).map((c, i) => (
+                      <span key={i} style={{ width: 10, height: 10, borderRadius: "50%", background: c, boxShadow: isActive ? `0 0 6px ${c}` : "none" }} />
+                    ))}
+                  </div>
+                  <span style={{ fontSize: "0.8rem", color: isActive ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.55)", fontWeight: isActive ? 500 : 400 }}>
+                    {preset.label}
+                  </span>
+                  {isActive && <Check className="h-3.5 w-3.5" style={{ color: "var(--accent-text)", marginLeft: 2 }} />}
+                </button>
+              );
+            })}
           </div>
-        </section>
-      </div>
-
-      {/* Chart + Donut color presets side by side */}
-      <div className="two-col">
-        {/* Chart color preset */}
-        <section className="panel">
-          <div className="panel-head">
-            <div className="panel-head-left">
-              <p className="kicker" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <BarChart3 className="h-3 w-3" /> Charts
-              </p>
-              <h2 className="section-title">Chart Colors</h2>
-              <p className="section-sub">Traffic and analytics chart palette.</p>
-            </div>
-          </div>
-          <div className="panel-body">
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {chartPresets.map((preset) => {
-                const isActive = chartActiveLabel === preset.label;
-                return (
-                  <button
-                    key={preset.label}
-                    type="button"
-                    onClick={() => setChartPreset(preset.label === "Default" ? null : preset)}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 10,
-                      padding: "10px 16px",
-                      borderRadius: 10,
-                      border: isActive ? "1px solid rgba(255,255,255,0.18)" : "1px solid rgba(255,255,255,0.06)",
-                      cursor: "pointer",
-                      background: isActive ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.02)",
-                      transition: "all 0.15s",
-                    }}
-                  >
-                    <div style={{ display: "flex", gap: 4 }}>
-                      <span style={{ width: 12, height: 12, borderRadius: "50%", background: preset.users, boxShadow: isActive ? `0 0 8px ${preset.users}` : "none" }} />
-                      <span style={{ width: 12, height: 12, borderRadius: "50%", background: preset.errors, boxShadow: isActive ? `0 0 8px ${preset.errors}` : "none" }} />
-                    </div>
-                    <span style={{ fontSize: "0.8rem", color: isActive ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.55)", fontWeight: isActive ? 500 : 400 }}>
-                      {preset.label}
-                    </span>
-                    {isActive && <Check className="h-3.5 w-3.5" style={{ color: "var(--accent-text)", marginLeft: 2 }} />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </section>
-
-        {/* Donut chart color preset */}
-        <section className="panel">
-          <div className="panel-head">
-            <div className="panel-head-left">
-              <p className="kicker" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <CircleDot className="h-3 w-3" /> Donut Charts
-              </p>
-              <h2 className="section-title">Donut Colors</h2>
-              <p className="section-sub">Geographic donut chart palette.</p>
-            </div>
-          </div>
-          <div className="panel-body">
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {donutPresets.map((preset) => {
-                const isActive = donutActiveLabel === preset.label;
-                return (
-                  <button
-                    key={preset.label}
-                    type="button"
-                    onClick={() => setDonutPreset(preset.label === "Default" ? null : preset)}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 10,
-                      padding: "10px 16px",
-                      borderRadius: 10,
-                      border: isActive ? "1px solid rgba(255,255,255,0.18)" : "1px solid rgba(255,255,255,0.06)",
-                      cursor: "pointer",
-                      background: isActive ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.02)",
-                      transition: "all 0.15s",
-                    }}
-                  >
-                    <div style={{ display: "flex", gap: 3 }}>
-                      {preset.colors.slice(0, 4).map((c, i) => (
-                        <span key={i} style={{ width: 10, height: 10, borderRadius: "50%", background: c, boxShadow: isActive ? `0 0 6px ${c}` : "none" }} />
-                      ))}
-                    </div>
-                    <span style={{ fontSize: "0.8rem", color: isActive ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.55)", fontWeight: isActive ? 500 : 400 }}>
-                      {preset.label}
-                    </span>
-                    {isActive && <Check className="h-3.5 w-3.5" style={{ color: "var(--accent-text)", marginLeft: 2 }} />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </section>
-      </div>
-
+        </div>
+      </section>
     </div>
   );
 }

@@ -129,10 +129,12 @@ function getSessionIdentity(session: AppSessionRecord): string {
 }
 
 function normalizeVersion(raw: string): string {
-  // Normalize 4-part versions to 3-part semver: "1.4.1.0" → "1.4.1", "1.0.0.1" → "1.0.0"
+  // Strip trailing ".0" segments only: "1.4.1.0" → "1.4.1", "1.0.0.1" stays "1.0.0.1"
   const parts = raw.split(".");
-  if (parts.length >= 3) return parts.slice(0, 3).join(".");
-  return raw;
+  while (parts.length > 1 && parts[parts.length - 1] === "0") {
+    parts.pop();
+  }
+  return parts.join(".");
 }
 
 function getVersionLabel(session: AppSessionRecord): string {

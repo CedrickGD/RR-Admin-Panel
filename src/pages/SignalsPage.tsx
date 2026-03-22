@@ -11,14 +11,9 @@ import {
 } from "recharts";
 import { TelemetryChartTooltip } from "../components/charts/TelemetryChartTooltip";
 import { useChartColors } from "../hooks/useChartColors";
-import { useDonutColors } from "../hooks/useDonutColors";
 import { useLatestVersion } from "../hooks/useLatestVersion";
 import type { SummaryPayload, ThemeMode } from "../types/telemetry";
-import {
-  buildCountryBreakdown,
-  buildRegionBreakdown,
-  buildVersionBreakdown,
-} from "../utils/dashboardInsights";
+import { buildVersionBreakdown } from "../utils/dashboardInsights";
 import { formatNumber } from "../utils/format";
 import { applyChartColorOverride, buildDashboardChartPalette } from "./dashboardShared";
 
@@ -43,7 +38,6 @@ export function SignalsPage({ summary, theme, accentHue = 217 }: SignalsPageProp
   const [timeSpan, setTimeSpan] = useState<TimeSpan>("all");
   const [versionListExpanded, setVersionListExpanded] = useState(true);
   const [errorListExpanded, setErrorListExpanded] = useState(true);
-  const [geoExpanded, setGeoExpanded] = useState(true);
 
   // Time-filtered summary
   const filteredSummary = useMemo(() => {
@@ -79,16 +73,9 @@ export function SignalsPage({ summary, theme, accentHue = 217 }: SignalsPageProp
     [allVersions],
   );
 
-  const regions = useMemo(() => buildRegionBreakdown(filteredSummary), [filteredSummary]);
-  const countries = useMemo(() => buildCountryBreakdown(filteredSummary, 10, true), [filteredSummary]);
-
   const basePalette = useMemo(() => buildDashboardChartPalette(theme, accentHue), [theme, accentHue]);
   const { override: colorOverride } = useChartColors();
   const chartPalette = useMemo(() => applyChartColorOverride(basePalette, colorOverride), [basePalette, colorOverride]);
-  const { colors: donutColors } = useDonutColors();
-
-  const topRegion = regions[0];
-  const topCountry = countries[0];
 
   const trackedUsers = useMemo(() => rrVersions.reduce((s, v) => s + v.value, 0), [rrVersions]);
   const liveUsers = useMemo(() => rrVersions.reduce((s, v) => s + v.activeUsers, 0), [rrVersions]);
@@ -130,7 +117,7 @@ export function SignalsPage({ summary, theme, accentHue = 217 }: SignalsPageProp
           <p className="kicker">Intelligence</p>
           <h1 className="page-title" style={{ marginTop: 6 }}>Signals</h1>
           <p className="page-subtitle">
-            RazorReaper version adoption, error pressure, and geographic distribution.
+            RazorReaper version adoption and error pressure.
           </p>
         </div>
         <div className="page-header-right" style={{ display: "flex", alignItems: "flex-start", gap: 16 }}>
@@ -158,16 +145,10 @@ export function SignalsPage({ summary, theme, accentHue = 217 }: SignalsPageProp
             ))}
           </div>
           <div className="meta-row">
-            {[
-              { label: "Top Region", val: topRegion?.label ?? "—" },
-              { label: "Top Country", val: topCountry?.label ?? "—" },
-              { label: "Latest RR", val: latestVersion },
-            ].map((m) => (
-              <div className="meta-item" key={m.label}>
-                <span>{m.label}</span>
-                <strong>{m.val}</strong>
-              </div>
-            ))}
+            <div className="meta-item">
+              <span>Latest RR</span>
+              <strong>{latestVersion}</strong>
+            </div>
           </div>
         </div>
       </section>
@@ -310,103 +291,6 @@ export function SignalsPage({ summary, theme, accentHue = 217 }: SignalsPageProp
           </div>
         </section>
       </div>
-
-      {/* Geography — single combined table */}
-      <section className="panel">
-        <div className="panel-head">
-          <div className="panel-head-left">
-            <button
-              type="button"
-              onClick={() => setGeoExpanded((p) => !p)}
-              style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", padding: 0, color: "inherit" }}
-            >
-              {geoExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-              <p className="kicker" style={{ margin: 0 }}>Geography</p>
-            </button>
-            <h2 className="section-title">User Distribution</h2>
-            <p className="section-sub">Where RazorReaper users are located.</p>
-          </div>
-          <div className="panel-head-right">
-            <div className="meta-row">
-              {[
-                { label: "Regions", val: formatNumber(regions.length) },
-                { label: "Countries", val: formatNumber(countries.length) },
-              ].map((m) => (
-                <div className="meta-item" key={m.label}>
-                  <span>{m.label}</span>
-                  <strong>{m.val}</strong>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-        {geoExpanded && (
-          <div className="panel-body-tight">
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
-              {/* Regions */}
-              <div>
-                <p style={{ fontSize: 11, fontWeight: 600, color: "var(--text-3)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>
-                  Regions
-                </p>
-                <div className="progress-wrap">
-                  {regions.map((r, i) => {
-                    const maxVal = Math.max(1, regions[0]?.value ?? 1);
-                    const pct = Math.round((r.value / maxVal) * 100);
-                    return (
-                      <div className="progress-row" key={r.label}>
-                        <div className="progress-head">
-                          <span className="progress-label" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            <span style={{ width: 8, height: 8, borderRadius: "50%", background: donutColors[i % donutColors.length], flexShrink: 0 }} />
-                            {r.label}
-                          </span>
-                          <span className="progress-val">{formatNumber(r.value)}</span>
-                        </div>
-                        <div className="progress-track">
-                          <div className="progress-fill" style={{ width: `${pct}%`, background: donutColors[i % donutColors.length] }} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {regions.length === 0 && (
-                    <div className="empty-state"><p>No region data.</p></div>
-                  )}
-                </div>
-              </div>
-
-              {/* Countries */}
-              <div>
-                <p style={{ fontSize: 11, fontWeight: 600, color: "var(--text-3)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>
-                  Countries
-                </p>
-                <div className="progress-wrap">
-                  {countries.map((c, i) => {
-                    const maxVal = Math.max(1, countries[0]?.value ?? 1);
-                    const pct = Math.round((c.value / maxVal) * 100);
-                    return (
-                      <div className="progress-row" key={c.label}>
-                        <div className="progress-head">
-                          <span className="progress-label" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            {c.flag && <span>{c.flag}</span>}
-                            {c.label}
-                            <span style={{ fontSize: 10, color: "var(--text-3)" }}>{c.region}</span>
-                          </span>
-                          <span className="progress-val">{formatNumber(c.value)}</span>
-                        </div>
-                        <div className="progress-track">
-                          <div className="progress-fill" style={{ width: `${pct}%`, background: donutColors[i % donutColors.length] }} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {countries.length === 0 && (
-                    <div className="empty-state"><p>No country data.</p></div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </section>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { ChevronDown, ChevronUp, Download, Search } from "lucide-react";
 import { Fragment, useMemo, useState } from "react";
-import { StatusBadge } from "../components/StatusBadge";
+import { type SessionPresence, StatusBadge } from "../components/StatusBadge";
 import type { AppSessionRecord, SummaryPayload, TelemetryEvent } from "../types/telemetry";
 import { downloadSessionExport } from "../utils/api";
 import { formatAccuracy, formatDate, formatDuration, formatEventName, formatGeoSource, formatNumber, timeAgo } from "../utils/format";
@@ -54,6 +54,27 @@ function resolveSessionDuration(session: AppSessionRecord): string {
 
 function buildLocationLabel(session: AppSessionRecord): string {
   return [session.clientCity, session.clientRegion, session.clientCountry].filter((v): v is string => Boolean(v?.trim())).join(", ");
+}
+
+/** Derive a human-meaningful presence from session state */
+function resolvePresence(session: AppSessionRecord): SessionPresence {
+  // Ended / uninstalled → unreachable (red)
+  const lastEvent = session.lastEvent?.toLowerCase() ?? "";
+  if (lastEvent === "app_uninstall" || lastEvent === "uninstall") return "unreachable";
+  if (session.endedAt && !session.isActive) return "ended";
+
+  // Active but stale (no heartbeat for 5+ min) → idle
+  if (session.isActive) {
+    const lastSeen = Date.parse(session.lastSeenAt);
+    const staleThreshold = 5 * 60 * 1000;
+    if (Number.isFinite(lastSeen) && Date.now() - lastSeen > staleThreshold) return "idle";
+    return "online";
+  }
+
+  // Fallback based on legacy status
+  if (session.lastStatus === "down") return "unreachable";
+  if (session.lastStatus === "degraded") return "idle";
+  return "ended";
 }
 
 function readMetricText(metrics: Record<string, unknown>, keys: string[]): string | null {
@@ -231,11 +252,11 @@ export function WorkersPage({ summary }: WorkersPageProps) {
                           <td className="muted">{timeAgo(session.lastSeenAt)}</td>
                           <td>
                             {session.errorCount > 0
-                              ? <span className="badge badge-danger">{session.errorCount}</span>
+                              ? <span className="badge badge-warning">{session.errorCount}</span>
                               : <span className="badge badge-success">0</span>
                             }
                           </td>
-                          <td><StatusBadge status={session.lastStatus ?? "unknown"} /></td>
+                          <td><StatusBadge presence={resolvePresence(session)} /></td>
                           <td>
                             <button type="button" className="btn-icon" style={{ padding: 4 }} onClick={() => toggleExpanded(identity)} aria-label={isExpanded ? "Collapse" : "Expand"}>
                               {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}

@@ -1,23 +1,39 @@
 import type { TelemetryStatus } from "../types/telemetry";
 
-const STATUS_STYLES: Record<TelemetryStatus | "unknown", { className: string; label: string }> = {
-  ok: { className: "badge badge-success", label: "Operational" },
-  degraded: { className: "badge badge-warning", label: "Degraded" },
-  down: { className: "badge badge-danger", label: "Down" },
-  unknown: { className: "badge badge-default", label: "Unknown" },
+export type SessionPresence = "online" | "idle" | "unreachable" | "ended";
+
+const PRESENCE_STYLES: Record<SessionPresence, { className: string; label: string; dotClass: string }> = {
+  online:      { className: "badge badge-success",  label: "Online",       dotClass: "status-dot pulse" },
+  idle:        { className: "badge badge-warning",  label: "Idle",         dotClass: "status-dot warn pulse-warn" },
+  unreachable: { className: "badge badge-danger",   label: "Unreachable",  dotClass: "status-dot err pulse-err" },
+  ended:       { className: "badge badge-default",  label: "Ended",        dotClass: "status-dot" },
 };
 
 interface StatusBadgeProps {
-  status: TelemetryStatus | "unknown";
+  /** Legacy prop — still accepted for backwards compat */
+  status?: TelemetryStatus | "unknown";
+  /** New presence-based prop — takes priority */
+  presence?: SessionPresence;
   showDot?: boolean;
   label?: string;
 }
 
-export function StatusBadge({ status, showDot = true, label }: StatusBadgeProps) {
-  const style = STATUS_STYLES[status] ?? STATUS_STYLES.unknown;
+/** Map legacy status values to presence */
+function statusToPresence(status: TelemetryStatus | "unknown"): SessionPresence {
+  switch (status) {
+    case "ok": return "online";
+    case "degraded": return "idle";
+    case "down": return "unreachable";
+    default: return "ended";
+  }
+}
+
+export function StatusBadge({ status, presence, showDot = true, label }: StatusBadgeProps) {
+  const resolved = presence ?? (status ? statusToPresence(status) : "ended");
+  const style = PRESENCE_STYLES[resolved];
   return (
     <span className={style.className}>
-      {showDot ? <span className="status-dot" /> : null}
+      {showDot ? <span className={style.dotClass} /> : null}
       {label ?? style.label}
     </span>
   );

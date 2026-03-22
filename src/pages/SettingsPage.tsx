@@ -1,4 +1,4 @@
-import { AlertTriangle, BarChart3, Check, CircleDot, LogOut, Palette, Server, Shield, Sliders, Sun } from "lucide-react";
+import { AlertTriangle, BarChart3, Check, CircleDot, LogOut, Palette, Server, Shield, Sun } from "lucide-react";
 import { useState } from "react";
 import { ACCENT_PRESETS, useAccent } from "../hooks/useAccent";
 import { useChartColors } from "../hooks/useChartColors";
@@ -6,7 +6,6 @@ import { useDonutColors } from "../hooks/useDonutColors";
 import { useStatusColors, STATUS_COLOR_PRESETS } from "../hooks/useStatusColors";
 import { useSurfaceBrightness } from "../hooks/useSurfaceBrightness";
 import type { AuthMode, AuthUser, HealthPayload, SummaryPayload } from "../types/telemetry";
-import { formatDate, formatNumber } from "../utils/format";
 
 interface SettingsPageProps {
   user: AuthUser;
@@ -428,37 +427,6 @@ export function SettingsPage({ user, authMode, summary, health, onLogout }: Sett
         </section>
       </div>
 
-      {/* Data summary */}
-      <section className="panel">
-        <div className="panel-head">
-          <div className="panel-head-left">
-            <p className="kicker" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <Sliders className="h-3 w-3" /> Telemetry
-            </p>
-            <h2 className="section-title">Data Summary</h2>
-            <p className="section-sub">Current loaded totals from the last dashboard refresh.</p>
-          </div>
-        </div>
-        <div className="panel-body">
-          <div className="stat-grid">
-            {[
-              { label: "Total Events",      val: formatNumber(summary.stats.totalEvents) },
-              { label: "Total Sessions",    val: formatNumber(summary.stats.totalSessions) },
-              { label: "Active Users",      val: formatNumber(summary.stats.activeUsers) },
-              { label: "Started Today",     val: formatNumber(summary.stats.sessionsStartedToday) },
-              { label: "Errors 24h",        val: formatNumber(summary.stats.errorsLast24Hours) },
-              { label: "Errors Loaded",     val: formatNumber(summary.recentErrors.length) },
-              { label: "Sessions Loaded",   val: formatNumber(summary.recentSessions.length) },
-              { label: "Last Ingest",       val: summary.stats.lastIngestAt ? formatDate(summary.stats.lastIngestAt) : "Waiting" },
-            ].map((s) => (
-              <div className="stat-card" key={s.label}>
-                <span className="stat-label">{s.label}</span>
-                <strong className="stat-value" style={{ fontSize: "1.35rem" }}>{s.val}</strong>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
     </div>
   );
 }

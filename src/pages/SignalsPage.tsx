@@ -1,5 +1,5 @@
-import { Download } from "lucide-react";
-import { useCallback, useMemo } from "react";
+import { ChevronDown, ChevronRight, Download } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -9,7 +9,6 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { GeoDonutChart } from "../components/charts/GeoDonutChart";
 import { TelemetryChartTooltip } from "../components/charts/TelemetryChartTooltip";
 import { useChartColors } from "../hooks/useChartColors";
 import { useDonutColors } from "../hooks/useDonutColors";
@@ -29,44 +28,99 @@ interface SignalsPageProps {
   accentHue?: number;
 }
 
+type TimeSpan = "24h" | "7d" | "30d" | "all";
+
+const HOUR_MS = 60 * 60 * 1000;
+const TIME_SPANS: { key: TimeSpan; label: string; ms: number }[] = [
+  { key: "24h", label: "24h", ms: 24 * HOUR_MS },
+  { key: "7d", label: "7d", ms: 7 * 24 * HOUR_MS },
+  { key: "30d", label: "30d", ms: 30 * 24 * HOUR_MS },
+  { key: "all", label: "All", ms: 0 },
+];
+
 export function SignalsPage({ summary, theme, accentHue = 217 }: SignalsPageProps) {
   const latestVersion = useLatestVersion();
-  const regions    = useMemo(() => buildRegionBreakdown(summary), [summary]);
-  const countries  = useMemo(() => buildCountryBreakdown(summary, 6, true), [summary]);
-  const versions   = useMemo(() => buildVersionBreakdown(summary, latestVersion), [summary, latestVersion]);
+  const [timeSpan, setTimeSpan] = useState<TimeSpan>("all");
+  const [versionListExpanded, setVersionListExpanded] = useState(true);
+  const [errorListExpanded, setErrorListExpanded] = useState(true);
+  const [geoExpanded, setGeoExpanded] = useState(true);
+
+  // Time-filtered summary
+  const filteredSummary = useMemo(() => {
+    const spanDef = TIME_SPANS.find((s) => s.key === timeSpan);
+    if (!spanDef || spanDef.ms === 0) return summary;
+
+    const cutoff = Date.now() - spanDef.ms;
+    const filterSession = (s: typeof summary.activeSessions[0]) => {
+      const ts = Date.parse(s.lastSeenAt ?? s.startedAt);
+      return Number.isFinite(ts) && ts >= cutoff;
+    };
+
+    return {
+      ...summary,
+      activeSessions: summary.activeSessions.filter(filterSession),
+      recentSessions: summary.recentSessions.filter(filterSession),
+      recentEvents: summary.recentEvents.filter((e) => {
+        const ts = Date.parse(e.timestamp);
+        return Number.isFinite(ts) && ts >= cutoff;
+      }),
+      recentErrors: summary.recentErrors.filter((e) => {
+        const ts = Date.parse(e.timestamp);
+        return Number.isFinite(ts) && ts >= cutoff;
+      }),
+    };
+  }, [summary, timeSpan]);
+
+  const allVersions = useMemo(() => buildVersionBreakdown(filteredSummary, latestVersion), [filteredSummary, latestVersion]);
+
+  // RazorReaper-only versions
+  const rrVersions = useMemo(
+    () => allVersions.filter((v) => v.source.trim().toLowerCase().includes("razorreaper")),
+    [allVersions],
+  );
+
+  const regions = useMemo(() => buildRegionBreakdown(filteredSummary), [filteredSummary]);
+  const countries = useMemo(() => buildCountryBreakdown(filteredSummary, 10, true), [filteredSummary]);
+
   const basePalette = useMemo(() => buildDashboardChartPalette(theme, accentHue), [theme, accentHue]);
   const { override: colorOverride } = useChartColors();
   const chartPalette = useMemo(() => applyChartColorOverride(basePalette, colorOverride), [basePalette, colorOverride]);
   const { colors: donutColors } = useDonutColors();
 
-  const topRegion  = regions[0];
+  const topRegion = regions[0];
   const topCountry = countries[0];
-  const noisiestVersion = useMemo(() => [...versions].sort((a, b) => b.totalErrors - a.totalErrors || b.value - a.value)[0], [versions]);
 
-  const trackedUsers       = useMemo(() => versions.reduce((s, v) => s + v.value, 0), [versions]);
-  const liveUsers          = useMemo(() => versions.reduce((s, v) => s + v.activeUsers, 0), [versions]);
-  const currentReleaseUsers = useMemo(() => versions.filter((v) => v.isCurrent).reduce((s, v) => s + v.value, 0), [versions]);
-  const behindCurrentUsers  = useMemo(() => versions.filter((v) => v.source.trim().toLowerCase().includes("razorreaper") && v.version !== "Unknown" && !v.isCurrent).reduce((s, v) => s + v.value, 0), [versions]);
+  const trackedUsers = useMemo(() => rrVersions.reduce((s, v) => s + v.value, 0), [rrVersions]);
+  const liveUsers = useMemo(() => rrVersions.reduce((s, v) => s + v.activeUsers, 0), [rrVersions]);
+  const currentReleaseUsers = useMemo(() => rrVersions.filter((v) => v.isCurrent).reduce((s, v) => s + v.value, 0), [rrVersions]);
+  const behindCurrentUsers = useMemo(() => rrVersions.filter((v) => v.version !== "Unknown" && !v.isCurrent).reduce((s, v) => s + v.value, 0), [rrVersions]);
 
-  const visibleVersions    = versions.slice(0, 7);
-  const versionChartHeight = Math.max(220, visibleVersions.length * 48);
+  const visibleVersions = versionListExpanded ? rrVersions : rrVersions.slice(0, 3);
+  const versionChartHeight = Math.max(180, visibleVersions.length * 48);
 
-  const regionDonutData  = useMemo(() => regions.map((r, i)  => ({ label: r.label, value: r.value, share: r.share, color: donutColors[i % donutColors.length], note: `${formatNumber(r.value)} sessions` })), [regions, donutColors]);
-  const countryDonutData = useMemo(() => countries.map((c, i) => ({ label: c.label, value: c.value, share: c.share, color: donutColors[i % donutColors.length], note: c.region, flag: c.flag })), [countries, donutColors]);
+  // Error pressure — RR only, sorted by errors desc
+  const rrErrorVersions = useMemo(
+    () => [...rrVersions].sort((a, b) => b.totalErrors - a.totalErrors),
+    [rrVersions],
+  );
+  const visibleErrorVersions = errorListExpanded ? rrErrorVersions : rrErrorVersions.slice(0, 3);
+  const noisiestVersion = rrErrorVersions[0];
 
   const downloadVersionCsv = useCallback(() => {
-    const header = "Source,Version,Users,Active Now,Sessions,Errors,Share,Is Current\n";
-    const rows = versions.map((v) =>
-      [v.source, v.version, v.value, v.activeUsers, v.sessionCount, v.totalErrors, `${(v.share * 100).toFixed(1)}%`, v.isCurrent].join(","),
-    ).join("\n");
+    const header = "Version,Users,Active Now,Sessions,Errors,Share,Is Current\n";
+    const rows = rrVersions
+      .map((v) =>
+        [v.version, v.value, v.activeUsers, v.sessionCount, v.totalErrors, `${(v.share * 100).toFixed(1)}%`, v.isCurrent].join(","),
+      )
+      .join("\n");
     const blob = new Blob([header + rows], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `version-distribution-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `rr-version-distribution-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [versions]);
+  }, [rrVersions]);
 
   return (
     <div className="page-content page-stack-lg">
@@ -76,43 +130,79 @@ export function SignalsPage({ summary, theme, accentHue = 217 }: SignalsPageProp
           <p className="kicker">Intelligence</p>
           <h1 className="page-title" style={{ marginTop: 6 }}>Signals</h1>
           <p className="page-subtitle">
-            Geographic mix, version concentration, and failure pressure.
+            RazorReaper version adoption, error pressure, and geographic distribution.
           </p>
         </div>
-        <div className="page-header-right">
+        <div className="page-header-right" style={{ display: "flex", alignItems: "flex-start", gap: 16 }}>
+          {/* Timespan filter */}
+          <div style={{ display: "flex", gap: 4, background: "var(--surface-2)", borderRadius: 6, padding: 2 }}>
+            {TIME_SPANS.map((s) => (
+              <button
+                key={s.key}
+                type="button"
+                onClick={() => setTimeSpan(s.key)}
+                style={{
+                  padding: "4px 10px",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  borderRadius: 4,
+                  border: "none",
+                  cursor: "pointer",
+                  background: timeSpan === s.key ? "var(--accent)" : "transparent",
+                  color: timeSpan === s.key ? "#fff" : "var(--text-2)",
+                  transition: "all .15s ease",
+                }}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
           <div className="meta-row">
             {[
-              { label: "Top Region",  val: topRegion?.label ?? "Unknown" },
-              { label: "Top Country", val: topCountry?.label ?? "Unknown" },
-              { label: "Latest RR",   val: latestVersion },
+              { label: "Top Region", val: topRegion?.label ?? "—" },
+              { label: "Top Country", val: topCountry?.label ?? "—" },
+              { label: "Latest RR", val: latestVersion },
             ].map((m) => (
-              <div className="meta-item" key={m.label}><span>{m.label}</span><strong>{m.val}</strong></div>
+              <div className="meta-item" key={m.label}>
+                <span>{m.label}</span>
+                <strong>{m.val}</strong>
+              </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Version adoption + Noise side by side */}
+      {/* Version adoption + Error pressure */}
       <div className="two-col">
         <section className="panel">
           <div className="panel-head">
             <div className="panel-head-left">
-              <p className="kicker">Releases</p>
-              <h2 className="section-title">Client Version Adoption</h2>
-              <p className="section-sub">Session distribution by version.</p>
+              <button
+                type="button"
+                onClick={() => setVersionListExpanded((p) => !p)}
+                style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", padding: 0, color: "inherit" }}
+              >
+                {versionListExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                <p className="kicker" style={{ margin: 0 }}>RazorReaper Versions</p>
+              </button>
+              <h2 className="section-title">Client Adoption</h2>
+              <p className="section-sub">Users per RazorReaper version.</p>
             </div>
             <div className="panel-head-right">
               <div className="meta-row">
                 {[
                   { label: `On ${latestVersion}`, val: formatNumber(currentReleaseUsers) },
-                  { label: "Behind",   val: formatNumber(behindCurrentUsers) },
-                  { label: "Tracked",  val: formatNumber(trackedUsers) },
+                  { label: "Behind", val: formatNumber(behindCurrentUsers) },
+                  { label: "Tracked", val: formatNumber(trackedUsers) },
                   { label: "Live now", val: formatNumber(liveUsers) },
                 ].map((m) => (
-                  <div className="meta-item" key={m.label}><span>{m.label}</span><strong>{m.val}</strong></div>
+                  <div className="meta-item" key={m.label}>
+                    <span>{m.label}</span>
+                    <strong>{m.val}</strong>
+                  </div>
                 ))}
               </div>
-              <button type="button" className="btn-icon" title="Download version distribution CSV" onClick={downloadVersionCsv} style={{ marginLeft: 8 }}>
+              <button type="button" className="btn-icon" title="Download CSV" onClick={downloadVersionCsv} style={{ marginLeft: 8 }}>
                 <Download className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -124,17 +214,37 @@ export function SignalsPage({ summary, theme, accentHue = 217 }: SignalsPageProp
                   <BarChart data={visibleVersions} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 4 }}>
                     <CartesianGrid stroke={chartPalette.grid} horizontal={false} />
                     <XAxis type="number" allowDecimals={false} tickLine={false} axisLine={false} tick={{ fill: chartPalette.axis, fontSize: 10.5 }} />
-                    <YAxis type="category" dataKey="label" width={140} tickLine={false} axisLine={false} tick={{ fill: chartPalette.axis, fontSize: 10.5 }} />
-                    <Tooltip cursor={false} content={({ active, payload, label }) => (
-                      <TelemetryChartTooltip active={active} label={label} payload={payload?.map((e) => ({ name: String(e.name ?? ""), value: typeof e.value === "number" ? e.value : Number(e.value ?? 0), color: e.color })) ?? []} />
-                    )} />
-                    <Bar dataKey="value" name="Sessions" fill={chartPalette.activityBar} radius={[0,5,5,0]} barSize={18} />
-                    <Bar dataKey="activeUsers" name="Active now" fill={chartPalette.sessionsLine} radius={[0,5,5,0]} barSize={18} />
+                    <YAxis type="category" dataKey="version" width={80} tickLine={false} axisLine={false} tick={{ fill: chartPalette.axis, fontSize: 10.5 }} />
+                    <Tooltip
+                      cursor={false}
+                      content={({ active, payload, label }) => (
+                        <TelemetryChartTooltip
+                          active={active}
+                          label={label}
+                          payload={payload?.map((e) => ({ name: String(e.name ?? ""), value: typeof e.value === "number" ? e.value : Number(e.value ?? 0), color: e.color })) ?? []}
+                        />
+                      )}
+                    />
+                    <Bar dataKey="value" name="Users" fill={chartPalette.activityBar} radius={[0, 5, 5, 0]} barSize={18} />
+                    <Bar dataKey="activeUsers" name="Active now" fill={chartPalette.sessionsLine} radius={[0, 5, 5, 0]} barSize={18} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             ) : (
-              <div className="empty-state"><p>No version data available.</p></div>
+              <div className="empty-state"><p>No RazorReaper version data.</p></div>
+            )}
+            {rrVersions.length > 3 && (
+              <button
+                type="button"
+                onClick={() => setVersionListExpanded((p) => !p)}
+                style={{
+                  display: "block", width: "100%", padding: "6px 0", marginTop: 4,
+                  background: "none", border: "none", cursor: "pointer",
+                  color: "var(--text-3)", fontSize: 11, fontWeight: 500, textAlign: "center",
+                }}
+              >
+                {versionListExpanded ? `Collapse (${rrVersions.length} versions)` : `Show all ${rrVersions.length} versions`}
+              </button>
             )}
           </div>
         </section>
@@ -142,70 +252,161 @@ export function SignalsPage({ summary, theme, accentHue = 217 }: SignalsPageProp
         <section className="panel">
           <div className="panel-head">
             <div className="panel-head-left">
-              <p className="kicker">Noise</p>
-              <h2 className="section-title">Version Error Pressure</h2>
-              <p className="section-sub">Which version contributes the most errors.</p>
+              <button
+                type="button"
+                onClick={() => setErrorListExpanded((p) => !p)}
+                style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", padding: 0, color: "inherit" }}
+              >
+                {errorListExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                <p className="kicker" style={{ margin: 0 }}>Error Pressure</p>
+              </button>
+              <h2 className="section-title">Errors by Version</h2>
+              <p className="section-sub">Which RazorReaper version is noisiest.</p>
             </div>
-            {noisiestVersion ? <span className="badge badge-warning">{noisiestVersion.version}</span> : null}
+            {noisiestVersion && noisiestVersion.totalErrors > 0 ? (
+              <span className="badge badge-warning">{noisiestVersion.version}</span>
+            ) : null}
           </div>
           <div className="panel-body-tight">
             <div className="progress-wrap">
-              {versions.slice(0, 8).map((v) => {
-                const maxErr = versions[0]?.totalErrors ?? 1;
+              {visibleErrorVersions.map((v) => {
+                const maxErr = Math.max(1, rrErrorVersions[0]?.totalErrors ?? 1);
                 const pct = maxErr > 0 ? Math.round((v.totalErrors / maxErr) * 100) : 0;
                 return (
-                  <div className="progress-row" key={v.label}>
+                  <div className="progress-row" key={v.version}>
                     <div className="progress-head">
-                      <span className="progress-label" style={{ maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{v.label}</span>
+                      <span className="progress-label">{v.version}</span>
                       <span className="progress-val">{formatNumber(v.totalErrors)} err</span>
                     </div>
                     <div className="progress-track">
-                      <div className="progress-fill" style={{ width: `${pct}%`, background: v.totalErrors > 0 ? "var(--danger)" : "var(--accent)" }} />
+                      <div
+                        className="progress-fill"
+                        style={{
+                          width: `${pct}%`,
+                          background: v.totalErrors > 0 ? "var(--danger)" : "var(--accent)",
+                        }}
+                      />
                     </div>
                   </div>
                 );
               })}
+              {rrErrorVersions.length === 0 && (
+                <div className="empty-state"><p>No error data.</p></div>
+              )}
             </div>
-          </div>
-        </section>
-      </div>
-
-      {/* Geo distribution */}
-      <div className="two-col">
-        <section className="panel">
-          <div className="panel-head">
-            <div className="panel-head-left">
-              <p className="kicker">Geography</p>
-              <h2 className="section-title">Region Breakdown</h2>
-            </div>
-            {topRegion ? <span className="badge badge-accent">{topRegion.label}</span> : null}
-          </div>
-          <div className="panel-body">
-            {regionDonutData.length > 0 ? (
-              <GeoDonutChart data={regionDonutData} totalLabel="sessions" metricLabel="Region" />
-            ) : (
-              <div className="empty-state"><p>No region data.</p></div>
-            )}
-          </div>
-        </section>
-
-        <section className="panel">
-          <div className="panel-head">
-            <div className="panel-head-left">
-              <p className="kicker">Countries</p>
-              <h2 className="section-title">Top Countries</h2>
-            </div>
-            {topCountry ? <span className="badge badge-accent">{topCountry.label}</span> : null}
-          </div>
-          <div className="panel-body">
-            {countryDonutData.length > 0 ? (
-              <GeoDonutChart data={countryDonutData} totalLabel="sessions" metricLabel="Country" />
-            ) : (
-              <div className="empty-state"><p>No country data.</p></div>
+            {rrErrorVersions.length > 3 && (
+              <button
+                type="button"
+                onClick={() => setErrorListExpanded((p) => !p)}
+                style={{
+                  display: "block", width: "100%", padding: "6px 0", marginTop: 4,
+                  background: "none", border: "none", cursor: "pointer",
+                  color: "var(--text-3)", fontSize: 11, fontWeight: 500, textAlign: "center",
+                }}
+              >
+                {errorListExpanded ? "Collapse" : `Show all ${rrErrorVersions.length} versions`}
+              </button>
             )}
           </div>
         </section>
       </div>
+
+      {/* Geography — single combined table */}
+      <section className="panel">
+        <div className="panel-head">
+          <div className="panel-head-left">
+            <button
+              type="button"
+              onClick={() => setGeoExpanded((p) => !p)}
+              style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", padding: 0, color: "inherit" }}
+            >
+              {geoExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              <p className="kicker" style={{ margin: 0 }}>Geography</p>
+            </button>
+            <h2 className="section-title">User Distribution</h2>
+            <p className="section-sub">Where RazorReaper users are located.</p>
+          </div>
+          <div className="panel-head-right">
+            <div className="meta-row">
+              {[
+                { label: "Regions", val: formatNumber(regions.length) },
+                { label: "Countries", val: formatNumber(countries.length) },
+              ].map((m) => (
+                <div className="meta-item" key={m.label}>
+                  <span>{m.label}</span>
+                  <strong>{m.val}</strong>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        {geoExpanded && (
+          <div className="panel-body-tight">
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+              {/* Regions */}
+              <div>
+                <p style={{ fontSize: 11, fontWeight: 600, color: "var(--text-3)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>
+                  Regions
+                </p>
+                <div className="progress-wrap">
+                  {regions.map((r, i) => {
+                    const maxVal = Math.max(1, regions[0]?.value ?? 1);
+                    const pct = Math.round((r.value / maxVal) * 100);
+                    return (
+                      <div className="progress-row" key={r.label}>
+                        <div className="progress-head">
+                          <span className="progress-label" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <span style={{ width: 8, height: 8, borderRadius: "50%", background: donutColors[i % donutColors.length], flexShrink: 0 }} />
+                            {r.label}
+                          </span>
+                          <span className="progress-val">{formatNumber(r.value)}</span>
+                        </div>
+                        <div className="progress-track">
+                          <div className="progress-fill" style={{ width: `${pct}%`, background: donutColors[i % donutColors.length] }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {regions.length === 0 && (
+                    <div className="empty-state"><p>No region data.</p></div>
+                  )}
+                </div>
+              </div>
+
+              {/* Countries */}
+              <div>
+                <p style={{ fontSize: 11, fontWeight: 600, color: "var(--text-3)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>
+                  Countries
+                </p>
+                <div className="progress-wrap">
+                  {countries.map((c, i) => {
+                    const maxVal = Math.max(1, countries[0]?.value ?? 1);
+                    const pct = Math.round((c.value / maxVal) * 100);
+                    return (
+                      <div className="progress-row" key={c.label}>
+                        <div className="progress-head">
+                          <span className="progress-label" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            {c.flag && <span>{c.flag}</span>}
+                            {c.label}
+                            <span style={{ fontSize: 10, color: "var(--text-3)" }}>{c.region}</span>
+                          </span>
+                          <span className="progress-val">{formatNumber(c.value)}</span>
+                        </div>
+                        <div className="progress-track">
+                          <div className="progress-fill" style={{ width: `${pct}%`, background: donutColors[i % donutColors.length] }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {countries.length === 0 && (
+                    <div className="empty-state"><p>No country data.</p></div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
     </div>
   );
 }

@@ -128,8 +128,17 @@ function getSessionIdentity(session: AppSessionRecord): string {
   return `install:${session.installId.trim().toLowerCase()}`;
 }
 
+function normalizeVersion(raw: string): string {
+  // Normalize 4-part versions to 3-part semver: "1.4.1.0" → "1.4.1", "1.0.0.1" → "1.0.0"
+  const parts = raw.split(".");
+  if (parts.length >= 3) return parts.slice(0, 3).join(".");
+  return raw;
+}
+
 function getVersionLabel(session: AppSessionRecord): string {
-  return session.appVersion?.trim() || "Unknown";
+  const raw = session.appVersion?.trim();
+  if (!raw) return "Unknown";
+  return normalizeVersion(raw);
 }
 
 function getSessionSource(session: AppSessionRecord): string {

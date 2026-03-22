@@ -1297,6 +1297,27 @@ h1, h2, h3, h4, h5, h6 {
   padding: 12px; border-radius: 12px;
 }
 
+.world-heatmap-legend {
+  left: 14px;
+  bottom: 14px;
+  display: grid;
+  gap: 4px;
+  pointer-events: none;
+  max-width: min(360px, calc(100% - 88px));
+  padding: 10px 12px;
+  border-radius: 12px;
+}
+.world-heatmap-legend strong {
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--text-1);
+}
+.world-heatmap-legend small {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-3);
+}
+
 .world-heatmap-floating-head { display: inline-flex; align-items: center; gap: 8px; }
 .world-heatmap-floating-head svg { color: var(--accent); }
 .world-heatmap-floating-panel strong {
@@ -1613,4 +1634,8 @@ h1, h2, h3, h4, h5, h6 {
 @media (max-width: 900px) {
   .donut-panel { grid-template-columns: 1fr; }
   .world-heatmap-map-shell { min-height: 360px; }
+  .world-heatmap-legend {
+    max-width: calc(100% - 28px);
+    right: 14px;
+  }
 }

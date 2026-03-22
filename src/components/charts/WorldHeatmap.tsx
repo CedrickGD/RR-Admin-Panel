@@ -6,7 +6,7 @@ import maplibregl, {
   Popup,
 } from "maplibre-gl";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { FeatureCollection, LineString } from "geojson";
+import type { FeatureCollection, LineString, Polygon } from "geojson";
 import type { ThemeMode } from "../../types/telemetry";
 import type {
   HeatmapPoint,
@@ -69,10 +69,16 @@ const MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
 const CONNECTIONS_SOURCE_ID = "active-connections";
 const CONNECTIONS_GLOW_LAYER_ID = "active-connections-glow";
 const CONNECTIONS_LINE_LAYER_ID = "active-connections-line";
+const UNCERTAINTY_SOURCE_ID = "session-uncertainty";
+const UNCERTAINTY_FILL_LAYER_ID = "session-uncertainty-fill";
+const UNCERTAINTY_LINE_LAYER_ID = "session-uncertainty-line";
 const INITIAL_CENTER: [number, number] = [12, 20];
 const INITIAL_ZOOM = 1.45;
 const DEFAULT_MAX_ZOOM = 18.8;
 const PRIMARY_MARKET_ZOOM = 8.2;
+const MAX_RENDERED_ACCURACY_METERS = 150_000;
+const MIN_RENDERED_ACCURACY_METERS = 60;
+const UNCERTAINTY_STEPS = 40;
 const HIDDEN_LABEL_LAYERS = new Set([
   "road_one_way_arrow",
   "road_one_way_arrow_opposite",
@@ -199,6 +205,106 @@ function buildConnections(points: MarketMapPoint[]): FeatureCollection<LineStrin
   };
 }
 
+function clampLatitude(value: number): number {
+  return Math.max(-85, Math.min(85, value));
+}
+
+function normalizeLongitude(value: number): number {
+  const normalized = ((value + 180) % 360 + 360) % 360 - 180;
+  return normalized === -180 ? 180 : normalized;
+}
+
+function offsetCoordinates(
+  latitude: number,
+  longitude: number,
+  distanceKm: number,
+  bearing: number,
+): { latitude: number; longitude: number } {
+  const latitudeOffset = (distanceKm / 110.574) * Math.cos(bearing);
+  const longitudeOffset =
+    (distanceKm / (111.32 * Math.max(0.28, Math.cos((latitude * Math.PI) / 180)))) *
+    Math.sin(bearing);
+
+  return {
+    latitude: clampLatitude(latitude + latitudeOffset),
+    longitude: normalizeLongitude(longitude + longitudeOffset),
+  };
+}
+
+function resolveAccuracyMeters(point: SessionMapPoint): number | null {
+  if (point.accuracyMeters === null || !Number.isFinite(point.accuracyMeters)) {
+    return null;
+  }
+
+  return Math.min(
+    MAX_RENDERED_ACCURACY_METERS,
+    Math.max(MIN_RENDERED_ACCURACY_METERS, point.accuracyMeters),
+  );
+}
+
+function resolveSourceFamily(point: SessionMapPoint): "device" | "edge" | "unknown" {
+  const source = point.geoSource?.trim().toLowerCase() ?? "";
+
+  if (source.startsWith("device")) {
+    return "device";
+  }
+
+  if (source.includes("edge") || source.includes("ip")) {
+    return "edge";
+  }
+
+  return "unknown";
+}
+
+function buildAccuracyPolygon(point: SessionMapPoint, accuracyMeters: number): [number, number][] {
+  const coordinates: [number, number][] = [];
+
+  for (let index = 0; index <= UNCERTAINTY_STEPS; index += 1) {
+    const bearing = (index / UNCERTAINTY_STEPS) * Math.PI * 2;
+    const offset = offsetCoordinates(
+      point.latitude,
+      point.longitude,
+      accuracyMeters / 1000,
+      bearing,
+    );
+
+    coordinates.push([offset.longitude, offset.latitude]);
+  }
+
+  return coordinates;
+}
+
+function buildAccuracyZones(
+  points: SessionMapPoint[],
+  activeKey: string | null,
+): FeatureCollection<Polygon> {
+  return {
+    type: "FeatureCollection",
+    features: points.flatMap((point) => {
+      const accuracyMeters = resolveAccuracyMeters(point);
+
+      if (accuracyMeters === null) {
+        return [];
+      }
+
+      return [{
+        type: "Feature" as const,
+        properties: {
+          key: point.key,
+          active: point.key === activeKey,
+          precise: point.precise,
+          sourceFamily: resolveSourceFamily(point),
+          accuracyMeters,
+        },
+        geometry: {
+          type: "Polygon" as const,
+          coordinates: [buildAccuracyPolygon(point, accuracyMeters)],
+        },
+      }];
+    }),
+  };
+}
+
 function escapeHtml(value: string): string {
   return value
     .replaceAll("&", "&amp;")
@@ -277,18 +383,42 @@ function getZoomScale(zoom: number) {
   return 0.7 + (zoom / INITIAL_ZOOM) * 0.3;
 }
 
+function getFocusZoom(point: SessionMapPoint, currentZoom: number): number {
+  let targetZoom = point.precise ? 9.6 : PRIMARY_MARKET_ZOOM;
+
+  if (point.accuracyMeters !== null) {
+    if (point.accuracyMeters <= 150) {
+      targetZoom = Math.max(targetZoom, 11.6);
+    } else if (point.accuracyMeters <= 500) {
+      targetZoom = Math.max(targetZoom, 10.8);
+    } else if (point.accuracyMeters <= 2_000) {
+      targetZoom = Math.max(targetZoom, 10.1);
+    } else if (point.accuracyMeters <= 8_000) {
+      targetZoom = Math.max(targetZoom, 9.2);
+    } else if (point.accuracyMeters <= 25_000) {
+      targetZoom = Math.max(targetZoom, 8.4);
+    } else {
+      targetZoom = Math.max(targetZoom, 7.6);
+    }
+  }
+
+  return Math.min(DEFAULT_MAX_ZOOM - 1, Math.max(currentZoom, targetZoom));
+}
+
 function createMarkerElement(point: SessionMapPoint, currentZoom: number) {
   const button = document.createElement("button");
   const baseSize = (point.precise ? 4.6 : 5) + (point.intensity * 3.6);
   const size = baseSize * getZoomScale(currentZoom);
   const pulseScale = point.precise ? 1.95 : 2.15;
   const pulseOpacity = 0.1 + (point.intensity * 0.1);
+  const sourceLabel = formatGeoSource(point.geoSource, point.geoSignalSource);
+  const accuracyLabel = point.accuracyMeters !== null ? ` · ±${formatAccuracy(point.accuracyMeters)}` : "";
 
   button.type = "button";
   button.className = `map-node-marker ${point.precise ? "map-node-marker-precise" : "map-node-marker-spread"}`;
-  button.setAttribute("aria-label", `${point.label}: ${point.marketValue} active users`);
+  button.setAttribute("aria-label", `${point.label}: ${point.marketValue} active users. ${sourceLabel}${accuracyLabel}`);
   button.setAttribute("data-base-size", baseSize.toFixed(2));
-  button.title = `${point.label} · ${formatNumber(point.marketValue)} live sessions`;
+  button.title = `${point.label} · ${formatNumber(point.marketValue)} live sessions · ${sourceLabel}${accuracyLabel}`;
   const breathDelay = (Math.random() * 3).toFixed(2);
   button.style.setProperty("--map-node-size", `${size}px`);
   button.style.setProperty("--map-node-pulse-scale", pulseScale.toFixed(2));
@@ -609,6 +739,78 @@ function ensureConnections(
   }
 }
 
+function ensureAccuracyZones(
+  map: maplibregl.Map,
+  zones: FeatureCollection<Polygon>,
+) {
+  const source = map.getSource(UNCERTAINTY_SOURCE_ID) as GeoJSONSource | undefined;
+
+  if (source) {
+    source.setData(zones);
+  } else {
+    map.addSource(UNCERTAINTY_SOURCE_ID, {
+      type: "geojson",
+      data: zones,
+    });
+  }
+
+  if (!map.getLayer(UNCERTAINTY_FILL_LAYER_ID)) {
+    map.addLayer({
+      id: UNCERTAINTY_FILL_LAYER_ID,
+      type: "fill",
+      source: UNCERTAINTY_SOURCE_ID,
+      paint: {
+        "fill-color": [
+          "match",
+          ["get", "sourceFamily"],
+          "device",
+          "#79aec8",
+          "edge",
+          "#b5956f",
+          "#8ca4b5",
+        ],
+        "fill-opacity": [
+          "case",
+          ["boolean", ["get", "active"], false],
+          ["interpolate", ["linear"], ["zoom"], 1, 0.15, 4, 0.12, 8, 0.08, 12, 0.05],
+          ["interpolate", ["linear"], ["zoom"], 1, 0.09, 4, 0.07, 8, 0.04, 12, 0.025],
+        ],
+      },
+    });
+  }
+
+  if (!map.getLayer(UNCERTAINTY_LINE_LAYER_ID)) {
+    map.addLayer({
+      id: UNCERTAINTY_LINE_LAYER_ID,
+      type: "line",
+      source: UNCERTAINTY_SOURCE_ID,
+      paint: {
+        "line-color": [
+          "match",
+          ["get", "sourceFamily"],
+          "device",
+          "#9fd1ea",
+          "edge",
+          "#d8b48c",
+          "#b8cbda",
+        ],
+        "line-width": [
+          "case",
+          ["boolean", ["get", "active"], false],
+          ["interpolate", ["linear"], ["zoom"], 1, 1.1, 8, 2, 12, 2.8],
+          ["interpolate", ["linear"], ["zoom"], 1, 0.6, 8, 1.2, 12, 1.8],
+        ],
+        "line-opacity": [
+          "case",
+          ["boolean", ["get", "active"], false],
+          ["interpolate", ["linear"], ["zoom"], 1, 0.8, 8, 0.64, 12, 0.44],
+          ["interpolate", ["linear"], ["zoom"], 1, 0.54, 8, 0.4, 12, 0.26],
+        ],
+      },
+    });
+  }
+}
+
 export function WorldHeatmap({
   marketPoints,
   sessionPoints,
@@ -633,7 +835,12 @@ export function WorldHeatmap({
   const marketMarkerPoints = useMemo(() => buildMarketPoints(marketPoints), [marketPoints]);
   const sessionMarkerPoints = useMemo(() => buildSessionPoints(sessionPoints), [sessionPoints]);
   const connections = useMemo(() => buildConnections(marketMarkerPoints), [marketMarkerPoints]);
+  const accuracyZones = useMemo(
+    () => buildAccuracyZones(sessionMarkerPoints, activeKey),
+    [activeKey, sessionMarkerPoints],
+  );
   const connectionsRef = useRef(connections);
+  const accuracyZonesRef = useRef(accuracyZones);
   const activePoint = sessionMarkerPoints.find((point) => point.key === activeKey) ?? null;
 
   useEffect(() => {
@@ -647,6 +854,10 @@ export function WorldHeatmap({
   useEffect(() => {
     connectionsRef.current = connections;
   }, [connections]);
+
+  useEffect(() => {
+    accuracyZonesRef.current = accuracyZones;
+  }, [accuracyZones]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -688,6 +899,7 @@ export function WorldHeatmap({
       }
 
       styleMap(map, themeRef.current);
+      ensureAccuracyZones(map, accuracyZonesRef.current);
       ensureConnections(map, connectionsRef.current);
     };
 
@@ -757,8 +969,9 @@ export function WorldHeatmap({
     }
 
     styleMap(map, theme);
+    ensureAccuracyZones(map, accuracyZones);
     ensureConnections(map, connections);
-  }, [connections, mapReady, theme]);
+  }, [accuracyZones, connections, mapReady, theme]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -767,8 +980,9 @@ export function WorldHeatmap({
       return;
     }
 
+    ensureAccuracyZones(map, accuracyZones);
     ensureConnections(map, connections);
-  }, [connections, mapReady]);
+  }, [accuracyZones, connections, mapReady]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -865,7 +1079,7 @@ export function WorldHeatmap({
     setActiveKey(point.key);
     map.easeTo({
       center: point.coordinates,
-      zoom: Math.max(map.getZoom(), point.precise ? 9.6 : PRIMARY_MARKET_ZOOM),
+      zoom: getFocusZoom(point, map.getZoom()),
       duration: 900,
     });
   }, [focusedSessionId, focusedSessionToken, mapReady, sessionMarkerPoints]);
@@ -889,7 +1103,7 @@ export function WorldHeatmap({
 
     map.easeTo({
       center: activePoint.coordinates,
-      zoom: Math.max(map.getZoom(), PRIMARY_MARKET_ZOOM),
+      zoom: getFocusZoom(activePoint, map.getZoom()),
       duration: 900,
     });
   }
@@ -915,7 +1129,7 @@ export function WorldHeatmap({
       <div className="world-heatmap-toolbar">
         <div className="world-heatmap-hint">
           <span>Interactive map</span>
-          <strong>{sessionMarkerPoints.length > 0 ? "Every active session gets its own micro-node. Click a pulse to lock its label, then open that exact user in Live." : "No active sessions right now. The map stays ready for when users come online."}</strong>
+          <strong>{sessionMarkerPoints.length > 0 ? "Every active session gets its own node. The center dot is the reported fix, and the ring widens when the location is less certain." : "No active sessions right now. The map stays ready for when users come online."}</strong>
         </div>
         <div className="world-heatmap-toolbar-metrics">
           <div>
@@ -936,6 +1150,19 @@ export function WorldHeatmap({
       <div className="world-heatmap-map-shell">
         <div ref={containerRef} className="world-heatmap-map" />
         <div className="world-heatmap-overlay" />
+        <div className="world-heatmap-chip world-heatmap-legend">
+          <span>{activePoint ? "Selected Fix" : "Accuracy Rings"}</span>
+          <strong>
+            {activePoint
+              ? `${formatGeoSource(activePoint.geoSource, activePoint.geoSignalSource)}${activePoint.accuracyMeters !== null ? ` · ±${formatAccuracy(activePoint.accuracyMeters)}` : ""}`
+              : "The ring shows the reported accuracy radius when the client sends one."}
+          </strong>
+          <small>
+            {activePoint
+              ? "The dot marks the estimated center. The ring is the likely area, not an exact address."
+              : "Device-fused fixes are tighter. Edge IP fallback stays coarse even when the center looks close."}
+          </small>
+        </div>
 
         {showPanel ? (
           <div className="world-heatmap-floating-panel">

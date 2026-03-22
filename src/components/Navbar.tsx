@@ -176,39 +176,39 @@ export function Navbar({
             </button>
           </div>
         </div>
-      </nav>
 
-      {/* Mobile drawer */}
-      <div className={`navbar-mobile-drawer${mobileOpen ? " open" : ""}`} aria-hidden={!mobileOpen}>
-        {NAV_ITEMS.map((item) => (
-          <button
-            key={item.key}
-            type="button"
-            className={`navbar-mobile-link${page === item.key ? " active" : ""}`}
-            onClick={() => onNavigate(item.key)}
-          >
-            {item.icon}
-            {item.label}
-          </button>
-        ))}
-        <div className="divider" style={{ margin: "10px 0" }} />
-        <div style={{ display: "flex", flexDirection: "column", gap: "6px", paddingTop: "4px" }}>
-          <div style={{ fontSize: "0.75rem", color: "var(--text-3)", padding: "0 12px" }}>
-            Signed in as <strong style={{ color: "var(--text-2)" }}>{user.email}</strong>
-          </div>
-          {authMode === "app" ? (
+        {/* Mobile drawer — inside nav so outside-click handler doesn't intercept taps */}
+        <div className={`navbar-mobile-drawer${mobileOpen ? " open" : ""}`} aria-hidden={!mobileOpen}>
+          {NAV_ITEMS.map((item) => (
             <button
+              key={item.key}
               type="button"
-              className="navbar-mobile-link"
-              onClick={onLogout}
-              style={{ color: "hsl(4 86% 68%)" }}
+              className={`navbar-mobile-link${page === item.key ? " active" : ""}`}
+              onClick={() => onNavigate(item.key)}
             >
-              <LogOut className="h-[15px] w-[15px]" />
-              Sign out
+              {item.icon}
+              {item.label}
             </button>
-          ) : null}
+          ))}
+          <div className="divider" style={{ margin: "10px 0" }} />
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px", paddingTop: "4px" }}>
+            <div style={{ fontSize: "0.75rem", color: "var(--text-3)", padding: "0 12px" }}>
+              Signed in as <strong style={{ color: "var(--text-2)" }}>{user.email}</strong>
+            </div>
+            {authMode === "app" ? (
+              <button
+                type="button"
+                className="navbar-mobile-link"
+                onClick={onLogout}
+                style={{ color: "hsl(4 86% 68%)" }}
+              >
+                <LogOut className="h-[15px] w-[15px]" />
+                Sign out
+              </button>
+            ) : null}
+          </div>
         </div>
-      </div>
+      </nav>
     </>
   );
 }

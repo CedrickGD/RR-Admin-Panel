@@ -6,6 +6,8 @@ const ACTIVE_SESSION_LIMIT = 100;
 const RECENT_SESSION_LIMIT = 200;
 const RECENT_ERROR_LIMIT = 50;
 const ACTIVE_SESSION_TIMEOUT_MS = 6 * 60 * 1000;
+const SESSION_SELECT_COLUMNS =
+  "session_id, install_id, source, user_label, client_ip, client_country, client_city, client_region, client_latitude, client_longitude, client_timezone, client_geo_source, client_geo_signal_source, client_accuracy_meters, client_geo_captured_at, app_version, platform, started_at, last_seen_at, ended_at, duration_seconds, is_active, last_event, last_status, error_count, updated_at";
 const MAX_METRICS_KEYS = 64;
 const MAX_MESSAGE_LENGTH = 500;
 const MAX_METRICS_BYTES = 8 * 1024;
@@ -287,8 +289,7 @@ async function loadSummary(env) {
   const [activeRows, recentSessionRows, recentErrorRows, recentEventRows, eventStats, sessionStats] = await Promise.all([
     db
       .prepare(
-        `SELECT session_id, install_id, source, user_label, client_ip, client_country, app_version, platform,
-                started_at, last_seen_at, ended_at, duration_seconds, is_active, last_event, last_status, error_count, updated_at
+        `SELECT ${SESSION_SELECT_COLUMNS}
          FROM app_sessions
          WHERE is_active = 1
          ORDER BY last_seen_at DESC
@@ -298,8 +299,7 @@ async function loadSummary(env) {
       .all(),
     db
       .prepare(
-        `SELECT session_id, install_id, source, user_label, client_ip, client_country, app_version, platform,
-                started_at, last_seen_at, ended_at, duration_seconds, is_active, last_event, last_status, error_count, updated_at
+        `SELECT ${SESSION_SELECT_COLUMNS}
          FROM app_sessions
          ORDER BY updated_at DESC
          LIMIT ?`
@@ -435,6 +435,15 @@ function mapSessionRow(row) {
     userLabel: row.user_label ?? null,
     clientIp: row.client_ip ?? null,
     clientCountry: row.client_country ?? null,
+    clientCity: row.client_city ?? null,
+    clientRegion: row.client_region ?? null,
+    clientLatitude: toNullableFloat(row.client_latitude),
+    clientLongitude: toNullableFloat(row.client_longitude),
+    clientTimezone: row.client_timezone ?? null,
+    clientGeoSource: row.client_geo_source ?? null,
+    clientGeoSignalSource: row.client_geo_signal_source ?? null,
+    clientAccuracyMeters: toNullableFloat(row.client_accuracy_meters),
+    clientGeoCapturedAt: row.client_geo_captured_at ?? null,
     appVersion: row.app_version ?? null,
     platform: row.platform ?? null,
     startedAt: row.started_at,
@@ -484,6 +493,15 @@ async function ensureTelemetrySchema(db) {
       user_label TEXT,
       client_ip TEXT,
       client_country TEXT,
+      client_city TEXT,
+      client_region TEXT,
+      client_latitude REAL,
+      client_longitude REAL,
+      client_timezone TEXT,
+      client_geo_source TEXT,
+      client_geo_signal_source TEXT,
+      client_accuracy_meters REAL,
+      client_geo_captured_at TEXT,
       app_version TEXT,
       platform TEXT,
       started_at TEXT NOT NULL,
@@ -500,9 +518,31 @@ async function ensureTelemetrySchema(db) {
     `CREATE INDEX IF NOT EXISTS idx_sessions_updated ON app_sessions(updated_at DESC)`,
     `CREATE INDEX IF NOT EXISTS idx_sessions_install ON app_sessions(install_id, updated_at DESC)`
   ];
+  const alterStatements = [
+    `ALTER TABLE app_sessions ADD COLUMN client_city TEXT`,
+    `ALTER TABLE app_sessions ADD COLUMN client_region TEXT`,
+    `ALTER TABLE app_sessions ADD COLUMN client_latitude REAL`,
+    `ALTER TABLE app_sessions ADD COLUMN client_longitude REAL`,
+    `ALTER TABLE app_sessions ADD COLUMN client_timezone TEXT`,
+    `ALTER TABLE app_sessions ADD COLUMN client_geo_source TEXT`,
+    `ALTER TABLE app_sessions ADD COLUMN client_geo_signal_source TEXT`,
+    `ALTER TABLE app_sessions ADD COLUMN client_accuracy_meters REAL`,
+    `ALTER TABLE app_sessions ADD COLUMN client_geo_captured_at TEXT`
+  ];
 
   for (const statement of statements) {
     await db.prepare(statement).run();
+  }
+
+  for (const statement of alterStatements) {
+    try {
+      await db.prepare(statement).run();
+    } catch (error) {
+      const message = error instanceof Error ? error.message.toLowerCase() : "";
+      if (!message.includes("duplicate column name") && !message.includes("already exists")) {
+        throw error;
+      }
+    }
   }
 }
 
@@ -543,8 +583,7 @@ async function upsertSessionD1(db, event) {
 
   const existingRow = await db
     .prepare(
-      `SELECT session_id, install_id, source, user_label, client_ip, client_country, app_version, platform,
-              started_at, last_seen_at, ended_at, duration_seconds, is_active, last_event, last_status, error_count, updated_at
+      `SELECT ${SESSION_SELECT_COLUMNS}
        FROM app_sessions
        WHERE session_id = ?`
     )
@@ -559,15 +598,24 @@ async function upsertSessionD1(db, event) {
   await db
     .prepare(
       `INSERT INTO app_sessions
-        (session_id, install_id, source, user_label, client_ip, client_country, app_version, platform,
+        (session_id, install_id, source, user_label, client_ip, client_country, client_city, client_region, client_latitude, client_longitude, client_timezone, client_geo_source, client_geo_signal_source, client_accuracy_meters, client_geo_captured_at, app_version, platform,
          started_at, last_seen_at, ended_at, duration_seconds, is_active, last_event, last_status, error_count, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(session_id) DO UPDATE SET
          install_id = excluded.install_id,
          source = excluded.source,
          user_label = excluded.user_label,
          client_ip = excluded.client_ip,
          client_country = excluded.client_country,
+         client_city = excluded.client_city,
+         client_region = excluded.client_region,
+         client_latitude = excluded.client_latitude,
+         client_longitude = excluded.client_longitude,
+         client_timezone = excluded.client_timezone,
+         client_geo_source = excluded.client_geo_source,
+         client_geo_signal_source = excluded.client_geo_signal_source,
+         client_accuracy_meters = excluded.client_accuracy_meters,
+         client_geo_captured_at = excluded.client_geo_captured_at,
          app_version = excluded.app_version,
          platform = excluded.platform,
          started_at = excluded.started_at,
@@ -587,6 +635,15 @@ async function upsertSessionD1(db, event) {
       next.userLabel,
       next.clientIp,
       next.clientCountry,
+      next.clientCity,
+      next.clientRegion,
+      next.clientLatitude,
+      next.clientLongitude,
+      next.clientTimezone,
+      next.clientGeoSource,
+      next.clientGeoSignalSource,
+      next.clientAccuracyMeters,
+      next.clientGeoCapturedAt,
       next.appVersion,
       next.platform,
       next.startedAt,
@@ -613,6 +670,15 @@ function mergeSessionRecord(existing, event) {
   const userLabel = readMetricText(event.metrics, ["user_label", "machine_name"]) ?? existing?.userLabel ?? null;
   const clientIp = readMetricText(event.metrics, ["client_ip", "ip"]) ?? existing?.clientIp ?? null;
   const clientCountry = readMetricText(event.metrics, ["client_country", "country"]) ?? existing?.clientCountry ?? null;
+  const clientCity = readMetricText(event.metrics, ["client_city", "city"]) ?? existing?.clientCity ?? null;
+  const clientRegion = readMetricText(event.metrics, ["client_region", "region"]) ?? existing?.clientRegion ?? null;
+  const clientLatitude = readMetricFloat(event.metrics, ["client_latitude", "latitude"]) ?? existing?.clientLatitude ?? null;
+  const clientLongitude = readMetricFloat(event.metrics, ["client_longitude", "longitude"]) ?? existing?.clientLongitude ?? null;
+  const clientTimezone = readMetricText(event.metrics, ["client_timezone", "timezone"]) ?? existing?.clientTimezone ?? null;
+  const clientGeoSource = readMetricText(event.metrics, ["client_geo_source", "geo_source"]) ?? existing?.clientGeoSource ?? null;
+  const clientGeoSignalSource = readMetricText(event.metrics, ["client_geo_signal_source", "geo_signal_source"]) ?? existing?.clientGeoSignalSource ?? null;
+  const clientAccuracyMeters = readMetricFloat(event.metrics, ["client_accuracy_meters", "accuracy_meters"]) ?? existing?.clientAccuracyMeters ?? null;
+  const clientGeoCapturedAt = readMetricText(event.metrics, ["client_geo_captured_at", "geo_captured_at"]) ?? existing?.clientGeoCapturedAt ?? null;
   const appVersion = readMetricText(event.metrics, ["app_version", "version"]) ?? existing?.appVersion ?? null;
   const platform = readMetricText(event.metrics, ["platform", "os_platform", "os"]) ?? existing?.platform ?? null;
   const metricStartedAt = readMetricText(event.metrics, ["session_started_at"]);
@@ -653,6 +719,15 @@ function mergeSessionRecord(existing, event) {
     userLabel,
     clientIp,
     clientCountry,
+    clientCity,
+    clientRegion,
+    clientLatitude,
+    clientLongitude,
+    clientTimezone,
+    clientGeoSource,
+    clientGeoSignalSource,
+    clientAccuracyMeters,
+    clientGeoCapturedAt,
     appVersion,
     platform,
     startedAt,
@@ -695,14 +770,20 @@ function timingSafeEqual(left, right) {
 }
 
 function readRequestContext(request) {
+  const cf = request.cf ?? null;
   const directIp = toText(request.headers.get("cf-connecting-ip"));
   const forwarded = toText(request.headers.get("x-forwarded-for"));
   const fallbackIp = forwarded ? toText(forwarded.split(",")[0]) : null;
-  const country = toText(request.headers.get("cf-ipcountry"));
+  const country = toText(cf?.country) ?? toText(request.headers.get("cf-ipcountry"));
 
   return {
     clientIp: directIp || fallbackIp,
-    country
+    country,
+    city: toText(cf?.city),
+    region: toText(cf?.region),
+    latitude: normalizeCoordinate(toFiniteNumber(cf?.latitude), -90, 90),
+    longitude: normalizeCoordinate(toFiniteNumber(cf?.longitude), -180, 180),
+    timezone: toText(cf?.timezone)
   };
 }
 
@@ -720,6 +801,37 @@ function attachRequestContext(metricsRaw, context) {
 
   if (context.country && toText(metrics.client_country) === null) {
     metrics.client_country = context.country;
+  }
+
+  if (
+    toText(metrics.client_geo_source) === null &&
+    (context.country || context.city || context.region || context.latitude !== null || context.longitude !== null)
+  ) {
+    metrics.client_geo_source = "edge_ip";
+  }
+
+  if (toText(metrics.client_geo_signal_source) === null && context.country) {
+    metrics.client_geo_signal_source = "ip";
+  }
+
+  if (context.city && toText(metrics.client_city) === null) {
+    metrics.client_city = context.city;
+  }
+
+  if (context.region && toText(metrics.client_region) === null) {
+    metrics.client_region = context.region;
+  }
+
+  if (context.latitude !== null && readMetricFloat(metrics, ["client_latitude"]) === null) {
+    metrics.client_latitude = context.latitude;
+  }
+
+  if (context.longitude !== null && readMetricFloat(metrics, ["client_longitude"]) === null) {
+    metrics.client_longitude = context.longitude;
+  }
+
+  if (context.timezone && toText(metrics.client_timezone) === null) {
+    metrics.client_timezone = context.timezone;
   }
 
   return metrics;
@@ -1056,6 +1168,23 @@ function readMetricNumber(metrics, keys) {
   return null;
 }
 
+function readMetricFloat(metrics, keys) {
+  for (const key of keys) {
+    const value = metrics[key];
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+    if (typeof value === "string") {
+      const parsed = Number.parseFloat(value);
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
+  }
+
+  return null;
+}
+
 function startOfUtcDayIso() {
   const now = new Date();
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString();
@@ -1137,6 +1266,44 @@ function toNullableNumber(value) {
   }
 
   return null;
+}
+
+function toNullableFloat(value) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number.parseFloat(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return null;
+}
+
+function toFiniteNumber(value) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number.parseFloat(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return null;
+}
+
+function normalizeCoordinate(value, min, max) {
+  if (value === null) {
+    return null;
+  }
+
+  return value >= min && value <= max ? value : null;
 }
 
 function nowIso() {

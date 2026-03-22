@@ -2,7 +2,7 @@ import { ChevronDown, ChevronUp, Globe2, Radio } from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { StatusBadge } from "../components/StatusBadge";
 import type { AppSessionRecord, SummaryPayload, TelemetryEvent } from "../types/telemetry";
-import { formatDate, formatDuration, formatEventName, formatNumber, timeAgo } from "../utils/format";
+import { formatAccuracy, formatDate, formatDuration, formatEventName, formatGeoSource, formatNumber, timeAgo } from "../utils/format";
 import { resolveCountry } from "../utils/geography";
 
 interface LivePageProps {
@@ -290,6 +290,8 @@ export function LivePage({ summary, focusedSessionId = null, focusedSessionToken
                                     { k: "Events",      v: String(timeline.trackedEventCount) },
                                     { k: "Error Count", v: String(session.errorCount) },
                                     { k: "Timezone",    v: session.clientTimezone ?? "—" },
+                                    { k: "Geo Source",  v: formatGeoSource(session.clientGeoSource, session.clientGeoSignalSource) },
+                                    { k: "Geo Accuracy", v: formatAccuracy(session.clientAccuracyMeters) },
                                   ].map(({ k, v }) => (
                                     <div key={k} className="glass-inset" style={{ padding: "8px 12px" }}>
                                       <p className="label-sm" style={{ marginBottom: 3 }}>{k}</p>

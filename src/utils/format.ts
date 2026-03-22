@@ -56,6 +56,44 @@ export function formatDuration(seconds: number | null): string {
   return `${remainingSeconds}s`;
 }
 
+export function formatAccuracy(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value) || value <= 0) {
+    return "—";
+  }
+
+  if (value >= 1000) {
+    return `${(value / 1000).toFixed(value >= 10_000 ? 0 : 1)} km`;
+  }
+
+  return `${Math.round(value)} m`;
+}
+
+export function formatGeoSource(source: string | null | undefined, signalSource?: string | null | undefined): string {
+  const base = (() => {
+    switch (source) {
+      case "device_fused":
+        return "Device fused";
+      case "device_current":
+        return "Device current";
+      case "device_last_known":
+        return "Device cache";
+      case "edge_ip":
+        return "Edge IP";
+      case "edge_ip_country":
+        return "Edge IP country";
+      default:
+        return source?.trim() || "Unknown";
+    }
+  })();
+
+  const signal = signalSource?.trim();
+  if (!signal) {
+    return base;
+  }
+
+  return `${base} · ${signal}`;
+}
+
 export function formatEventName(value: string | null): string {
   switch (value) {
     case "session_start":

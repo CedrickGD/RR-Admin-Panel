@@ -3,7 +3,7 @@ import { Fragment, useMemo, useState } from "react";
 import { StatusBadge } from "../components/StatusBadge";
 import type { AppSessionRecord, SummaryPayload, TelemetryEvent } from "../types/telemetry";
 import { downloadSessionExport } from "../utils/api";
-import { formatDate, formatDuration, formatEventName, formatNumber, timeAgo } from "../utils/format";
+import { formatAccuracy, formatDate, formatDuration, formatEventName, formatGeoSource, formatNumber, timeAgo } from "../utils/format";
 
 interface WorkersPageProps {
   summary: SummaryPayload;
@@ -272,6 +272,8 @@ export function WorkersPage({ summary }: WorkersPageProps) {
                                     { k: "Last Seen",   v: timeAgo(session.lastSeenAt) },
                                     { k: "Events",      v: String(timeline.trackedEventCount) },
                                     { k: "Timezone",    v: session.clientTimezone ?? "—" },
+                                    { k: "Geo Source",  v: formatGeoSource(session.clientGeoSource, session.clientGeoSignalSource) },
+                                    { k: "Geo Accuracy", v: formatAccuracy(session.clientAccuracyMeters) },
                                     { k: "Last Event",  v: session.lastEvent ? formatEventName(session.lastEvent) : "—" },
                                   ].map(({ k, v }) => (
                                     <div key={k} className="glass-inset" style={{ padding: "8px 12px" }}>

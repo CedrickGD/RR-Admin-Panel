@@ -1251,70 +1251,15 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .world-heatmap-toolbar,
+.world-heatmap-toolbar-metrics,
 .world-heatmap-floating-actions { display: flex; flex-wrap: wrap; }
 
-.world-heatmap-toolbar {
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 14px;
-}
-.world-heatmap-toolbar-metrics {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(132px, 1fr));
-  gap: 10px;
-  width: min(460px, 100%);
-}
-.world-heatmap-metric {
-  position: relative;
-  display: grid;
-  gap: 4px;
-  min-height: 94px;
-  padding: 12px 14px 13px;
-  overflow: hidden;
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 16px;
-  background:
-    radial-gradient(circle at top left, var(--world-heatmap-metric-glow, rgba(122,174,200,0.22)), transparent 58%),
-    linear-gradient(180deg, rgba(18,28,41,0.94), rgba(9,14,22,0.9));
-  box-shadow: 0 18px 36px rgba(0,0,0,0.18);
-}
-.world-heatmap-metric::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(255,255,255,0.05), transparent 48%);
-  pointer-events: none;
-}
-.world-heatmap-metric > * {
-  position: relative;
-  z-index: 1;
-}
-.world-heatmap-metric-label {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: rgba(190,206,222,0.7);
-}
-.world-heatmap-metric-value {
-  font-size: clamp(1.35rem, 2vw, 1.85rem);
-  line-height: 1;
-  letter-spacing: -0.05em;
-  color: rgba(244,249,252,0.98);
-}
-.world-heatmap-metric-detail {
-  font-size: 11px;
-  line-height: 1.4;
-  color: rgba(184,198,212,0.74);
-}
-.world-heatmap-metric-live {
-  --world-heatmap-metric-glow: rgba(90, 176, 224, 0.28);
-}
-.world-heatmap-metric-countries {
-  --world-heatmap-metric-glow: rgba(104, 194, 170, 0.22);
-}
-.world-heatmap-metric-view {
-  --world-heatmap-metric-glow: rgba(232, 185, 107, 0.22);
+.world-heatmap-toolbar { align-items: flex-start; justify-content: space-between; }
+.world-heatmap-toolbar-metrics { justify-content: flex-end; }
+.world-heatmap-toolbar-metrics div {
+  min-width: 90px; padding: 8px;
+  border: 1px solid var(--glass-border); border-radius: 10px;
+  background: var(--glass-1);
 }
 
 .world-heatmap-hint { display: grid; gap: 4px; max-width: 720px; }
@@ -1689,10 +1634,6 @@ h1, h2, h3, h4, h5, h6 {
 @media (max-width: 900px) {
   .donut-panel { grid-template-columns: 1fr; }
   .world-heatmap-map-shell { min-height: 360px; }
-  .world-heatmap-toolbar-metrics {
-    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
-    width: 100%;
-  }
   .world-heatmap-legend {
     max-width: calc(100% - 28px);
     right: 14px;

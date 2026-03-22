@@ -1352,27 +1352,6 @@ h1, h2, h3, h4, h5, h6 {
   padding: 12px; border-radius: 12px;
 }
 
-.world-heatmap-legend {
-  left: 14px;
-  bottom: 14px;
-  display: grid;
-  gap: 4px;
-  pointer-events: none;
-  max-width: min(360px, calc(100% - 88px));
-  padding: 10px 12px;
-  border-radius: 12px;
-}
-.world-heatmap-legend strong {
-  font-size: 13px;
-  line-height: 1.35;
-  color: var(--text-1);
-}
-.world-heatmap-legend small {
-  font-size: 11px;
-  line-height: 1.45;
-  color: var(--text-3);
-}
-
 .world-heatmap-floating-head { display: inline-flex; align-items: center; gap: 8px; }
 .world-heatmap-floating-head svg { color: var(--accent); }
 .world-heatmap-floating-panel strong {
@@ -1513,14 +1492,26 @@ h1, h2, h3, h4, h5, h6 {
 /* Map markers */
 .map-node-marker {
   --map-node-size: 24px;
+  --map-node-accuracy-size: 0px;
   position: relative;
   width: var(--map-node-size); height: var(--map-node-size);
   padding: 0; border: none; background: transparent; cursor: pointer;
 }
-.map-node-pulse, .map-node-halo, .map-node-core {
+.map-node-accuracy, .map-node-pulse, .map-node-halo, .map-node-core {
   position: absolute; inset: 50%;
   transform: translate(-50%, -50%); border-radius: 999px;
 }
+.map-node-accuracy {
+  width: var(--map-node-accuracy-size);
+  height: var(--map-node-accuracy-size);
+  border: 1px solid rgb(126 181 214 / 0.55);
+  background: rgb(86 145 181 / 0.08);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.03), inset 0 0 22px rgba(110,171,207,0.08);
+  opacity: 0;
+  transition: width 0.18s ease, height 0.18s ease, opacity 0.18s ease;
+  pointer-events: none;
+}
+.map-node-marker-has-accuracy .map-node-accuracy { opacity: 1; }
 .map-node-pulse {
   width: calc(var(--map-node-size) * var(--map-node-pulse-scale, 2.2));
   height: calc(var(--map-node-size) * var(--map-node-pulse-scale, 2.2));
@@ -1542,9 +1533,21 @@ h1, h2, h3, h4, h5, h6 {
   animation: nodeBreathCore 2.6s ease-in-out infinite;
   animation-delay: var(--map-node-breath-delay, 0s);
 }
+.map-node-marker-spread .map-node-accuracy {
+  border-style: dashed;
+  background: rgb(121 145 164 / 0.08);
+}
 .map-node-marker-spread .map-node-core { background: rgb(153 191 204); }
+.map-node-marker-precise .map-node-accuracy {
+  border-color: rgb(146 201 236 / 0.62);
+  background: rgb(103 157 193 / 0.12);
+}
 .map-node-marker-precise .map-node-halo { background: rgb(99 147 190 / 0.18); }
 .map-node-marker-precise .map-node-core { background: rgb(201 220 232); }
+.map-node-marker-active .map-node-accuracy {
+  border-color: rgb(129 153 234 / 0.72);
+  background: rgb(86 112 215 / 0.12);
+}
 .map-node-marker-active .map-node-pulse { background: rgb(87 122 204 / 0.2); }
 .map-node-marker-active .map-node-halo { background: rgb(87 122 204 / 0.26); }
 
@@ -1692,9 +1695,5 @@ h1, h2, h3, h4, h5, h6 {
   .world-heatmap-toolbar-metrics {
     grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
     width: 100%;
-  }
-  .world-heatmap-legend {
-    max-width: calc(100% - 28px);
-    right: 14px;
   }
 }

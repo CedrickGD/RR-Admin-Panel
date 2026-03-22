@@ -383,6 +383,56 @@ function getZoomScale(zoom: number) {
   return 0.7 + (zoom / INITIAL_ZOOM) * 0.3;
 }
 
+function getMetersPerPixel(latitude: number, zoom: number): number {
+  return (
+    (156543.03392 * Math.max(0.2, Math.cos((latitude * Math.PI) / 180))) /
+    (2 ** zoom)
+  );
+}
+
+function getAccuracyRingDiameter(
+  point: SessionMapPoint,
+  currentZoom: number,
+  markerSize: number,
+): number | null {
+  const accuracyMeters = resolveAccuracyMeters(point);
+
+  if (accuracyMeters === null) {
+    return null;
+  }
+
+  const metersPerPixel = getMetersPerPixel(point.latitude, currentZoom);
+  if (!Number.isFinite(metersPerPixel) || metersPerPixel <= 0) {
+    return null;
+  }
+
+  const radiusPixels = accuracyMeters / metersPerPixel;
+  const visibleDiameter = Math.max(markerSize * 2.8, 18, radiusPixels * 2);
+
+  return Math.min(240, visibleDiameter);
+}
+
+function applyMarkerSizing(
+  element: HTMLButtonElement,
+  point: SessionMapPoint,
+  currentZoom: number,
+): void {
+  const baseSize = (point.precise ? 4.6 : 5) + (point.intensity * 3.6);
+  const size = baseSize * getZoomScale(currentZoom);
+  const accuracyDiameter = getAccuracyRingDiameter(point, currentZoom, size);
+
+  element.setAttribute("data-base-size", baseSize.toFixed(2));
+  element.style.setProperty("--map-node-size", `${size}px`);
+
+  if (accuracyDiameter !== null) {
+    element.classList.add("map-node-marker-has-accuracy");
+    element.style.setProperty("--map-node-accuracy-size", `${accuracyDiameter}px`);
+  } else {
+    element.classList.remove("map-node-marker-has-accuracy");
+    element.style.removeProperty("--map-node-accuracy-size");
+  }
+}
+
 function getFocusZoom(point: SessionMapPoint, currentZoom: number): number {
   let targetZoom = point.precise ? 9.6 : PRIMARY_MARKET_ZOOM;
 
@@ -407,8 +457,6 @@ function getFocusZoom(point: SessionMapPoint, currentZoom: number): number {
 
 function createMarkerElement(point: SessionMapPoint, currentZoom: number) {
   const button = document.createElement("button");
-  const baseSize = (point.precise ? 4.6 : 5) + (point.intensity * 3.6);
-  const size = baseSize * getZoomScale(currentZoom);
   const pulseScale = point.precise ? 1.95 : 2.15;
   const pulseOpacity = 0.1 + (point.intensity * 0.1);
   const sourceLabel = formatGeoSource(point.geoSource, point.geoSignalSource);
@@ -417,14 +465,14 @@ function createMarkerElement(point: SessionMapPoint, currentZoom: number) {
   button.type = "button";
   button.className = `map-node-marker ${point.precise ? "map-node-marker-precise" : "map-node-marker-spread"}`;
   button.setAttribute("aria-label", `${point.label}: ${point.marketValue} active users. ${sourceLabel}${accuracyLabel}`);
-  button.setAttribute("data-base-size", baseSize.toFixed(2));
   button.title = `${point.label} · ${formatNumber(point.marketValue)} live sessions · ${sourceLabel}${accuracyLabel}`;
   const breathDelay = (Math.random() * 3).toFixed(2);
-  button.style.setProperty("--map-node-size", `${size}px`);
   button.style.setProperty("--map-node-pulse-scale", pulseScale.toFixed(2));
   button.style.setProperty("--map-node-pulse-opacity", pulseOpacity.toFixed(3));
   button.style.setProperty("--map-node-breath-delay", `${breathDelay}s`);
+  applyMarkerSizing(button, point, currentZoom);
   button.innerHTML = `
+    <span class="map-node-accuracy"></span>
     <span class="map-node-pulse"></span>
     <span class="map-node-halo"></span>
     <span class="map-node-core"></span>
@@ -822,7 +870,7 @@ export function WorldHeatmap({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const popupRef = useRef<Popup | null>(null);
-  const markersRef = useRef<Array<{ key: string; marker: Marker; element: HTMLButtonElement }>>([]);
+  const markersRef = useRef<Array<{ key: string; marker: Marker; element: HTMLButtonElement; point: SessionMapPoint }>>([]);
   const autoFitRef = useRef(false);
   const themeRef = useRef(theme);
   const activeKeyRef = useRef<string | null>(null);
@@ -945,10 +993,8 @@ export function WorldHeatmap({
     map.on("zoom", () => {
       const currentZoom = map.getZoom();
       setZoom(currentZoom);
-      const scale = getZoomScale(currentZoom);
       for (const item of markersRef.current) {
-        const base = parseFloat(item.element.getAttribute("data-base-size") ?? "6");
-        item.element.style.setProperty("--map-node-size", `${base * scale}px`);
+        applyMarkerSizing(item.element, item.point, currentZoom);
       }
     });
     map.on("click", (event) => {
@@ -1036,7 +1082,7 @@ export function WorldHeatmap({
         }
       });
 
-      markersRef.current.push({ key: point.key, marker, element });
+      markersRef.current.push({ key: point.key, marker, element, point });
     }
 
     if (sessionMarkerPoints.length === 0) {
@@ -1165,19 +1211,6 @@ export function WorldHeatmap({
       <div className="world-heatmap-map-shell">
         <div ref={containerRef} className="world-heatmap-map" />
         <div className="world-heatmap-overlay" />
-        <div className="world-heatmap-chip world-heatmap-legend">
-          <span>{activePoint ? "Selected Fix" : "Accuracy Rings"}</span>
-          <strong>
-            {activePoint
-              ? `${formatGeoSource(activePoint.geoSource, activePoint.geoSignalSource)}${activePoint.accuracyMeters !== null ? ` · ±${formatAccuracy(activePoint.accuracyMeters)}` : ""}`
-              : "The ring shows the reported accuracy radius when the client sends one."}
-          </strong>
-          <small>
-            {activePoint
-              ? "The dot marks the estimated center. The ring is the likely area, not an exact address."
-              : "Device-fused fixes are tighter. Edge IP fallback stays coarse even when the center looks close."}
-          </small>
-        </div>
 
         {showPanel ? (
           <div className="world-heatmap-floating-panel">

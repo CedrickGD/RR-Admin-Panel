@@ -1,4 +1,4 @@
-import { Crosshair, Globe2, Info, LocateFixed, Maximize2, Minimize2, X } from "lucide-react";
+import { Crosshair, Globe2, Info, LocateFixed, Maximize2, Menu, Minimize2, Minus, Plus, X } from "lucide-react";
 import maplibregl, {
   type GeoJSONSource,
   LngLatBounds,
@@ -12,7 +12,7 @@ import type {
   HeatmapPoint,
   HeatmapSessionPoint,
 } from "../../utils/dashboardInsights";
-import { formatNumber } from "../../utils/format";
+import { formatAccuracy, formatGeoSource, formatNumber } from "../../utils/format";
 
 interface WorldHeatmapProps {
   marketPoints: HeatmapPoint[];
@@ -218,6 +218,10 @@ function buildPopupMarkup(point: SessionMapPoint): string {
     point.userLabel && point.userLabel.trim()
       ? `<div class="map-node-popup-session">${escapeHtml(point.userLabel.trim())}</div>`
       : "";
+  const geoDetails =
+    point.geoSource || point.accuracyMeters !== null
+      ? `<div class="map-node-popup-location">${escapeHtml(`${formatGeoSource(point.geoSource, point.geoSignalSource)}${point.accuracyMeters !== null ? ` · ±${formatAccuracy(point.accuracyMeters)}` : ""}`)}</div>`
+      : "";
   const hint = `<div class="map-node-popup-hint">Open the selected session from the side panel.</div>`;
 
   return `
@@ -226,6 +230,7 @@ function buildPopupMarkup(point: SessionMapPoint): string {
       <div class="map-node-popup-title">${flag}${escapeHtml(point.label)}</div>
       ${location}
       ${session}
+      ${geoDetails}
       <div class="map-node-popup-meta">${formatNumber(point.marketValue)} live sessions · ${escapeHtml(point.region)}</div>
       ${hint}
     </div>
@@ -268,15 +273,21 @@ function fitToPoints(
   });
 }
 
-function createMarkerElement(point: SessionMapPoint) {
+function getZoomScale(zoom: number) {
+  return 0.7 + (zoom / INITIAL_ZOOM) * 0.3;
+}
+
+function createMarkerElement(point: SessionMapPoint, currentZoom: number) {
   const button = document.createElement("button");
-  const size = (point.precise ? 4.6 : 5) + (point.intensity * 3.6);
+  const baseSize = (point.precise ? 4.6 : 5) + (point.intensity * 3.6);
+  const size = baseSize * getZoomScale(currentZoom);
   const pulseScale = point.precise ? 1.95 : 2.15;
   const pulseOpacity = 0.1 + (point.intensity * 0.1);
 
   button.type = "button";
   button.className = `map-node-marker ${point.precise ? "map-node-marker-precise" : "map-node-marker-spread"}`;
   button.setAttribute("aria-label", `${point.label}: ${point.marketValue} active users`);
+  button.setAttribute("data-base-size", baseSize.toFixed(2));
   button.title = `${point.label} · ${formatNumber(point.marketValue)} live sessions`;
   const breathDelay = (Math.random() * 3).toFixed(2);
   button.style.setProperty("--map-node-size", `${size}px`);
@@ -688,7 +699,6 @@ export function WorldHeatmap({
       className: `map-node-popup-shell map-node-popup-shell-${themeRef.current}`,
     });
 
-    map.addControl(new maplibregl.NavigationControl({ visualizePitch: true, showCompass: false }), "top-right");
     map.addControl(new maplibregl.GlobeControl(), "top-right");
     map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
 
@@ -701,7 +711,13 @@ export function WorldHeatmap({
 
     map.on("styledata", applyStyle);
     map.on("zoom", () => {
-      setZoom(map.getZoom());
+      const currentZoom = map.getZoom();
+      setZoom(currentZoom);
+      const scale = getZoomScale(currentZoom);
+      for (const item of markersRef.current) {
+        const base = parseFloat(item.element.getAttribute("data-base-size") ?? "6");
+        item.element.style.setProperty("--map-node-size", `${base * scale}px`);
+      }
     });
     map.on("click", (event) => {
       const target = event.originalEvent.target;
@@ -768,7 +784,7 @@ export function WorldHeatmap({
     markersRef.current = [];
 
     for (const point of sessionMarkerPoints) {
-      const element = createMarkerElement(point);
+      const element = createMarkerElement(point, map.getZoom());
       const marker = new maplibregl.Marker({
         element,
         anchor: "center",
@@ -930,7 +946,7 @@ export function WorldHeatmap({
             ) : null}
             <p>
               {activePoint
-                ? `${activePoint.locationLabel !== activePoint.label ? `${activePoint.locationLabel} · ` : ""}${formatNumber(activePoint.marketValue)} live sessions · ${activePoint.region}`
+                ? `${activePoint.locationLabel !== activePoint.label ? `${activePoint.locationLabel} · ` : ""}${formatNumber(activePoint.marketValue)} live sessions · ${activePoint.region}${activePoint.geoSource ? ` · ${formatGeoSource(activePoint.geoSource, activePoint.geoSignalSource)}` : ""}${activePoint.accuracyMeters !== null ? ` · ±${formatAccuracy(activePoint.accuracyMeters)}` : ""}`
                 : "Click a turquoise pulse to lock its label. Click that same pulse again, or use the action below, to jump into the live session table."}
             </p>
             {activePoint ? (
@@ -944,26 +960,35 @@ export function WorldHeatmap({
               </div>
             ) : null}
           </div>
-        ) : (
-          <button type="button" className="world-heatmap-info-btn" onClick={() => setShowPanel(true)} aria-label="Show info panel">
-            <Info className="h-4 w-4" />
-          </button>
-        )}
+        ) : null}
 
-        <div className="world-heatmap-action-stack">
-          <button type="button" className="world-heatmap-chip" onClick={focusLiveMarkets}>
-            <LocateFixed className="h-4 w-4" />
-            Focus live
+        <div className="world-heatmap-hovbar">
+          <button type="button" className="world-heatmap-hovbar-trigger" aria-label="Map controls">
+            <Menu className="h-4 w-4" />
           </button>
-          <button type="button" className="world-heatmap-chip" onClick={focusPrimaryMarket} disabled={!activePoint}>
-            <Crosshair className="h-4 w-4" />
-            Zoom selected
-          </button>
+          <div className="world-heatmap-hovbar-items">
+            <button type="button" onClick={() => mapRef.current?.zoomIn({ duration: 300 })} aria-label="Zoom in">
+              <Plus className="h-4 w-4" />
+            </button>
+            <button type="button" onClick={() => mapRef.current?.zoomOut({ duration: 300 })} aria-label="Zoom out">
+              <Minus className="h-4 w-4" />
+            </button>
+            <span className="world-heatmap-hovbar-sep" />
+            <button type="button" onClick={() => setShowPanel((p) => !p)} aria-label="Toggle info panel">
+              <Info className="h-4 w-4" />
+            </button>
+            <button type="button" onClick={focusLiveMarkets} aria-label="Focus live markets">
+              <LocateFixed className="h-4 w-4" />
+            </button>
+            <button type="button" onClick={focusPrimaryMarket} disabled={!activePoint} aria-label="Zoom to selected">
+              <Crosshair className="h-4 w-4" />
+            </button>
+            <span className="world-heatmap-hovbar-sep" />
+            <button type="button" onClick={() => setFullscreen((f) => !f)} aria-label={fullscreen ? "Exit fullscreen" : "Fullscreen"}>
+              {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </button>
+          </div>
         </div>
-
-        <button type="button" className="world-heatmap-fullscreen-btn" onClick={() => setFullscreen((f) => !f)} aria-label={fullscreen ? "Exit fullscreen" : "Fullscreen"}>
-          {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-        </button>
       </div>
     </div>
   );

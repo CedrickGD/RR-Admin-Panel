@@ -59,6 +59,7 @@ export function Navbar({
   onLogout,
 }: NavbarProps) {
   const navRef = useRef<HTMLElement>(null);
+  const drawerRef = useRef<HTMLDivElement>(null);
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -79,13 +80,22 @@ export function Navbar({
   useEffect(() => {
     if (!mobileOpen) return;
     function handler(e: MouseEvent) {
-      if (navRef.current && !navRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const inNav = navRef.current?.contains(target);
+      const inDrawer = drawerRef.current?.contains(target);
+      if (!inNav && !inDrawer) {
         setMobileOpen(false);
       }
     }
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [mobileOpen]);
+
+  /* ─── Navigate & close drawer ─── */
+  function handleNav(key: PageKey) {
+    setMobileOpen(false);
+    onNavigate(key);
+  }
 
   /* ─── Status chip data ─── */
   const activeUsers = summary?.stats.activeUsers ?? 0;
@@ -102,7 +112,7 @@ export function Navbar({
           <button
             type="button"
             className="navbar-brand"
-            onClick={() => onNavigate("overview")}
+            onClick={() => handleNav("overview")}
             aria-label="Go to overview"
           >
             <img src={brandLogo} alt="RazorReaper" className="navbar-brand-img" />
@@ -176,39 +186,43 @@ export function Navbar({
             </button>
           </div>
         </div>
-
-        {/* Mobile drawer — inside nav so outside-click handler doesn't intercept taps */}
-        <div className={`navbar-mobile-drawer${mobileOpen ? " open" : ""}`} aria-hidden={!mobileOpen}>
-          {NAV_ITEMS.map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              className={`navbar-mobile-link${page === item.key ? " active" : ""}`}
-              onClick={() => onNavigate(item.key)}
-            >
-              {item.icon}
-              {item.label}
-            </button>
-          ))}
-          <div className="divider" style={{ margin: "10px 0" }} />
-          <div style={{ display: "flex", flexDirection: "column", gap: "6px", paddingTop: "4px" }}>
-            <div style={{ fontSize: "0.75rem", color: "var(--text-3)", padding: "0 12px" }}>
-              Signed in as <strong style={{ color: "var(--text-2)" }}>{user.email}</strong>
-            </div>
-            {authMode === "app" ? (
-              <button
-                type="button"
-                className="navbar-mobile-link"
-                onClick={onLogout}
-                style={{ color: "hsl(4 86% 68%)" }}
-              >
-                <LogOut className="h-[15px] w-[15px]" />
-                Sign out
-              </button>
-            ) : null}
-          </div>
-        </div>
       </nav>
+
+      {/* Mobile drawer — outside nav to avoid stacking context issues */}
+      <div
+        ref={drawerRef}
+        className={`navbar-mobile-drawer${mobileOpen ? " open" : ""}`}
+        aria-hidden={!mobileOpen}
+      >
+        {NAV_ITEMS.map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            className={`navbar-mobile-link${page === item.key ? " active" : ""}`}
+            onClick={() => handleNav(item.key)}
+          >
+            {item.icon}
+            {item.label}
+          </button>
+        ))}
+        <div className="divider" style={{ margin: "10px 0" }} />
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px", paddingTop: "4px" }}>
+          <div style={{ fontSize: "0.75rem", color: "var(--text-3)", padding: "0 12px" }}>
+            Signed in as <strong style={{ color: "var(--text-2)" }}>{user.email}</strong>
+          </div>
+          {authMode === "app" ? (
+            <button
+              type="button"
+              className="navbar-mobile-link"
+              onClick={onLogout}
+              style={{ color: "hsl(4 86% 68%)" }}
+            >
+              <LogOut className="h-[15px] w-[15px]" />
+              Sign out
+            </button>
+          ) : null}
+        </div>
+      </div>
     </>
   );
 }

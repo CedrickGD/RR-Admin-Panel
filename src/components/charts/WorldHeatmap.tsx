@@ -923,11 +923,11 @@ export function WorldHeatmap({
             <strong>{zoom.toFixed(1)}x</strong>
           </div>
           <div>
-            <span>Live users</span>
+            <span>Live</span>
             <strong>{formatNumber(sessionMarkerPoints.length)}</strong>
           </div>
           <div>
-            <span>Markets</span>
+            <span>Countries</span>
             <strong>{formatNumber(marketMarkerPoints.length)}</strong>
           </div>
         </div>

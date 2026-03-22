@@ -56,8 +56,6 @@ export function HeatmapPage({
         <div className="page-header-right">
           <div className="meta-row">
             {[
-              { label: "Active",   val: formatNumber(summary.activeSessions.length) },
-              { label: "Mapped",   val: formatNumber(mappedUsers) },
               { label: "Errors",   val: formatNumber(errorTotal) },
               { label: "Ingest",   val: summary.stats.lastIngestAt ? timeAgo(summary.stats.lastIngestAt) : "Waiting" },
             ].map((m) => (
@@ -94,12 +92,6 @@ export function HeatmapPage({
               <p className="kicker">World View</p>
               <h2 className="section-title">Active User Field</h2>
               <p className="section-sub">Each node is an active session. Click to jump to the Live page for that session.</p>
-            </div>
-            <div className="panel-head-right">
-              <div className="meta-row">
-                <div className="meta-item"><span>Markets</span><strong>{formatNumber(points.length)}</strong></div>
-                <div className="meta-item"><span>Sessions</span><strong>{formatNumber(mappedUsers)}</strong></div>
-              </div>
             </div>
           </div>
           <div className="panel-body-flush" style={{ minHeight: 480 }}>

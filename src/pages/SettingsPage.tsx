@@ -30,8 +30,10 @@ export function SettingsPage({ user, authMode, summary, health, onLogout }: Sett
     <div className="page-content page-stack-lg">
       <section className="page-header">
         <div>
-          <p className="kicker">Configuration</p>
-          <h1 className="page-title" style={{ marginTop: 6 }}>Settings</h1>
+          <h1 className="page-title">
+            Settings
+            <span className="kicker" style={{ marginLeft: 10, textTransform: "none" }}>Configuration</span>
+          </h1>
           <p className="page-subtitle">Account identity, appearance, and backend configuration.</p>
         </div>
         <div className="page-header-right">

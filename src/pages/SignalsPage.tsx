@@ -119,8 +119,10 @@ export function SignalsPage({ summary, theme, accentHue = 217 }: SignalsPageProp
       {/* Header */}
       <section className="page-header">
         <div>
-          <p className="kicker">Intelligence</p>
-          <h1 className="page-title" style={{ marginTop: 6 }}>Signals</h1>
+          <h1 className="page-title">
+            Signals
+            <span className="kicker" style={{ marginLeft: 10, textTransform: "none" }}>Intelligence</span>
+          </h1>
           <p className="page-subtitle">
             RazorReaper version adoption and error pressure.
           </p>

@@ -109,8 +109,10 @@ export function TrafficPage({ summary, theme, accentHue = 217 }: TrafficPageProp
       {/* Header */}
       <section className="page-header">
         <div>
-          <p className="kicker">Analytics</p>
-          <h1 className="page-title" style={{ marginTop: 6 }}>Traffic</h1>
+          <h1 className="page-title">
+            Traffic
+            <span className="kicker" style={{ marginLeft: 10, textTransform: "none" }}>Analytics</span>
+          </h1>
           <p className="page-subtitle">
             Daily user trends, forecasts, and timezone-level activity breakdowns.
           </p>

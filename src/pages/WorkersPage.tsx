@@ -176,8 +176,10 @@ export function WorkersPage({ summary }: WorkersPageProps) {
       <section className="page-header" style={{ flexDirection: "column", gap: 12 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", width: "100%" }}>
           <div>
-            <p className="kicker">Session Archive</p>
-            <h1 className="page-title" style={{ marginTop: 6 }}>Sessions</h1>
+            <h1 className="page-title">
+              Sessions
+              <span className="kicker" style={{ marginLeft: 10, textTransform: "none" }}>Session Archive</span>
+            </h1>
           </div>
           <button type="button" className="btn btn-ghost btn-sm" onClick={() => void handleExport()} disabled={exporting}>
             <Download className="h-3.5 w-3.5" />

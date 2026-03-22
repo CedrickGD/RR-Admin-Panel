@@ -26,8 +26,10 @@ export function LogsPage({ summary }: LogsPageProps) {
       {/* Header */}
       <section className="page-header">
         <div>
-          <p className="kicker">Incident Feed</p>
-          <h1 className="page-title" style={{ marginTop: 6 }}>Errors</h1>
+          <h1 className="page-title">
+            Errors
+            <span className="kicker" style={{ marginLeft: 10, textTransform: "none" }}>Incident Feed</span>
+          </h1>
           <p className="page-subtitle">Application error log — real failures only, no telemetry noise.</p>
         </div>
         <div className="page-header-right">

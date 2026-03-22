@@ -135,8 +135,10 @@ export function OverviewPage({ summary, theme, accentHue = 217 }: OverviewPagePr
     <div className="page-content page-stack-lg">
       {/* Page header — full width above the grid */}
       <div>
-        <p className="kicker">Production Operations</p>
-        <h1 className="page-title" style={{ marginTop: 6 }}>Overview</h1>
+        <h1 className="page-title">
+          Overview
+          <span className="kicker" style={{ marginLeft: 10, textTransform: "none" }}>Production Operations</span>
+        </h1>
       </div>
 
       {/* Two-column grid: left (stats + chart), right (side panels) */}

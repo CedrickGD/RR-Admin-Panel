@@ -163,7 +163,7 @@ export function LivePage({ summary, focusedSessionId = null, focusedSessionToken
         <div>
           <h1 className="page-title">
             Live Sessions
-            <span className="kicker" style={{ marginLeft: 10, textTransform: "none" }}>Realtime</span>
+            <span className="kicker">Realtime</span>
           </h1>
           <p className="page-subtitle">
             Active sessions from the last 6 minutes. Rows hold stable order while you read.

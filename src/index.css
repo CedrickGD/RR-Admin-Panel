@@ -139,6 +139,13 @@ h1, h2, h3, h4, h5, h6 {
   letter-spacing: -0.04em;
   color: var(--text-1);
 }
+/* Inline kicker beside page title */
+.page-title > .kicker {
+  font-size: 0.4em;
+  vertical-align: baseline;
+  margin-left: 10px;
+  text-transform: none;
+}
 .section-title {
   font-family: "Space Grotesk", system-ui, sans-serif;
   font-size: 1.05rem;
@@ -178,8 +185,8 @@ h1, h2, h3, h4, h5, h6 {
   width: min(100%, 1760px);
   margin: 0 auto;
   padding: 0 clamp(16px, 3vw, 40px);
-  padding-top: 20px;
-  padding-bottom: 32px;
+  padding-top: 28px;
+  padding-bottom: 40px;
 }
 
 .page-stack { display: flex; flex-direction: column; gap: 16px; }
@@ -1635,7 +1642,7 @@ h1, h2, h3, h4, h5, h6 {
    RESPONSIVE — TABLET (≤ 768px)
    ═══════════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
-  .page-content { padding-top: 20px; padding-bottom: 24px; }
+  .page-content { padding-top: 22px; padding-bottom: 30px; }
   .page-stack-lg { gap: 16px; }
 
   .panel-head { padding: 14px 14px 10px; gap: 12px; }
@@ -1666,7 +1673,7 @@ h1, h2, h3, h4, h5, h6 {
    ═══════════════════════════════════════════════════════════════ */
 @media (max-width: 480px) {
   /* Page layout */
-  .page-content { padding: 18px 10px 20px; }
+  .page-content { padding: 20px 10px 28px; }
   .page-wrap { padding: 0 10px; }
   .page-stack-lg { gap: 12px; }
 

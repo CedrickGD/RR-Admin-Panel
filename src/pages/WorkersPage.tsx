@@ -178,7 +178,7 @@ export function WorkersPage({ summary }: WorkersPageProps) {
           <div>
             <h1 className="page-title">
               Sessions
-              <span className="kicker" style={{ marginLeft: 10, textTransform: "none" }}>Session Archive</span>
+              <span className="kicker">Session Archive</span>
             </h1>
           </div>
           <button type="button" className="btn btn-ghost btn-sm" onClick={() => void handleExport()} disabled={exporting}>

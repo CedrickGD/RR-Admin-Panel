@@ -28,7 +28,7 @@ export function LogsPage({ summary }: LogsPageProps) {
         <div>
           <h1 className="page-title">
             Errors
-            <span className="kicker" style={{ marginLeft: 10, textTransform: "none" }}>Incident Feed</span>
+            <span className="kicker">Incident Feed</span>
           </h1>
           <p className="page-subtitle">Application error log — real failures only, no telemetry noise.</p>
         </div>

@@ -32,7 +32,7 @@ export function SettingsPage({ user, authMode, summary, health, onLogout }: Sett
         <div>
           <h1 className="page-title">
             Settings
-            <span className="kicker" style={{ marginLeft: 10, textTransform: "none" }}>Configuration</span>
+            <span className="kicker">Configuration</span>
           </h1>
           <p className="page-subtitle">Account identity, appearance, and backend configuration.</p>
         </div>

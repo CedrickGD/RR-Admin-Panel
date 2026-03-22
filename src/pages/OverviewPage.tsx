@@ -137,7 +137,7 @@ export function OverviewPage({ summary, theme, accentHue = 217 }: OverviewPagePr
       <div>
         <h1 className="page-title">
           Overview
-          <span className="kicker" style={{ marginLeft: 10, textTransform: "none" }}>Production Operations</span>
+          <span className="kicker">Production Operations</span>
         </h1>
       </div>
 

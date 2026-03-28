@@ -1,12 +1,14 @@
-import { ChevronDown, ChevronUp, Download, Search } from "lucide-react";
+import { ChevronDown, ChevronUp, Download, Globe2, Search } from "lucide-react";
 import { Fragment, useMemo, useState } from "react";
 import { type SessionPresence, StatusBadge } from "../components/StatusBadge";
 import type { AppSessionRecord, SummaryPayload, TelemetryEvent } from "../types/telemetry";
 import { downloadSessionExport } from "../utils/api";
 import { formatAccuracy, formatDate, formatDuration, formatEventName, formatGeoSource, formatNumber, timeAgo } from "../utils/format";
+import { resolveCountry } from "../utils/geography";
 
 interface WorkersPageProps {
   summary: SummaryPayload;
+  onOpenMapSession: (sessionId: string) => void;
 }
 
 interface SessionTimelineMarker {
@@ -31,8 +33,7 @@ function displayUser(session: AppSessionRecord): string {
 }
 
 function userIdentity(session: AppSessionRecord): string {
-  const label = session.userLabel?.trim().toLowerCase();
-  return label ? `user:${label}` : `install:${session.installId.trim().toLowerCase()}`;
+  return session.installId.trim().toLowerCase();
 }
 
 function resolveSessionEnd(session: AppSessionRecord): string {
@@ -123,7 +124,7 @@ function buildSessionTimeline(session: AppSessionRecord, recentEvents: Telemetry
   };
 }
 
-export function WorkersPage({ summary }: WorkersPageProps) {
+export function WorkersPage({ summary, onOpenMapSession }: WorkersPageProps) {
   const [query, setQuery] = useState("");
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
@@ -254,10 +255,10 @@ export function WorkersPage({ summary }: WorkersPageProps) {
                     return (
                       <Fragment key={identity}>
                         <tr className={isExpanded ? "row-expanded" : ""}>
-                          <td>
+                          <td style={{ whiteSpace: "nowrap" }}>
                             <span style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 600, fontSize: "0.8125rem" }}>{displayUser(session)}</span>
                           </td>
-                          <td className="muted">{buildLocationLabel(session) || "—"}</td>
+                          <td className="muted" style={{ whiteSpace: "nowrap" }}>{buildLocationLabel(session) || "—"}</td>
                           <td><span className="badge badge-muted">{session.appVersion ?? "—"}</span></td>
                           <td className="muted">{session.platform ?? "—"}</td>
                           <td className="muted">{resolveSessionDuration(session)}</td>
@@ -270,9 +271,16 @@ export function WorkersPage({ summary }: WorkersPageProps) {
                           </td>
                           <td><StatusBadge presence={resolvePresence(session)} /></td>
                           <td>
-                            <button type="button" className="btn-icon" style={{ padding: 4 }} onClick={() => toggleExpanded(identity)} aria-label={isExpanded ? "Collapse" : "Expand"}>
-                              {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                            </button>
+                            <div style={{ display: "flex", gap: 4 }}>
+                              {resolveCountry(session.clientCountry) !== null ? (
+                                <button type="button" className="btn-icon" style={{ padding: 4 }} title="View on map" onClick={() => onOpenMapSession(session.id)}>
+                                  <Globe2 className="h-3.5 w-3.5" />
+                                </button>
+                              ) : null}
+                              <button type="button" className="btn-icon" style={{ padding: 4 }} onClick={() => toggleExpanded(identity)} aria-label={isExpanded ? "Collapse" : "Expand"}>
+                                {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                              </button>
+                            </div>
                           </td>
                         </tr>
 

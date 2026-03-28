@@ -148,7 +148,7 @@ export default function App() {
                 onOpenMapSession={handleOpenHeatmapSession}
               />
             ) : null}
-            {page === "workers"   ? <WorkersPage   summary={summary} /> : null}
+            {page === "workers"   ? <WorkersPage   summary={summary} onOpenMapSession={handleOpenHeatmapSession} /> : null}
             {page === "logs"      ? <LogsPage      summary={summary} /> : null}
             {page === "settings"  ? (
               <SettingsPage

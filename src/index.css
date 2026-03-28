@@ -983,6 +983,265 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   ERROR FILTER PANEL
+   ═══════════════════════════════════════════════════════════════ */
+.error-filter-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: var(--glass-1);
+  border: 1px solid var(--glass-border);
+  color: var(--text-2);
+  font-size: 0.8125rem;
+  font-family: "Space Grotesk", system-ui, sans-serif;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.error-filter-toggle:hover {
+  background: var(--glass-2);
+  color: var(--text-1);
+  border-color: var(--glass-border2);
+}
+.error-filter-toggle[data-active] {
+  background: var(--accent-subtle);
+  border-color: hsl(var(--ah) var(--as) var(--al) / 0.25);
+  color: var(--accent-text);
+}
+.error-filter-count {
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+}
+
+.error-filter-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 18px;
+  border-top: 1px solid var(--glass-border);
+  background: rgba(255,255,255,0.012);
+}
+.error-filter-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.error-filter-summary {
+  font-size: 0.75rem;
+  color: var(--text-3);
+  font-family: "JetBrains Mono", monospace;
+}
+
+.error-filter-panel {
+  padding: 14px 18px 16px;
+  border-top: 1px solid var(--glass-border);
+  background: rgba(255,255,255,0.015);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.error-filter-section {
+  display: flex;
+  flex-direction: column;
+}
+.error-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.error-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-family: "Space Grotesk", system-ui, sans-serif;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.error-filter-chip.included {
+  background: rgba(255,255,255,0.06);
+  border-color: rgba(255,255,255,0.08);
+  color: var(--text-2);
+}
+.error-filter-chip.included:hover {
+  background: rgba(255,255,255,0.09);
+  color: var(--text-1);
+}
+.error-filter-chip.excluded {
+  background: var(--danger-sub);
+  border-color: hsl(4 86% 58% / 0.20);
+  color: hsl(4 86% 75%);
+  text-decoration: line-through;
+  opacity: 0.75;
+}
+.error-filter-chip.excluded:hover {
+  opacity: 1;
+}
+.error-filter-chip-count {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.65rem;
+  color: var(--text-3);
+  margin-left: 2px;
+}
+.error-filter-chip.excluded .error-filter-chip-count {
+  color: hsl(4 86% 65% / 0.6);
+}
+
+.error-filter-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid var(--glass-border);
+  color: var(--text-3);
+  font-size: 0.75rem;
+  font-family: "Space Grotesk", system-ui, sans-serif;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  align-self: flex-start;
+}
+.error-filter-clear:hover {
+  background: var(--glass-1);
+  color: var(--text-2);
+  border-color: var(--glass-border2);
+}
+
+/* ── Grouped error rows ─────────────────────────────────────── */
+.error-group-list {
+  display: flex;
+  flex-direction: column;
+}
+.error-group {
+  border-bottom: 1px solid var(--glass-border);
+}
+.error-group:last-child {
+  border-bottom: none;
+}
+.error-group-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 18px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease;
+  color: var(--text-1);
+  font-family: inherit;
+}
+.error-group-row:hover {
+  background: rgba(255,255,255,0.025);
+}
+.error-group.is-open > .error-group-row {
+  background: rgba(255,255,255,0.02);
+}
+.error-group-chevron {
+  color: var(--text-3);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+.error-group-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.error-group-type {
+  font-size: 0.75rem;
+  color: var(--text-1);
+  font-weight: 600;
+}
+.error-group-msg {
+  font-size: 0.8125rem;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.error-group-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.error-group-count {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--warning);
+  background: var(--warning-sub);
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+.error-group-time {
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+/* Expanded detail panel */
+.error-group-detail {
+  padding: 12px 18px 16px 50px;
+  background: rgba(255,255,255,0.015);
+  border-top: 1px solid rgba(255,255,255,0.04);
+}
+.error-group-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.error-metric-tag {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.6875rem;
+  color: var(--text-2);
+  background: rgba(255,255,255,0.05);
+  padding: 2px 7px;
+  border-radius: 5px;
+}
+
+/* Occurrence timeline */
+.error-occurrence-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.error-occurrence-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.02);
+}
+.error-occurrence-item:hover {
+  background: rgba(255,255,255,0.04);
+}
+
+/* ═══════════════════════════════════════════════════════════════
    SPINNER / LOADING
    ═══════════════════════════════════════════════════════════════ */
 .spinner {
@@ -1494,6 +1753,7 @@ h1, h2, h3, h4, h5, h6 {
 .map-node-marker-precise .map-node-core { background: hsl(var(--ah) var(--as) 85%); }
 .map-node-marker-active .map-node-pulse { background: hsl(var(--ah) var(--as) var(--al) / 0.2); }
 .map-node-marker-active .map-node-halo { background: hsl(var(--ah) var(--as) var(--al) / 0.26); }
+
 
 .map-node-popup-shell { z-index: 4; }
 .map-node-popup-shell .maplibregl-popup-content {

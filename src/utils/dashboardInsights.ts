@@ -119,13 +119,7 @@ function buildUtcDayLabel(timestamp: number) {
 }
 
 function getSessionIdentity(session: AppSessionRecord): string {
-  const userLabel = session.userLabel?.trim().toLowerCase();
-
-  if (userLabel) {
-    return `user:${userLabel}`;
-  }
-
-  return `install:${session.installId.trim().toLowerCase()}`;
+  return session.installId.trim().toLowerCase();
 }
 
 function normalizeVersion(raw: string): string {

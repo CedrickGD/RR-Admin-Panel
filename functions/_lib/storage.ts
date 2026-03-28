@@ -252,7 +252,9 @@ async function loadSummaryD1(env: RuntimeEnv): Promise<SummaryPayload> {
       .prepare(
         `SELECT
            COUNT(*) AS totalEvents,
-           SUM(CASE WHEN service = ? AND ts >= ? THEN 1 ELSE 0 END) AS errorsLast24Hours,
+           SUM(CASE WHEN service = ? AND ts >= ?
+               AND COALESCE(json_extract(metrics_json, '$.error_kind'), '') != 'background'
+               THEN 1 ELSE 0 END) AS errorsLast24Hours,
            MAX(ts) AS lastIngestAt
          FROM telemetry_events`
       )
@@ -447,7 +449,7 @@ function buildSummaryFromCollections(storage: StorageBackend, sessions: AppSessi
       sessionsEndedToday: sessions.filter((session) => session.endedAt && compareIso(session.endedAt, startOfDay) >= 0).length,
       averageSessionDurationSeconds:
         durations.length > 0 ? Math.round(durations.reduce((sum, value) => sum + value, 0) / durations.length) : 0,
-      errorsLast24Hours: events.filter((event) => event.service === APP_ERROR && compareIso(event.timestamp, errorCutoff) >= 0).length,
+      errorsLast24Hours: events.filter((event) => event.service === APP_ERROR && compareIso(event.timestamp, errorCutoff) >= 0 && String(event.metrics["error_kind"] ?? "") !== "background").length,
       lastIngestAt: events[0]?.timestamp ?? null,
     },
   };

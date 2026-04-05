@@ -1,4 +1,4 @@
-import { Crosshair, Globe2, Info, LocateFixed, Map as MapIcon, Maximize2, Menu, Minimize2, Minus, Plus, X } from "lucide-react";
+import { Crosshair, Globe2, Info, Layers, LocateFixed, Map as MapIcon, Maximize2, Menu, Minimize2, Minus, Plus, X } from "lucide-react";
 import maplibregl, {
   type GeoJSONSource,
   LngLatBounds,
@@ -65,7 +65,22 @@ interface MapPalette {
   halo: string;
 }
 
-const MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
+type MapStyleMode = "tactical" | "standard" | "positron";
+
+const MAP_STYLE_URLS: Record<MapStyleMode, string> = {
+  tactical: "https://tiles.openfreemap.org/styles/liberty",
+  standard: "https://tiles.openfreemap.org/styles/liberty",
+  positron: "https://tiles.openfreemap.org/styles/positron",
+};
+
+const MAP_STYLE_LABELS: Record<MapStyleMode, string> = {
+  tactical: "Tactical",
+  standard: "Standard",
+  positron: "Light",
+};
+
+const MAP_STYLE_ORDER: MapStyleMode[] = ["tactical", "standard", "positron"];
+
 const CONNECTIONS_SOURCE_ID = "active-connections";
 const CONNECTIONS_GLOW_LAYER_ID = "active-connections-glow";
 const CONNECTIONS_LINE_LAYER_ID = "active-connections-line";
@@ -664,6 +679,8 @@ export function WorldHeatmap({
   const [showPanel, setShowPanel] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [globe, setGlobe] = useState(true);
+  const [mapStyle, setMapStyle] = useState<MapStyleMode>("tactical");
+  const mapStyleRef = useRef<MapStyleMode>("tactical");
   const marketMarkerPoints = useMemo(() => buildMarketPoints(marketPoints), [marketPoints]);
   const sessionMarkerPoints = useMemo(() => buildSessionPoints(sessionPoints), [sessionPoints]);
   const connections = useMemo(() => buildConnections(marketMarkerPoints, sessionMarkerPoints), [marketMarkerPoints, sessionMarkerPoints]);
@@ -704,7 +721,7 @@ export function WorldHeatmap({
 
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: MAP_STYLE,
+      style: MAP_STYLE_URLS[mapStyleRef.current],
       center: INITIAL_CENTER,
       zoom: INITIAL_ZOOM,
       minZoom: 1,
@@ -721,7 +738,10 @@ export function WorldHeatmap({
         return;
       }
 
-      styleMap(map, themeRef.current);
+      if (mapStyleRef.current === "tactical") {
+        styleMap(map, themeRef.current);
+      }
+
       ensureConnections(map, connectionsRef.current);
     };
 
@@ -936,6 +956,20 @@ export function WorldHeatmap({
     onOpenSession(activePoint.key);
   }
 
+  function cycleMapStyle() {
+    const map = mapRef.current;
+    if (!map) return;
+    const currentIndex = MAP_STYLE_ORDER.indexOf(mapStyle);
+    const nextMode = MAP_STYLE_ORDER[(currentIndex + 1) % MAP_STYLE_ORDER.length];
+    mapStyleRef.current = nextMode;
+    setMapStyle(nextMode);
+    map.setStyle(MAP_STYLE_URLS[nextMode]);
+    // Projection resets on setStyle — re-apply after style loads
+    map.once("styledata", () => {
+      map.setProjection({ type: globe ? "globe" : "mercator" });
+    });
+  }
+
   function toggleProjection() {
     const map = mapRef.current;
     if (!map) return;
@@ -1005,6 +1039,9 @@ export function WorldHeatmap({
             </button>
             <span className="world-heatmap-hovbar-sep" />
             {/* View */}
+            <button type="button" onClick={cycleMapStyle} aria-label={`Map style: ${MAP_STYLE_LABELS[mapStyle]}`} title={MAP_STYLE_LABELS[mapStyle]}>
+              <Layers className="h-4 w-4" />
+            </button>
             <button type="button" onClick={toggleProjection} aria-label={globe ? "Switch to flat map" : "Switch to globe"}>
               {globe ? <MapIcon className="h-4 w-4" /> : <Globe2 className="h-4 w-4" />}
             </button>

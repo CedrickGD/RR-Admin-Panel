@@ -11,21 +11,21 @@ jobs:
     steps:
       - name: Validate secrets
         env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-          DISCORD_WEBHOOK_2: ${{ secrets.DISCORD_WEBHOOK_2 }}
+          FLTU_NOTIFY: ${{ secrets.FLTU_NOTIFY }}
+          RR_SUPPORT_NOTIFY: ${{ secrets.RR_SUPPORT_NOTIFY }}
         run: |
-          if [ -z "$DISCORD_WEBHOOK" ]; then
-            echo "::error::Missing DISCORD_WEBHOOK repository secret."
+          if [ -z "$FLTU_NOTIFY" ]; then
+            echo "::error::Missing FLTU_NOTIFY repository secret."
             exit 1
           fi
-          if [ -z "$DISCORD_WEBHOOK_2" ]; then
-            echo "::warning::Missing DISCORD_WEBHOOK_2 repository secret. Skipping second webhook."
+          if [ -z "$RR_SUPPORT_NOTIFY" ]; then
+            echo "::warning::Missing RR_SUPPORT_NOTIFY repository secret. Skipping second webhook."
           fi
 
       - name: Send Discord notification
         env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-          DISCORD_WEBHOOK_2: ${{ secrets.DISCORD_WEBHOOK_2 }}
+          FLTU_NOTIFY: ${{ secrets.FLTU_NOTIFY }}
+          RR_SUPPORT_NOTIFY: ${{ secrets.RR_SUPPORT_NOTIFY }}
           REPO: ${{ github.repository }}
           ACTOR: ${{ github.actor }}
           REF_NAME: ${{ github.ref_name }}
@@ -57,7 +57,7 @@ jobs:
           http_code="$(curl -sS -o discord_response.txt -w "%{http_code}" \
             -H "Content-Type: application/json" \
             -d "$payload" \
-            "$DISCORD_WEBHOOK")"
+            "$FLTU_NOTIFY")"
 
           if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
             echo "::error::Discord webhook returned HTTP $http_code"
@@ -65,11 +65,11 @@ jobs:
             exit 1
           fi
 
-          if [ -n "$DISCORD_WEBHOOK_2" ]; then
+          if [ -n "$RR_SUPPORT_NOTIFY" ]; then
             http_code2="$(curl -sS -o discord_response2.txt -w "%{http_code}" \
               -H "Content-Type: application/json" \
               -d "$payload" \
-              "$DISCORD_WEBHOOK_2")"
+              "$RR_SUPPORT_NOTIFY")"
 
             if [ "$http_code2" -lt 200 ] || [ "$http_code2" -ge 300 ]; then
               echo "::warning::Discord webhook 2 returned HTTP $http_code2"

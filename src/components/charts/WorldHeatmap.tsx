@@ -1015,7 +1015,7 @@ export function WorldHeatmap({
     if (needsSetStyle) {
       const style = next === "satellite" ? SATELLITE_STYLE : LIBERTY_STYLE;
       map.setStyle(style);
-      map.once("load", () => {
+      map.once("idle", () => {
         if (next !== "satellite" && !savedPaintsRef.current) {
           savedPaintsRef.current = captureOriginalPaints(map);
         }

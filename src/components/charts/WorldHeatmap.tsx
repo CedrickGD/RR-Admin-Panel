@@ -823,7 +823,11 @@ export function WorldHeatmap({
       return;
     }
 
-    styleMap(map, theme);
+    if (tacticalRef.current) {
+      styleMap(map, theme);
+    } else if (savedPaintsRef.current) {
+      restoreDefaultStyle(map, savedPaintsRef.current);
+    }
     ensureConnections(map, connections);
   }, [connections, mapReady, theme]);
 

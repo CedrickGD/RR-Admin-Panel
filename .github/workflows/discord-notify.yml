@@ -1,0 +1,78 @@
+name: Discord Notify
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate secrets
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          DISCORD_WEBHOOK_2: ${{ secrets.DISCORD_WEBHOOK_2 }}
+        run: |
+          if [ -z "$DISCORD_WEBHOOK" ]; then
+            echo "::error::Missing DISCORD_WEBHOOK repository secret."
+            exit 1
+          fi
+          if [ -z "$DISCORD_WEBHOOK_2" ]; then
+            echo "::warning::Missing DISCORD_WEBHOOK_2 repository secret. Skipping second webhook."
+          fi
+
+      - name: Send Discord notification
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          DISCORD_WEBHOOK_2: ${{ secrets.DISCORD_WEBHOOK_2 }}
+          REPO: ${{ github.repository }}
+          ACTOR: ${{ github.actor }}
+          REF_NAME: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          commit_count="$(jq '.commits | length' "$GITHUB_EVENT_PATH")"
+          compare_url="$(jq -r '.compare // empty' "$GITHUB_EVENT_PATH")"
+
+          commit_lines="$(jq -r '.commits[:5][] | "- [`" + (.id[0:7]) + "`] " + ((.message // "") | split("\n")[0])' "$GITHUB_EVENT_PATH")"
+          extra_lines=$((commit_count - 5))
+          if [ "$extra_lines" -gt 0 ]; then
+            commit_lines="$commit_lines"$'\n'"- ... and $extra_lines more"
+          fi
+
+          if [ -z "$commit_lines" ]; then
+            commit_lines="- No commit details provided by GitHub payload"
+          fi
+
+          content="📦 **Push detected** in **$REPO**"$'\n'"Branch: \`$REF_NAME\`"$'\n'"By: **$ACTOR**"$'\n'"Commits: **$commit_count**"$'\n'"$compare_url"$'\n\n'"$commit_lines"
+
+          if [ "${#content}" -gt 1900 ]; then
+            content="${content:0:1900}"$'\n'"(truncated)"
+          fi
+
+          payload="$(jq -n --arg content "$content" '{content: $content}')"
+
+          http_code="$(curl -sS -o discord_response.txt -w "%{http_code}" \
+            -H "Content-Type: application/json" \
+            -d "$payload" \
+            "$DISCORD_WEBHOOK")"
+
+          if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
+            echo "::error::Discord webhook returned HTTP $http_code"
+            cat discord_response.txt
+            exit 1
+          fi
+
+          if [ -n "$DISCORD_WEBHOOK_2" ]; then
+            http_code2="$(curl -sS -o discord_response2.txt -w "%{http_code}" \
+              -H "Content-Type: application/json" \
+              -d "$payload" \
+              "$DISCORD_WEBHOOK_2")"
+
+            if [ "$http_code2" -lt 200 ] || [ "$http_code2" -ge 300 ]; then
+              echo "::warning::Discord webhook 2 returned HTTP $http_code2"
+              cat discord_response2.txt
+            fi
+          fi

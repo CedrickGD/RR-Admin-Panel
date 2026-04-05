@@ -195,11 +195,6 @@ async function storeTelemetryD1(env: RuntimeEnv, event: TelemetryEvent): Promise
     .run();
 
   await upsertSessionD1(db, event);
-
-  await db
-    .prepare(`DELETE FROM telemetry_events WHERE id NOT IN (SELECT id FROM telemetry_events ORDER BY id DESC LIMIT ?)`)
-    .bind(MAX_HISTORY)
-    .run();
 }
 
 async function loadSummaryD1(env: RuntimeEnv): Promise<SummaryPayload> {
@@ -337,7 +332,7 @@ async function storeTelemetryKv(env: RuntimeEnv, event: TelemetryEvent): Promise
     kvGetJson<Record<string, AppSessionRecord>>(kv, SESSIONS_KEY, {}),
   ]);
 
-  const nextEvents = [event, ...events].slice(0, MAX_HISTORY);
+  const nextEvents = [event, ...events];
   const session = mergeSessionRecord(sessionsMap[readSessionId(event) ?? ""], event);
   if (session) {
     sessionsMap[session.id] = session;

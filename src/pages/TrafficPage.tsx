@@ -123,9 +123,9 @@ export function TrafficPage({ summary, theme, accentHue = 217 }: TrafficPageProp
       <div className="stat-grid">
         {[
           { label: "Lifetime Users",   value: formatNumber(summary.stats.lifetimeUsers),  sub: "All time unique (HWID)" },
-          { label: "Total Events",     value: formatNumber(summary.stats.totalEvents),   sub: "All time in storage" },
-          { label: "Total Sessions",   value: formatNumber(summary.stats.totalSessions), sub: "Loaded in this view" },
-          { label: "Active Right Now", value: formatNumber(summary.stats.activeUsers),   sub: "Within session window" },
+          { label: "Total Events",     value: formatNumber(summary.stats.totalEvents),   sub: "All time, unlimited" },
+          { label: "Total Sessions",   value: formatNumber(summary.stats.totalSessions), sub: "Last 200 loaded" },
+          { label: "Active Right Now", value: formatNumber(summary.stats.activeUsers),   sub: "Last 100 shown" },
           { label: "Avg Duration",     value: formatDuration(summary.stats.averageSessionDurationSeconds), sub: "Per session" },
           { label: "Started Today",    value: formatNumber(summary.stats.sessionsStartedToday), sub: "Since midnight UTC" },
           { label: "Last Ingest",      value: timeAgo(summary.stats.lastIngestAt ?? null), sub: "Most recent event" },

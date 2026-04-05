@@ -756,10 +756,6 @@ export function WorldHeatmap({
         return;
       }
 
-      if (!savedPaintsRef.current) {
-        savedPaintsRef.current = captureOriginalPaints(map);
-      }
-
       if (tacticalRef.current) {
         styleMap(map, themeRef.current);
       }
@@ -779,6 +775,7 @@ export function WorldHeatmap({
     map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
 
     map.on("load", () => {
+      savedPaintsRef.current = captureOriginalPaints(map);
       map.setProjection({ type: "globe" });
       applyStyle();
       setMapReady(true);
@@ -980,13 +977,13 @@ export function WorldHeatmap({
 
   function toggleMapStyle() {
     const map = mapRef.current;
-    if (!map || !savedPaintsRef.current) return;
+    if (!map) return;
     const next = !tactical;
     tacticalRef.current = next;
     setTactical(next);
     if (next) {
       styleMap(map, themeRef.current);
-    } else {
+    } else if (savedPaintsRef.current) {
       restoreDefaultStyle(map, savedPaintsRef.current);
     }
   }

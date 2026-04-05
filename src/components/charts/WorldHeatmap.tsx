@@ -65,22 +65,7 @@ interface MapPalette {
   halo: string;
 }
 
-type MapStyleMode = "tactical" | "standard" | "positron";
-
-const MAP_STYLE_URLS: Record<MapStyleMode, string> = {
-  tactical: "https://tiles.openfreemap.org/styles/liberty",
-  standard: "https://tiles.openfreemap.org/styles/liberty",
-  positron: "https://tiles.openfreemap.org/styles/positron",
-};
-
-const MAP_STYLE_LABELS: Record<MapStyleMode, string> = {
-  tactical: "Tactical",
-  standard: "Standard",
-  positron: "Light",
-};
-
-const MAP_STYLE_ORDER: MapStyleMode[] = ["tactical", "standard", "positron"];
-
+const MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
 const CONNECTIONS_SOURCE_ID = "active-connections";
 const CONNECTIONS_GLOW_LAYER_ID = "active-connections-glow";
 const CONNECTIONS_LINE_LAYER_ID = "active-connections-line";
@@ -614,6 +599,38 @@ function styleMap(map: maplibregl.Map, theme: ThemeMode) {
   }
 }
 
+function restoreDefaultStyle(
+  map: maplibregl.Map,
+  savedPaints: Map<string, Record<string, unknown>>,
+) {
+  for (const [layerId, paint] of savedPaints) {
+    if (!map.getLayer(layerId)) continue;
+    for (const [prop, value] of Object.entries(paint)) {
+      try { map.setPaintProperty(layerId, prop, value); } catch { /* skip incompatible */ }
+    }
+  }
+
+  for (const layerId of HIDDEN_LABEL_LAYERS) {
+    if (!map.getLayer(layerId)) continue;
+    try { map.setLayoutProperty(layerId, "visibility", "visible"); } catch { /* skip */ }
+  }
+}
+
+function captureOriginalPaints(map: maplibregl.Map): Map<string, Record<string, unknown>> {
+  const result = new Map<string, Record<string, unknown>>();
+  const layers = map.getStyle()?.layers;
+  if (!layers) return result;
+
+  for (const layer of layers) {
+    const paint = (layer as Record<string, unknown>).paint as Record<string, unknown> | undefined;
+    if (paint) {
+      result.set(layer.id, { ...paint });
+    }
+  }
+
+  return result;
+}
+
 function ensureConnections(
   map: maplibregl.Map,
   connections: FeatureCollection<LineString>,
@@ -679,8 +696,9 @@ export function WorldHeatmap({
   const [showPanel, setShowPanel] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [globe, setGlobe] = useState(true);
-  const [mapStyle, setMapStyle] = useState<MapStyleMode>("tactical");
-  const mapStyleRef = useRef<MapStyleMode>("tactical");
+  const [tactical, setTactical] = useState(true);
+  const tacticalRef = useRef(true);
+  const savedPaintsRef = useRef<Map<string, Record<string, unknown>> | null>(null);
   const marketMarkerPoints = useMemo(() => buildMarketPoints(marketPoints), [marketPoints]);
   const sessionMarkerPoints = useMemo(() => buildSessionPoints(sessionPoints), [sessionPoints]);
   const connections = useMemo(() => buildConnections(marketMarkerPoints, sessionMarkerPoints), [marketMarkerPoints, sessionMarkerPoints]);
@@ -721,7 +739,7 @@ export function WorldHeatmap({
 
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: MAP_STYLE_URLS[mapStyleRef.current],
+      style: MAP_STYLE,
       center: INITIAL_CENTER,
       zoom: INITIAL_ZOOM,
       minZoom: 1,
@@ -738,7 +756,11 @@ export function WorldHeatmap({
         return;
       }
 
-      if (mapStyleRef.current === "tactical") {
+      if (!savedPaintsRef.current) {
+        savedPaintsRef.current = captureOriginalPaints(map);
+      }
+
+      if (tacticalRef.current) {
         styleMap(map, themeRef.current);
       }
 
@@ -956,18 +978,17 @@ export function WorldHeatmap({
     onOpenSession(activePoint.key);
   }
 
-  function cycleMapStyle() {
+  function toggleMapStyle() {
     const map = mapRef.current;
-    if (!map) return;
-    const currentIndex = MAP_STYLE_ORDER.indexOf(mapStyle);
-    const nextMode = MAP_STYLE_ORDER[(currentIndex + 1) % MAP_STYLE_ORDER.length];
-    mapStyleRef.current = nextMode;
-    setMapStyle(nextMode);
-    map.setStyle(MAP_STYLE_URLS[nextMode]);
-    // Projection resets on setStyle — re-apply after style loads
-    map.once("styledata", () => {
-      map.setProjection({ type: globe ? "globe" : "mercator" });
-    });
+    if (!map || !savedPaintsRef.current) return;
+    const next = !tactical;
+    tacticalRef.current = next;
+    setTactical(next);
+    if (next) {
+      styleMap(map, themeRef.current);
+    } else {
+      restoreDefaultStyle(map, savedPaintsRef.current);
+    }
   }
 
   function toggleProjection() {
@@ -1039,7 +1060,7 @@ export function WorldHeatmap({
             </button>
             <span className="world-heatmap-hovbar-sep" />
             {/* View */}
-            <button type="button" onClick={cycleMapStyle} aria-label={`Map style: ${MAP_STYLE_LABELS[mapStyle]}`} title={MAP_STYLE_LABELS[mapStyle]}>
+            <button type="button" onClick={toggleMapStyle} aria-label={tactical ? "Switch to standard map" : "Switch to tactical map"} title={tactical ? "Tactical" : "Standard"}>
               <Layers className="h-4 w-4" />
             </button>
             <button type="button" onClick={toggleProjection} aria-label={globe ? "Switch to flat map" : "Switch to globe"}>

@@ -19,7 +19,7 @@ const RECENT_ERROR_LIMIT = 50;
 const MAX_KV_SESSIONS = 500;
 const ACTIVE_SESSION_TIMEOUT_MS = 6 * 60 * 1000;
 const SESSION_SELECT_COLUMNS =
-  "session_id, install_id, source, user_label, client_ip, client_country, client_city, client_region, client_latitude, client_longitude, client_timezone, client_geo_source, client_geo_signal_source, client_accuracy_meters, client_geo_captured_at, app_version, platform, started_at, last_seen_at, ended_at, duration_seconds, is_active, last_event, last_status, error_count, updated_at";
+  "session_id, install_id, hwid, source, user_label, client_ip, client_country, client_city, client_region, client_latitude, client_longitude, client_timezone, client_geo_source, client_geo_signal_source, client_accuracy_meters, client_geo_captured_at, app_version, platform, started_at, last_seen_at, ended_at, duration_seconds, is_active, last_event, last_status, error_count, updated_at";
 
 const SESSION_START = "session_start";
 const SESSION_ACTIVE = "session_active";
@@ -40,6 +40,7 @@ interface D1EventRow {
 interface D1SessionRow {
   session_id: string;
   install_id: string;
+  hwid: string | null;
   source: string;
   user_label: string | null;
   client_ip: string | null;
@@ -75,6 +76,7 @@ interface EventStatsRow {
 interface SessionStatsRow {
   totalSessions: number | string;
   activeUsers: number | string;
+  lifetimeUsers: number | string;
   sessionsStartedToday: number | string;
   sessionsEndedToday: number | string;
   averageSessionDurationSeconds: number | string | null;
@@ -265,6 +267,7 @@ async function loadSummaryD1(env: RuntimeEnv): Promise<SummaryPayload> {
         `SELECT
            COUNT(*) AS totalSessions,
            SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) AS activeUsers,
+           COUNT(DISTINCT COALESCE(hwid, install_id)) AS lifetimeUsers,
            SUM(CASE WHEN started_at >= ? THEN 1 ELSE 0 END) AS sessionsStartedToday,
            SUM(CASE WHEN ended_at IS NOT NULL AND ended_at >= ? THEN 1 ELSE 0 END) AS sessionsEndedToday,
            AVG(CASE WHEN duration_seconds IS NOT NULL THEN duration_seconds END) AS averageSessionDurationSeconds
@@ -285,6 +288,7 @@ async function loadSummaryD1(env: RuntimeEnv): Promise<SummaryPayload> {
       totalEvents: toNumber(eventStats?.totalEvents),
       totalSessions: toNumber(sessionStats?.totalSessions),
       activeUsers: toNumber(sessionStats?.activeUsers),
+      lifetimeUsers: toNumber(sessionStats?.lifetimeUsers),
       sessionsStartedToday: toNumber(sessionStats?.sessionsStartedToday),
       sessionsEndedToday: toNumber(sessionStats?.sessionsEndedToday),
       averageSessionDurationSeconds: toRoundedNumber(sessionStats?.averageSessionDurationSeconds),
@@ -445,6 +449,7 @@ function buildSummaryFromCollections(storage: StorageBackend, sessions: AppSessi
       totalEvents: events.length,
       totalSessions: sessions.length,
       activeUsers: activeCount,
+      lifetimeUsers: new Set(sessions.map((s) => (s.hwid ?? s.installId).trim().toLowerCase())).size,
       sessionsStartedToday: sessions.filter((session) => compareIso(session.startedAt, startOfDay) >= 0).length,
       sessionsEndedToday: sessions.filter((session) => session.endedAt && compareIso(session.endedAt, startOfDay) >= 0).length,
       averageSessionDurationSeconds:
@@ -502,6 +507,7 @@ async function ensureTelemetrySchema(db: RuntimeEnv["DB"]): Promise<void> {
     `CREATE TABLE IF NOT EXISTS app_sessions (
       session_id TEXT PRIMARY KEY,
       install_id TEXT NOT NULL,
+      hwid TEXT,
       source TEXT NOT NULL,
       user_label TEXT,
       client_ip TEXT,
@@ -532,6 +538,7 @@ async function ensureTelemetrySchema(db: RuntimeEnv["DB"]): Promise<void> {
     `CREATE INDEX IF NOT EXISTS idx_sessions_install ON app_sessions(install_id, updated_at DESC)`,
   ];
   const alterStatements = [
+    `ALTER TABLE app_sessions ADD COLUMN hwid TEXT`,
     `ALTER TABLE app_sessions ADD COLUMN client_city TEXT`,
     `ALTER TABLE app_sessions ADD COLUMN client_region TEXT`,
     `ALTER TABLE app_sessions ADD COLUMN client_latitude REAL`,
@@ -611,11 +618,12 @@ async function upsertSessionD1(db: RuntimeEnv["DB"], event: TelemetryEvent): Pro
   await db
     .prepare(
       `INSERT INTO app_sessions
-        (session_id, install_id, source, user_label, client_ip, client_country, client_city, client_region, client_latitude, client_longitude, client_timezone, client_geo_source, client_geo_signal_source, client_accuracy_meters, client_geo_captured_at, app_version, platform,
+        (session_id, install_id, hwid, source, user_label, client_ip, client_country, client_city, client_region, client_latitude, client_longitude, client_timezone, client_geo_source, client_geo_signal_source, client_accuracy_meters, client_geo_captured_at, app_version, platform,
          started_at, last_seen_at, ended_at, duration_seconds, is_active, last_event, last_status, error_count, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(session_id) DO UPDATE SET
          install_id = excluded.install_id,
+         hwid = COALESCE(excluded.hwid, app_sessions.hwid),
          source = excluded.source,
          user_label = excluded.user_label,
          client_ip = excluded.client_ip,
@@ -644,6 +652,7 @@ async function upsertSessionD1(db: RuntimeEnv["DB"], event: TelemetryEvent): Pro
     .bind(
       next.id,
       next.installId,
+      next.hwid,
       next.source,
       next.userLabel,
       next.clientIp,
@@ -679,6 +688,7 @@ function mergeSessionRecord(existing: AppSessionRecord | undefined, event: Telem
     return null;
   }
 
+  const hwid = readMetricText(event.metrics, ["hwid"]) ?? existing?.hwid ?? null;
   const source = readMetricText(event.metrics, ["app_name"]) ?? event.source ?? existing?.source ?? "razorreaper";
   const userLabel = readMetricText(event.metrics, ["user_label", "machine_name"]) ?? existing?.userLabel ?? null;
   const clientIp = readMetricText(event.metrics, ["client_ip", "ip"]) ?? existing?.clientIp ?? null;
@@ -730,6 +740,7 @@ function mergeSessionRecord(existing: AppSessionRecord | undefined, event: Telem
   return {
     id: sessionId,
     installId,
+    hwid,
     source,
     userLabel,
     clientIp,
@@ -807,6 +818,7 @@ function mapD1Session(row: D1SessionRow): AppSessionRecord {
   return {
     id: row.session_id,
     installId: row.install_id,
+    hwid: row.hwid ?? null,
     source: row.source,
     userLabel: row.user_label ?? null,
     clientIp: row.client_ip ?? null,
@@ -978,6 +990,7 @@ function formatSessionExportBlock(session: AppSessionRecord, index: number): str
     `Session ${index}`,
     `User: ${sanitizeExportValue(session.userLabel ?? "-")}`,
     `Install ID: ${sanitizeExportValue(session.installId)}`,
+    `HWID: ${sanitizeExportValue(session.hwid ?? "-")}`,
     `Session ID: ${sanitizeExportValue(session.id)}`,
     `State: ${state}`,
     `Telemetry status: ${sanitizeExportValue(session.lastStatus)}`,

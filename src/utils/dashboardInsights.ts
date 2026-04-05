@@ -119,6 +119,8 @@ function buildUtcDayLabel(timestamp: number) {
 }
 
 function getSessionIdentity(session: AppSessionRecord): string {
+  const hwid = session.hwid?.trim();
+  if (hwid) return hwid.toLowerCase();
   return session.installId.trim().toLowerCase();
 }
 

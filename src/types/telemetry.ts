@@ -25,6 +25,7 @@ export interface TelemetryEvent {
 export interface AppSessionRecord {
   id: string;
   installId: string;
+  hwid?: string | null;
   source: string;
   userLabel: string | null;
   clientIp: string | null;
@@ -61,6 +62,7 @@ export interface SummaryPayload {
     totalEvents: number;
     totalSessions: number;
     activeUsers: number;
+    lifetimeUsers: number;
     sessionsStartedToday: number;
     sessionsEndedToday: number;
     averageSessionDurationSeconds: number;

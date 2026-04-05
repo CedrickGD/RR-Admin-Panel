@@ -122,6 +122,7 @@ export function TrafficPage({ summary, theme, accentHue = 217 }: TrafficPageProp
       {/* Stat cards — pinned at top */}
       <div className="stat-grid">
         {[
+          { label: "Lifetime Users",   value: formatNumber(summary.stats.lifetimeUsers),  sub: "All time unique (HWID)" },
           { label: "Total Events",     value: formatNumber(summary.stats.totalEvents),   sub: "All time in storage" },
           { label: "Total Sessions",   value: formatNumber(summary.stats.totalSessions), sub: "Loaded in this view" },
           { label: "Active Right Now", value: formatNumber(summary.stats.activeUsers),   sub: "Within session window" },

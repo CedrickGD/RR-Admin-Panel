@@ -33,6 +33,8 @@ function displayUser(session: AppSessionRecord): string {
 }
 
 function userIdentity(session: AppSessionRecord): string {
+  const hwid = session.hwid?.trim();
+  if (hwid) return hwid.toLowerCase();
   return session.installId.trim().toLowerCase();
 }
 

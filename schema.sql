@@ -31,6 +31,7 @@ CREATE INDEX IF NOT EXISTS idx_latest_updated ON latest_status(updated_at DESC);
 CREATE TABLE IF NOT EXISTS app_sessions (
   session_id TEXT PRIMARY KEY,
   install_id TEXT NOT NULL,
+  hwid TEXT,
   source TEXT NOT NULL,
   user_label TEXT,
   client_ip TEXT,

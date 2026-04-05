@@ -85,7 +85,7 @@ export interface VersionBreakdownPoint extends BreakdownPoint {
   isCurrent: boolean;
 }
 
-export const CURRENT_RAZORREAPER_VERSION = "1.4.1";
+export const CURRENT_RAZORREAPER_VERSION = "1.4.2";
 
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 

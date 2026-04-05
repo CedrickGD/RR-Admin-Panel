@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 const UPDATE_XML_URL = "https://raw.githubusercontent.com/CedrickGD/RazorReaper/master/update.xml";
-const FALLBACK_VERSION = "1.4.1";
+const FALLBACK_VERSION = "1.4.2";
 const CACHE_KEY = "rr-latest-version";
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 

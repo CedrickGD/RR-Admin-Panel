@@ -14,7 +14,7 @@ import { useChartColors } from "../hooks/useChartColors";
 import { useLatestVersion } from "../hooks/useLatestVersion";
 import { useReleaseVersions } from "../hooks/useReleaseVersions";
 import type { SummaryPayload, ThemeMode } from "../types/telemetry";
-import { buildVersionBreakdown } from "../utils/dashboardInsights";
+import { buildVersionBreakdown, type VersionBreakdownPoint } from "../utils/dashboardInsights";
 import { formatNumber } from "../utils/format";
 import { applyChartColorOverride, buildDashboardChartPalette } from "./dashboardShared";
 
@@ -60,10 +60,33 @@ export function VersionsPage({ summary, theme, accentHue = 217 }: VersionsPagePr
 
   const allVersions = useMemo(() => buildVersionBreakdown(filteredSummary, latestVersion, knownVersions), [filteredSummary, latestVersion, knownVersions]);
 
-  const rrVersions = useMemo(
+  const rrVersionsFromData = useMemo(
     () => allVersions.filter((v) => v.source.trim().toLowerCase().includes("razorreaper")),
     [allVersions],
   );
+
+  // Merge ALL known GitHub releases into the list so every version shows up,
+  // even those with 0 users (older releases without telemetry, or brand-new ones).
+  const rrVersions = useMemo(() => {
+    const map = new Map<string, VersionBreakdownPoint>(rrVersionsFromData.map((v) => [v.version, v]));
+    for (const ver of knownVersions) {
+      if (!map.has(ver)) {
+        map.set(ver, {
+          label: ver,
+          source: "razorreaper",
+          version: ver,
+          value: 0,
+          share: 0,
+          activeUsers: 0,
+          sessionCount: 0,
+          totalErrors: 0,
+          lastSeenAt: null,
+          isCurrent: ver === latestVersion,
+        });
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => b.value - a.value || a.version.localeCompare(b.version));
+  }, [rrVersionsFromData, knownVersions, latestVersion]);
 
   const basePalette = useMemo(() => buildDashboardChartPalette(theme, accentHue), [theme, accentHue]);
   const { override: colorOverride } = useChartColors();
@@ -72,7 +95,7 @@ export function VersionsPage({ summary, theme, accentHue = 217 }: VersionsPagePr
   const trackedUsers = useMemo(() => rrVersions.reduce((s, v) => s + v.value, 0), [rrVersions]);
   const currentReleaseUsers = useMemo(() => rrVersions.filter((v) => v.isCurrent).reduce((s, v) => s + v.value, 0), [rrVersions]);
   const adoptionPct = trackedUsers > 0 ? Math.round((currentReleaseUsers / trackedUsers) * 100) : 0;
-  const topVersion = rrVersions.length > 0 ? rrVersions[0] : null;
+  const topVersion = rrVersions.find((v) => v.value > 0) ?? null;
 
   const chartHeight = Math.max(180, rrVersions.length * 48);
 

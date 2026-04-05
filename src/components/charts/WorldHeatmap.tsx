@@ -696,8 +696,8 @@ export function WorldHeatmap({
   const [showPanel, setShowPanel] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [globe, setGlobe] = useState(true);
-  const [tactical, setTactical] = useState(true);
-  const tacticalRef = useRef(true);
+  const [tactical, setTactical] = useState(() => localStorage.getItem("rr:map-style") !== "standard");
+  const tacticalRef = useRef(tactical);
   const savedPaintsRef = useRef<Map<string, Record<string, unknown>> | null>(null);
   const marketMarkerPoints = useMemo(() => buildMarketPoints(marketPoints), [marketPoints]);
   const sessionMarkerPoints = useMemo(() => buildSessionPoints(sessionPoints), [sessionPoints]);
@@ -751,18 +751,6 @@ export function WorldHeatmap({
       renderWorldCopies: true,
     });
 
-    const applyStyle = () => {
-      if (!map.isStyleLoaded()) {
-        return;
-      }
-
-      if (tacticalRef.current) {
-        styleMap(map, themeRef.current);
-      }
-
-      ensureConnections(map, connectionsRef.current);
-    };
-
     mapRef.current = map;
     popupRef.current = new maplibregl.Popup({
       closeButton: false,
@@ -777,12 +765,18 @@ export function WorldHeatmap({
     map.on("load", () => {
       savedPaintsRef.current = captureOriginalPaints(map);
       map.setProjection({ type: "globe" });
-      applyStyle();
+      if (tacticalRef.current) {
+        styleMap(map, themeRef.current);
+      }
+      ensureConnections(map, connectionsRef.current);
       setMapReady(true);
       setZoom(map.getZoom());
     });
 
-    map.on("styledata", applyStyle);
+    map.on("styledata", () => {
+      if (!map.isStyleLoaded()) return;
+      ensureConnections(map, connectionsRef.current);
+    });
     map.on("zoom", () => {
       const currentZoom = map.getZoom();
       setZoom(currentZoom);
@@ -981,6 +975,7 @@ export function WorldHeatmap({
     const next = !tactical;
     tacticalRef.current = next;
     setTactical(next);
+    localStorage.setItem("rr:map-style", next ? "tactical" : "standard");
     if (next) {
       styleMap(map, themeRef.current);
     } else if (savedPaintsRef.current) {

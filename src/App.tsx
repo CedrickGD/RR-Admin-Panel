@@ -8,7 +8,7 @@ import { LogsPage } from "./pages/LogsPage";
 import { HeatmapPage } from "./pages/HeatmapPage";
 import { LivePage } from "./pages/LivePage";
 import { OverviewPage } from "./pages/OverviewPage";
-import { SignalsPage } from "./pages/SignalsPage";
+import { VersionsPage } from "./pages/VersionsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { TrafficPage } from "./pages/TrafficPage";
 import { WorkersPage } from "./pages/WorkersPage";
@@ -130,7 +130,7 @@ export default function App() {
           <div key={page} className="page-enter">
             {page === "overview"  ? <OverviewPage  summary={summary} theme="dark" accentHue={accentHue} /> : null}
             {page === "traffic"   ? <TrafficPage   summary={summary} theme="dark" accentHue={accentHue} /> : null}
-            {page === "signals"   ? <SignalsPage   summary={summary} theme="dark" accentHue={accentHue} /> : null}
+            {page === "versions"  ? <VersionsPage  summary={summary} theme="dark" accentHue={accentHue} /> : null}
             {page === "heatmap"   ? (
               <HeatmapPage
                 summary={summary}

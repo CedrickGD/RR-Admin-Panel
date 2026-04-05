@@ -4,7 +4,7 @@ export type ThemeMode = "dark" | "light";
 export type PageKey =
   | "overview"
   | "traffic"
-  | "signals"
+  | "versions"
   | "heatmap"
   | "live"
   | "workers"

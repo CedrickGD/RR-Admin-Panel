@@ -2,7 +2,7 @@ import {
   AlertTriangle,
   BarChart3,
   Clock3,
-  Globe2,
+  Layers,
   History,
   LogOut,
   Map,
@@ -31,7 +31,7 @@ interface NavEntry {
 const NAV_ITEMS: NavEntry[] = [
   { key: "overview", label: "Overview", icon: <BarChart3 className="h-[17px] w-[17px]" /> },
   { key: "traffic", label: "Traffic", icon: <Clock3 className="h-[17px] w-[17px]" /> },
-  { key: "signals", label: "Signals", icon: <Globe2 className="h-[17px] w-[17px]" /> },
+  { key: "versions", label: "Versions", icon: <Layers className="h-[17px] w-[17px]" /> },
   { key: "heatmap", label: "Heatmap", icon: <Map className="h-[17px] w-[17px]" /> },
   { key: "live", label: "Live", icon: <Radio className="h-[17px] w-[17px]" /> },
   { key: "workers", label: "Sessions", icon: <History className="h-[17px] w-[17px]" /> },

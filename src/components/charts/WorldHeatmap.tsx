@@ -65,7 +65,31 @@ interface MapPalette {
   halo: string;
 }
 
-const MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
+type MapStyleMode = "tactical" | "standard" | "satellite";
+
+const LIBERTY_STYLE = "https://tiles.openfreemap.org/styles/liberty";
+const SATELLITE_STYLE: maplibregl.StyleSpecification = {
+  version: 8,
+  sources: {
+    satellite: {
+      type: "raster",
+      tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
+      tileSize: 256,
+      maxzoom: 19,
+    },
+  },
+  layers: [{ id: "satellite", type: "raster", source: "satellite" }],
+};
+
+const MAP_STYLE_ORDER: MapStyleMode[] = ["tactical", "standard", "satellite"];
+const MAP_STYLE_LABELS: Record<MapStyleMode, string> = { tactical: "Tactical", standard: "Standard", satellite: "Satellite" };
+
+function readSavedMapStyle(): MapStyleMode {
+  const saved = localStorage.getItem("rr:map-style");
+  if (saved === "standard" || saved === "satellite") return saved;
+  return "tactical";
+}
+
 const CONNECTIONS_SOURCE_ID = "active-connections";
 const CONNECTIONS_GLOW_LAYER_ID = "active-connections-glow";
 const CONNECTIONS_LINE_LAYER_ID = "active-connections-line";
@@ -696,8 +720,8 @@ export function WorldHeatmap({
   const [showPanel, setShowPanel] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [globe, setGlobe] = useState(true);
-  const [tactical, setTactical] = useState(() => localStorage.getItem("rr:map-style") !== "standard");
-  const tacticalRef = useRef(tactical);
+  const [mapStyle, setMapStyle] = useState<MapStyleMode>(readSavedMapStyle);
+  const mapStyleRef = useRef(mapStyle);
   const savedPaintsRef = useRef<Map<string, Record<string, unknown>> | null>(null);
   const marketMarkerPoints = useMemo(() => buildMarketPoints(marketPoints), [marketPoints]);
   const sessionMarkerPoints = useMemo(() => buildSessionPoints(sessionPoints), [sessionPoints]);
@@ -737,9 +761,10 @@ export function WorldHeatmap({
       return;
     }
 
+    const initialStyle = mapStyleRef.current === "satellite" ? SATELLITE_STYLE : LIBERTY_STYLE;
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: MAP_STYLE,
+      style: initialStyle,
       center: INITIAL_CENTER,
       zoom: INITIAL_ZOOM,
       minZoom: 1,
@@ -763,9 +788,11 @@ export function WorldHeatmap({
     map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
 
     map.on("load", () => {
-      savedPaintsRef.current = captureOriginalPaints(map);
+      if (mapStyleRef.current !== "satellite") {
+        savedPaintsRef.current = captureOriginalPaints(map);
+      }
       map.setProjection({ type: "globe" });
-      if (tacticalRef.current) {
+      if (mapStyleRef.current === "tactical") {
         styleMap(map, themeRef.current);
       }
       ensureConnections(map, connectionsRef.current);
@@ -823,9 +850,9 @@ export function WorldHeatmap({
       return;
     }
 
-    if (tacticalRef.current) {
+    if (mapStyleRef.current === "tactical") {
       styleMap(map, theme);
-    } else if (savedPaintsRef.current) {
+    } else if (mapStyleRef.current === "standard" && savedPaintsRef.current) {
       restoreDefaultStyle(map, savedPaintsRef.current);
     }
     ensureConnections(map, connections);
@@ -973,17 +1000,38 @@ export function WorldHeatmap({
     onOpenSession(activePoint.key);
   }
 
-  function toggleMapStyle() {
+  function cycleMapStyle() {
     const map = mapRef.current;
     if (!map) return;
-    const next = !tactical;
-    tacticalRef.current = next;
-    setTactical(next);
-    localStorage.setItem("rr:map-style", next ? "tactical" : "standard");
-    if (next) {
-      styleMap(map, themeRef.current);
-    } else if (savedPaintsRef.current) {
-      restoreDefaultStyle(map, savedPaintsRef.current);
+    const idx = MAP_STYLE_ORDER.indexOf(mapStyle);
+    const next = MAP_STYLE_ORDER[(idx + 1) % MAP_STYLE_ORDER.length];
+    const prev = mapStyle;
+    mapStyleRef.current = next;
+    setMapStyle(next);
+    localStorage.setItem("rr:map-style", next);
+
+    const needsSetStyle = prev === "satellite" || next === "satellite";
+
+    if (needsSetStyle) {
+      const style = next === "satellite" ? SATELLITE_STYLE : LIBERTY_STYLE;
+      map.setStyle(style);
+      map.once("load", () => {
+        if (next !== "satellite" && !savedPaintsRef.current) {
+          savedPaintsRef.current = captureOriginalPaints(map);
+        }
+        map.setProjection({ type: globe ? "globe" : "mercator" });
+        if (next === "tactical") {
+          styleMap(map, themeRef.current);
+        }
+        ensureConnections(map, connectionsRef.current);
+      });
+    } else {
+      // tactical <-> standard: instant paint swap
+      if (next === "tactical") {
+        styleMap(map, themeRef.current);
+      } else if (savedPaintsRef.current) {
+        restoreDefaultStyle(map, savedPaintsRef.current);
+      }
     }
   }
 
@@ -1056,7 +1104,7 @@ export function WorldHeatmap({
             </button>
             <span className="world-heatmap-hovbar-sep" />
             {/* View */}
-            <button type="button" onClick={toggleMapStyle} aria-label={tactical ? "Switch to standard map" : "Switch to tactical map"} title={tactical ? "Tactical" : "Standard"}>
+            <button type="button" onClick={cycleMapStyle} aria-label={`Map style: ${MAP_STYLE_LABELS[mapStyle]}`} title={MAP_STYLE_LABELS[mapStyle]}>
               <Layers className="h-4 w-4" />
             </button>
             <button type="button" onClick={toggleProjection} aria-label={globe ? "Switch to flat map" : "Switch to globe"}>

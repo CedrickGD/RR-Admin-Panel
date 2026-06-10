@@ -282,7 +282,7 @@ export function VersionsPage({ summary, stats, theme, accentHue = 217 }: Version
           </div>
         </section>
 
-        <div className="stat-grid">
+        <div className="stat-grid stat-grid-4">
           {[0, 1, 2, 3].map((i) => (
             <div className="stat-card" key={i}>
               <div className="skeleton" style={{ height: 12, width: "55%" }} />
@@ -350,7 +350,7 @@ export function VersionsPage({ summary, stats, theme, accentHue = 217 }: Version
       </section>
 
       {/* Stat cards */}
-      <div className="stat-grid">
+      <div className="stat-grid stat-grid-4">
         <KpiStatCard
           label="Lifetime Users"
           value={formatNumber(lifetimeUsers)}

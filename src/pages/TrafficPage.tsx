@@ -196,7 +196,7 @@ export function TrafficPage({ summary, stats, theme, accentHue = 217 }: TrafficP
       </section>
 
       {/* Stat cards — pinned at top */}
-      <div className="stat-grid">
+      <div className="stat-grid stat-grid-7">
         <KpiStatCard
           label="Lifetime Users"
           value={formatNumber(lifetimeUsers)}

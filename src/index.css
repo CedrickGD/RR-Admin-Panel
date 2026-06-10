@@ -2403,3 +2403,24 @@ h1, h2, h3, h4, h5, h6 {
 .stat-card-delta {
   font-variant-numeric: tabular-nums;
 }
+
+/* ─── Per-page KPI columns: rows always run flush with the panels below ───
+   Fixed-width tracks left ragged right edges and orphan cards (5+1 wraps);
+   each page declares its card count instead. */
+.stat-grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.stat-grid-6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.stat-grid-7 { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+@media (max-width: 1280px) {
+  .stat-grid-7 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (max-width: 1180px) {
+  .stat-grid-6 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 900px) {
+  .stat-grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stat-grid-7 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stat-grid-6 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .stat-grid-4, .stat-grid-6, .stat-grid-7 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

@@ -198,7 +198,7 @@ export function OverviewPage({ summary, stats, theme, accentHue = 217 }: Overvie
       <div className="main-side main-side-stretch">
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {/* KPI grid */}
-          <div className="stat-grid">
+          <div className="stat-grid stat-grid-6">
             <KpiStatCard
               label="Active Users"
               value={formatNumber(activeUsersValue)}

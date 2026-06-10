@@ -422,7 +422,7 @@ export function WorkersPage({ summary, stats, users, onOpenMapSession }: Workers
       </section>
 
       {/* Headline KPIs */}
-      <div className="stat-grid">
+      <div className="stat-grid stat-grid-4">
         <KpiStatCard
           label="Total Users"
           value={formatNumber(totalUsersValue)}

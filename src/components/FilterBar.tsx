@@ -1,6 +1,7 @@
-import { FilterX, SlidersHorizontal } from "lucide-react";
+import { FilterX } from "lucide-react";
 import { useMemo } from "react";
 import type { StatsFilters, StatsPayload, StatsRange } from "../types/telemetry";
+import { GlassDropdown } from "./GlassDropdown";
 
 const RANGES: Array<{ key: StatsRange; label: string }> = [
   // "today" is a rolling last-24-hours window server-side, so label it honestly.
@@ -19,7 +20,7 @@ interface FilterBarProps {
 
 /**
  * Global KPI filter bar: time range plus version / platform / country dimensions.
- * Options are sourced from the unfiltered breakdown lists so a selected filter
+ * Options are sourced from the unfiltered option lists so a selected filter
  * never hides its own alternatives.
  */
 export function FilterBar({ filters, stats, onChange }: FilterBarProps) {
@@ -42,60 +43,38 @@ export function FilterBar({ filters, stats, onChange }: FilterBarProps) {
 
   return (
     <div className="filter-bar">
-      <div className="filter-bar-left">
-        <span className="filter-bar-icon">
-          <SlidersHorizontal className="h-3.5 w-3.5" />
-        </span>
-        <div className="seg-control">
-          {RANGES.map((range) => (
-            <button
-              key={range.key}
-              type="button"
-              className={`seg-btn${filters.range === range.key ? " active" : ""}`}
-              onClick={() => onChange({ ...filters, range: range.key })}
-            >
-              {range.label}
-            </button>
-          ))}
-        </div>
+      <div className="seg-control">
+        {RANGES.map((range) => (
+          <button
+            key={range.key}
+            type="button"
+            className={`seg-btn${filters.range === range.key ? " active" : ""}`}
+            onClick={() => onChange({ ...filters, range: range.key })}
+          >
+            {range.label}
+          </button>
+        ))}
       </div>
       <div className="filter-bar-right">
-        <select
-          className="glass-select"
-          value={filters.version ?? ""}
-          onChange={(event) => onChange({ ...filters, version: event.target.value || null })}
-        >
-          <option value="">All versions</option>
-          {versionOptions.map((version) => (
-            <option key={version} value={version}>
-              {version}
-            </option>
-          ))}
-        </select>
-        <select
-          className="glass-select"
-          value={filters.platform ?? ""}
-          onChange={(event) => onChange({ ...filters, platform: event.target.value || null })}
-        >
-          <option value="">All platforms</option>
-          {platformOptions.map((platform) => (
-            <option key={platform} value={platform}>
-              {platform}
-            </option>
-          ))}
-        </select>
-        <select
-          className="glass-select"
-          value={filters.country ?? ""}
-          onChange={(event) => onChange({ ...filters, country: event.target.value || null })}
-        >
-          <option value="">All countries</option>
-          {countryOptions.map((country) => (
-            <option key={country} value={country}>
-              {country}
-            </option>
-          ))}
-        </select>
+        <GlassDropdown
+          placeholder="All versions"
+          options={versionOptions}
+          value={filters.version}
+          onChange={(version) => onChange({ ...filters, version })}
+          renderOption={(option) => (option === "legacy" ? "Legacy (pre-1.4)" : option)}
+        />
+        <GlassDropdown
+          placeholder="All platforms"
+          options={platformOptions}
+          value={filters.platform}
+          onChange={(platform) => onChange({ ...filters, platform })}
+        />
+        <GlassDropdown
+          placeholder="All countries"
+          options={countryOptions}
+          value={filters.country}
+          onChange={(country) => onChange({ ...filters, country })}
+        />
         {hasDimensionFilter ? (
           <button
             type="button"

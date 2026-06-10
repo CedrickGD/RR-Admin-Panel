@@ -3,13 +3,15 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { TelemetryChartTooltip } from "./charts/TelemetryChartTooltip";
 
-type Tone = "primary" | "accent" | "amber" | "rose";
+type Tone = "primary" | "accent" | "amber" | "rose" | "success";
 
-const TONE_ICON_CLASS: Record<Tone, string> = {
-  primary: "stat-card-icon-accent",
-  accent: "stat-card-icon-accent",
-  amber: "stat-card-icon-amber",
-  rose: "stat-card-icon-rose",
+// Tones recolor the card's bottom glow line, matching the original inline cards.
+const TONE_CARD_CLASS: Record<Tone, string> = {
+  primary: "",
+  accent: "",
+  amber: " tone-warning",
+  rose: " tone-danger",
+  success: " tone-success",
 };
 
 export interface KpiDrilldown {
@@ -39,7 +41,7 @@ interface KpiStatCardProps {
 /** StatCard with an optional click-to-expand drill-down modal. */
 export function KpiStatCard({ label, value, sub, icon, tone = "primary", delta, drilldown, chartColor }: KpiStatCardProps) {
   const [open, setOpen] = useState(false);
-  const iconClass = TONE_ICON_CLASS[tone];
+  const toneClass = TONE_CARD_CLASS[tone];
   // The series block only renders with 2+ points, so a 1-point series alone must not
   // make the card clickable (it would open an empty modal).
   const expandable = Boolean(
@@ -63,7 +65,7 @@ export function KpiStatCard({ label, value, sub, icon, tone = "primary", delta, 
   return (
     <>
       <article
-        className={`stat-card${expandable ? " kpi-card-clickable" : ""}`}
+        className={`stat-card${toneClass}${expandable ? " kpi-card-clickable" : ""}`}
         onClick={expandable ? () => setOpen(true) : undefined}
         role={expandable ? "button" : undefined}
         tabIndex={expandable ? 0 : undefined}
@@ -78,27 +80,21 @@ export function KpiStatCard({ label, value, sub, icon, tone = "primary", delta, 
             : undefined
         }
       >
-        <div className="stat-card-top">
-          <p className="stat-card-label">{label}</p>
-          <div className={`stat-card-icon ${iconClass}`}>{icon}</div>
-        </div>
-        <div className="stat-card-body">
-          <div className="stat-card-value-row">
-            <p className="stat-card-value">{value}</p>
-            {delta !== undefined && delta !== null ? (
-              <span
-                className={`stat-card-delta ${Number(delta) >= 0 ? "stat-card-delta-positive" : "stat-card-delta-negative"}`}
-              >
-                {Number(delta) >= 0 ? "+" : ""}
-                {delta}%
-              </span>
-            ) : null}
-          </div>
-          <p className="stat-card-sub">
-            {sub}
-            {expandable ? <ChevronRight className="h-3 w-3 kpi-card-chevron" /> : null}
-          </p>
-        </div>
+        <div className="stat-icon">{icon}</div>
+        <span className="stat-label">{label}</span>
+        <strong className="stat-value">
+          {value}
+          {delta !== undefined && delta !== null ? (
+            <span className={`stat-card-delta ${Number(delta) >= 0 ? "stat-card-delta-positive" : "stat-card-delta-negative"}`}>
+              {Number(delta) >= 0 ? "+" : ""}
+              {delta}%
+            </span>
+          ) : null}
+        </strong>
+        <p className="stat-sub">
+          {sub}
+          {expandable ? <ChevronRight className="h-3 w-3 kpi-card-chevron" /> : null}
+        </p>
       </article>
 
       {open && drilldown ? (

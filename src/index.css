@@ -470,6 +470,13 @@ h1, h2, h3, h4, h5, h6 {
   grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
   gap: 10px;
 }
+/* Fixed column count for grids whose card count would leave an orphan row. */
+.stat-grid-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+@media (max-width: 900px) {
+  .stat-grid-3 { grid-template-columns: repeat(2, 1fr); }
+}
 @media (max-width: 640px) {
   .stat-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
 }

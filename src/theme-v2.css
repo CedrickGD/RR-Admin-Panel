@@ -6,7 +6,7 @@
    Accent stays themeable through --ah/--as/--al.
    ════════════════════════════════════════════════════════════════════ */
 
-﻿:root {
+:root {
   /* Machine values render in JetBrains Mono (design-system canon). */
   --font-mono: "JetBrains Mono", var(--font-mono);
   /* Chart series tokens — user preset, independent of the accent. */

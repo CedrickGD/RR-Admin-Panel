@@ -2,6 +2,9 @@ import type {
   AdminDataPayload,
   AuthActionPayload,
   SessionPayload,
+  StatsFilters,
+  StatsPayload,
+  UserRollupRecord,
 } from "../types/telemetry";
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
@@ -52,6 +55,46 @@ export async function fetchAdminData(): Promise<{
   });
   const body = await parseJson<AdminDataPayload>(res);
   return { ok: res.ok, data: body, status: res.status };
+}
+
+function applyStatsFilters(url: URL, filters: StatsFilters): void {
+  url.searchParams.set("range", filters.range);
+  if (filters.version) url.searchParams.set("version", filters.version);
+  if (filters.platform) url.searchParams.set("platform", filters.platform);
+  if (filters.country) url.searchParams.set("country", filters.country);
+  url.searchParams.set("_ts", String(Date.now()));
+}
+
+export async function fetchAdminStats(filters: StatsFilters): Promise<{
+  ok: boolean;
+  stats?: StatsPayload;
+  status: number;
+}> {
+  const url = new URL(apiUrl("/api/admin/stats"), window.location.origin);
+  applyStatsFilters(url, filters);
+  const res = await fetch(url.toString(), {
+    method: "GET",
+    cache: "no-store",
+    credentials: "include",
+  });
+  const body = await parseJson<{ ok?: boolean; stats?: StatsPayload }>(res);
+  return { ok: res.ok && Boolean(body?.stats), stats: body?.stats, status: res.status };
+}
+
+export async function fetchAdminUsers(filters: StatsFilters): Promise<{
+  ok: boolean;
+  users?: UserRollupRecord[];
+  status: number;
+}> {
+  const url = new URL(apiUrl("/api/admin/users"), window.location.origin);
+  applyStatsFilters(url, filters);
+  const res = await fetch(url.toString(), {
+    method: "GET",
+    cache: "no-store",
+    credentials: "include",
+  });
+  const body = await parseJson<{ ok?: boolean; users?: UserRollupRecord[] }>(res);
+  return { ok: res.ok && Array.isArray(body?.users), users: body?.users, status: res.status };
 }
 
 export async function postAuth(

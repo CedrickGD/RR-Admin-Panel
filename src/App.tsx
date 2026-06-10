@@ -1,7 +1,9 @@
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import { useState } from "react";
+import { FilterBar } from "./components/FilterBar";
 import { LoginForm } from "./components/LoginForm";
 import { Navbar } from "./components/Navbar";
+import { useAdminStats, DEFAULT_STATS_FILTERS } from "./hooks/useAdminStats";
 import { useDashboard } from "./hooks/useDashboard";
 import { useAccent } from "./hooks/useAccent";
 import { LogsPage } from "./pages/LogsPage";
@@ -12,15 +14,18 @@ import { VersionsPage } from "./pages/VersionsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { TrafficPage } from "./pages/TrafficPage";
 import { WorkersPage } from "./pages/WorkersPage";
-import type { PageKey } from "./types/telemetry";
+import type { PageKey, StatsFilters } from "./types/telemetry";
 
 type FocusedSession = { id: string; token: number } | null;
+
+const FILTERED_PAGES: ReadonlySet<PageKey> = new Set(["overview", "traffic", "versions", "workers"]);
 
 export default function App() {
   const { hue: accentHue } = useAccent();
   const [page, setPage] = useState<PageKey>("overview");
   const [focusedLiveSession, setFocusedLiveSession] = useState<FocusedSession>(null);
   const [focusedHeatmapSession, setFocusedHeatmapSession] = useState<FocusedSession>(null);
+  const [filters, setFilters] = useState<StatsFilters>(DEFAULT_STATS_FILTERS);
   const {
     authMode,
     ready,
@@ -36,6 +41,7 @@ export default function App() {
     logout,
     refresh,
   } = useDashboard(page);
+  const { stats, users } = useAdminStats(Boolean(user), filters);
 
   function nextFocusedSession(current: FocusedSession, sessionId: string): FocusedSession {
     return { id: sessionId, token: current?.id === sessionId ? current.token + 1 : 1 };
@@ -128,9 +134,14 @@ export default function App() {
 
         {summary && health ? (
           <div key={page} className="page-enter">
-            {page === "overview"  ? <OverviewPage  summary={summary} theme="dark" accentHue={accentHue} /> : null}
-            {page === "traffic"   ? <TrafficPage   summary={summary} theme="dark" accentHue={accentHue} /> : null}
-            {page === "versions"  ? <VersionsPage  summary={summary} theme="dark" accentHue={accentHue} /> : null}
+            {FILTERED_PAGES.has(page) ? (
+              <div className="page-content" style={{ paddingBottom: 0, paddingTop: 18 }}>
+                <FilterBar filters={filters} stats={stats} onChange={setFilters} />
+              </div>
+            ) : null}
+            {page === "overview"  ? <OverviewPage  summary={summary} stats={stats} theme="dark" accentHue={accentHue} /> : null}
+            {page === "traffic"   ? <TrafficPage   summary={summary} stats={stats} theme="dark" accentHue={accentHue} /> : null}
+            {page === "versions"  ? <VersionsPage  summary={summary} stats={stats} theme="dark" accentHue={accentHue} /> : null}
             {page === "heatmap"   ? (
               <HeatmapPage
                 summary={summary}
@@ -148,7 +159,7 @@ export default function App() {
                 onOpenMapSession={handleOpenHeatmapSession}
               />
             ) : null}
-            {page === "workers"   ? <WorkersPage   summary={summary} onOpenMapSession={handleOpenHeatmapSession} /> : null}
+            {page === "workers"   ? <WorkersPage   summary={summary} stats={stats} users={users} onOpenMapSession={handleOpenHeatmapSession} /> : null}
             {page === "logs"      ? <LogsPage      summary={summary} /> : null}
             {page === "settings"  ? (
               <SettingsPage

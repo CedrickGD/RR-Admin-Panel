@@ -40,7 +40,12 @@ export interface AppSessionRecord {
   clientAccuracyMeters?: number | null;
   clientGeoCapturedAt?: string | null;
   appVersion: string | null;
+  displayVersion?: string | null;
   platform: string | null;
+  osVersion?: string | null;
+  deviceModel?: string | null;
+  rpcEnabled?: boolean | null;
+  featuresJson?: string | null;
   startedAt: string;
   lastSeenAt: string;
   endedAt: string | null;
@@ -49,6 +54,102 @@ export interface AppSessionRecord {
   lastEvent: string | null;
   lastStatus: TelemetryStatus;
   errorCount: number;
+}
+
+export type StatsRange = "today" | "7d" | "30d" | "90d" | "all";
+
+export interface StatsFilters {
+  range: StatsRange;
+  version: string | null;
+  platform: string | null;
+  country: string | null;
+}
+
+export interface DayPoint {
+  day: string;
+  sessions: number;
+  users: number;
+}
+
+export interface VersionAdoptionPoint {
+  version: string;
+  users: number;
+  sessions: number;
+  firstSeen: string | null;
+  lastSeen: string | null;
+}
+
+export interface VersionCurrentPoint {
+  version: string;
+  users: number;
+  activeUsers: number;
+}
+
+export interface BreakdownPoint {
+  key: string;
+  users: number;
+  sessions: number;
+}
+
+export interface StatsPayload {
+  generatedAt: string;
+  filters: { rangeDays: number | null; version: string | null; platform: string | null; country: string | null };
+  totals: {
+    lifetimeUsers: number;
+    lifetimeSessions: number;
+    lifetimeEvents: number;
+    usersInRange: number;
+    sessionsInRange: number;
+    newUsersInRange: number;
+    activeNow: number;
+    rpcLiveNow: number;
+    rpcEnabledUsers: number;
+    rpcKnownUsers: number;
+    averageSessionDurationSeconds: number;
+    errorsInRange: number;
+  };
+  series: {
+    sessionsPerDay: DayPoint[];
+    newUsersPerDay: Array<{ day: string; users: number }>;
+    errorsPerDay: Array<{ day: string; errors: number }>;
+  };
+  breakdowns: {
+    versionsAllTime: VersionAdoptionPoint[];
+    versionsCurrent: VersionCurrentPoint[];
+    platforms: BreakdownPoint[];
+    countries: BreakdownPoint[];
+    features: Array<{ feature: string; count: number; users: number }>;
+    eventsLifetime: Array<{ service: string; count: number }>;
+  };
+  /** Unfiltered filter-dropdown options (breakdowns above respect the active filters). */
+  options?: {
+    versions: string[];
+    platforms: string[];
+    countries: string[];
+  };
+}
+
+export interface UserRollupRecord {
+  identity: string;
+  userLabel: string | null;
+  firstSeen: string;
+  lastSeen: string;
+  sessions: number;
+  totalDurationSeconds: number;
+  errors: number;
+  isActive: boolean;
+  appVersion: string | null;
+  displayVersion: string | null;
+  platform: string | null;
+  osVersion: string | null;
+  deviceModel: string | null;
+  country: string | null;
+  city: string | null;
+  timezone: string | null;
+  rpcEnabled: boolean | null;
+  lastStatus: TelemetryStatus | null;
+  lastEvent: string | null;
+  features: Record<string, number>;
 }
 
 export interface SummaryPayload {
@@ -60,6 +161,7 @@ export interface SummaryPayload {
   recentEvents: TelemetryEvent[];
   stats: {
     totalEvents: number;
+    lifetimeEvents?: number;
     totalSessions: number;
     activeUsers: number;
     lifetimeUsers: number;

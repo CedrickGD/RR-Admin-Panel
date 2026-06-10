@@ -11,20 +11,45 @@ import type {
 
 const EVENTS_KEY = "rr:events";
 const SESSIONS_KEY = "rr:sessions";
-const MAX_HISTORY = 1000;
 const RECENT_EVENT_LIMIT = 200;
 const ACTIVE_SESSION_LIMIT = 100;
 const RECENT_SESSION_LIMIT = 200;
 const RECENT_ERROR_LIMIT = 50;
 const MAX_KV_SESSIONS = 500;
+const MAX_KV_EVENTS = 1000;
 const ACTIVE_SESSION_TIMEOUT_MS = 6 * 60 * 1000;
-const SESSION_SELECT_COLUMNS =
-  "session_id, install_id, hwid, source, user_label, client_ip, client_country, client_city, client_region, client_latitude, client_longitude, client_timezone, client_geo_source, client_geo_signal_source, client_accuracy_meters, client_geo_captured_at, app_version, platform, started_at, last_seen_at, ended_at, duration_seconds, is_active, last_event, last_status, error_count, updated_at";
+const EVENT_RETENTION_DAYS = 90;
+// Legacy clients heartbeat every 30s; coalesce those into at most one session write per interval.
+const HEARTBEAT_MIN_WRITE_MS = 75 * 1000;
+const MAX_FEATURE_KEYS = 32;
+export const SESSION_SELECT_COLUMNS =
+  "session_id, install_id, hwid, source, user_label, client_ip, client_country, client_city, client_region, client_latitude, client_longitude, client_timezone, client_geo_source, client_geo_signal_source, client_accuracy_meters, client_geo_captured_at, app_version, display_version, platform, os_version, device_model, rpc_enabled, features_json, started_at, last_seen_at, ended_at, duration_seconds, is_active, last_event, last_status, error_count, updated_at";
 
 const SESSION_START = "session_start";
 const SESSION_ACTIVE = "session_active";
 const SESSION_END = "session_end";
 const APP_ERROR = "app_error";
+// Per-service lifetime counters only for known event names — the ingest key ships inside
+// the client binary, so an arbitrary service string must not mint unbounded counter rows.
+const KNOWN_COUNTER_SERVICES = new Set([
+  SESSION_START,
+  SESSION_END,
+  APP_ERROR,
+  "process_start",
+  "process_kill",
+  "update_check",
+  "ini_preset_add",
+  "ini_preset_remove",
+  "ini_preset_image_set",
+  "ini_preset_image_reset",
+  "custom_lab.sky_inject",
+  "custom_lab.sky_restore",
+  "discord_rpc_toggle",
+  "crosshair_overlay",
+]);
+
+// Schema is idempotent but expensive (~20 statements); run it once per isolate, not per request.
+let schemaReady = false;
 
 interface D1EventRow {
   event_id: string;
@@ -37,7 +62,7 @@ interface D1EventRow {
   received_at: string;
 }
 
-interface D1SessionRow {
+export interface D1SessionRow {
   session_id: string;
   install_id: string;
   hwid: string | null;
@@ -55,7 +80,12 @@ interface D1SessionRow {
   client_accuracy_meters: number | string | null;
   client_geo_captured_at: string | null;
   app_version: string | null;
+  display_version: string | null;
   platform: string | null;
+  os_version: string | null;
+  device_model: string | null;
+  rpc_enabled: number | string | null;
+  features_json: string | null;
   started_at: string;
   last_seen_at: string;
   ended_at: string | null;
@@ -184,6 +214,19 @@ async function storeTelemetryD1(env: RuntimeEnv, event: TelemetryEvent): Promise
 
   await ensureTelemetrySchema(db);
 
+  const existing = await readSessionRowD1(db, readSessionId(event));
+
+  // Heartbeats are liveness pings, not history: they only bump the session row.
+  // No event row, no counters — and at most one write per HEARTBEAT_MIN_WRITE_MS
+  // so legacy 30s-interval clients don't burn the D1 write budget.
+  if (event.service === SESSION_ACTIVE) {
+    if (existing && isFreshHeartbeat(existing, event)) {
+      return;
+    }
+    await upsertSessionD1(db, event, existing);
+    return;
+  }
+
   const metricsJson = JSON.stringify(event.metrics);
   await db
     .prepare(
@@ -194,7 +237,60 @@ async function storeTelemetryD1(env: RuntimeEnv, event: TelemetryEvent): Promise
     .bind(event.id, event.source, event.service, event.timestamp, event.status, metricsJson, event.message, event.receivedAt)
     .run();
 
-  await upsertSessionD1(db, event);
+  const counterService = KNOWN_COUNTER_SERVICES.has(event.service) ? event.service : "other";
+  await bumpCounters(db, ["events_total", `events:${counterService}`], event.receivedAt);
+  await upsertSessionD1(db, event, existing);
+
+  // Time-based retention, piggybacked on the rare session_end events instead of
+  // running a DELETE on every ingest.
+  if (event.service === SESSION_END) {
+    const cutoff = new Date(Date.now() - EVENT_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    await db.prepare(`DELETE FROM telemetry_events WHERE ts < ?`).bind(cutoff).run();
+  }
+}
+
+function isFreshHeartbeat(existing: D1SessionRow, event: TelemetryEvent): boolean {
+  if (toNumber(existing.is_active) !== 1) {
+    return false;
+  }
+
+  const lastSeenTs = Date.parse(existing.last_seen_at);
+  const eventTs = Date.parse(event.timestamp);
+  if (!Number.isFinite(lastSeenTs) || !Number.isFinite(eventTs)) {
+    return false;
+  }
+
+  return eventTs - lastSeenTs < HEARTBEAT_MIN_WRITE_MS;
+}
+
+async function readSessionRowD1(db: NonNullable<RuntimeEnv["DB"]>, sessionId: string | null): Promise<D1SessionRow | null> {
+  if (!sessionId) {
+    return null;
+  }
+
+  return db
+    .prepare(
+      `SELECT ${SESSION_SELECT_COLUMNS}
+       FROM app_sessions
+       WHERE session_id = ?`
+    )
+    .bind(sessionId)
+    .first<D1SessionRow>();
+}
+
+async function bumpCounters(db: NonNullable<RuntimeEnv["DB"]>, keys: string[], updatedAt: string): Promise<void> {
+  for (const key of keys) {
+    await db
+      .prepare(
+        `INSERT INTO telemetry_counters (counter_key, counter_value, updated_at)
+         VALUES (?, 1, ?)
+         ON CONFLICT(counter_key) DO UPDATE SET
+           counter_value = counter_value + 1,
+           updated_at = excluded.updated_at`
+      )
+      .bind(key, updatedAt)
+      .run();
+  }
 }
 
 async function loadSummaryD1(env: RuntimeEnv): Promise<SummaryPayload> {
@@ -265,12 +361,17 @@ async function loadSummaryD1(env: RuntimeEnv): Promise<SummaryPayload> {
            COUNT(DISTINCT COALESCE(hwid, install_id)) AS lifetimeUsers,
            SUM(CASE WHEN started_at >= ? THEN 1 ELSE 0 END) AS sessionsStartedToday,
            SUM(CASE WHEN ended_at IS NOT NULL AND ended_at >= ? THEN 1 ELSE 0 END) AS sessionsEndedToday,
-           AVG(CASE WHEN duration_seconds IS NOT NULL THEN duration_seconds END) AS averageSessionDurationSeconds
+           AVG(CASE WHEN duration_seconds IS NOT NULL AND duration_seconds BETWEEN 1 AND 172800
+                    AND session_id NOT LIKE 'install:%' THEN duration_seconds END) AS averageSessionDurationSeconds
          FROM app_sessions`
       )
       .bind(startOfUtcDayIso(), startOfUtcDayIso())
       .first<SessionStatsRow>(),
   ]);
+
+  const lifetimeEvents = await db
+    .prepare(`SELECT counter_value FROM telemetry_counters WHERE counter_key = 'events_total'`)
+    .first<{ counter_value: number | string }>();
 
   return {
     generatedAt: nowIso(),
@@ -281,6 +382,7 @@ async function loadSummaryD1(env: RuntimeEnv): Promise<SummaryPayload> {
     recentEvents: recentEventRows.results.map(mapD1Event),
     stats: {
       totalEvents: toNumber(eventStats?.totalEvents),
+      lifetimeEvents: Math.max(toNumber(lifetimeEvents?.counter_value), toNumber(eventStats?.totalEvents)),
       totalSessions: toNumber(sessionStats?.totalSessions),
       activeUsers: toNumber(sessionStats?.activeUsers),
       lifetimeUsers: toNumber(sessionStats?.lifetimeUsers),
@@ -332,7 +434,9 @@ async function storeTelemetryKv(env: RuntimeEnv, event: TelemetryEvent): Promise
     kvGetJson<Record<string, AppSessionRecord>>(kv, SESSIONS_KEY, {}),
   ]);
 
-  const nextEvents = [event, ...events];
+  // Match the D1 path: heartbeats only touch the session map, and the event log is
+  // bounded (this is a fallback store, not history).
+  const nextEvents = event.service === SESSION_ACTIVE ? events : [event, ...events].slice(0, MAX_KV_EVENTS);
   const session = mergeSessionRecord(sessionsMap[readSessionId(event) ?? ""], event);
   if (session) {
     sessionsMap[session.id] = session;
@@ -442,6 +546,7 @@ function buildSummaryFromCollections(storage: StorageBackend, sessions: AppSessi
     recentEvents,
     stats: {
       totalEvents: events.length,
+      lifetimeEvents: events.length,
       totalSessions: sessions.length,
       activeUsers: activeCount,
       lifetimeUsers: new Set(sessions.map((s) => (s.hwid ?? s.installId).trim().toLowerCase())).size,
@@ -480,8 +585,8 @@ function buildSessionExportText(sessions: AppSessionRecord[], storage: StorageBa
   return lines.join("\n");
 }
 
-async function ensureTelemetrySchema(db: RuntimeEnv["DB"]): Promise<void> {
-  if (!db) {
+export async function ensureTelemetrySchema(db: RuntimeEnv["DB"]): Promise<void> {
+  if (!db || schemaReady) {
     return;
   }
 
@@ -531,6 +636,11 @@ async function ensureTelemetrySchema(db: RuntimeEnv["DB"]): Promise<void> {
     `CREATE INDEX IF NOT EXISTS idx_sessions_active_last_seen ON app_sessions(is_active, last_seen_at DESC)`,
     `CREATE INDEX IF NOT EXISTS idx_sessions_updated ON app_sessions(updated_at DESC)`,
     `CREATE INDEX IF NOT EXISTS idx_sessions_install ON app_sessions(install_id, updated_at DESC)`,
+    `CREATE TABLE IF NOT EXISTS telemetry_counters (
+      counter_key TEXT PRIMARY KEY,
+      counter_value INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL
+    )`,
   ];
   const alterStatements = [
     `ALTER TABLE app_sessions ADD COLUMN hwid TEXT`,
@@ -543,6 +653,11 @@ async function ensureTelemetrySchema(db: RuntimeEnv["DB"]): Promise<void> {
     `ALTER TABLE app_sessions ADD COLUMN client_geo_signal_source TEXT`,
     `ALTER TABLE app_sessions ADD COLUMN client_accuracy_meters REAL`,
     `ALTER TABLE app_sessions ADD COLUMN client_geo_captured_at TEXT`,
+    `ALTER TABLE app_sessions ADD COLUMN display_version TEXT`,
+    `ALTER TABLE app_sessions ADD COLUMN os_version TEXT`,
+    `ALTER TABLE app_sessions ADD COLUMN device_model TEXT`,
+    `ALTER TABLE app_sessions ADD COLUMN rpc_enabled INTEGER`,
+    `ALTER TABLE app_sessions ADD COLUMN features_json TEXT`,
   ];
 
   for (const statement of statements) {
@@ -559,6 +674,8 @@ async function ensureTelemetrySchema(db: RuntimeEnv["DB"]): Promise<void> {
       }
     }
   }
+
+  schemaReady = true;
 }
 
 async function expireStaleSessionsD1(db: RuntimeEnv["DB"]): Promise<void> {
@@ -590,20 +707,11 @@ async function expireStaleSessionsD1(db: RuntimeEnv["DB"]): Promise<void> {
     .run();
 }
 
-async function upsertSessionD1(db: RuntimeEnv["DB"], event: TelemetryEvent): Promise<void> {
+async function upsertSessionD1(db: RuntimeEnv["DB"], event: TelemetryEvent, existingRow: D1SessionRow | null): Promise<void> {
   const sessionId = readSessionId(event);
   if (!db || !sessionId) {
     return;
   }
-
-  const existingRow = await db
-    .prepare(
-      `SELECT ${SESSION_SELECT_COLUMNS}
-       FROM app_sessions
-       WHERE session_id = ?`
-    )
-    .bind(sessionId)
-    .first<D1SessionRow>();
 
   const next = mergeSessionRecord(existingRow ? mapD1Session(existingRow) : undefined, event);
   if (!next) {
@@ -613,9 +721,9 @@ async function upsertSessionD1(db: RuntimeEnv["DB"], event: TelemetryEvent): Pro
   await db
     .prepare(
       `INSERT INTO app_sessions
-        (session_id, install_id, hwid, source, user_label, client_ip, client_country, client_city, client_region, client_latitude, client_longitude, client_timezone, client_geo_source, client_geo_signal_source, client_accuracy_meters, client_geo_captured_at, app_version, platform,
+        (session_id, install_id, hwid, source, user_label, client_ip, client_country, client_city, client_region, client_latitude, client_longitude, client_timezone, client_geo_source, client_geo_signal_source, client_accuracy_meters, client_geo_captured_at, app_version, display_version, platform, os_version, device_model, rpc_enabled, features_json,
          started_at, last_seen_at, ended_at, duration_seconds, is_active, last_event, last_status, error_count, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(session_id) DO UPDATE SET
          install_id = excluded.install_id,
          hwid = COALESCE(excluded.hwid, app_sessions.hwid),
@@ -633,7 +741,12 @@ async function upsertSessionD1(db: RuntimeEnv["DB"], event: TelemetryEvent): Pro
          client_accuracy_meters = excluded.client_accuracy_meters,
          client_geo_captured_at = excluded.client_geo_captured_at,
          app_version = excluded.app_version,
+         display_version = excluded.display_version,
          platform = excluded.platform,
+         os_version = excluded.os_version,
+         device_model = excluded.device_model,
+         rpc_enabled = COALESCE(excluded.rpc_enabled, app_sessions.rpc_enabled),
+         features_json = excluded.features_json,
          started_at = excluded.started_at,
          last_seen_at = excluded.last_seen_at,
          ended_at = excluded.ended_at,
@@ -662,7 +775,12 @@ async function upsertSessionD1(db: RuntimeEnv["DB"], event: TelemetryEvent): Pro
       next.clientAccuracyMeters,
       next.clientGeoCapturedAt,
       next.appVersion,
+      next.displayVersion,
       next.platform,
+      next.osVersion,
+      next.deviceModel,
+      next.rpcEnabled === null ? null : next.rpcEnabled ? 1 : 0,
+      next.featuresJson,
       next.startedAt,
       next.lastSeenAt,
       next.endedAt,
@@ -698,10 +816,16 @@ function mergeSessionRecord(existing: AppSessionRecord | undefined, event: Telem
   const clientAccuracyMeters = readMetricFloat(event.metrics, ["client_accuracy_meters", "accuracy_meters"]) ?? existing?.clientAccuracyMeters ?? null;
   const clientGeoCapturedAt = readMetricText(event.metrics, ["client_geo_captured_at", "geo_captured_at"]) ?? existing?.clientGeoCapturedAt ?? null;
   const appVersion = readMetricText(event.metrics, ["app_version", "version"]) ?? existing?.appVersion ?? null;
+  const displayVersion =
+    readMetricText(event.metrics, ["app_display_version"]) ?? normalizeDisplayVersion(appVersion) ?? existing?.displayVersion ?? null;
   const platform = readMetricText(event.metrics, ["platform", "os_platform", "os"]) ?? existing?.platform ?? null;
+  const osVersion = readMetricText(event.metrics, ["os_version"]) ?? existing?.osVersion ?? null;
+  const deviceModel = readMetricText(event.metrics, ["device_model"]) ?? existing?.deviceModel ?? null;
+  const rpcEnabled = readMetricBool(event.metrics, ["rpc_enabled", "discord_rpc_enabled", "discord_rpc"]) ?? existing?.rpcEnabled ?? null;
   const metricStartedAt = readMetricText(event.metrics, ["session_started_at"]);
   const eventTimestamp = event.timestamp;
 
+  let featuresJson = existing?.featuresJson ?? null;
   let startedAt = existing?.startedAt ?? metricStartedAt ?? eventTimestamp;
   let lastSeenAt = newerIso(existing?.lastSeenAt, eventTimestamp) ? eventTimestamp : existing?.lastSeenAt ?? eventTimestamp;
   let endedAt = existing?.endedAt ?? null;
@@ -709,17 +833,32 @@ function mergeSessionRecord(existing: AppSessionRecord | undefined, event: Telem
   let isActive = existing?.isActive ?? true;
   let errorCount = existing?.errorCount ?? 0;
 
+  // Client events are fire-and-forget HTTP calls, so a start/heartbeat/feature event can
+  // land AFTER the session_end it logically preceded. Only events strictly newer than the
+  // recorded end may reopen a closed session.
+  const closedAt = existing && !existing.isActive ? existing.endedAt ?? existing.lastSeenAt : null;
+  const mayReopenClosedSession = closedAt === null || compareIso(eventTimestamp, closedAt) > 0;
+
   if (event.service === SESSION_START) {
-    startedAt = metricStartedAt ?? eventTimestamp;
-    lastSeenAt = eventTimestamp;
-    endedAt = null;
-    durationSeconds = null;
-    isActive = true;
+    if (!(existing?.endedAt && compareIso(existing.endedAt, eventTimestamp) >= 0)) {
+      startedAt = metricStartedAt ?? eventTimestamp;
+      lastSeenAt = eventTimestamp;
+      endedAt = null;
+      durationSeconds = null;
+      isActive = true;
+      featuresJson = null;
+    }
+    // else: stale start racing in after session_end — keep the closed state.
   } else if (event.service === SESSION_ACTIVE) {
     startedAt = existing?.startedAt ?? metricStartedAt ?? eventTimestamp;
-    lastSeenAt = eventTimestamp;
-    endedAt = existing?.endedAt ?? null;
-    isActive = true;
+    if (mayReopenClosedSession) {
+      isActive = true;
+      // Reopening a closed session (legacy install-scoped rows, lazy-expired sessions).
+      if (existing && !existing.isActive) {
+        endedAt = null;
+        durationSeconds = null;
+      }
+    }
   } else if (event.service === SESSION_END) {
     lastSeenAt = eventTimestamp;
     endedAt = eventTimestamp;
@@ -728,8 +867,17 @@ function mergeSessionRecord(existing: AppSessionRecord | undefined, event: Telem
       durationBetween(startedAt, endedAt);
     isActive = false;
   } else if (event.service === APP_ERROR) {
-    lastSeenAt = eventTimestamp;
     errorCount += 1;
+  } else {
+    // Feature usage event: tally it and treat it as liveness like a heartbeat.
+    if (mayReopenClosedSession) {
+      isActive = true;
+      if (existing && !existing.isActive) {
+        endedAt = null;
+        durationSeconds = null;
+      }
+    }
+    featuresJson = incrementFeature(featuresJson, event.service);
   }
 
   return {
@@ -750,7 +898,12 @@ function mergeSessionRecord(existing: AppSessionRecord | undefined, event: Telem
     clientAccuracyMeters,
     clientGeoCapturedAt,
     appVersion,
+    displayVersion,
     platform,
+    osVersion,
+    deviceModel,
+    rpcEnabled,
+    featuresJson,
     startedAt,
     lastSeenAt,
     endedAt,
@@ -760,6 +913,62 @@ function mergeSessionRecord(existing: AppSessionRecord | undefined, event: Telem
     lastStatus: event.status,
     errorCount,
   };
+}
+
+// "1.4.7.10" (display version + build counter) -> "1.4.7"; builds that never set
+// ApplicationDisplayVersion report the MAUI default "1.0.0.x" -> "legacy".
+export function normalizeDisplayVersion(appVersion: string | null): string | null {
+  if (!appVersion) {
+    return null;
+  }
+
+  const parts = appVersion.trim().split(".");
+  const display = parts.length >= 4 ? parts.slice(0, 3).join(".") : appVersion.trim();
+  return display === "1.0.0" ? "legacy" : display;
+}
+
+function incrementFeature(featuresJson: string | null, service: string): string {
+  let features: Record<string, unknown> = {};
+  if (featuresJson) {
+    try {
+      const parsed = JSON.parse(featuresJson) as unknown;
+      if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+        features = parsed as Record<string, unknown>;
+      }
+    } catch {
+      // Corrupt tally; start fresh.
+    }
+  }
+
+  if (!(service in features) && Object.keys(features).length >= MAX_FEATURE_KEYS) {
+    return JSON.stringify(features);
+  }
+
+  features[service] = toNumber(features[service]) + 1;
+  return JSON.stringify(features);
+}
+
+function readMetricBool(metrics: Record<string, unknown>, keys: string[]): boolean | null {
+  for (const key of keys) {
+    const value = metrics[key];
+    if (typeof value === "boolean") {
+      return value;
+    }
+    if (typeof value === "string") {
+      const lowered = value.trim().toLowerCase();
+      if (lowered === "true" || lowered === "1" || lowered === "on" || lowered === "enabled") {
+        return true;
+      }
+      if (lowered === "false" || lowered === "0" || lowered === "off" || lowered === "disabled") {
+        return false;
+      }
+    }
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value !== 0;
+    }
+  }
+
+  return null;
 }
 
 function trimSessionMap(sessionsMap: Record<string, AppSessionRecord>): Record<string, AppSessionRecord> {
@@ -782,6 +991,11 @@ function normalizeSessionRecord(session: AppSessionRecord): AppSessionRecord {
     clientGeoSignalSource: session.clientGeoSignalSource ?? null,
     clientAccuracyMeters: session.clientAccuracyMeters ?? null,
     clientGeoCapturedAt: session.clientGeoCapturedAt ?? null,
+    displayVersion: session.displayVersion ?? normalizeDisplayVersion(session.appVersion ?? null),
+    osVersion: session.osVersion ?? null,
+    deviceModel: session.deviceModel ?? null,
+    rpcEnabled: session.rpcEnabled ?? null,
+    featuresJson: session.featuresJson ?? null,
   };
 
   if (!normalized.isActive || !isSessionStale(normalized.lastSeenAt)) {
@@ -828,7 +1042,12 @@ function mapD1Session(row: D1SessionRow): AppSessionRecord {
     clientAccuracyMeters: toNullableFloat(row.client_accuracy_meters),
     clientGeoCapturedAt: row.client_geo_captured_at ?? null,
     appVersion: row.app_version ?? null,
+    displayVersion: row.display_version ?? null,
     platform: row.platform ?? null,
+    osVersion: row.os_version ?? null,
+    deviceModel: row.device_model ?? null,
+    rpcEnabled: row.rpc_enabled === null || row.rpc_enabled === undefined ? null : toNumber(row.rpc_enabled) === 1,
+    featuresJson: row.features_json ?? null,
     startedAt: row.started_at,
     lastSeenAt: row.last_seen_at,
     endedAt: row.ended_at ?? null,

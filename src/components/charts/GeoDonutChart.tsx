@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Sector, type SectorProps } from "recharts";
 import { formatNumber } from "../../utils/format";
 
@@ -18,6 +18,8 @@ interface GeoDonutChartProps {
   emptyLabel?: string;
 }
 
+const SEGMENT_CORNER_RADIUS = 5;
+
 export function GeoDonutChart({
   data,
   totalLabel,
@@ -29,9 +31,6 @@ export function GeoDonutChart({
   const activeItem = data[resolvedIndex] ?? null;
   const total = data.reduce((sum, item) => sum + item.value, 0);
 
-  // Generate unique filter IDs for glow effects
-  const filterId = useMemo(() => `donut-glow-${Math.random().toString(36).slice(2, 8)}`, []);
-
   if (data.length === 0) {
     return <div className="empty-panel small">{emptyLabel}</div>;
   }
@@ -41,19 +40,6 @@ export function GeoDonutChart({
       <div className="donut-chart-frame">
         <ResponsiveContainer width="100%" height={250}>
           <PieChart>
-            <defs>
-              {data.map((entry, index) => (
-                <filter key={`${filterId}-${index}`} id={`${filterId}-${index}`} x="-30%" y="-30%" width="160%" height="160%">
-                  <feGaussianBlur in="SourceGraphic" stdDeviation={index === resolvedIndex ? 4 : 2} result="blur" />
-                  <feFlood floodColor={entry.color} floodOpacity={index === resolvedIndex ? 0.5 : 0.25} />
-                  <feComposite in2="blur" operator="in" />
-                  <feMerge>
-                    <feMergeNode />
-                    <feMergeNode in="SourceGraphic" />
-                  </feMerge>
-                </filter>
-              ))}
-            </defs>
             {/* Tooltip disabled — info shown in center label instead */}
             <Pie
               data={data}
@@ -63,31 +49,39 @@ export function GeoDonutChart({
               cy="50%"
               innerRadius="78%"
               outerRadius="86%"
-              paddingAngle={1}
+              paddingAngle={2.5}
+              cornerRadius={SEGMENT_CORNER_RADIUS}
               activeIndex={resolvedIndex}
               onMouseEnter={(_, index) => setActiveIndex(index)}
-              activeShape={(props: SectorProps) => (
-                <Sector
-                  {...props}
-                  outerRadius={Number(props.outerRadius ?? 0) + 2}
-                  style={{ filter: `drop-shadow(0 0 3px ${data[resolvedIndex]?.color ?? "#fff"}60)` }}
-                />
-              )}
-              animationDuration={500}
+              activeShape={(props: SectorProps) => {
+                const color = data[resolvedIndex]?.color;
+                return (
+                  <Sector
+                    {...props}
+                    innerRadius={Math.max(Number(props.innerRadius ?? 0) - 1.5, 0)}
+                    outerRadius={Number(props.outerRadius ?? 0) + 3}
+                    cornerRadius={SEGMENT_CORNER_RADIUS}
+                    style={{
+                      filter: color
+                        ? `drop-shadow(0 0 5px color-mix(in srgb, ${color} 55%, transparent))`
+                        : undefined,
+                    }}
+                  />
+                );
+              }}
+              animationDuration={550}
               animationEasing="ease-out"
             >
               {data.map((entry, index) => (
                 <Cell
                   key={`${entry.label}-${index}`}
                   fill={entry.color}
-                  fillOpacity={index === resolvedIndex ? 1 : 0.82}
-                  stroke={index === resolvedIndex ? entry.color : "rgba(255,255,255,0.12)"}
-                  strokeWidth={index === resolvedIndex ? 2 : 1}
+                  fillOpacity={index === resolvedIndex ? 1 : 0.78}
+                  stroke="none"
                   style={{
-                    filter: index === resolvedIndex
-                      ? `drop-shadow(0 0 3px ${entry.color}70)`
-                      : "none",
-                    transition: "filter 0.2s ease",
+                    cursor: "pointer",
+                    transition: "fill-opacity 0.2s ease",
+                    outline: "none",
                   }}
                 />
               ))}
@@ -97,7 +91,9 @@ export function GeoDonutChart({
 
         <div className="donut-chart-center">
           <span className="donut-chart-overline">{totalLabel}</span>
-          <strong>{formatNumber(activeItem?.value ?? total)}</strong>
+          <strong style={{ fontVariantNumeric: "tabular-nums" }}>
+            {formatNumber(activeItem?.value ?? total)}
+          </strong>
           <p>{activeItem ? `${activeItem.flag ? `${activeItem.flag} ` : ""}${activeItem.label}` : totalLabel}</p>
           <small>
             {activeItem
@@ -122,14 +118,18 @@ export function GeoDonutChart({
                   className="donut-legend-dot"
                   style={{
                     backgroundColor: entry.color,
-                    boxShadow: `0 0 4px ${entry.color}50`,
+                    boxShadow: `0 0 0 2px color-mix(in srgb, ${entry.color} 20%, transparent), 0 0 6px color-mix(in srgb, ${entry.color} 38%, transparent)`,
                   }}
                 />
                 {entry.flag ? `${entry.flag} ${entry.label}` : entry.label}
               </span>
-              <span className="donut-legend-note">{entry.note ?? metricLabel}</span>
+              <span className="donut-legend-note">
+                {entry.note ?? `${(entry.share * 100).toFixed(1)}% · ${metricLabel}`}
+              </span>
             </span>
-            <span className="donut-legend-value">{formatNumber(entry.value)}</span>
+            <span className="donut-legend-value" style={{ fontVariantNumeric: "tabular-nums" }}>
+              {formatNumber(entry.value)}
+            </span>
           </button>
         ))}
       </div>

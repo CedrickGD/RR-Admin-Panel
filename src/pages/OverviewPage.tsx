@@ -1,5 +1,5 @@
 import { Activity, AlertTriangle, Clock, Globe2, RotateCcw, TrendingUp, Users, X } from "lucide-react";
-import { type ReactNode, useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   Area,
   Bar,
@@ -11,25 +11,19 @@ import {
   YAxis,
 } from "recharts";
 import { TelemetryChartTooltip } from "../components/charts/TelemetryChartTooltip";
+import { KpiStatCard, type KpiDrilldown } from "../components/KpiStatCard";
 import { useChartColors } from "../hooks/useChartColors";
 import { useChartZoom } from "../hooks/useChartZoom";
-import type { SummaryPayload, ThemeMode } from "../types/telemetry";
+import type { DayPoint, StatsPayload, SummaryPayload, ThemeMode } from "../types/telemetry";
 import { buildRegionBreakdown, buildTrafficTimeline } from "../utils/dashboardInsights";
 import { formatDuration, formatNumber, timeAgo } from "../utils/format";
 import { applyChartColorOverride, buildDashboardChartPalette } from "./dashboardShared";
 
 interface OverviewPageProps {
   summary: SummaryPayload;
+  stats: StatsPayload | null;
   theme: ThemeMode;
   accentHue?: number;
-}
-
-interface MetricCard {
-  label: string;
-  value: string;
-  sub: string;
-  icon: ReactNode;
-  tone?: "success" | "warning" | "danger" | "default";
 }
 
 const TIME_WINDOWS = [
@@ -40,7 +34,23 @@ const TIME_WINDOWS = [
   { label: "24h", hours: 24 },
 ] as const;
 
-export function OverviewPage({ summary, theme, accentHue = 217 }: OverviewPageProps) {
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function versionLabel(version: string): string {
+  return version === "legacy" ? "Legacy (pre-1.4)" : version;
+}
+
+function utcDayString(ts: number): string {
+  return new Date(ts).toISOString().slice(0, 10);
+}
+
+/** Sum sessions over the last `days` UTC days of a per-day series (inclusive of today). */
+function sumSessionsSince(series: DayPoint[], days: number): number {
+  const cutoff = utcDayString(Date.now() - (days - 1) * DAY_MS);
+  return series.reduce((acc, p) => (p.day >= cutoff ? acc + p.sessions : acc), 0);
+}
+
+export function OverviewPage({ summary, stats, theme, accentHue = 217 }: OverviewPageProps) {
   const traffic = useMemo(() => buildTrafficTimeline(summary, 24, "UTC"), [summary]);
   const regions = useMemo(() => buildRegionBreakdown(summary), [summary]);
   const basePalette = useMemo(() => buildDashboardChartPalette(theme, accentHue), [theme, accentHue]);
@@ -59,13 +69,15 @@ export function OverviewPage({ summary, theme, accentHue = 217 }: OverviewPagePr
   );
 
   const sessionsWithErrors = summary.recentSessions.filter((s) => s.errorCount > 0).length;
-  const liveWithErrors = summary.activeSessions.filter((s) => s.errorCount > 0).length;
   const topRegion = regions[0]?.label ?? "Unknown";
   const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
   const recentErrors24h = summary.recentErrors.filter((e) => Date.parse(e.timestamp) >= twentyFourHoursAgo);
   const latestError = recentErrors24h[0];
   const recentSignals = recentErrors24h.slice(0, 6).filter((e) => !dismissedErrors.has(e.id));
   const windowHours = zoom.visibleEnd - zoom.visibleStart;
+
+  // True lifetime event counter; summary.stats.totalEvents is only the retained window.
+  const lifetimeEvents = summary.stats.lifetimeEvents ?? summary.stats.totalEvents;
 
   const handleTimeWindow = useCallback((hours: number) => {
     setActiveWindow(hours);
@@ -80,47 +92,89 @@ export function OverviewPage({ summary, theme, accentHue = 217 }: OverviewPagePr
     setDismissedErrors((prev) => new Set(prev).add(id));
   }, []);
 
-  const metrics: MetricCard[] = [
-    {
-      label: "Active Users",
-      value: formatNumber(summary.stats.activeUsers),
-      sub: `${formatNumber(summary.activeSessions.length)} sessions open`,
-      icon: <Users className="h-[15px] w-[15px]" />,
-      tone: summary.stats.activeUsers > 0 ? "success" : "default",
-    },
-    {
-      label: "Started Today",
-      value: formatNumber(summary.stats.sessionsStartedToday),
-      sub: `${formatNumber(summary.stats.totalSessions)} total loaded`,
-      icon: <TrendingUp className="h-[15px] w-[15px]" />,
-    },
-    {
-      label: "Avg Session",
-      value: formatDuration(summary.stats.averageSessionDurationSeconds),
-      sub: `${formatNumber(summary.stats.totalEvents)} events total`,
-      icon: <Clock className="h-[15px] w-[15px]" />,
-    },
-    {
-      label: "Sessions w/ Errors",
-      value: formatNumber(sessionsWithErrors),
-      sub: `${formatNumber(liveWithErrors)} active now`,
-      icon: <AlertTriangle className="h-[15px] w-[15px]" />,
-      tone: sessionsWithErrors > 0 ? "warning" : "success",
-    },
-    {
-      label: "Primary Region",
-      value: topRegion,
-      sub: regions[0] ? `${formatNumber(regions[0].value)} sessions` : "No geo data",
-      icon: <Globe2 className="h-[15px] w-[15px]" />,
-    },
-    {
-      label: "Latest Error",
-      value: latestError ? timeAgo(latestError.timestamp) : "Clear",
-      sub: latestError ? String(latestError.metrics["exception_type"] ?? latestError.service) : "No recent failures",
-      icon: <Activity className="h-[15px] w-[15px]" />,
-      tone: latestError ? "danger" : "success",
-    },
-  ];
+  /* ----- KPI drill-downs (only when server-side stats have loaded) ----- */
+
+  const activeUsersDrilldown = useMemo<KpiDrilldown | null>(() => {
+    if (!stats) return null;
+    const totalUsers = Math.max(1, stats.totals.lifetimeUsers);
+    const topVersions = [...stats.breakdowns.versionsCurrent]
+      .sort((a, b) => b.users - a.users)
+      .slice(0, 5);
+    return {
+      breakdown: topVersions.map((v) => ({
+        label: versionLabel(v.version),
+        value: formatNumber(v.users),
+        share: v.users / totalUsers,
+      })),
+      breakdownTitle: "Users by current version",
+      note: `${formatNumber(stats.totals.rpcLiveNow)} live with Discord RPC · RPC status reported by ${formatNumber(stats.totals.rpcKnownUsers)} of ${formatNumber(stats.totals.lifetimeUsers)} users`,
+    };
+  }, [stats]);
+
+  const sessionsDrilldown = useMemo<KpiDrilldown | null>(() => {
+    if (!stats) return null;
+    const rangeDays = stats.filters.rangeDays;
+    const limited = (days: number) => (rangeDays !== null && rangeDays < days ? `limited to ${rangeDays}d range` : undefined);
+    const platforms = [...stats.breakdowns.platforms].sort((a, b) => b.sessions - a.sessions);
+    const platformTotal = Math.max(1, platforms.reduce((acc, p) => acc + p.sessions, 0));
+    return {
+      timespans: [
+        { label: "Today", value: formatNumber(sumSessionsSince(stats.series.sessionsPerDay, 1)) },
+        { label: "7 d", value: formatNumber(sumSessionsSince(stats.series.sessionsPerDay, 7)), hint: limited(7) },
+        { label: "30 d", value: formatNumber(sumSessionsSince(stats.series.sessionsPerDay, 30)), hint: limited(30) },
+        { label: "Lifetime", value: formatNumber(stats.totals.lifetimeSessions) },
+      ],
+      series: stats.series.sessionsPerDay.map((p) => ({ day: p.day, value: p.sessions })),
+      seriesName: "Sessions",
+      breakdown: platforms.slice(0, 5).map((p) => ({
+        label: p.key || "Unknown",
+        value: formatNumber(p.sessions),
+        share: p.sessions / platformTotal,
+      })),
+      breakdownTitle: "Sessions by platform",
+    };
+  }, [stats]);
+
+  const avgSessionDrilldown = useMemo<KpiDrilldown | null>(() => {
+    if (!stats) return null;
+    return {
+      timespans: [
+        { label: "Avg duration", value: formatDuration(stats.totals.averageSessionDurationSeconds), hint: "selected range" },
+        { label: "Sessions in range", value: formatNumber(stats.totals.sessionsInRange) },
+        { label: "Lifetime events", value: formatNumber(lifetimeEvents), hint: `${formatNumber(summary.stats.totalEvents)} retained in window` },
+      ],
+      note: "Computed server-side over the full session history. Legacy install-scoped pseudo-sessions (install:*) are excluded from the average.",
+    };
+  }, [stats, lifetimeEvents, summary.stats.totalEvents]);
+
+  const errorsDrilldown = useMemo<KpiDrilldown | null>(() => {
+    if (!stats) return null;
+    return {
+      series: stats.series.errorsPerDay.map((p) => ({ day: p.day, value: p.errors })),
+      seriesName: "Errors",
+      note: "Errors recorded per day within the selected range and filters.",
+    };
+  }, [stats]);
+
+  const regionDrilldown = useMemo<KpiDrilldown | null>(() => {
+    if (!stats) return null;
+    const totalUsers = Math.max(1, stats.totals.lifetimeUsers);
+    const countries = [...stats.breakdowns.countries].sort((a, b) => b.users - a.users).slice(0, 6);
+    if (countries.length === 0) return null;
+    return {
+      breakdown: countries.map((c) => ({
+        label: c.key || "Unknown",
+        value: formatNumber(c.users),
+        share: c.users / totalUsers,
+      })),
+      breakdownTitle: "Users by country",
+    };
+  }, [stats]);
+
+  const activeUsersValue = stats ? stats.totals.activeNow : summary.stats.activeUsers;
+  const sessionsValue = stats ? stats.totals.sessionsInRange : summary.stats.totalSessions;
+  const errorsValue = stats ? stats.totals.errorsInRange : summary.stats.errorsLast24Hours;
+  const avgDurationSeconds = stats ? stats.totals.averageSessionDurationSeconds : summary.stats.averageSessionDurationSeconds;
 
   const directives = [
     { key: "Traffic Clock",    val: "UTC fixed" },
@@ -144,16 +198,62 @@ export function OverviewPage({ summary, theme, accentHue = 217 }: OverviewPagePr
       {/* Two-column grid: left (stats + chart), right (side panels) */}
       <div className="main-side main-side-stretch">
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          {/* Stat grid */}
+          {/* KPI grid */}
           <div className="stat-grid">
-            {metrics.map((m) => (
-              <div key={m.label} className={`stat-card${m.tone === "success" ? " tone-success" : m.tone === "warning" ? " tone-warning" : m.tone === "danger" ? " tone-danger" : ""}`}>
-                <div className="stat-icon">{m.icon}</div>
-                <span className="stat-label">{m.label}</span>
-                <strong className="stat-value">{m.value}</strong>
-                <p className="stat-sub">{m.sub}</p>
-              </div>
-            ))}
+            <KpiStatCard
+              label="Active Users"
+              value={formatNumber(activeUsersValue)}
+              sub={`${formatNumber(summary.activeSessions.length)} sessions open`}
+              icon={<Users className="h-4 w-4" />}
+              tone={activeUsersValue > 0 ? "accent" : "primary"}
+              drilldown={activeUsersDrilldown}
+              chartColor={chartColors.sessionsLine}
+            />
+            <KpiStatCard
+              label="Sessions"
+              value={formatNumber(sessionsValue)}
+              sub={stats
+                ? `${formatNumber(stats.totals.lifetimeSessions)} lifetime`
+                : `${formatNumber(summary.stats.sessionsStartedToday)} started today`}
+              icon={<TrendingUp className="h-4 w-4" />}
+              tone="primary"
+              drilldown={sessionsDrilldown}
+              chartColor={chartColors.sessionsLine}
+            />
+            <KpiStatCard
+              label="Avg Session"
+              value={formatDuration(avgDurationSeconds)}
+              sub={`${formatNumber(lifetimeEvents)} lifetime events`}
+              icon={<Clock className="h-4 w-4" />}
+              tone="primary"
+              drilldown={avgSessionDrilldown}
+              chartColor={chartColors.sessionsLine}
+            />
+            <KpiStatCard
+              label="Errors"
+              value={formatNumber(errorsValue)}
+              sub={stats ? `${formatNumber(sessionsWithErrors)} recent sessions affected` : "last 24 hours"}
+              icon={<AlertTriangle className="h-4 w-4" />}
+              tone={errorsValue > 0 ? "rose" : "primary"}
+              drilldown={errorsDrilldown}
+              chartColor={chartColors.errorsLine}
+            />
+            <KpiStatCard
+              label="Primary Region"
+              value={topRegion}
+              sub={regions[0] ? `${formatNumber(regions[0].value)} sessions` : "No geo data"}
+              icon={<Globe2 className="h-4 w-4" />}
+              tone="primary"
+              drilldown={regionDrilldown}
+              chartColor={chartColors.sessionsLine}
+            />
+            <KpiStatCard
+              label="Latest Error"
+              value={latestError ? timeAgo(latestError.timestamp) : "Clear"}
+              sub={latestError ? String(latestError.metrics["exception_type"] ?? latestError.service) : "No recent failures"}
+              icon={<Activity className="h-4 w-4" />}
+              tone={latestError ? "rose" : "primary"}
+            />
           </div>
 
           {/* Traffic chart */}
@@ -219,6 +319,10 @@ export function OverviewPage({ summary, theme, accentHue = 217 }: OverviewPagePr
                         <stop offset="0%"   stopColor={chartColors.errorsLine} stopOpacity={0.15} />
                         <stop offset="100%" stopColor={chartColors.errorsLine} stopOpacity={0.01} />
                       </linearGradient>
+                      <linearGradient id="startedFillOverview" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%"   stopColor={chartColors.activityBar} stopOpacity={1} />
+                        <stop offset="100%" stopColor={chartColors.activityBar} stopOpacity={0.35} />
+                      </linearGradient>
                     </defs>
                     <CartesianGrid stroke={chartColors.grid} vertical={false} strokeDasharray="3 6" />
                     <XAxis
@@ -234,6 +338,7 @@ export function OverviewPage({ summary, theme, accentHue = 217 }: OverviewPagePr
                       width={32}
                       allowDecimals={false}
                       tick={{ fill: chartColors.axisSoft, fontSize: 10.5 }}
+                      tickFormatter={(v: number) => formatNumber(Number(v))}
                     />
                     <Tooltip
                       cursor={{ stroke: "rgba(255,255,255,0.08)", strokeWidth: 1 }}
@@ -270,7 +375,7 @@ export function OverviewPage({ summary, theme, accentHue = 217 }: OverviewPagePr
                     <Bar
                       dataKey="started"
                       name="New sessions"
-                      fill={chartColors.activityBar}
+                      fill="url(#startedFillOverview)"
                       radius={[6, 6, 0, 0]}
                       barSize={zoom.isZoomed ? 18 : 10}
                       animationDuration={600}

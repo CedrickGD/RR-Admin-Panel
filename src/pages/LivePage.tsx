@@ -132,6 +132,9 @@ export function LivePage({ summary, focusedSessionId = null, focusedSessionToken
   }, [now, summary.activeSessions]);
 
   const liveErrors = activeSessions.filter((s) => s.errorCount > 0).length;
+  // rpcEnabled is a new field — null/undefined means "not reported yet", not "off".
+  const rpcLive = activeSessions.filter((s) => s.rpcEnabled === true).length;
+  const rpcReported = activeSessions.some((s) => typeof s.rpcEnabled === "boolean");
 
   const sessionTimelines = useMemo(() => {
     const timelines = new Map<string, LiveSessionTimelineData>();
@@ -171,6 +174,14 @@ export function LivePage({ summary, focusedSessionId = null, focusedSessionToken
         </div>
         <div className="page-header-right">
           <span className="badge-live">{formatNumber(activeSessions.length)} live</span>
+          <span
+            className={rpcLive > 0 ? "badge badge-accent" : "badge badge-muted"}
+            title={rpcReported
+              ? `${formatNumber(rpcLive)} active sessions report Discord Rich Presence on`
+              : "No active session reports the RPC field yet"}
+          >
+            Discord RPC · {rpcReported ? formatNumber(rpcLive) : "—"}
+          </span>
           <div className="meta-row" style={{ marginLeft: 8 }}>
             {[
               { label: "Live Errors",  val: formatNumber(liveErrors) },
@@ -232,6 +243,11 @@ export function LivePage({ summary, focusedSessionId = null, focusedSessionToken
                             <span style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 600, fontSize: "0.8125rem" }}>
                               {displayUser(session)}
                             </span>
+                            {session.rpcEnabled === true ? (
+                              <span className="badge badge-accent" style={{ marginLeft: 6, fontSize: "0.625rem", padding: "1px 6px", verticalAlign: "middle" }} title="Discord Rich Presence on">
+                                RPC
+                              </span>
+                            ) : null}
                           </td>
                           <td className="muted">{displayLocation(session)}</td>
                           <td><span className="badge badge-muted">{session.appVersion ?? "—"}</span></td>
@@ -291,6 +307,7 @@ export function LivePage({ summary, focusedSessionId = null, focusedSessionToken
                                     { k: "Last Seen",   v: timeAgo(session.lastSeenAt) },
                                     { k: "Events",      v: String(timeline.trackedEventCount) },
                                     { k: "Error Count", v: String(session.errorCount) },
+                                    { k: "Discord RPC", v: session.rpcEnabled === true ? "On" : session.rpcEnabled === false ? "Off" : "Unknown" },
                                     { k: "Timezone",    v: session.clientTimezone ?? "—" },
                                     { k: "Geo Source",  v: formatGeoSource(session.clientGeoSource, session.clientGeoSignalSource) },
                                     { k: "Geo Accuracy", v: formatAccuracy(session.clientAccuracyMeters) },

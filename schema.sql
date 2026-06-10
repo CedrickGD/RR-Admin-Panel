@@ -15,19 +15,6 @@ CREATE TABLE IF NOT EXISTS telemetry_events (
 CREATE INDEX IF NOT EXISTS idx_events_ts ON telemetry_events(ts DESC);
 CREATE INDEX IF NOT EXISTS idx_events_source_service ON telemetry_events(source, service, ts DESC);
 
-CREATE TABLE IF NOT EXISTS latest_status (
-  source TEXT NOT NULL,
-  service TEXT NOT NULL,
-  ts TEXT NOT NULL,
-  status TEXT NOT NULL CHECK (status IN ('ok', 'degraded', 'down')),
-  metrics_json TEXT NOT NULL DEFAULT '{}',
-  message TEXT,
-  updated_at TEXT NOT NULL,
-  PRIMARY KEY (source, service)
-);
-
-CREATE INDEX IF NOT EXISTS idx_latest_updated ON latest_status(updated_at DESC);
-
 CREATE TABLE IF NOT EXISTS app_sessions (
   session_id TEXT PRIMARY KEY,
   install_id TEXT NOT NULL,
@@ -46,7 +33,12 @@ CREATE TABLE IF NOT EXISTS app_sessions (
   client_accuracy_meters REAL,
   client_geo_captured_at TEXT,
   app_version TEXT,
+  display_version TEXT,
   platform TEXT,
+  os_version TEXT,
+  device_model TEXT,
+  rpc_enabled INTEGER,
+  features_json TEXT,
   started_at TEXT NOT NULL,
   last_seen_at TEXT NOT NULL,
   ended_at TEXT,
@@ -73,3 +65,9 @@ CREATE TABLE IF NOT EXISTS admin_users (
 );
 
 CREATE INDEX IF NOT EXISTS idx_admin_users_email ON admin_users(email);
+
+CREATE TABLE IF NOT EXISTS telemetry_counters (
+  counter_key TEXT PRIMARY KEY,
+  counter_value INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL
+);

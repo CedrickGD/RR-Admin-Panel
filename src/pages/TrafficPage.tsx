@@ -1,3 +1,4 @@
+import { Activity, Clock, Layers, Radio, TrendingUp, Users, Zap } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
   Area,
@@ -10,32 +11,42 @@ import {
 } from "recharts";
 import { TelemetryChartTooltip } from "../components/charts/TelemetryChartTooltip";
 import { TimezoneUsageChart } from "../components/charts/TimezoneUsageChart";
+import { KpiStatCard, type KpiDrilldown } from "../components/KpiStatCard";
 import { useChartColors } from "../hooks/useChartColors";
-import type { SummaryPayload, ThemeMode } from "../types/telemetry";
+import type { StatsPayload, SummaryPayload, ThemeMode } from "../types/telemetry";
 import {
   buildDailyUserTimeline,
   buildTimezoneActivity,
 } from "../utils/dashboardInsights";
-import { formatDuration, formatNumber, timeAgo } from "../utils/format";
+import { formatDuration, formatEventName, formatNumber, timeAgo } from "../utils/format";
 import { applyChartColorOverride, buildDashboardChartPalette, TIMEZONE_PANELS } from "./dashboardShared";
 
 interface TrafficPageProps {
   summary: SummaryPayload;
+  stats: StatsPayload | null;
   theme: ThemeMode;
   accentHue?: number;
 }
 
-const RANGE_OPTIONS = [
-  { value: 7,  label: "7D" },
-  { value: 14, label: "14D" },
-  { value: 30, label: "30D" },
-  { value: 90, label: "90D" },
-] as const;
+interface DailySeriesPoint {
+  label: string;
+  shortLabel: string;
+  users: number;
+  isoDate: string;
+}
+
+/** "YYYY-MM-DD" -> "Mar 12" (UTC, matches buildDailyUserTimeline labels). */
+function dayToLabel(day: string): string {
+  const d = new Date(`${day}T00:00:00Z`);
+  if (!Number.isFinite(d.getTime())) return day;
+  const month = d.toLocaleString("en", { month: "short", timeZone: "UTC" });
+  return `${month} ${d.getUTCDate()}`;
+}
 
 /* Simple linear-regression prediction: extends the daily user curve
    forward by `forecastDays` using the last `lookbackDays` of data. */
 function buildPrediction(
-  data: { label: string; shortLabel: string; users: number; isoDate: string }[],
+  data: DailySeriesPoint[],
   forecastDays: number,
   lookbackDays: number,
 ) {
@@ -74,21 +85,32 @@ function buildPrediction(
   return forecast;
 }
 
-export function TrafficPage({ summary, theme, accentHue = 217 }: TrafficPageProps) {
+export function TrafficPage({ summary, stats, theme, accentHue = 217 }: TrafficPageProps) {
   const [insightView, setInsightView] = useState<"daily" | "timezones">("daily");
-  const [rangeDays, setRangeDays] = useState<number>(30);
 
-  const dailyUsers  = useMemo(() => buildDailyUserTimeline(summary, rangeDays), [summary, rangeDays]);
+  // Daily series: prefer server-side aggregates over the FULL history (follows
+  // the global FilterBar range); fall back to the 200-row window ONLY while stats
+  // are still loading — an empty filtered series must stay empty.
+  const dailyUsers = useMemo<DailySeriesPoint[]>(() => {
+    if (stats) {
+      return stats.series.sessionsPerDay.map((p) => {
+        const label = dayToLabel(p.day);
+        return { isoDate: p.day, label, shortLabel: label, users: p.users };
+      });
+    }
+    return buildDailyUserTimeline(summary, 30);
+  }, [stats, summary]);
+
   const tzCharts    = useMemo(() => TIMEZONE_PANELS.map((p) => ({ ...p, data: buildTimezoneActivity(summary, p.timeZone) })), [summary]);
   const basePalette = useMemo(() => buildDashboardChartPalette(theme, accentHue), [theme, accentHue]);
   const { override: colorOverride } = useChartColors();
   const chartPalette = useMemo(() => applyChartColorOverride(basePalette, colorOverride), [basePalette, colorOverride]);
 
-  // Forecast days scale with range: 7D→3d, 14D→5d, 30D→7d, 90D→14d
-  const forecastDays = rangeDays <= 7 ? 3 : rangeDays <= 14 ? 5 : rangeDays <= 30 ? 7 : 14;
+  // Forecast days scale with the span of real data: ≤7d→3d, ≤14d→5d, ≤31d→7d, longer→14d
+  const forecastDays = dailyUsers.length <= 7 ? 3 : dailyUsers.length <= 14 ? 5 : dailyUsers.length <= 31 ? 7 : 14;
 
   const chartData = useMemo(() => {
-    const prediction = buildPrediction(dailyUsers, forecastDays, Math.min(rangeDays, dailyUsers.length));
+    const prediction = buildPrediction(dailyUsers, forecastDays, Math.min(30, dailyUsers.length));
     // Merge: real data has `users`, forecast has `predicted`
     const merged: { label: string; shortLabel: string; users?: number; predicted?: number }[] = [
       ...dailyUsers.map((d) => ({ label: d.label, shortLabel: d.shortLabel, users: d.users, predicted: undefined as number | undefined })),
@@ -102,7 +124,61 @@ export function TrafficPage({ summary, theme, accentHue = 217 }: TrafficPageProp
       merged.push({ label: p.label, shortLabel: p.shortLabel, users: undefined, predicted: p.predicted });
     }
     return merged;
-  }, [dailyUsers, forecastDays, rangeDays]);
+  }, [dailyUsers, forecastDays]);
+
+  /* ----- KPI values + drill-downs ----- */
+
+  const lifetimeUsers = stats?.totals.lifetimeUsers ?? summary.stats.lifetimeUsers;
+  // True lifetime event counter (~230k); summary.stats.totalEvents is just the retained window.
+  const lifetimeEvents = stats?.totals.lifetimeEvents ?? summary.stats.lifetimeEvents ?? summary.stats.totalEvents;
+
+  const lifetimeUsersDrilldown = useMemo<KpiDrilldown | null>(() => {
+    if (!stats) return null;
+    const totalUsers = Math.max(1, stats.totals.lifetimeUsers);
+    const countries = [...stats.breakdowns.countries].sort((a, b) => b.users - a.users).slice(0, 6);
+    return {
+      timespans: [
+        { label: "In range", value: formatNumber(stats.totals.usersInRange) },
+        { label: "New in range", value: formatNumber(stats.totals.newUsersInRange) },
+        { label: "Lifetime", value: formatNumber(stats.totals.lifetimeUsers), hint: "unique HWIDs" },
+      ],
+      series: stats.series.newUsersPerDay.map((p) => ({ day: p.day, value: p.users })),
+      seriesName: "New users",
+      breakdown: countries.map((c) => ({
+        label: c.key || "Unknown",
+        value: formatNumber(c.users),
+        share: c.users / totalUsers,
+      })),
+      breakdownTitle: "Top countries",
+    };
+  }, [stats]);
+
+  const totalEventsDrilldown = useMemo<KpiDrilldown | null>(() => {
+    if (!stats) return null;
+    const rows = [...stats.breakdowns.eventsLifetime].sort((a, b) => b.count - a.count);
+    const total = Math.max(1, rows.reduce((acc, r) => acc + r.count, 0));
+    return {
+      breakdown: rows.map((r) => ({
+        label: formatEventName(r.service),
+        value: formatNumber(r.count),
+        share: r.count / total,
+      })),
+      breakdownTitle: "Lifetime events by type",
+      note: "Lifetime per-type counters, tracked server-side. Heartbeats are no longer stored as event rows — only counted.",
+    };
+  }, [stats]);
+
+  const totalSessionsDrilldown = useMemo<KpiDrilldown | null>(() => {
+    if (!stats) return null;
+    return {
+      timespans: [
+        { label: "In range", value: formatNumber(stats.totals.sessionsInRange) },
+        { label: "Lifetime", value: formatNumber(stats.totals.lifetimeSessions) },
+      ],
+      series: stats.series.sessionsPerDay.map((p) => ({ day: p.day, value: p.sessions })),
+      seriesName: "Sessions",
+    };
+  }, [stats]);
 
   return (
     <div className="page-content page-stack-lg">
@@ -121,21 +197,61 @@ export function TrafficPage({ summary, theme, accentHue = 217 }: TrafficPageProp
 
       {/* Stat cards — pinned at top */}
       <div className="stat-grid">
-        {[
-          { label: "Lifetime Users",   value: formatNumber(summary.stats.lifetimeUsers),  sub: "All time unique (HWID)" },
-          { label: "Total Events",     value: formatNumber(summary.stats.totalEvents),   sub: "All time, unlimited" },
-          { label: "Total Sessions",   value: formatNumber(summary.stats.totalSessions), sub: "Last 200 loaded" },
-          { label: "Active Right Now", value: formatNumber(summary.stats.activeUsers),   sub: "Last 100 shown" },
-          { label: "Avg Duration",     value: formatDuration(summary.stats.averageSessionDurationSeconds), sub: "Per session" },
-          { label: "Started Today",    value: formatNumber(summary.stats.sessionsStartedToday), sub: "Since midnight UTC" },
-          { label: "Last Ingest",      value: timeAgo(summary.stats.lastIngestAt ?? null), sub: "Most recent event" },
-        ].map((s) => (
-          <div className="stat-card" key={s.label}>
-            <span className="stat-label">{s.label}</span>
-            <strong className="stat-value" style={{ fontSize: "1.5rem" }}>{s.value}</strong>
-            <p className="stat-sub">{s.sub}</p>
-          </div>
-        ))}
+        <KpiStatCard
+          label="Lifetime Users"
+          value={formatNumber(lifetimeUsers)}
+          sub="All-time unique (HWID)"
+          icon={<Users className="h-4 w-4" />}
+          tone="accent"
+          drilldown={lifetimeUsersDrilldown}
+          chartColor={chartPalette.sessionsLine}
+        />
+        <KpiStatCard
+          label="Total Events"
+          value={formatNumber(lifetimeEvents)}
+          sub={`true lifetime · ${formatNumber(summary.stats.totalEvents)} retained`}
+          icon={<Zap className="h-4 w-4" />}
+          tone="primary"
+          drilldown={totalEventsDrilldown}
+          chartColor={chartPalette.sessionsLine}
+        />
+        <KpiStatCard
+          label="Total Sessions"
+          value={formatNumber(stats?.totals.lifetimeSessions ?? summary.stats.totalSessions)}
+          sub={stats ? "All time" : "Last 200 loaded"}
+          icon={<Layers className="h-4 w-4" />}
+          tone="primary"
+          drilldown={totalSessionsDrilldown}
+          chartColor={chartPalette.sessionsLine}
+        />
+        <KpiStatCard
+          label="Active Right Now"
+          value={formatNumber(stats?.totals.activeNow ?? summary.stats.activeUsers)}
+          sub="Live sessions"
+          icon={<Radio className="h-4 w-4" />}
+          tone="primary"
+        />
+        <KpiStatCard
+          label="Avg Duration"
+          value={formatDuration(stats?.totals.averageSessionDurationSeconds ?? summary.stats.averageSessionDurationSeconds)}
+          sub={stats ? "Per session · legacy excluded" : "Per session"}
+          icon={<Clock className="h-4 w-4" />}
+          tone="primary"
+        />
+        <KpiStatCard
+          label="Started Today"
+          value={formatNumber(summary.stats.sessionsStartedToday)}
+          sub="Since midnight UTC"
+          icon={<TrendingUp className="h-4 w-4" />}
+          tone="primary"
+        />
+        <KpiStatCard
+          label="Last Ingest"
+          value={timeAgo(summary.stats.lastIngestAt ?? null)}
+          sub="Most recent event"
+          icon={<Activity className="h-4 w-4" />}
+          tone="primary"
+        />
       </div>
 
       {/* Daily / Timezone toggle — the main chart */}
@@ -146,25 +262,13 @@ export function TrafficPage({ summary, theme, accentHue = 217 }: TrafficPageProp
             <h2 className="section-title">Insight View</h2>
             <p className="section-sub">
               {insightView === "daily"
-                ? `Daily unique users with ${forecastDays}-day forecast (dashed).`
+                ? stats
+                  ? `Daily unique users (full history, follows the global range filter) with ${forecastDays}-day forecast (dashed).`
+                  : `Daily unique users with ${forecastDays}-day forecast (dashed).`
                 : "Timezone-local activity breakdowns."}
             </p>
           </div>
           <div className="panel-head-right" style={{ gap: 12 }}>
-            {insightView === "daily" ? (
-              <div className="seg-control">
-                {RANGE_OPTIONS.map((o) => (
-                  <button
-                    key={o.value}
-                    type="button"
-                    className={`seg-btn${rangeDays === o.value ? " active" : ""}`}
-                    onClick={() => setRangeDays(o.value)}
-                  >
-                    {o.label}
-                  </button>
-                ))}
-              </div>
-            ) : null}
             <div className="seg-control">
               <button type="button" className={`seg-btn${insightView === "daily" ? " active" : ""}`} onClick={() => setInsightView("daily")}>Daily Users</button>
               <button type="button" className={`seg-btn${insightView === "timezones" ? " active" : ""}`} onClick={() => setInsightView("timezones")}>Timezones</button>
@@ -179,7 +283,8 @@ export function TrafficPage({ summary, theme, accentHue = 217 }: TrafficPageProp
                 <AreaChart data={chartData} margin={{ top: 8, right: 8, left: -14, bottom: 0 }}>
                   <defs>
                     <linearGradient id="dailyFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%"   stopColor={chartPalette.sessionsLine} stopOpacity={0.18} />
+                      <stop offset="0%"   stopColor={chartPalette.sessionsLine} stopOpacity={0.22} />
+                      <stop offset="55%"  stopColor={chartPalette.sessionsLine} stopOpacity={0.07} />
                       <stop offset="100%" stopColor={chartPalette.sessionsLine} stopOpacity={0.01} />
                     </linearGradient>
                     <linearGradient id="forecastFill" x1="0" y1="0" x2="0" y2="1">
@@ -187,9 +292,9 @@ export function TrafficPage({ summary, theme, accentHue = 217 }: TrafficPageProp
                       <stop offset="100%" stopColor={chartPalette.sessionsLine} stopOpacity={0.01} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid stroke={chartPalette.grid} vertical={false} />
+                  <CartesianGrid stroke={chartPalette.grid} vertical={false} strokeDasharray="3 6" />
                   <XAxis dataKey="shortLabel" tickLine={false} axisLine={false} minTickGap={28} tick={{ fill: chartPalette.axis, fontSize: 10.5 }} />
-                  <YAxis tickLine={false} axisLine={false} width={32} tick={{ fill: chartPalette.axisSoft, fontSize: 10.5 }} allowDecimals={false} />
+                  <YAxis tickLine={false} axisLine={false} width={32} tick={{ fill: chartPalette.axisSoft, fontSize: 10.5 }} allowDecimals={false} tickFormatter={(v: number) => formatNumber(Number(v))} />
                   <Tooltip cursor={false} content={({ active, payload, label }) => (
                     <TelemetryChartTooltip active={active} label={label} payload={payload?.filter((e) => e.value != null && e.value !== 0).map((e) => ({ name: String(e.name ?? ""), value: typeof e.value === "number" ? e.value : Number(e.value ?? 0), color: e.color })) ?? []} />
                   )} />
@@ -202,8 +307,16 @@ export function TrafficPage({ summary, theme, accentHue = 217 }: TrafficPageProp
                     strokeWidth={2.2}
                     fill="url(#dailyFill)"
                     dot={false}
-                    activeDot={{ r: 4, strokeWidth: 0, fill: chartPalette.sessionsLine }}
+                    activeDot={{
+                      r: 4.5,
+                      strokeWidth: 2,
+                      stroke: "rgba(0,0,0,0.3)",
+                      fill: chartPalette.sessionsLine,
+                      style: { filter: `drop-shadow(0 0 4px ${chartPalette.sessionsLine})` },
+                    }}
                     connectNulls={false}
+                    animationDuration={600}
+                    animationEasing="ease-out"
                   />
                   {/* Prediction */}
                   <Area
@@ -218,6 +331,8 @@ export function TrafficPage({ summary, theme, accentHue = 217 }: TrafficPageProp
                     dot={false}
                     activeDot={{ r: 3, strokeWidth: 0, fill: chartPalette.sessionsLine, opacity: 0.6 }}
                     connectNulls={false}
+                    animationDuration={600}
+                    animationEasing="ease-out"
                   />
                 </AreaChart>
               </ResponsiveContainer>

@@ -5,23 +5,11 @@ import { TelemetryChartTooltip } from "./charts/TelemetryChartTooltip";
 
 type Tone = "primary" | "accent" | "amber" | "rose";
 
-const TONE_MAP: Record<Tone, { icon: string; card: string }> = {
-  primary: {
-    icon: "bg-[hsl(var(--primary)/0.14)] text-[hsl(var(--primary))]",
-    card: "stat-card-primary",
-  },
-  accent: {
-    icon: "bg-[hsl(var(--accent)/0.14)] text-[hsl(var(--accent))]",
-    card: "stat-card-accent",
-  },
-  amber: {
-    icon: "bg-[hsl(var(--warning)/0.16)] text-[hsl(var(--warning))]",
-    card: "stat-card-amber",
-  },
-  rose: {
-    icon: "bg-[hsl(var(--danger)/0.16)] text-[hsl(var(--danger))]",
-    card: "stat-card-rose",
-  },
+const TONE_ICON_CLASS: Record<Tone, string> = {
+  primary: "stat-card-icon-accent",
+  accent: "stat-card-icon-accent",
+  amber: "stat-card-icon-amber",
+  rose: "stat-card-icon-rose",
 };
 
 export interface KpiDrilldown {
@@ -51,7 +39,7 @@ interface KpiStatCardProps {
 /** StatCard with an optional click-to-expand drill-down modal. */
 export function KpiStatCard({ label, value, sub, icon, tone = "primary", delta, drilldown, chartColor }: KpiStatCardProps) {
   const [open, setOpen] = useState(false);
-  const tones = TONE_MAP[tone];
+  const iconClass = TONE_ICON_CLASS[tone];
   // The series block only renders with 2+ points, so a 1-point series alone must not
   // make the card clickable (it would open an empty modal).
   const expandable = Boolean(
@@ -75,7 +63,7 @@ export function KpiStatCard({ label, value, sub, icon, tone = "primary", delta, 
   return (
     <>
       <article
-        className={`stat-card ${tones.card}${expandable ? " kpi-card-clickable" : ""}`}
+        className={`stat-card${expandable ? " kpi-card-clickable" : ""}`}
         onClick={expandable ? () => setOpen(true) : undefined}
         role={expandable ? "button" : undefined}
         tabIndex={expandable ? 0 : undefined}
@@ -92,7 +80,7 @@ export function KpiStatCard({ label, value, sub, icon, tone = "primary", delta, 
       >
         <div className="stat-card-top">
           <p className="stat-card-label">{label}</p>
-          <div className={`stat-card-icon ${tones.icon}`}>{icon}</div>
+          <div className={`stat-card-icon ${iconClass}`}>{icon}</div>
         </div>
         <div className="stat-card-body">
           <div className="stat-card-value-row">
@@ -145,8 +133,8 @@ export function KpiStatCard({ label, value, sub, icon, tone = "primary", delta, 
                   <AreaChart data={drilldown.series} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
                     <defs>
                       <linearGradient id="kpiDrillFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={chartColor ?? "hsl(var(--accent))"} stopOpacity={0.32} />
-                        <stop offset="100%" stopColor={chartColor ?? "hsl(var(--accent))"} stopOpacity={0.02} />
+                        <stop offset="0%" stopColor={chartColor ?? "var(--accent)"} stopOpacity={0.32} />
+                        <stop offset="100%" stopColor={chartColor ?? "var(--accent)"} stopOpacity={0.02} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid stroke="rgba(255,255,255,0.07)" vertical={false} />
@@ -179,7 +167,7 @@ export function KpiStatCard({ label, value, sub, icon, tone = "primary", delta, 
                       type="monotone"
                       dataKey="value"
                       name={drilldown.seriesName ?? label}
-                      stroke={chartColor ?? "hsl(var(--accent))"}
+                      stroke={chartColor ?? "var(--accent)"}
                       strokeWidth={2}
                       fill="url(#kpiDrillFill)"
                       dot={false}

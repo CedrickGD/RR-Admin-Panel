@@ -68,7 +68,6 @@ export function OverviewPage({ summary, stats, theme, accentHue = 217 }: Overvie
     [traffic],
   );
 
-  const sessionsWithErrors = summary.recentSessions.filter((s) => s.errorCount > 0).length;
   const topRegion = regions[0]?.label ?? "Unknown";
   const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
   const recentErrors24h = summary.recentErrors.filter((e) => Date.parse(e.timestamp) >= twentyFourHoursAgo);
@@ -232,7 +231,7 @@ export function OverviewPage({ summary, stats, theme, accentHue = 217 }: Overvie
             <KpiStatCard
               label="Errors"
               value={formatNumber(errorsValue)}
-              sub={stats ? `${formatNumber(sessionsWithErrors)} recent sessions affected` : "last 24 hours"}
+              sub={stats ? "in selected range" : "last 24 hours"}
               icon={<AlertTriangle className="h-4 w-4" />}
               tone={errorsValue > 0 ? "rose" : "primary"}
               drilldown={errorsDrilldown}

@@ -213,8 +213,8 @@ function SortableTh({ label, sortKey, activeKey, dir, onSort }: SortableThProps)
         {label}
         {isActive
           ? dir === "asc"
-            ? <ArrowUp className="h-3 w-3" style={{ color: "hsl(var(--accent))" }} />
-            : <ArrowDown className="h-3 w-3" style={{ color: "hsl(var(--accent))" }} />
+            ? <ArrowUp className="h-3 w-3" style={{ color: "var(--accent)" }} />
+            : <ArrowDown className="h-3 w-3" style={{ color: "var(--accent)" }} />
           : null}
       </span>
     </th>
@@ -527,7 +527,7 @@ export function WorkersPage({ summary, stats, users, onOpenMapSession }: Workers
                               <td className="muted" style={{ whiteSpace: "nowrap" }}>{userLocation(user) || "—"}</td>
                               <td><RpcBadge rpcEnabled={user.rpcEnabled} /></td>
                               <td className="muted">{formatNumber(user.sessions)}</td>
-                              <td className="muted" style={{ whiteSpace: "nowrap" }}>{formatDuration(user.totalDurationSeconds)}</td>
+                              <td className="muted" style={{ whiteSpace: "nowrap" }}>{user.totalDurationSeconds > 0 ? formatDuration(user.totalDurationSeconds) : "—"}</td>
                               <td>
                                 {user.errors > 0
                                   ? <span className="badge badge-danger">{formatNumber(user.errors)}</span>

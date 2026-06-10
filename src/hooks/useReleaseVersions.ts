@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 
 const RELEASES_URL = "https://api.github.com/repos/CedrickGD/RazorReaper/releases";
-const CACHE_KEY = "rr-release-versions";
+// v2: cache may contain date-style tags from before the semantic-version filter.
+const CACHE_KEY = "rr-release-versions-v2";
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 
 interface CachedReleases {
@@ -56,7 +57,8 @@ export function useReleaseVersions(): string[] {
         const parsed = releases
           .filter((r) => !r.draft)
           .map((r) => stripTrailingZeros(normalizeTag(r.tag_name)))
-          .filter((v) => /^\d+\.\d+/.test(v));
+          // Semantic versions only — rejects date-style tags like "26.12.2025".
+          .filter((v) => /^\d+\.\d+(\.\d+)?$/.test(v) && v.split(".").every((part) => part.length <= 3));
         setVersions(parsed);
         saveCache(parsed);
       })

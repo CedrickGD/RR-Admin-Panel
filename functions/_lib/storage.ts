@@ -110,6 +110,7 @@ interface SessionStatsRow {
   sessionsStartedToday: number | string;
   sessionsEndedToday: number | string;
   averageSessionDurationSeconds: number | string | null;
+  lastSeenAt: string | null;
 }
 
 export function resolveStorageBackend(env: RuntimeEnv): StorageBackend {
@@ -362,7 +363,8 @@ async function loadSummaryD1(env: RuntimeEnv): Promise<SummaryPayload> {
            SUM(CASE WHEN started_at >= ? THEN 1 ELSE 0 END) AS sessionsStartedToday,
            SUM(CASE WHEN ended_at IS NOT NULL AND ended_at >= ? THEN 1 ELSE 0 END) AS sessionsEndedToday,
            AVG(CASE WHEN duration_seconds IS NOT NULL AND duration_seconds BETWEEN 1 AND 172800
-                    AND session_id NOT LIKE 'install:%' THEN duration_seconds END) AS averageSessionDurationSeconds
+                    AND session_id NOT LIKE 'install:%' THEN duration_seconds END) AS averageSessionDurationSeconds,
+           MAX(last_seen_at) AS lastSeenAt
          FROM app_sessions`
       )
       .bind(startOfUtcDayIso(), startOfUtcDayIso())
@@ -390,9 +392,17 @@ async function loadSummaryD1(env: RuntimeEnv): Promise<SummaryPayload> {
       sessionsEndedToday: toNumber(sessionStats?.sessionsEndedToday),
       averageSessionDurationSeconds: toRoundedNumber(sessionStats?.averageSessionDurationSeconds),
       errorsLast24Hours: toNumber(eventStats?.errorsLast24Hours),
-      lastIngestAt: eventStats?.lastIngestAt ?? null,
+      // Heartbeats no longer create event rows, so "last ingest" must also consider
+      // session liveness or it looks stale while clients are actively pinging.
+      lastIngestAt: latestIso(eventStats?.lastIngestAt ?? null, sessionStats?.lastSeenAt ?? null),
     },
   };
+}
+
+function latestIso(left: string | null, right: string | null): string | null {
+  if (!left) return right;
+  if (!right) return left;
+  return compareIso(left, right) >= 0 ? left : right;
 }
 
 async function loadHealthD1(env: RuntimeEnv): Promise<HealthPayload> {

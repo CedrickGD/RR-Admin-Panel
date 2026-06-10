@@ -2080,7 +2080,8 @@ h1, h2, h3, h4, h5, h6 {
   cursor: pointer;
 }
 .kpi-card-clickable:hover {
-  border-color: hsl(var(--accent) / 0.45);
+  /* --accent is a complete hsl() color; alpha variants must compose from --ah/--as/--al. */
+  border-color: hsl(var(--ah) var(--as) var(--al) / 0.45);
   box-shadow: 0 0 0 3px var(--accent-subtle);
 }
 .kpi-card-chevron {
@@ -2110,6 +2111,11 @@ h1, h2, h3, h4, h5, h6 {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  /* .panel's 3% glass is fine on the page background but see-through as a floating
+     surface — modals need a mostly opaque, hue-tinted base. */
+  background: hsl(var(--ah) 24% 8% / 0.97);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
 }
 .kpi-modal-head {
   display: flex;
@@ -2177,7 +2183,7 @@ h1, h2, h3, h4, h5, h6 {
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, hsl(var(--accent) / 0.85), hsl(var(--accent) / 0.55));
+  background: linear-gradient(90deg, hsl(var(--ah) var(--as) var(--al) / 0.85), hsl(var(--ah) var(--as) var(--al) / 0.55));
 }
 .kpi-breakdown-value {
   min-width: 56px;
@@ -2188,4 +2194,75 @@ h1, h2, h3, h4, h5, h6 {
   font-size: 0.75rem;
   color: var(--text-2);
   line-height: 1.6;
+}
+
+/* ─── StatCard / KpiStatCard internals ───
+   These classes are referenced by components/StatCard.tsx and KpiStatCard.tsx but
+   never existed in the design system (pages used to inline .stat-label/.stat-value),
+   which left the cards completely unstyled. */
+.stat-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.stat-card-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-2);
+}
+.stat-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  flex: none;
+}
+.stat-card-icon-accent {
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+}
+.stat-card-icon-amber {
+  background: hsl(38 91% 55% / 0.16);
+  color: var(--warning);
+}
+.stat-card-icon-rose {
+  background: hsl(4 86% 58% / 0.16);
+  color: var(--danger);
+}
+.stat-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.stat-card-value-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.stat-card-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--text-1);
+}
+.stat-card-sub {
+  font-size: 0.75rem;
+  color: var(--text-2);
+  display: flex;
+  align-items: center;
+}
+.stat-card-delta {
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+.stat-card-delta-positive {
+  color: var(--success);
+}
+.stat-card-delta-negative {
+  color: var(--danger);
 }

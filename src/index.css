@@ -134,7 +134,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 .page-title {
   font-family: "Space Grotesk", system-ui, sans-serif;
-  font-size: clamp(1.3rem, 2vw, 1.6rem);
+  font-size: 1.3rem;
   font-weight: 700;
   letter-spacing: -0.04em;
   color: var(--text-1);
@@ -465,17 +465,10 @@ h1, h2, h3, h4, h5, h6 {
    ═══════════════════════════════════════════════════════════════ */
 .stat-grid {
   display: grid;
-  /* auto-fit (not auto-fill): cards stretch to fill the full row instead of
-     leaving empty ghost columns at the end. */
-  grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+  /* Fixed track width: every KPI card is the same compact size on every page,
+     left-packed — no stretching to fill rows. */
+  grid-template-columns: repeat(auto-fill, 190px);
   gap: 10px;
-}
-/* Fixed column count for grids whose card count would leave an orphan row. */
-.stat-grid-3 {
-  grid-template-columns: repeat(3, 1fr);
-}
-@media (max-width: 900px) {
-  .stat-grid-3 { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 640px) {
   .stat-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
@@ -487,11 +480,11 @@ h1, h2, h3, h4, h5, h6 {
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--glass-border);
-  border-radius: 12px;
-  padding: 11px 13px 9px;
+  border-radius: 11px;
+  padding: 10px 12px 8px;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 4px;
   overflow: hidden;
   transition: background 0.2s, border-color 0.2s, box-shadow 0.25s;
   box-shadow: 0 1px 0 rgba(255,255,255,0.05) inset;
@@ -510,8 +503,8 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .stat-icon {
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   border-radius: 7px;
   background: var(--accent-subtle);
   display: flex;
@@ -532,7 +525,7 @@ h1, h2, h3, h4, h5, h6 {
   font-family: "Space Grotesk", system-ui, sans-serif;
   /* Fixed size: viewport-scaled values made cards balloon on wide screens and
      sized differently between pages. */
-  font-size: 1.35rem;
+  font-size: 1.2rem;
   font-weight: 700;
   letter-spacing: -0.03em;
   color: var(--text-1);

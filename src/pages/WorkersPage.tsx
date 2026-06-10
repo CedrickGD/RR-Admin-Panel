@@ -344,13 +344,24 @@ export function WorkersPage({ summary, stats, users, onOpenMapSession }: Workers
   const sessions = useMemo(() => {
     const q = sessionQuery.trim().toLowerCase();
     const base = summary.recentSessions.filter((s) => !s.id.startsWith("install:"));
+    // One row per user: keep only each user's most recent session so the list
+    // isn't flooded with duplicates from people who relaunch often.
+    const latestPerUser = new Map<string, (typeof base)[number]>();
+    for (const session of base) {
+      const identity = (session.hwid ?? session.installId).trim().toLowerCase();
+      const existing = latestPerUser.get(identity);
+      if (!existing || Date.parse(session.lastSeenAt) > Date.parse(existing.lastSeenAt)) {
+        latestPerUser.set(identity, session);
+      }
+    }
+    const deduped = [...latestPerUser.values()];
     const filtered = !q
-      ? base
-      : base.filter((s) => {
+      ? deduped
+      : deduped.filter((s) => {
           const hay = [displaySessionUser(s), s.installId, s.clientIp ?? "", s.clientCountry ?? "", s.appVersion ?? "", s.platform ?? "", s.lastEvent ?? ""].join(" ").toLowerCase();
           return hay.includes(q);
         });
-    return [...filtered].sort((a, b) => Date.parse(b.lastSeenAt) - Date.parse(a.lastSeenAt));
+    return filtered.sort((a, b) => Date.parse(b.lastSeenAt) - Date.parse(a.lastSeenAt));
   }, [sessionQuery, summary.recentSessions]);
 
   const sessionTimelines = useMemo(() => {

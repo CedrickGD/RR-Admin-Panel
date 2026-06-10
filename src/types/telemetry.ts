@@ -45,6 +45,7 @@ export interface AppSessionRecord {
   osVersion?: string | null;
   deviceModel?: string | null;
   rpcEnabled?: boolean | null;
+  discordUser?: string | null;
   featuresJson?: string | null;
   startedAt: string;
   lastSeenAt: string;
@@ -147,9 +148,19 @@ export interface UserRollupRecord {
   city: string | null;
   timezone: string | null;
   rpcEnabled: boolean | null;
+  discordUser: string | null;
+  latitude: number | null;
+  longitude: number | null;
   lastStatus: TelemetryStatus | null;
   lastEvent: string | null;
   features: Record<string, number>;
+  recentErrors: UserErrorRecord[];
+}
+
+export interface UserErrorRecord {
+  timestamp: string;
+  message: string | null;
+  type: string | null;
 }
 
 export interface SummaryPayload {

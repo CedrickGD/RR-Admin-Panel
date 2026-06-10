@@ -46,3 +46,6 @@ SET display_version = CASE
   ELSE app_version
 END
 WHERE app_version IS NOT NULL AND display_version IS NULL;
+
+-- Applied separately on 2026-06-10 (evening): Discord identity for troubleshooting.
+ALTER TABLE app_sessions ADD COLUMN discord_user TEXT;

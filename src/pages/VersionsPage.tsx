@@ -1,5 +1,5 @@
 import { Crown, Download, Layers, Rocket, Users } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import {
   Bar,
   BarChart,
@@ -12,6 +12,7 @@ import {
   YAxis,
 } from "recharts";
 import { TelemetryChartTooltip } from "../components/charts/TelemetryChartTooltip";
+import { CollapsiblePanel } from "../components/CollapsiblePanel";
 import { KpiStatCard, type KpiDrilldown } from "../components/KpiStatCard";
 import { useChartColors } from "../hooks/useChartColors";
 import { useLatestVersion } from "../hooks/useLatestVersion";
@@ -25,6 +26,7 @@ interface VersionsPageProps {
   stats: StatsPayload | null;
   theme: ThemeMode;
   accentHue?: number;
+  filterBar?: ReactNode;
 }
 
 type AdoptionView = "current" | "alltime";
@@ -102,7 +104,7 @@ function statusBadge(row: VersionRow) {
   return <span className="badge badge-muted">No telemetry</span>;
 }
 
-export function VersionsPage({ summary, stats, theme, accentHue = 217 }: VersionsPageProps) {
+export function VersionsPage({ summary, stats, theme, accentHue = 217, filterBar }: VersionsPageProps) {
   const latestVersion = useLatestVersion();
   const releaseVersions = useReleaseVersions();
   const [view, setView] = useState<AdoptionView>("current");
@@ -280,6 +282,7 @@ export function VersionsPage({ summary, stats, theme, accentHue = 217 }: Version
             </h1>
             <p className="page-subtitle">Loading full-history version adoption…</p>
           </div>
+          {filterBar ? <div className="page-header-right">{filterBar}</div> : null}
         </section>
 
         <div className="stat-grid stat-grid-4">
@@ -310,18 +313,16 @@ export function VersionsPage({ summary, stats, theme, accentHue = 217 }: Version
 
   return (
     <div className="page-content page-stack-lg">
-      {/* Header */}
+      {/* Header — title left; view toggle + global filters right */}
       <section className="page-header">
         <div>
           <h1 className="page-title">
             Versions
             <span className="kicker">Client Adoption</span>
           </h1>
-          <p className="page-subtitle">
-            Adoption per RazorReaper release — telemetry merged with GitHub releases so no version goes missing.
-          </p>
+          <p className="page-subtitle">Adoption per release — telemetry merged with GitHub releases.</p>
         </div>
-        <div className="page-header-right" style={{ display: "flex", alignItems: "flex-start", gap: 16 }}>
+        <div className="page-header-right">
           <div className="seg-control">
             <button
               type="button"
@@ -340,12 +341,7 @@ export function VersionsPage({ summary, stats, theme, accentHue = 217 }: Version
               All-time
             </button>
           </div>
-          <div className="meta-row">
-            <div className="meta-item">
-              <span>Latest RR</span>
-              <strong>{latestVersion}</strong>
-            </div>
-          </div>
+          {filterBar}
         </div>
       </section>
 
@@ -354,7 +350,7 @@ export function VersionsPage({ summary, stats, theme, accentHue = 217 }: Version
         <KpiStatCard
           label="Lifetime Users"
           value={formatNumber(lifetimeUsers)}
-          sub="Unique by HWID, full history"
+          sub="All-time unique (HWID)"
           icon={<Users className="h-3.5 w-3.5" />}
           tone="primary"
           drilldown={lifetimeDrilldown}
@@ -390,18 +386,13 @@ export function VersionsPage({ summary, stats, theme, accentHue = 217 }: Version
       </div>
 
       {/* Version chart */}
-      <section className="panel">
-        <div className="panel-head">
-          <div className="panel-head-left">
-            <p className="kicker">Distribution</p>
-            <h2 className="section-title">Users per Version</h2>
-            <p className="section-sub">
-              {view === "current"
-                ? "Users whose latest session ran each version — adoption right now."
-                : "Distinct users who ever ran each version, since March."}
-            </p>
-          </div>
-        </div>
+      <CollapsiblePanel
+        kicker="Distribution"
+        title="Users per Version"
+        sub={view === "current"
+          ? "Users whose latest session ran each version — adoption right now."
+          : "Distinct users who ever ran each version — all-time."}
+      >
         <div className="panel-body">
           {chartRows.length > 0 ? (
             <div className="chart-wrap">
@@ -475,22 +466,20 @@ export function VersionsPage({ summary, stats, theme, accentHue = 217 }: Version
             </div>
           )}
         </div>
-      </section>
+      </CollapsiblePanel>
 
       {/* Release table */}
-      <section className="panel">
-        <div className="panel-head">
-          <div className="panel-head-left">
-            <p className="kicker">Releases</p>
-            <h2 className="section-title">Release History</h2>
-            <p className="section-sub">Every known release with current vs. all-time adoption.</p>
-          </div>
-          <div className="panel-head-right">
-            <button type="button" className="btn-icon" title="Download CSV" onClick={downloadCsv}>
-              <Download className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        </div>
+      <CollapsiblePanel
+        kicker="Releases"
+        title="Release History"
+        sub="Every known release with current vs. all-time adoption."
+        defaultOpen={false}
+        right={
+          <button type="button" className="btn-icon" title="Download CSV" onClick={downloadCsv}>
+            <Download className="h-3.5 w-3.5" />
+          </button>
+        }
+      >
         <div className="panel-body">
           {versionRows.length > 0 ? (
             <div className="data-table-wrap scroll-x">
@@ -527,7 +516,7 @@ export function VersionsPage({ summary, stats, theme, accentHue = 217 }: Version
             </div>
           )}
         </div>
-      </section>
+      </CollapsiblePanel>
     </div>
   );
 }

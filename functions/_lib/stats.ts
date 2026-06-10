@@ -1,6 +1,6 @@
 import { nowIso } from "./http";
 import { ensureTelemetrySchema, normalizeDisplayVersion } from "./storage";
-import type { RuntimeEnv, StatsFilters, StatsPayload, UserRollupRecord, TelemetryStatus } from "./types";
+import type { RuntimeEnv, StatsFilters, StatsPayload, UserErrorRecord, UserRollupRecord, TelemetryStatus } from "./types";
 
 // Sessions longer than 2 days are artifacts (legacy install-scoped rows, crashed
 // clients revived by heartbeats) and would wreck duration averages.
@@ -368,7 +368,10 @@ interface UserRollupRow {
   client_country: string | null;
   client_city: string | null;
   client_timezone: string | null;
+  client_latitude: number | string | null;
+  client_longitude: number | string | null;
   rpc_enabled: number | string | null;
+  discord_user: string | null;
   last_status: TelemetryStatus | null;
   last_event: string | null;
 }
@@ -383,14 +386,14 @@ export async function loadUsersRollup(env: RuntimeEnv, filters: StatsFilters): P
 
   const dim = buildDimensionClause(filters);
 
-  const [rollups, featureRows] = await Promise.all([
+  const [rollups, featureRows, errorEvents] = await Promise.all([
     db
       .prepare(
         `WITH base AS (
            SELECT *, ${IDENTITY_SQL} AS identity FROM app_sessions ${dim.sql}
          ), ranked AS (
            SELECT identity, user_label, app_version, display_version, platform, os_version, device_model,
-             client_country, client_city, client_timezone, rpc_enabled, last_status, last_event,
+             client_country, client_city, client_timezone, client_latitude, client_longitude, rpc_enabled, discord_user, last_status, last_event,
              ROW_NUMBER() OVER (PARTITION BY identity ORDER BY last_seen_at DESC) AS rn
            FROM base
          ), agg AS (
@@ -406,7 +409,7 @@ export async function loadUsersRollup(env: RuntimeEnv, filters: StatsFilters): P
          )
          SELECT agg.identity, agg.first_seen, agg.last_seen, agg.sessions, agg.total_duration_seconds, agg.errors, agg.is_active,
            r.user_label, r.app_version, r.display_version, r.platform, r.os_version, r.device_model,
-           r.client_country, r.client_city, r.client_timezone, r.rpc_enabled, r.last_status, r.last_event
+           r.client_country, r.client_city, r.client_timezone, r.client_latitude, r.client_longitude, r.rpc_enabled, r.discord_user, r.last_status, r.last_event
          FROM agg JOIN ranked r ON r.identity = agg.identity AND r.rn = 1
          ORDER BY agg.last_seen DESC`
       )
@@ -420,6 +423,17 @@ export async function loadUsersRollup(env: RuntimeEnv, filters: StatsFilters): P
       )
       .bind(...dim.bindings)
       .all<{ identity: string; features_json: string }>(),
+    // Recent error events for per-user troubleshooting (90-day retained window).
+    db
+      .prepare(
+        `SELECT ts, message, metrics_json
+         FROM telemetry_events
+         WHERE service = 'app_error'
+           AND COALESCE(json_extract(metrics_json, '$.error_kind'), '') != 'background'
+         ORDER BY id DESC
+         LIMIT 400`
+      )
+      .all<{ ts: string; message: string | null; metrics_json: string | null }>(),
   ]);
 
   const featuresByIdentity = new Map<string, Record<string, number>>();
@@ -444,6 +458,36 @@ export async function loadUsersRollup(env: RuntimeEnv, filters: StatsFilters): P
     featuresByIdentity.set(row.identity, merged);
   }
 
+  // Group recent errors under the same identity key the rollup uses
+  // (hwid when the event carries one, else install_id).
+  const errorsByIdentity = new Map<string, UserErrorRecord[]>();
+  for (const event of errorEvents.results) {
+    let metrics: Record<string, unknown> = {};
+    try {
+      const parsed = JSON.parse(event.metrics_json ?? "{}") as unknown;
+      if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+        metrics = parsed as Record<string, unknown>;
+      }
+    } catch {
+      // Unparseable metrics; attribute by nothing.
+    }
+    const hwid = typeof metrics.hwid === "string" ? metrics.hwid.trim() : "";
+    const installId = typeof metrics.install_id === "string" ? metrics.install_id.trim() : "";
+    const identity = hwid || installId;
+    if (!identity) {
+      continue;
+    }
+    const list = errorsByIdentity.get(identity) ?? [];
+    if (list.length < 5) {
+      list.push({
+        timestamp: event.ts,
+        message: event.message,
+        type: typeof metrics.exception_type === "string" ? metrics.exception_type : null,
+      });
+    }
+    errorsByIdentity.set(identity, list);
+  }
+
   return rollups.results.map((row) => ({
     identity: row.identity,
     userLabel: row.user_label ?? null,
@@ -462,10 +506,22 @@ export async function loadUsersRollup(env: RuntimeEnv, filters: StatsFilters): P
     city: row.client_city ?? null,
     timezone: row.client_timezone ?? null,
     rpcEnabled: row.rpc_enabled === null || row.rpc_enabled === undefined ? null : toNumber(row.rpc_enabled) === 1,
+    discordUser: row.discord_user ?? null,
+    latitude: toNullableFloat(row.client_latitude),
+    longitude: toNullableFloat(row.client_longitude),
     lastStatus: row.last_status ?? null,
     lastEvent: row.last_event ?? null,
     features: featuresByIdentity.get(row.identity) ?? {},
+    recentErrors: errorsByIdentity.get(row.identity) ?? [],
   }));
+}
+
+function toNullableFloat(value: number | string | null): number | null {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+  const parsed = typeof value === "number" ? value : Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function toNumber(value: unknown): number {

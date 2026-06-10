@@ -1,5 +1,5 @@
 import { Activity, Clock, Layers, Radio, TrendingUp, Users, Zap } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   Area,
   AreaChart,
@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import { TelemetryChartTooltip } from "../components/charts/TelemetryChartTooltip";
 import { TimezoneUsageChart } from "../components/charts/TimezoneUsageChart";
+import { CollapsiblePanel } from "../components/CollapsiblePanel";
 import { KpiStatCard, type KpiDrilldown } from "../components/KpiStatCard";
 import { useChartColors } from "../hooks/useChartColors";
 import type { StatsPayload, SummaryPayload, ThemeMode } from "../types/telemetry";
@@ -26,6 +27,7 @@ interface TrafficPageProps {
   stats: StatsPayload | null;
   theme: ThemeMode;
   accentHue?: number;
+  filterBar?: ReactNode;
 }
 
 interface DailySeriesPoint {
@@ -85,7 +87,7 @@ function buildPrediction(
   return forecast;
 }
 
-export function TrafficPage({ summary, stats, theme, accentHue = 217 }: TrafficPageProps) {
+export function TrafficPage({ summary, stats, theme, accentHue = 217, filterBar }: TrafficPageProps) {
   const [insightView, setInsightView] = useState<"daily" | "timezones">("daily");
 
   // Daily series: prefer server-side aggregates over the FULL history (follows
@@ -182,17 +184,16 @@ export function TrafficPage({ summary, stats, theme, accentHue = 217 }: TrafficP
 
   return (
     <div className="page-content page-stack-lg">
-      {/* Header */}
+      {/* Header — title left, global filters right */}
       <section className="page-header">
         <div>
           <h1 className="page-title">
             Traffic
             <span className="kicker">Analytics</span>
           </h1>
-          <p className="page-subtitle">
-            Daily user trends, forecasts, and timezone-level activity breakdowns.
-          </p>
+          <p className="page-subtitle">Daily trends, forecast, and timezone activity.</p>
         </div>
+        {filterBar ? <div className="page-header-right">{filterBar}</div> : null}
       </section>
 
       {/* Stat cards — pinned at top */}
@@ -209,7 +210,7 @@ export function TrafficPage({ summary, stats, theme, accentHue = 217 }: TrafficP
         <KpiStatCard
           label="Total Events"
           value={formatNumber(lifetimeEvents)}
-          sub={`true lifetime · ${formatNumber(summary.stats.totalEvents)} retained`}
+          sub={`All-time · ${formatNumber(summary.stats.totalEvents)} retained`}
           icon={<Zap className="h-4 w-4" />}
           tone="primary"
           drilldown={totalEventsDrilldown}
@@ -218,7 +219,7 @@ export function TrafficPage({ summary, stats, theme, accentHue = 217 }: TrafficP
         <KpiStatCard
           label="Total Sessions"
           value={formatNumber(stats?.totals.lifetimeSessions ?? summary.stats.totalSessions)}
-          sub={stats ? "All time" : "Last 200 loaded"}
+          sub={stats ? "All-time" : "Last 200 loaded"}
           icon={<Layers className="h-4 w-4" />}
           tone="primary"
           drilldown={totalSessionsDrilldown}
@@ -234,7 +235,7 @@ export function TrafficPage({ summary, stats, theme, accentHue = 217 }: TrafficP
         <KpiStatCard
           label="Avg Duration"
           value={formatDuration(stats?.totals.averageSessionDurationSeconds ?? summary.stats.averageSessionDurationSeconds)}
-          sub={stats ? "Per session · legacy excluded" : "Per session"}
+          sub={stats ? "In range · legacy excluded" : "Per session"}
           icon={<Clock className="h-4 w-4" />}
           tone="primary"
         />
@@ -255,27 +256,21 @@ export function TrafficPage({ summary, stats, theme, accentHue = 217 }: TrafficP
       </div>
 
       {/* Daily / Timezone toggle — the main chart */}
-      <section className="panel">
-        <div className="panel-head">
-          <div className="panel-head-left">
-            <p className="kicker">Trends</p>
-            <h2 className="section-title">Insight View</h2>
-            <p className="section-sub">
-              {insightView === "daily"
-                ? stats
-                  ? `Daily unique users (full history, follows the global range filter) with ${forecastDays}-day forecast (dashed).`
-                  : `Daily unique users with ${forecastDays}-day forecast (dashed).`
-                : "Timezone-local activity breakdowns."}
-            </p>
+      <CollapsiblePanel
+        kicker="Trends"
+        title="Insight View"
+        sub={insightView === "daily"
+          ? stats
+            ? `Daily unique users in range with ${forecastDays}-day forecast (dashed).`
+            : `Daily unique users with ${forecastDays}-day forecast (dashed).`
+          : "Timezone-local activity breakdowns."}
+        right={
+          <div className="seg-control">
+            <button type="button" className={`seg-btn${insightView === "daily" ? " active" : ""}`} onClick={() => setInsightView("daily")}>Daily Users</button>
+            <button type="button" className={`seg-btn${insightView === "timezones" ? " active" : ""}`} onClick={() => setInsightView("timezones")}>Timezones</button>
           </div>
-          <div className="panel-head-right" style={{ gap: 12 }}>
-            <div className="seg-control">
-              <button type="button" className={`seg-btn${insightView === "daily" ? " active" : ""}`} onClick={() => setInsightView("daily")}>Daily Users</button>
-              <button type="button" className={`seg-btn${insightView === "timezones" ? " active" : ""}`} onClick={() => setInsightView("timezones")}>Timezones</button>
-            </div>
-          </div>
-        </div>
-
+        }
+      >
         {insightView === "daily" ? (
           <div className="panel-body">
             <div className="chart-wrap chart-wrap-tall">
@@ -340,18 +335,18 @@ export function TrafficPage({ summary, stats, theme, accentHue = 217 }: TrafficP
           </div>
         ) : (
           <div className="panel-body">
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(280px, 100%),1fr))", gap: 20 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(280px, 100%),1fr))", gap: 12 }}>
               {tzCharts.map((tz) => (
-                <div key={tz.timeZone} className="glass-flat" style={{ borderRadius: 12, padding: "14px 16px" }}>
+                <div key={tz.timeZone} className="glass-flat" style={{ borderRadius: 12, padding: "12px 14px" }}>
                   <p className="kicker" style={{ marginBottom: 4 }}>{tz.timeZone}</p>
-                  <h3 style={{ fontSize: "0.875rem", fontFamily: "Space Grotesk, sans-serif", marginBottom: 10 }}>{tz.title}</h3>
+                  <h3 style={{ fontSize: "0.875rem", fontFamily: "Space Grotesk, sans-serif", marginBottom: 8 }}>{tz.title}</h3>
                   <TimezoneUsageChart title={tz.title} subtitle={tz.subtitle} accentColor={tz.accent} theme={theme} data={tz.data} />
                 </div>
               ))}
             </div>
           </div>
         )}
-      </section>
+      </CollapsiblePanel>
     </div>
   );
 }

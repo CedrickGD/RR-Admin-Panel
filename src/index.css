@@ -134,7 +134,9 @@ h1, h2, h3, h4, h5, h6 {
 }
 .page-title {
   font-family: "Space Grotesk", system-ui, sans-serif;
-  font-size: 1.3rem;
+  /* Restored to the original scale per user feedback — cards stay dense, the
+     page title is the one element that should command the header. */
+  font-size: clamp(1.6rem, 2.5vw, 2.2rem);
   font-weight: 700;
   letter-spacing: -0.04em;
   color: var(--text-1);
@@ -178,18 +180,18 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .page-wrap {
-  width: min(100%, 1760px);
-  margin: 0 auto;
-  padding: 0 clamp(16px, 3vw, 40px);
+  width: 100%;
+  margin: 0;
+  padding: 0 clamp(12px, 1.4vw, 22px);
 }
 
 .page-content {
-  /* Tighter canvas: 1760px let content sprawl and made every page feel oversized. */
-  width: min(100%, 1480px);
-  margin: 0 auto;
-  padding: 0 clamp(16px, 2.5vw, 32px);
-  padding-top: 20px;
-  padding-bottom: 32px;
+  /* Full-bleed console: the content owns the whole viewport with a slim gutter. */
+  width: 100%;
+  margin: 0;
+  padding: 0 clamp(12px, 1.4vw, 22px);
+  padding-top: 14px;
+  padding-bottom: 26px;
 }
 
 .page-stack { display: flex; flex-direction: column; gap: 16px; }
@@ -218,11 +220,11 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .navbar-inner {
-  /* Same canvas as .page-content so the chrome and the content share one grid. */
-  width: min(100%, 1480px);
-  margin: 0 auto;
-  padding: 0 clamp(16px, 2.5vw, 32px);
-  height: 60px;
+  /* Same gutter as .page-content so the chrome and the content share one grid. */
+  width: 100%;
+  margin: 0;
+  padding: 0 clamp(12px, 1.4vw, 22px);
+  height: 52px;
   display: flex;
   align-items: center;
   gap: 0;
@@ -371,7 +373,7 @@ h1, h2, h3, h4, h5, h6 {
 .navbar-mobile-drawer {
   display: none;
   position: fixed;
-  top: 60px;
+  top: 52px;
   left: 0;
   right: 0;
   background: rgba(5, 5, 12, 0.96);
@@ -411,7 +413,7 @@ h1, h2, h3, h4, h5, h6 {
 /* Main content offset */
 .main-area {
   flex: 1;
-  padding-top: 60px;
+  padding-top: 52px;
   min-height: 100vh;
 }
 
@@ -482,10 +484,10 @@ h1, h2, h3, h4, h5, h6 {
   -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--glass-border);
   border-radius: 11px;
-  padding: 9px 12px 8px;
+  padding: 8px 11px 7px;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
   overflow: hidden;
   transition: background 0.2s, border-color 0.2s, box-shadow 0.25s, transform 0.2s;
   box-shadow: 0 1px 0 rgba(255,255,255,0.05) inset;
@@ -539,9 +541,9 @@ h1, h2, h3, h4, h5, h6 {
   font-family: "Space Grotesk", system-ui, sans-serif;
   /* Fixed size: viewport-scaled values made cards balloon on wide screens and
      sized differently between pages. */
-  font-size: 1.2rem;
+  font-size: 1.1rem;
   font-weight: 700;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.02em;
   color: var(--text-1);
   line-height: 1.1;
 }
@@ -2372,28 +2374,6 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
-/* ─── Sticky filter toolbar (part of the chrome, not floating content) ─── */
-.filter-toolbar {
-  position: sticky;
-  top: 60px;
-  z-index: 90;
-  background: hsl(var(--ah) 25% 6% / 0.72);
-  backdrop-filter: blur(18px) saturate(150%);
-  -webkit-backdrop-filter: blur(18px) saturate(150%);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-}
-.filter-toolbar-inner {
-  width: min(100%, 1480px);
-  margin: 0 auto;
-  padding: 8px clamp(16px, 2.5vw, 32px);
-}
-@media (max-width: 640px) {
-  /* On phones the filters wrap to two rows — pinning them would eat the screen. */
-  .filter-toolbar {
-    position: static;
-  }
-}
-
 /* ─── Numeric alignment: stable digits everywhere numbers live ─── */
 .stat-value,
 .kpi-timespan-value,
@@ -2423,4 +2403,23 @@ h1, h2, h3, h4, h5, h6 {
 }
 @media (max-width: 640px) {
   .stat-grid-4, .stat-grid-6, .stat-grid-7 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* ─── Collapsible panels ─── */
+.panel-head-clickable {
+  cursor: pointer;
+  user-select: none;
+}
+.panel-head-clickable:hover .section-title {
+  color: var(--accent-text);
+}
+.panel-collapsed .panel-head {
+  border-bottom: none;
+  padding-bottom: 13px;
+}
+.panel-collapse-chevron {
+  transition: transform 0.18s;
+}
+.panel-collapse-chevron-closed {
+  transform: rotate(-90deg);
 }

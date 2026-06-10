@@ -18,8 +18,6 @@ import type { PageKey, StatsFilters } from "./types/telemetry";
 
 type FocusedSession = { id: string; token: number } | null;
 
-const FILTERED_PAGES: ReadonlySet<PageKey> = new Set(["overview", "traffic", "versions", "workers"]);
-
 export default function App() {
   const { hue: accentHue } = useAccent();
   const [page, setPage] = useState<PageKey>("overview");
@@ -42,6 +40,10 @@ export default function App() {
     refresh,
   } = useDashboard(page);
   const { stats, users } = useAdminStats(Boolean(user), filters);
+
+  // Rendered by each data page inside its own header so the filters sit with the
+  // content they affect instead of in a detached strip.
+  const filterBar = <FilterBar filters={filters} stats={stats} onChange={setFilters} />;
 
   function nextFocusedSession(current: FocusedSession, sessionId: string): FocusedSession {
     return { id: sessionId, token: current?.id === sessionId ? current.token + 1 : 1 };
@@ -134,19 +136,13 @@ export default function App() {
 
         {summary && health ? (
           <div key={page} className="page-enter">
-            {FILTERED_PAGES.has(page) ? (
-              <div className="filter-toolbar">
-                <div className="filter-toolbar-inner">
-                  <FilterBar filters={filters} stats={stats} onChange={setFilters} />
-                </div>
-              </div>
-            ) : null}
-            {page === "overview"  ? <OverviewPage  summary={summary} stats={stats} theme="dark" accentHue={accentHue} /> : null}
-            {page === "traffic"   ? <TrafficPage   summary={summary} stats={stats} theme="dark" accentHue={accentHue} /> : null}
-            {page === "versions"  ? <VersionsPage  summary={summary} stats={stats} theme="dark" accentHue={accentHue} /> : null}
+            {page === "overview"  ? <OverviewPage  summary={summary} stats={stats} theme="dark" accentHue={accentHue} filterBar={filterBar} /> : null}
+            {page === "traffic"   ? <TrafficPage   summary={summary} stats={stats} theme="dark" accentHue={accentHue} filterBar={filterBar} /> : null}
+            {page === "versions"  ? <VersionsPage  summary={summary} stats={stats} theme="dark" accentHue={accentHue} filterBar={filterBar} /> : null}
             {page === "heatmap"   ? (
               <HeatmapPage
                 summary={summary}
+                users={users}
                 theme="dark"
                 onOpenSession={handleOpenLiveSession}
                 focusedSessionId={focusedHeatmapSession?.id ?? null}
@@ -161,7 +157,7 @@ export default function App() {
                 onOpenMapSession={handleOpenHeatmapSession}
               />
             ) : null}
-            {page === "workers"   ? <WorkersPage   summary={summary} stats={stats} users={users} onOpenMapSession={handleOpenHeatmapSession} /> : null}
+            {page === "workers"   ? <WorkersPage   summary={summary} stats={stats} users={users} onOpenMapSession={handleOpenHeatmapSession} filterBar={filterBar} /> : null}
             {page === "logs"      ? <LogsPage      summary={summary} /> : null}
             {page === "settings"  ? (
               <SettingsPage

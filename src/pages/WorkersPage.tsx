@@ -11,19 +11,20 @@ import {
   Search,
   Users as UsersIcon,
 } from "lucide-react";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useMemo, useState, type ReactNode } from "react";
+import { CollapsiblePanel } from "../components/CollapsiblePanel";
 import { type KpiDrilldown, KpiStatCard } from "../components/KpiStatCard";
 import { type SessionPresence, StatusBadge } from "../components/StatusBadge";
 import type { AppSessionRecord, StatsPayload, SummaryPayload, TelemetryEvent, UserRollupRecord } from "../types/telemetry";
 import { downloadSessionExport } from "../utils/api";
 import { formatAccuracy, formatDate, formatDuration, formatEventName, formatGeoSource, formatNumber, timeAgo } from "../utils/format";
-import { resolveCountry } from "../utils/geography";
 
 interface WorkersPageProps {
   summary: SummaryPayload;
   stats: StatsPayload | null;
   users: UserRollupRecord[] | null;
   onOpenMapSession: (sessionId: string) => void;
+  filterBar?: ReactNode;
 }
 
 type TabKey = "users" | "sessions";
@@ -47,7 +48,7 @@ interface SessionTimelineData {
 const APP_ERROR = "app_error";
 const MAX_TIMELINE_MARKERS = 6;
 const SKELETON_ROWS = 8;
-const USER_COLUMN_COUNT = 11;
+const USER_COLUMN_COUNT = 12;
 
 /* ── shared helpers ─────────────────────────────────────────── */
 
@@ -239,7 +240,7 @@ function SkeletonRows() {
 
 /* ── page ───────────────────────────────────────────────────── */
 
-export function WorkersPage({ summary, stats, users, onOpenMapSession }: WorkersPageProps) {
+export function WorkersPage({ summary, stats, users, onOpenMapSession, filterBar }: WorkersPageProps) {
   const [tab, setTab] = useState<TabKey>("users");
 
   // Users tab state
@@ -258,13 +259,22 @@ export function WorkersPage({ summary, stats, users, onOpenMapSession }: Workers
 
   const filteredUsers = useMemo(() => {
     if (!users) return null;
+    // Defensive dedupe — exactly one row per identity even if the rollup ever ships duplicates.
+    const byIdentity = new Map<string, UserRollupRecord>();
+    for (const u of users) {
+      const key = u.identity.trim().toLowerCase();
+      const existing = byIdentity.get(key);
+      if (!existing || parseTimestamp(u.lastSeen) > parseTimestamp(existing.lastSeen)) byIdentity.set(key, u);
+    }
+    const deduped = [...byIdentity.values()];
     const q = userQuery.trim().toLowerCase();
     const filtered = !q
-      ? users
-      : users.filter((u) => {
+      ? deduped
+      : deduped.filter((u) => {
           const hay = [
             u.userLabel ?? "",
             u.identity,
+            u.discordUser ?? "",
             u.displayVersion ?? "",
             u.appVersion ?? "",
             u.country ?? "",
@@ -396,7 +406,8 @@ export function WorkersPage({ summary, stats, users, onOpenMapSession }: Workers
             Every user ever seen, rolled up across the full session history.
           </p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          {filterBar}
           <div className="seg-control">
             {([
               { key: "users",    label: "Users" },
@@ -464,31 +475,25 @@ export function WorkersPage({ summary, stats, users, onOpenMapSession }: Workers
 
       {tab === "users" ? (
         /* ════════════════ USERS TAB ════════════════ */
-        <section className="panel">
-          <div className="panel-head">
-            <div className="panel-head-left">
-              <p className="kicker">Directory</p>
-              <h2 className="section-title">All Users</h2>
-              <p className="section-sub">
-                {filteredUsers
-                  ? `${formatNumber(filteredUsers.length)} of ${formatNumber(users?.length ?? 0)} users · full history rollup`
-                  : "Loading user rollup…"}
-              </p>
+        <CollapsiblePanel
+          kicker="Directory"
+          title="All Users"
+          sub={filteredUsers
+            ? `${formatNumber(filteredUsers.length)} of ${formatNumber(users?.length ?? 0)} users · full history rollup`
+            : "Loading user rollup…"}
+          right={
+            <div className="search-wrap" style={{ width: "min(280px,100%)" }}>
+              <Search className="search-icon h-3.5 w-3.5" />
+              <input
+                type="search"
+                className="glass-input"
+                placeholder="Search user, Discord, version…"
+                value={userQuery}
+                onChange={(e) => setUserQuery(e.target.value)}
+              />
             </div>
-            <div className="panel-head-right">
-              <div className="search-wrap" style={{ width: "min(280px,100%)" }}>
-                <Search className="search-icon h-3.5 w-3.5" />
-                <input
-                  type="search"
-                  className="glass-input"
-                  placeholder="Search user, version, country…"
-                  value={userQuery}
-                  onChange={(e) => setUserQuery(e.target.value)}
-                />
-              </div>
-            </div>
-          </div>
-
+          }
+        >
           <div className="panel-body-flush">
             {filteredUsers === null || filteredUsers.length > 0 ? (
               <div className="data-table-wrap" style={{ borderRadius: 0, border: "none" }}>
@@ -496,6 +501,7 @@ export function WorkersPage({ summary, stats, users, onOpenMapSession }: Workers
                   <thead>
                     <tr>
                       <th>User</th>
+                      <th>Discord</th>
                       <th>Version</th>
                       <th>Platform</th>
                       <th>Location</th>
@@ -514,7 +520,8 @@ export function WorkersPage({ summary, stats, users, onOpenMapSession }: Workers
                     ) : (
                       filteredUsers.map((user) => {
                         const isExpanded = expandedUsers.includes(user.identity);
-                        const features = Object.entries(user.features).sort((a, b) => b[1] - a[1]);
+                        const features = Object.entries(user.features ?? {}).sort((a, b) => b[1] - a[1]);
+                        const recentErrors = user.recentErrors ?? [];
 
                         return (
                           <Fragment key={user.identity}>
@@ -528,6 +535,15 @@ export function WorkersPage({ summary, stats, users, onOpenMapSession }: Workers
                                 <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "0.6875rem", color: "var(--text-3)", marginLeft: 8 }}>
                                   {user.identity.slice(0, 8)}
                                 </span>
+                              </td>
+                              <td style={{ whiteSpace: "nowrap", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis" }}>
+                                {user.discordUser?.trim() ? (
+                                  <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "0.71875rem", color: "var(--text-2)" }} title={user.discordUser}>
+                                    {user.discordUser}
+                                  </span>
+                                ) : (
+                                  <span style={{ color: "var(--text-3)", opacity: 0.55 }} title="RPC not connected / not reported yet">—</span>
+                                )}
                               </td>
                               <td>
                                 <span className="badge badge-muted" title={user.appVersion ?? undefined}>
@@ -571,6 +587,7 @@ export function WorkersPage({ summary, stats, users, onOpenMapSession }: Workers
                                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px,1fr))", gap: 10, marginBottom: 14 }}>
                                       {[
                                         { k: "Identity",     v: user.identity },
+                                        { k: "Discord",      v: user.discordUser?.trim() || "—" },
                                         { k: "Device Model", v: user.deviceModel ?? "—" },
                                         { k: "OS Version",   v: user.osVersion ?? "—" },
                                         { k: "Timezone",     v: user.timezone ?? "—" },
@@ -586,6 +603,35 @@ export function WorkersPage({ summary, stats, users, onOpenMapSession }: Workers
                                         </div>
                                       ))}
                                     </div>
+
+                                    <p className="label-sm" style={{ marginBottom: 8 }}>Recent Errors</p>
+                                    {recentErrors.length > 0 ? (
+                                      <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 14 }}>
+                                        {recentErrors.map((err, i) => (
+                                          <div
+                                            key={`${err.timestamp}-${i}`}
+                                            className="glass-inset"
+                                            style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 12px", minWidth: 0 }}
+                                          >
+                                            <span
+                                              style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "0.6875rem", color: "var(--text-3)", whiteSpace: "nowrap", flexShrink: 0, minWidth: 72 }}
+                                              title={formatDate(err.timestamp)}
+                                            >
+                                              {timeAgo(err.timestamp)}
+                                            </span>
+                                            <span className="badge badge-danger" style={{ flexShrink: 0 }}>{err.type?.trim() || "error"}</span>
+                                            <span
+                                              style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "0.75rem", color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}
+                                              title={err.message ?? undefined}
+                                            >
+                                              {err.message?.trim() || "(no message)"}
+                                            </span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <p style={{ fontSize: "0.75rem", color: "var(--text-3)", marginBottom: 14 }}>No errors recorded.</p>
+                                    )}
 
                                     <p className="label-sm" style={{ marginBottom: 8 }}>Feature Usage</p>
                                     {features.length > 0 ? (
@@ -617,30 +663,26 @@ export function WorkersPage({ summary, stats, users, onOpenMapSession }: Workers
               </div>
             )}
           </div>
-        </section>
+        </CollapsiblePanel>
       ) : (
         /* ════════════════ SESSIONS TAB ════════════════ */
-        <section className="panel">
-          <div className="panel-head">
-            <div className="panel-head-left">
-              <p className="kicker">Archive</p>
-              <h2 className="section-title">Recent Sessions</h2>
-              <p className="section-sub">Most recent sessions from the retained window. Expand for full timeline detail.</p>
+        <CollapsiblePanel
+          kicker="Archive"
+          title="Recent Sessions"
+          sub="Most recent sessions from the retained window. Expand for full timeline detail."
+          right={
+            <div className="search-wrap" style={{ width: "min(280px,100%)" }}>
+              <Search className="search-icon h-3.5 w-3.5" />
+              <input
+                type="search"
+                className="glass-input"
+                placeholder="Search user, IP, version…"
+                value={sessionQuery}
+                onChange={(e) => setSessionQuery(e.target.value)}
+              />
             </div>
-            <div className="panel-head-right">
-              <div className="search-wrap" style={{ width: "min(280px,100%)" }}>
-                <Search className="search-icon h-3.5 w-3.5" />
-                <input
-                  type="search"
-                  className="glass-input"
-                  placeholder="Search user, IP, version…"
-                  value={sessionQuery}
-                  onChange={(e) => setSessionQuery(e.target.value)}
-                />
-              </div>
-            </div>
-          </div>
-
+          }
+        >
           <div className="panel-body-flush">
             {sessions.length > 0 ? (
               <div className="data-table-wrap" style={{ borderRadius: 0, border: "none" }}>
@@ -683,11 +725,9 @@ export function WorkersPage({ summary, stats, users, onOpenMapSession }: Workers
                             <td><StatusBadge presence={resolvePresence(session)} /></td>
                             <td>
                               <div style={{ display: "flex", gap: 4 }}>
-                                {resolveCountry(session.clientCountry) !== null ? (
-                                  <button type="button" className="btn-icon" style={{ padding: 4 }} title="View on map" onClick={() => onOpenMapSession(session.id)}>
-                                    <Globe2 className="h-3.5 w-3.5" />
-                                  </button>
-                                ) : null}
+                                <button type="button" className="btn-icon" style={{ padding: 4 }} title="Show on map" onClick={() => onOpenMapSession(session.id)}>
+                                  <Globe2 className="h-3.5 w-3.5" />
+                                </button>
                                 <button type="button" className="btn-icon" style={{ padding: 4 }} onClick={() => toggleSessionExpanded(session.id)} aria-label={isExpanded ? "Collapse" : "Expand"}>
                                   {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                                 </button>
@@ -751,7 +791,7 @@ export function WorkersPage({ summary, stats, users, onOpenMapSession }: Workers
               </div>
             )}
           </div>
-        </section>
+        </CollapsiblePanel>
       )}
     </div>
   );

@@ -118,12 +118,14 @@ export function LivePage({ summary, focusedSessionId = null, focusedSessionToken
       return s.isActive && Number.isFinite(lastSeenTs) && now - lastSeenTs <= LIVE_SESSION_MAX_AGE_MS;
     });
 
-    // Deduplicate by installId — keep most recent session per user
+    // Deduplicate by user identity (hwid preferred, installId fallback) — keep most
+    // recent session per user so a relaunching client never shows up twice.
     const byUser = new Map<string, AppSessionRecord>();
     for (const s of filtered) {
-      const prev = byUser.get(s.installId);
+      const identity = (s.hwid?.trim() || s.installId).toLowerCase();
+      const prev = byUser.get(identity);
       if (!prev || Date.parse(s.lastSeenAt) > Date.parse(prev.lastSeenAt)) {
-        byUser.set(s.installId, s);
+        byUser.set(identity, s);
       }
     }
 
@@ -239,10 +241,15 @@ export function LivePage({ summary, focusedSessionId = null, focusedSessionToken
                           className={isExpanded ? "row-expanded" : ""}
                           style={isFocused ? { outline: "1px solid var(--accent)", outlineOffset: -1 } : undefined}
                         >
-                          <td>
+                          <td style={{ maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                             <span style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 600, fontSize: "0.8125rem" }}>
                               {displayUser(session)}
                             </span>
+                            {session.discordUser?.trim() ? (
+                              <span className="muted" style={{ marginLeft: 6, fontSize: "0.6875rem" }} title={`Discord: ${session.discordUser.trim()}`}>
+                                @{session.discordUser.trim()}
+                              </span>
+                            ) : null}
                             {session.rpcEnabled === true ? (
                               <span className="badge badge-accent" style={{ marginLeft: 6, fontSize: "0.625rem", padding: "1px 6px", verticalAlign: "middle" }} title="Discord Rich Presence on">
                                 RPC
@@ -308,6 +315,7 @@ export function LivePage({ summary, focusedSessionId = null, focusedSessionToken
                                     { k: "Events",      v: String(timeline.trackedEventCount) },
                                     { k: "Error Count", v: String(session.errorCount) },
                                     { k: "Discord RPC", v: session.rpcEnabled === true ? "On" : session.rpcEnabled === false ? "Off" : "Unknown" },
+                                    { k: "Discord User", v: session.discordUser?.trim() || "—" },
                                     { k: "Timezone",    v: session.clientTimezone ?? "—" },
                                     { k: "Geo Source",  v: formatGeoSource(session.clientGeoSource, session.clientGeoSignalSource) },
                                     { k: "Geo Accuracy", v: formatAccuracy(session.clientAccuracyMeters) },

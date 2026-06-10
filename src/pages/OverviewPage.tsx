@@ -1,5 +1,5 @@
 import { Activity, AlertTriangle, Clock, Globe2, RotateCcw, TrendingUp, Users, X } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import {
   Area,
   Bar,
@@ -11,6 +11,7 @@ import {
   YAxis,
 } from "recharts";
 import { TelemetryChartTooltip } from "../components/charts/TelemetryChartTooltip";
+import { CollapsiblePanel } from "../components/CollapsiblePanel";
 import { KpiStatCard, type KpiDrilldown } from "../components/KpiStatCard";
 import { useChartColors } from "../hooks/useChartColors";
 import { useChartZoom } from "../hooks/useChartZoom";
@@ -24,6 +25,7 @@ interface OverviewPageProps {
   stats: StatsPayload | null;
   theme: ThemeMode;
   accentHue?: number;
+  filterBar?: ReactNode;
 }
 
 const TIME_WINDOWS = [
@@ -50,7 +52,7 @@ function sumSessionsSince(series: DayPoint[], days: number): number {
   return series.reduce((acc, p) => (p.day >= cutoff ? acc + p.sessions : acc), 0);
 }
 
-export function OverviewPage({ summary, stats, theme, accentHue = 217 }: OverviewPageProps) {
+export function OverviewPage({ summary, stats, theme, accentHue = 217, filterBar }: OverviewPageProps) {
   const traffic = useMemo(() => buildTrafficTimeline(summary, 24, "UTC"), [summary]);
   const regions = useMemo(() => buildRegionBreakdown(summary), [summary]);
   const basePalette = useMemo(() => buildDashboardChartPalette(theme, accentHue), [theme, accentHue]);
@@ -181,18 +183,20 @@ export function OverviewPage({ summary, stats, theme, accentHue = 217 }: Overvie
     { key: "Storage Backend",  val: summary.storage.toUpperCase() },
     { key: "Last Ingest",      val: summary.stats.lastIngestAt ? timeAgo(summary.stats.lastIngestAt) : "Waiting" },
     { key: "Generated",        val: timeAgo(summary.generatedAt) },
-    { key: "Errors 24h",       val: formatNumber(summary.stats.errorsLast24Hours) },
   ];
 
   return (
     <div className="page-content page-stack-lg">
-      {/* Page header — full width above the grid */}
-      <div>
-        <h1 className="page-title">
-          Overview
-          <span className="kicker">Production Operations</span>
-        </h1>
-      </div>
+      {/* Page header — title left, global filters right */}
+      <section className="page-header">
+        <div>
+          <h1 className="page-title">
+            Overview
+            <span className="kicker">Production Operations</span>
+          </h1>
+        </div>
+        {filterBar ? <div className="page-header-right">{filterBar}</div> : null}
+      </section>
 
       {/* Two-column grid: left (stats + chart), right (side panels) */}
       <div className="main-side main-side-stretch">
@@ -212,7 +216,7 @@ export function OverviewPage({ summary, stats, theme, accentHue = 217 }: Overvie
               label="Sessions"
               value={formatNumber(sessionsValue)}
               sub={stats
-                ? `${formatNumber(stats.totals.lifetimeSessions)} lifetime`
+                ? `In range · ${formatNumber(stats.totals.lifetimeSessions)} all-time`
                 : `${formatNumber(summary.stats.sessionsStartedToday)} started today`}
               icon={<TrendingUp className="h-4 w-4" />}
               tone="primary"
@@ -222,7 +226,7 @@ export function OverviewPage({ summary, stats, theme, accentHue = 217 }: Overvie
             <KpiStatCard
               label="Avg Session"
               value={formatDuration(avgDurationSeconds)}
-              sub={`${formatNumber(lifetimeEvents)} lifetime events`}
+              sub={stats ? "In range · legacy excluded" : `${formatNumber(lifetimeEvents)} all-time events`}
               icon={<Clock className="h-4 w-4" />}
               tone="primary"
               drilldown={avgSessionDrilldown}
@@ -231,7 +235,7 @@ export function OverviewPage({ summary, stats, theme, accentHue = 217 }: Overvie
             <KpiStatCard
               label="Errors"
               value={formatNumber(errorsValue)}
-              sub={stats ? "in selected range" : "last 24 hours"}
+              sub={stats ? "In range" : "Last 24 hours"}
               icon={<AlertTriangle className="h-4 w-4" />}
               tone={errorsValue > 0 ? "rose" : "primary"}
               drilldown={errorsDrilldown}
@@ -256,33 +260,27 @@ export function OverviewPage({ summary, stats, theme, accentHue = 217 }: Overvie
           </div>
 
           {/* Traffic chart */}
-          <section className="panel">
-            <div className="panel-head">
-              <div className="panel-head-left">
-                <p className="kicker">Traffic</p>
-                <h2 className="section-title">Last 24 Hours</h2>
-                <p className="section-sub">
-                  {zoom.isZoomed
-                    ? `Viewing ${windowHours}h window — scroll to adjust`
-                    : "Scroll inside chart to zoom in"}
-                </p>
+          <CollapsiblePanel
+            kicker="Traffic"
+            title="Last 24 Hours"
+            sub={zoom.isZoomed
+              ? `Viewing ${windowHours}h window — scroll to adjust`
+              : "Scroll inside chart to zoom in"}
+            right={
+              <div className="meta-row">
+                {[
+                  { label: "Peak Users/h", val: formatNumber(totals.peakUsers) },
+                  { label: "Sessions", val: formatNumber(totals.started) },
+                  { label: "Errors", val: formatNumber(totals.errors) },
+                ].map((m) => (
+                  <div className="meta-item" key={m.label}>
+                    <span>{m.label}</span>
+                    <strong>{m.val}</strong>
+                  </div>
+                ))}
               </div>
-              <div className="panel-head-right" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div className="meta-row">
-                  {[
-                    { label: "Peak Users/h", val: formatNumber(totals.peakUsers) },
-                    { label: "Sessions", val: formatNumber(totals.started) },
-                    { label: "Errors", val: formatNumber(totals.errors) },
-                  ].map((m) => (
-                    <div className="meta-item" key={m.label}>
-                      <span>{m.label}</span>
-                      <strong>{m.val}</strong>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
+            }
+          >
             {/* Time window buttons */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px 4px", gap: 8 }}>
               <div className="seg-control">
@@ -402,7 +400,7 @@ export function OverviewPage({ summary, stats, theme, accentHue = 217 }: Overvie
                 </ResponsiveContainer>
               </div>
             </div>
-          </section>
+          </CollapsiblePanel>
         </div>
 
         {/* Side panels — stretch to match left column height */}

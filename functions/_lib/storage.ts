@@ -23,7 +23,7 @@ const EVENT_RETENTION_DAYS = 90;
 const HEARTBEAT_MIN_WRITE_MS = 75 * 1000;
 const MAX_FEATURE_KEYS = 32;
 export const SESSION_SELECT_COLUMNS =
-  "session_id, install_id, hwid, source, user_label, client_ip, client_country, client_city, client_region, client_latitude, client_longitude, client_timezone, client_geo_source, client_geo_signal_source, client_accuracy_meters, client_geo_captured_at, app_version, display_version, platform, os_version, device_model, rpc_enabled, features_json, started_at, last_seen_at, ended_at, duration_seconds, is_active, last_event, last_status, error_count, updated_at";
+  "session_id, install_id, hwid, source, user_label, client_ip, client_country, client_city, client_region, client_latitude, client_longitude, client_timezone, client_geo_source, client_geo_signal_source, client_accuracy_meters, client_geo_captured_at, app_version, display_version, platform, os_version, device_model, rpc_enabled, discord_user, features_json, started_at, last_seen_at, ended_at, duration_seconds, is_active, last_event, last_status, error_count, updated_at";
 
 const SESSION_START = "session_start";
 const SESSION_ACTIVE = "session_active";
@@ -85,6 +85,7 @@ export interface D1SessionRow {
   os_version: string | null;
   device_model: string | null;
   rpc_enabled: number | string | null;
+  discord_user: string | null;
   features_json: string | null;
   started_at: string;
   last_seen_at: string;
@@ -668,6 +669,7 @@ export async function ensureTelemetrySchema(db: RuntimeEnv["DB"]): Promise<void>
     `ALTER TABLE app_sessions ADD COLUMN device_model TEXT`,
     `ALTER TABLE app_sessions ADD COLUMN rpc_enabled INTEGER`,
     `ALTER TABLE app_sessions ADD COLUMN features_json TEXT`,
+    `ALTER TABLE app_sessions ADD COLUMN discord_user TEXT`,
   ];
 
   for (const statement of statements) {
@@ -731,9 +733,9 @@ async function upsertSessionD1(db: RuntimeEnv["DB"], event: TelemetryEvent, exis
   await db
     .prepare(
       `INSERT INTO app_sessions
-        (session_id, install_id, hwid, source, user_label, client_ip, client_country, client_city, client_region, client_latitude, client_longitude, client_timezone, client_geo_source, client_geo_signal_source, client_accuracy_meters, client_geo_captured_at, app_version, display_version, platform, os_version, device_model, rpc_enabled, features_json,
+        (session_id, install_id, hwid, source, user_label, client_ip, client_country, client_city, client_region, client_latitude, client_longitude, client_timezone, client_geo_source, client_geo_signal_source, client_accuracy_meters, client_geo_captured_at, app_version, display_version, platform, os_version, device_model, rpc_enabled, discord_user, features_json,
          started_at, last_seen_at, ended_at, duration_seconds, is_active, last_event, last_status, error_count, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(session_id) DO UPDATE SET
          install_id = excluded.install_id,
          hwid = COALESCE(excluded.hwid, app_sessions.hwid),
@@ -756,6 +758,7 @@ async function upsertSessionD1(db: RuntimeEnv["DB"], event: TelemetryEvent, exis
          os_version = excluded.os_version,
          device_model = excluded.device_model,
          rpc_enabled = COALESCE(excluded.rpc_enabled, app_sessions.rpc_enabled),
+         discord_user = COALESCE(excluded.discord_user, app_sessions.discord_user),
          features_json = excluded.features_json,
          started_at = excluded.started_at,
          last_seen_at = excluded.last_seen_at,
@@ -790,6 +793,7 @@ async function upsertSessionD1(db: RuntimeEnv["DB"], event: TelemetryEvent, exis
       next.osVersion,
       next.deviceModel,
       next.rpcEnabled === null ? null : next.rpcEnabled ? 1 : 0,
+      next.discordUser,
       next.featuresJson,
       next.startedAt,
       next.lastSeenAt,
@@ -832,6 +836,7 @@ function mergeSessionRecord(existing: AppSessionRecord | undefined, event: Telem
   const osVersion = readMetricText(event.metrics, ["os_version"]) ?? existing?.osVersion ?? null;
   const deviceModel = readMetricText(event.metrics, ["device_model"]) ?? existing?.deviceModel ?? null;
   const rpcEnabled = readMetricBool(event.metrics, ["rpc_enabled", "discord_rpc_enabled", "discord_rpc"]) ?? existing?.rpcEnabled ?? null;
+  const discordUser = readMetricText(event.metrics, ["discord_user", "discord_username", "discord_name"]) ?? existing?.discordUser ?? null;
   const metricStartedAt = readMetricText(event.metrics, ["session_started_at"]);
   const eventTimestamp = event.timestamp;
 
@@ -913,6 +918,7 @@ function mergeSessionRecord(existing: AppSessionRecord | undefined, event: Telem
     osVersion,
     deviceModel,
     rpcEnabled,
+    discordUser,
     featuresJson,
     startedAt,
     lastSeenAt,
@@ -1005,6 +1011,7 @@ function normalizeSessionRecord(session: AppSessionRecord): AppSessionRecord {
     osVersion: session.osVersion ?? null,
     deviceModel: session.deviceModel ?? null,
     rpcEnabled: session.rpcEnabled ?? null,
+    discordUser: session.discordUser ?? null,
     featuresJson: session.featuresJson ?? null,
   };
 
@@ -1057,6 +1064,7 @@ function mapD1Session(row: D1SessionRow): AppSessionRecord {
     osVersion: row.os_version ?? null,
     deviceModel: row.device_model ?? null,
     rpcEnabled: row.rpc_enabled === null || row.rpc_enabled === undefined ? null : toNumber(row.rpc_enabled) === 1,
+    discordUser: row.discord_user ?? null,
     featuresJson: row.features_json ?? null,
     startedAt: row.started_at,
     lastSeenAt: row.last_seen_at,

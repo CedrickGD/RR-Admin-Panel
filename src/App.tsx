@@ -135,8 +135,10 @@ export default function App() {
         {summary && health ? (
           <div key={page} className="page-enter">
             {FILTERED_PAGES.has(page) ? (
-              <div className="page-content" style={{ paddingBottom: 0, paddingTop: 14 }}>
-                <FilterBar filters={filters} stats={stats} onChange={setFilters} />
+              <div className="filter-toolbar">
+                <div className="filter-toolbar-inner">
+                  <FilterBar filters={filters} stats={stats} onChange={setFilters} />
+                </div>
               </div>
             ) : null}
             {page === "overview"  ? <OverviewPage  summary={summary} stats={stats} theme="dark" accentHue={accentHue} /> : null}

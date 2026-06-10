@@ -218,9 +218,10 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .navbar-inner {
-  width: min(100%, 1760px);
+  /* Same canvas as .page-content so the chrome and the content share one grid. */
+  width: min(100%, 1480px);
   margin: 0 auto;
-  padding: 0 clamp(16px, 3vw, 40px);
+  padding: 0 clamp(16px, 2.5vw, 32px);
   height: 60px;
   display: flex;
   align-items: center;
@@ -486,13 +487,14 @@ h1, h2, h3, h4, h5, h6 {
   flex-direction: column;
   gap: 3px;
   overflow: hidden;
-  transition: background 0.2s, border-color 0.2s, box-shadow 0.25s;
+  transition: background 0.2s, border-color 0.2s, box-shadow 0.25s, transform 0.2s;
   box-shadow: 0 1px 0 rgba(255,255,255,0.05) inset;
 }
 .stat-card:hover {
   background: var(--glass-2);
   border-color: var(--glass-border2);
   box-shadow: 0 0 0 1px var(--glass-border2) inset, 0 8px 32px -8px rgba(0,0,0,0.3);
+  transform: translateY(-1px);
 }
 .stat-card::after {
   content: "";
@@ -567,7 +569,8 @@ h1, h2, h3, h4, h5, h6 {
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--glass-border);
-  border-radius: 18px;
+  /* One radius family with the stat cards. */
+  border-radius: 14px;
   overflow: hidden;
   box-shadow:
     0 1px 0 rgba(255,255,255,0.07) inset,
@@ -2367,4 +2370,36 @@ h1, h2, h3, h4, h5, h6 {
   .kpi-timespan-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+}
+
+/* ─── Sticky filter toolbar (part of the chrome, not floating content) ─── */
+.filter-toolbar {
+  position: sticky;
+  top: 60px;
+  z-index: 90;
+  background: hsl(var(--ah) 25% 6% / 0.72);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.filter-toolbar-inner {
+  width: min(100%, 1480px);
+  margin: 0 auto;
+  padding: 8px clamp(16px, 2.5vw, 32px);
+}
+@media (max-width: 640px) {
+  /* On phones the filters wrap to two rows — pinning them would eat the screen. */
+  .filter-toolbar {
+    position: static;
+  }
+}
+
+/* ─── Numeric alignment: stable digits everywhere numbers live ─── */
+.stat-value,
+.kpi-timespan-value,
+.kpi-breakdown-value,
+.meta-item strong,
+.data-table td,
+.stat-card-delta {
+  font-variant-numeric: tabular-nums;
 }

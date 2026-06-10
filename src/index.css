@@ -481,10 +481,10 @@ h1, h2, h3, h4, h5, h6 {
   -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--glass-border);
   border-radius: 11px;
-  padding: 10px 12px 8px;
+  padding: 9px 12px 8px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   overflow: hidden;
   transition: background 0.2s, border-color 0.2s, box-shadow 0.25s;
   box-shadow: 0 1px 0 rgba(255,255,255,0.05) inset;
@@ -503,16 +503,24 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .stat-icon {
-  width: 24px;
-  height: 24px;
-  border-radius: 7px;
+  /* Floats top-right so the card stays a three-line stack — the icon on its own
+     row made every KPI card ~40px taller than it needs to be. */
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
   background: var(--accent-subtle);
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--accent-text);
   flex-shrink: 0;
-  margin-bottom: 2px;
+}
+.stat-icon svg {
+  width: 13px;
+  height: 13px;
 }
 .stat-label {
   font-size: 0.6875rem;
@@ -520,6 +528,10 @@ h1, h2, h3, h4, h5, h6 {
   text-transform: uppercase;
   letter-spacing: 0.12em;
   color: var(--text-3);
+  padding-right: 30px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .stat-value {
   font-family: "Space Grotesk", system-ui, sans-serif;
@@ -2304,4 +2316,55 @@ h1, h2, h3, h4, h5, h6 {
 }
 .stat-card-delta-negative {
   color: var(--danger);
+}
+
+/* ─── Mobile: filter bar, dropdowns, KPI modal ─── */
+@media (max-width: 640px) {
+  .filter-bar {
+    gap: 8px;
+  }
+  .filter-bar .seg-control {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .filter-bar .seg-btn {
+    flex: 1;
+    padding: 5px 6px;
+    text-align: center;
+  }
+  .filter-bar-right {
+    width: 100%;
+    gap: 6px;
+  }
+  .filter-bar-right .gdrop {
+    flex: 1;
+    min-width: 0;
+  }
+  .filter-bar-right .gdrop-trigger {
+    width: 100%;
+    justify-content: space-between;
+    padding: 6px 9px;
+    font-size: 0.75rem;
+  }
+  .gdrop-trigger-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .gdrop-menu {
+    min-width: 170px;
+    max-width: min(260px, calc(100vw - 32px));
+  }
+  .kpi-overlay {
+    padding: 12px;
+    align-items: flex-end;
+  }
+  .kpi-modal {
+    max-height: 82vh;
+    padding: 16px;
+    border-radius: 16px 16px 12px 12px;
+  }
+  .kpi-timespan-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }

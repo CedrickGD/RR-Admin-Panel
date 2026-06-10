@@ -68,7 +68,7 @@ export function KpiStatCard({ label, value, sub, icon, tone = "primary", delta, 
   return (
     <>
       <article
-        className={`stat-card${toneClass}${expandable ? " kpi-card-clickable" : ""}`}
+        className={`stat-card tile${toneClass}${expandable ? " kpi-card-clickable" : ""}`}
         onClick={expandable ? () => setOpen(true) : undefined}
         role={expandable ? "button" : undefined}
         tabIndex={expandable ? 0 : undefined}

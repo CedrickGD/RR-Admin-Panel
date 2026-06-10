@@ -39,6 +39,8 @@
   --text-1: rgba(255,255,255,0.93);
   --text-2: rgba(255,255,255,0.60);
   --text-3: rgba(255,255,255,0.34);
+  --accent-up: hsl(var(--ah) var(--as) calc(var(--al) + 12%));
+  --glow: 1;
   --text-4: rgba(255,255,255,0.20);
 
   /* Status / semantic */
@@ -101,7 +103,24 @@ body {
 button, input, textarea, select { font: inherit; }
 button { appearance: none; cursor: pointer; border: none; background: none; }
 a { color: inherit; text-decoration: none; }
-#root { position: relative; }
+#root { position: relative; z-index: 1; }
+
+/* Masked micro-grid texture over the ambient glows (Claude Design port). */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.5;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.014) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.014) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(1200px 700px at 60% 0%, #000 30%, transparent 80%);
+  -webkit-mask-image: radial-gradient(1200px 700px at 60% 0%, #000 30%, transparent 80%);
+}
+::selection { background: hsl(var(--ah) var(--as) var(--al) / 0.35); }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
@@ -131,6 +150,7 @@ h1, h2, h3, h4, h5, h6 {
   text-transform: uppercase;
   letter-spacing: 0.18em;
   color: var(--accent-text);
+  text-shadow: 0 0 18px hsl(var(--ah) var(--as) var(--al) / calc(0.5 * var(--glow)));
 }
 .page-title {
   font-family: "Space Grotesk", system-ui, sans-serif;
@@ -139,7 +159,13 @@ h1, h2, h3, h4, h5, h6 {
   font-size: clamp(1.6rem, 2.5vw, 2.2rem);
   font-weight: 700;
   letter-spacing: -0.04em;
-  color: var(--text-1);
+  background: linear-gradient(180deg, #fff 30%, rgba(255,255,255,0.72));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.page-title > .kicker {
+  -webkit-text-fill-color: var(--accent-text);
 }
 /* Inline kicker beside page title */
 .page-title > .kicker {
@@ -242,8 +268,12 @@ h1, h2, h3, h4, h5, h6 {
 .navbar-brand-img {
   width: 28px;
   height: 28px;
-  border-radius: 7px;
+  padding: 3px;
+  border-radius: 8px;
   object-fit: contain;
+  background: linear-gradient(135deg, hsl(var(--ah) var(--as) var(--al) / 0.22), hsl(var(--ah) var(--as) var(--al) / 0.07));
+  border: 1px solid hsl(var(--ah) var(--as) var(--al) / 0.35);
+  box-shadow: 0 0 14px hsl(var(--ah) var(--as) var(--al) / calc(0.3 * var(--glow))), inset 0 1px 0 rgba(255,255,255,0.12);
 }
 .navbar-brand-name {
   font-family: "Space Grotesk", system-ui, sans-serif;
@@ -270,7 +300,8 @@ h1, h2, h3, h4, h5, h6 {
 
 .navbar-nav {
   display: flex;
-  align-items: center;
+  align-items: stretch;
+  align-self: stretch;
   gap: 2px;
   flex: 1;
   overflow-x: auto;
@@ -279,10 +310,12 @@ h1, h2, h3, h4, h5, h6 {
 .navbar-nav::-webkit-scrollbar { display: none; }
 
 .navbar-link {
+  position: relative;
   display: flex;
   align-items: center;
+  align-self: stretch;
   gap: 6px;
-  padding: 6px 11px;
+  padding: 0 11px;
   border-radius: 8px;
   font-size: 0.8125rem;
   font-weight: 500;
@@ -296,8 +329,21 @@ h1, h2, h3, h4, h5, h6 {
   background: rgba(255,255,255,0.06);
 }
 .navbar-link.active {
-  color: var(--accent-text);
-  background: var(--accent-subtle);
+  color: var(--text-1);
+}
+/* Glowing accent underline pinned to the navbar's bottom edge (Claude Design port). */
+.navbar-link.active::after {
+  content: "";
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: linear-gradient(90deg, transparent, var(--accent) 25%, var(--accent) 75%, transparent);
+  box-shadow:
+    0 0 10px hsl(var(--ah) var(--as) var(--al) / calc(0.7 * var(--glow))),
+    0 0 22px hsl(var(--ah) var(--as) var(--al) / calc(0.35 * var(--glow)));
 }
 .navbar-link svg { opacity: 0.8; }
 .navbar-link.active svg { opacity: 1; }
@@ -314,14 +360,15 @@ h1, h2, h3, h4, h5, h6 {
 .status-chip {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
+  gap: 7px;
+  padding: 4px 11px;
   border-radius: 999px;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.09);
+  background: hsl(142 71% 45% / 0.10);
+  border: 1px solid hsl(142 71% 45% / 0.28);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
   font-size: 0.6875rem;
-  font-weight: 500;
-  color: var(--text-2);
+  font-weight: 550;
+  color: hsl(142 60% 62%);
   white-space: nowrap;
 }
 .status-dot {
@@ -567,13 +614,12 @@ h1, h2, h3, h4, h5, h6 {
    ═══════════════════════════════════════════════════════════════ */
 .panel {
   position: relative;
-  background: var(--glass-1);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+  background: linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.02));
   border: 1px solid var(--glass-border);
   /* One radius family with the stat cards. */
   border-radius: 14px;
   overflow: hidden;
+  transition: border-color 0.2s;
   box-shadow:
     0 1px 0 rgba(255,255,255,0.07) inset,
     0 32px 64px -16px rgba(0,0,0,0.45);
@@ -888,11 +934,12 @@ h1, h2, h3, h4, h5, h6 {
    ═══════════════════════════════════════════════════════════════ */
 .seg-control {
   display: inline-flex;
-  background: rgba(0,0,0,0.25);
+  background: rgba(0,0,0,0.30);
   border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 9px;
+  border-radius: 10px;
   padding: 3px;
   gap: 2px;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.4);
 }
 .seg-btn {
   padding: 5px 12px;
@@ -903,9 +950,12 @@ h1, h2, h3, h4, h5, h6 {
   transition: background 0.15s, color 0.15s;
 }
 .seg-btn.active {
-  background: rgba(255,255,255,0.10);
+  background: linear-gradient(180deg, rgba(255,255,255,0.09), rgba(255,255,255,0.05));
   color: var(--text-1);
-  box-shadow: 0 1px 0 rgba(255,255,255,0.08) inset;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.12),
+    0 1px 6px -2px rgba(0,0,0,0.8),
+    0 0 0 1px hsl(var(--ah) var(--as) var(--al) / 0.25);
 }
 .seg-btn:hover:not(.active) { color: var(--text-1); }
 
@@ -2422,4 +2472,87 @@ h1, h2, h3, h4, h5, h6 {
 }
 .panel-collapse-chevron-closed {
   transform: rotate(-90deg);
+}
+
+
+/* ─── Chart line glow (Claude Design port) ─── */
+.recharts-area-curve,
+.recharts-line-curve {
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.18));
+}
+
+/* ─── KPI value units + healthy-state styling ─── */
+.stat-value-unit {
+  font-size: 0.72em;
+  font-weight: 600;
+  color: var(--text-2);
+  margin-left: 1px;
+}
+.stat-value-ok {
+  color: hsl(142 55% 64%);
+  -webkit-text-fill-color: hsl(142 55% 64%);
+}
+.ok-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 6px var(--success);
+  margin-right: 5px;
+  vertical-align: 1px;
+}
+
+/* ─── Key-value tags (Claude Design port) ─── */
+.kv-tag {
+  display: inline-flex;
+  align-items: center;
+  height: 21px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 550;
+  color: var(--text-1);
+  background: rgba(255,255,255,0.047);
+  border: 1px solid var(--glass-border);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+}
+.kv-tag-accent {
+  color: var(--accent-up);
+  background: hsl(var(--ah) var(--as) var(--al) / 0.09);
+  border-color: hsl(var(--ah) var(--as) var(--al) / 0.3);
+}
+
+/* ─── 'All clear' empty state ring ─── */
+.empty-ring {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 8px;
+  background: radial-gradient(closest-side, hsl(142 71% 45% / 0.14), hsl(142 71% 45% / 0.04));
+  border: 1px solid hsl(142 71% 45% / 0.3);
+  box-shadow: 0 0 22px hsl(142 71% 45% / 0.18), inset 0 1px 0 rgba(255,255,255,0.08);
+  color: hsl(142 60% 60%);
+}
+.empty-title {
+  font-family: "Space Grotesk", system-ui, sans-serif;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+/* ─── Animated panel collapse (grid-rows technique) ─── */
+.panel-body-clip {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.32s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.panel-collapsed .panel-body-clip {
+  grid-template-rows: 0fr;
+}
+.panel-body-inner {
+  overflow: hidden;
+  min-height: 0;
 }

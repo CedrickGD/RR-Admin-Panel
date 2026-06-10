@@ -52,7 +52,10 @@ export function CollapsiblePanel({ kicker, title, sub, right, defaultOpen = true
           </button>
         </div>
       </div>
-      {open ? children : null}
+      {/* Children stay mounted; grid-template-rows animates the fold smoothly. */}
+      <div className="panel-body-clip" aria-hidden={!open}>
+        <div className="panel-body-inner">{children}</div>
+      </div>
     </section>
   );
 }

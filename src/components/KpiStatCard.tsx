@@ -2,6 +2,7 @@ import { ChevronRight, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { TelemetryChartTooltip } from "./charts/TelemetryChartTooltip";
+import { Sparkline } from "./widgets";
 
 type Tone = "primary" | "accent" | "amber" | "rose" | "success";
 
@@ -36,10 +37,12 @@ interface KpiStatCardProps {
   /** When provided the card becomes clickable and opens a detail view. */
   drilldown?: KpiDrilldown | null;
   chartColor?: string;
+  /** Optional mini trend rendered on the tile's right side. */
+  spark?: number[];
 }
 
 /** StatCard with an optional click-to-expand drill-down modal. */
-export function KpiStatCard({ label, value, sub, icon, tone = "primary", delta, drilldown, chartColor }: KpiStatCardProps) {
+export function KpiStatCard({ label, value, sub, icon, tone = "primary", delta, drilldown, chartColor, spark }: KpiStatCardProps) {
   const [open, setOpen] = useState(false);
   const toneClass = TONE_CARD_CLASS[tone];
   // The series block only renders with 2+ points, so a 1-point series alone must not
@@ -80,21 +83,29 @@ export function KpiStatCard({ label, value, sub, icon, tone = "primary", delta, 
             : undefined
         }
       >
-        <div className="stat-icon">{icon}</div>
-        <span className="stat-label">{label}</span>
-        <strong className="stat-value">
-          {value}
-          {delta !== undefined && delta !== null ? (
-            <span className={`stat-card-delta ${Number(delta) >= 0 ? "stat-card-delta-positive" : "stat-card-delta-negative"}`}>
-              {Number(delta) >= 0 ? "+" : ""}
-              {delta}%
-            </span>
-          ) : null}
-        </strong>
-        <p className="stat-sub">
-          {sub}
-          {expandable ? <ChevronRight className="h-3 w-3 kpi-card-chevron" /> : null}
-        </p>
+        <div className="tile-main">
+          <span className="stat-label">{label}</span>
+          <strong className="stat-value tile-value-pop" key={value}>
+            {value}
+            {delta !== undefined && delta !== null ? (
+              <span className={`stat-card-delta ${Number(delta) >= 0 ? "stat-card-delta-positive" : "stat-card-delta-negative"}`}>
+                {Number(delta) >= 0 ? "+" : ""}
+                {delta}%
+              </span>
+            ) : null}
+          </strong>
+          <p className="stat-sub">
+            {sub}
+            {expandable ? <ChevronRight className="h-3 w-3 kpi-card-chevron" /> : null}
+          </p>
+        </div>
+        <div className="tile-side">
+          {spark && spark.length > 1 ? (
+            <Sparkline values={spark} color={chartColor ?? "var(--accent)"} />
+          ) : (
+            <span className="tile-icon">{icon}</span>
+          )}
+        </div>
       </article>
 
       {open && drilldown ? (

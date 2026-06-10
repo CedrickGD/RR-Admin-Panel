@@ -222,6 +222,7 @@ export function OverviewPage({ summary, stats, theme, accentHue = 217, filterBar
               tone="primary"
               drilldown={sessionsDrilldown}
               chartColor={chartColors.sessionsLine}
+              spark={stats?.series.sessionsPerDay.map((p) => p.sessions)}
             />
             <KpiStatCard
               label="Avg Session"
@@ -240,6 +241,7 @@ export function OverviewPage({ summary, stats, theme, accentHue = 217, filterBar
               tone={errorsValue > 0 ? "rose" : "primary"}
               drilldown={errorsDrilldown}
               chartColor={chartColors.errorsLine}
+              spark={stats?.series.errorsPerDay.map((p) => p.errors)}
             />
             <KpiStatCard
               label="Primary Region"

@@ -12,7 +12,7 @@ import {
   Settings2,
   X,
 } from "lucide-react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import type { AuthMode, AuthUser, HealthPayload, PageKey, SummaryPayload } from "../types/telemetry";
 import { formatNumber, timeAgo } from "../utils/format";
 
@@ -24,15 +24,28 @@ interface NavEntry {
   icon: ReactNode;
 }
 
-const NAV_ITEMS: NavEntry[] = [
-  { key: "overview",  label: "Overview",  icon: <BarChart3 className="h-[15px] w-[15px]" /> },
-  { key: "traffic",   label: "Traffic",   icon: <Clock3    className="h-[15px] w-[15px]" /> },
-  { key: "versions",  label: "Versions",  icon: <Layers    className="h-[15px] w-[15px]" /> },
-  { key: "heatmap",   label: "Heatmap",   icon: <Map       className="h-[15px] w-[15px]" /> },
-  { key: "live",      label: "Live",      icon: <Radio     className="h-[15px] w-[15px]" /> },
-  { key: "workers",   label: "Sessions",  icon: <History   className="h-[15px] w-[15px]" /> },
-  { key: "logs",      label: "Errors",    icon: <AlertTriangle className="h-[15px] w-[15px]" /> },
-  { key: "settings",  label: "Settings",  icon: <Settings2 className="h-[15px] w-[15px]" /> },
+const NAV_GROUPS: Array<{ label: string; items: NavEntry[] }> = [
+  {
+    label: "Monitor",
+    items: [
+      { key: "overview", label: "Overview", icon: <BarChart3 className="h-[15px] w-[15px]" /> },
+      { key: "traffic",  label: "Traffic",  icon: <Clock3    className="h-[15px] w-[15px]" /> },
+      { key: "live",     label: "Live",     icon: <Radio     className="h-[15px] w-[15px]" /> },
+      { key: "heatmap",  label: "Heatmap",  icon: <Map       className="h-[15px] w-[15px]" /> },
+    ],
+  },
+  {
+    label: "Analyze",
+    items: [
+      { key: "workers",  label: "Users & Sessions", icon: <History className="h-[15px] w-[15px]" /> },
+      { key: "versions", label: "Versions",         icon: <Layers  className="h-[15px] w-[15px]" /> },
+      { key: "logs",     label: "Errors",           icon: <AlertTriangle className="h-[15px] w-[15px]" /> },
+    ],
+  },
+  {
+    label: "System",
+    items: [{ key: "settings", label: "Settings", icon: <Settings2 className="h-[15px] w-[15px]" /> }],
+  },
 ];
 
 export interface NavbarProps {
@@ -47,6 +60,10 @@ export interface NavbarProps {
   onLogout: () => void;
 }
 
+/**
+ * v2 shell navigation: fixed left sidebar (command-center style). On mobile it
+ * collapses into an overlay drawer behind a slim top bar.
+ */
 export function Navbar({
   page,
   onNavigate,
@@ -58,79 +75,50 @@ export function Navbar({
   refreshing = false,
   onLogout,
 }: NavbarProps) {
-  const navRef = useRef<HTMLElement>(null);
-  const drawerRef = useRef<HTMLDivElement>(null);
-  const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  /* ─── Scroll-based transparency ─── */
   useEffect(() => {
-    function handleScroll() {
-      setScrolled(window.scrollY > 12);
-    }
-    handleScroll();
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-
-  /* ─── Close mobile menu on page change ─── */
-  useEffect(() => { setMobileOpen(false); }, [page]);
-
-  /* ─── Close mobile menu on outside click ─── */
-  useEffect(() => {
-    if (!mobileOpen) return;
-    function handler(e: MouseEvent) {
-      const target = e.target as Node;
-      const inNav = navRef.current?.contains(target);
-      const inDrawer = drawerRef.current?.contains(target);
-      if (!inNav && !inDrawer) {
-        setMobileOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [mobileOpen]);
-
-  /* ─── Navigate & close drawer ─── */
-  function handleNav(key: PageKey) {
     setMobileOpen(false);
-    onNavigate(key);
-  }
+  }, [page]);
 
-  /* ─── Status chip data ─── */
   const activeUsers = summary?.stats.activeUsers ?? 0;
-  const errorsLast24h = summary?.stats.errorsLast24Hours ?? 0;
   const apiOk = health?.api === "alive";
   const ingestLabel = timeAgo(summary?.stats.lastIngestAt ?? health?.lastIngestAt ?? null);
-  const statusDotClass = !apiOk ? "err" : errorsLast24h > 0 ? "warn" : "pulse";
 
   return (
     <>
-      <nav ref={navRef} className={`navbar${scrolled ? " is-scrolled" : ""}`} aria-label="Main navigation">
-        <div className="navbar-inner">
-          {/* Brand */}
-          <button
-            type="button"
-            className="navbar-brand"
-            onClick={() => handleNav("overview")}
-            aria-label="Go to overview"
-          >
-            <img src={brandLogo} alt="RazorReaper" className="navbar-brand-img" />
-            <span>
-              <span className="navbar-brand-name">RazorReaper</span>
-              <span className="navbar-brand-sub"> Console</span>
-            </span>
-          </button>
+      {/* Mobile top bar */}
+      <div className="v2-mobilebar">
+        <button type="button" className="btn-icon" onClick={() => setMobileOpen((v) => !v)} aria-label="Menu">
+          {mobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+        </button>
+        <img src={brandLogo} alt="" className="sb-brand-img" style={{ width: 26, height: 26 }} />
+        <span className="sb-brand-name">RazorReaper</span>
+        <div style={{ marginLeft: "auto" }} className={`sb-live${apiOk ? "" : " offline"}`}>
+          <span className="sb-live-dot" />
+          {formatNumber(activeUsers)} active
+        </div>
+      </div>
+      {mobileOpen ? <div className="v2-scrim" onClick={() => setMobileOpen(false)} /> : null}
 
-          <div className="navbar-divider" aria-hidden />
+      {/* Sidebar */}
+      <aside className={`sb${mobileOpen ? " open" : ""}`} aria-label="Main navigation">
+        <button type="button" className="sb-brand" onClick={() => onNavigate("overview")} style={{ background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
+          <img src={brandLogo} alt="RazorReaper" className="sb-brand-img" />
+          <span>
+            <span className="sb-brand-name">RazorReaper</span>
+            <span className="sb-brand-sub">Ops Console</span>
+          </span>
+        </button>
 
-          {/* Desktop nav */}
-          <nav className="navbar-nav" aria-label="Page navigation">
-            {NAV_ITEMS.map((item) => (
+        {NAV_GROUPS.map((group) => (
+          <div className="sb-group" key={group.label}>
+            <p className="sb-group-label">{group.label}</p>
+            {group.items.map((item) => (
               <button
                 key={item.key}
                 type="button"
-                className={`navbar-link${page === item.key ? " active" : ""}`}
+                className={`sb-item${page === item.key ? " active" : ""}`}
                 onClick={() => onNavigate(item.key)}
                 aria-current={page === item.key ? "page" : undefined}
               >
@@ -138,91 +126,41 @@ export function Navbar({
                 {item.label}
               </button>
             ))}
-          </nav>
+          </div>
+        ))}
 
-          {/* Right actions */}
-          <div className="navbar-actions">
-            {/* Status chip */}
-            <div className="status-chip" title={`API ${apiOk ? "online" : "offline"} · Last ingest ${ingestLabel}`}>
-              <span className={`status-dot ${statusDotClass}`} />
-              <span>{formatNumber(activeUsers)} active</span>
-            </div>
-
-            {/* Refresh */}
+        <div className="sb-foot">
+          <div className={`sb-live${apiOk ? "" : " offline"}`} title={`API ${apiOk ? "online" : "offline"}`}>
+            <span className="sb-live-dot" />
+            {apiOk ? `${formatNumber(activeUsers)} active now` : "API offline"}
+          </div>
+          <span className="sb-foot-meta" title="Last ingest">ingest · {ingestLabel}</span>
+          <div className="sb-actions">
             <button
               type="button"
               className="btn btn-ghost btn-sm"
               onClick={onRefresh}
               disabled={refreshing}
               aria-label="Refresh data"
+              style={{ flex: 1, justifyContent: "center" }}
             >
               <RefreshCw className={`h-3.5 w-3.5${refreshing ? " animate-spin" : ""}`} />
-              <span className="hidden sm:inline">{refreshing ? "Syncing" : "Refresh"}</span>
+              {refreshing ? "Syncing" : "Refresh"}
             </button>
-
-            {/* Sign out */}
             {authMode === "app" ? (
               <button
                 type="button"
-                className="btn btn-ghost btn-sm"
+                className="btn-icon"
                 onClick={onLogout}
                 aria-label="Sign out"
                 title={`Signed in as ${user.email}`}
               >
                 <LogOut className="h-3.5 w-3.5" />
-                <span className="hidden md:inline">Sign out</span>
               </button>
             ) : null}
-
-            {/* Mobile hamburger */}
-            <button
-              type="button"
-              className="navbar-hamburger btn-icon"
-              onClick={() => setMobileOpen((v) => !v)}
-              aria-label={mobileOpen ? "Close menu" : "Open menu"}
-              aria-expanded={mobileOpen}
-            >
-              {mobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
-            </button>
           </div>
         </div>
-      </nav>
-
-      {/* Mobile drawer — outside nav to avoid stacking context issues */}
-      <div
-        ref={drawerRef}
-        className={`navbar-mobile-drawer${mobileOpen ? " open" : ""}`}
-        aria-hidden={!mobileOpen}
-      >
-        {NAV_ITEMS.map((item) => (
-          <button
-            key={item.key}
-            type="button"
-            className={`navbar-mobile-link${page === item.key ? " active" : ""}`}
-            onClick={() => handleNav(item.key)}
-          >
-            {item.icon}
-            {item.label}
-          </button>
-        ))}
-        <div className="divider" style={{ margin: "10px 0" }} />
-        <div style={{ display: "flex", flexDirection: "column", gap: "6px", paddingTop: "4px" }}>
-          <div style={{ fontSize: "0.75rem", color: "var(--text-3)", padding: "0 12px" }}>
-            Signed in as <strong style={{ color: "var(--text-2)" }}>{user.email}</strong>
-          </div>
-          {authMode === "app" ? (
-            <button
-              type="button"
-              className="navbar-mobile-link"
-              onClick={onLogout}
-              style={{ color: "hsl(4 86% 68%)" }}
-            >
-              <LogOut className="h-[15px] w-[15px]" />
-              Sign out
-            </button>
-          ) : null}
-        </div>
-      </div>
+      </aside>
     </>
   );
 }

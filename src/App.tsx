@@ -96,7 +96,7 @@ export default function App() {
 
   /* ─── Dashboard ─── */
   return (
-    <div className="app-shell">
+    <div className="app-shell v2-shell">
       <Navbar
         page={page}
         onNavigate={setPage}
@@ -109,7 +109,7 @@ export default function App() {
         onLogout={() => void logout()}
       />
 
-      <main className="main-area">
+      <main className="main-area v2-main">
         {loadError ? (
           <div className="page-content" style={{ paddingBottom: 0, paddingTop: 20 }}>
             <div style={{

@@ -352,6 +352,7 @@ export function OverviewPage({ summary, stats, theme, accentHue = 217, filterBar
                       )}
                     />
                     <Area
+                    isAnimationActive={false}
                       type="natural"
                       dataKey="users"
                       name="Active users"
@@ -370,6 +371,7 @@ export function OverviewPage({ summary, stats, theme, accentHue = 217, filterBar
                       animationEasing="ease-out"
                     />
                     <Bar
+                    isAnimationActive={false}
                       dataKey="started"
                       name="New sessions"
                       fill="url(#startedFillOverview)"
@@ -379,6 +381,7 @@ export function OverviewPage({ summary, stats, theme, accentHue = 217, filterBar
                       animationEasing="ease-out"
                     />
                     <Area
+                    isAnimationActive={false}
                       type="natural"
                       dataKey="errors"
                       name="Errors"

@@ -446,6 +446,7 @@ export function VersionsPage({ summary, stats, theme, accentHue = 217, filterBar
                     }}
                   />
                   <Bar
+                    isAnimationActive={false}
                     dataKey="value"
                     name="Users"
                     radius={[0, 6, 6, 0]}

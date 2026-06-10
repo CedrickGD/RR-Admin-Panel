@@ -295,6 +295,7 @@ export function TrafficPage({ summary, stats, theme, accentHue = 217, filterBar 
                   )} />
                   {/* Actual data */}
                   <Area
+                    isAnimationActive={false}
                     type="monotone"
                     dataKey="users"
                     name="Unique users"
@@ -315,6 +316,7 @@ export function TrafficPage({ summary, stats, theme, accentHue = 217, filterBar 
                   />
                   {/* Prediction */}
                   <Area
+                    isAnimationActive={false}
                     type="monotone"
                     dataKey="predicted"
                     name="Forecast"

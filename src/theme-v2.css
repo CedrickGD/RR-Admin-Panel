@@ -6,7 +6,13 @@
    Accent stays themeable through --ah/--as/--al.
    ════════════════════════════════════════════════════════════════════ */
 
-:root {
+﻿:root {
+  /* Machine values render in JetBrains Mono (design-system canon). */
+  --font-mono: "JetBrains Mono", var(--font-mono);
+  /* Chart series tokens — user preset, independent of the accent. */
+  --chart-users: #6b8de3;
+  --chart-sessions: rgba(107, 141, 227, 0.25);
+  --chart-errors: #e06b6b;
   --v2-bg: #08070b;
   --v2-s1: #0e0d13;          /* primary surface */
   --v2-s2: #131118;          /* raised surface  */
@@ -163,7 +169,7 @@ body::before { display: none; }  /* retire the old triple glow wash */
 .sb-foot-meta {
   font-size: 0.65625rem;
   color: var(--v2-t3);
-  font-family: ui-monospace, "Cascadia Mono", Menlo, monospace;
+  font-family: var(--font-mono);
 }
 .sb-actions { display: flex; gap: 6px; }
 
@@ -449,7 +455,7 @@ body::before { display: none; }  /* retire the old triple glow wash */
 .feed-body { min-width: 0; flex: 1; }
 .feed-title { font-size: 0.75rem; font-weight: 550; color: var(--v2-t1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .feed-meta { font-size: 0.6875rem; color: var(--v2-t3); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.feed-time { flex: none; font-size: 0.65625rem; color: var(--v2-t3); font-family: ui-monospace, Menlo, monospace; margin-top: 2px; }
+.feed-time { flex: none; font-size: 0.65625rem; color: var(--v2-t3); font-family: var(--font-mono); margin-top: 2px; }
 
 /* ── Empty states ─────────────────────────────────────────────── */
 .empty-ring { box-shadow: none; }

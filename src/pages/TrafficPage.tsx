@@ -1,4 +1,4 @@
-import { Activity, Clock, Layers, Radio, TrendingUp, Users, Zap } from "lucide-react";
+import { Activity, Clock, Gauge, Radio, TrendingUp } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import {
   Area,
@@ -13,13 +13,14 @@ import { TelemetryChartTooltip } from "../components/charts/TelemetryChartToolti
 import { TimezoneUsageChart } from "../components/charts/TimezoneUsageChart";
 import { CollapsiblePanel } from "../components/CollapsiblePanel";
 import { MetaRow, PageHeader } from "../components/ds/PageHeader";
-import { KpiStatCard, type KpiDrilldown } from "../components/KpiStatCard";
+import { KpiStatCard } from "../components/KpiStatCard";
 import type { StatsPayload, SummaryPayload, ThemeMode } from "../types/telemetry";
 import {
   buildDailyUserTimeline,
   buildTimezoneActivity,
+  buildTrafficTimeline,
 } from "../utils/dashboardInsights";
-import { formatDuration, formatEventName, formatNumber, timeAgo } from "../utils/format";
+import { formatDuration, formatNumber, timeAgo } from "../utils/format";
 import { TIMEZONE_PANELS } from "./dashboardShared";
 
 interface TrafficPageProps {
@@ -125,59 +126,14 @@ export function TrafficPage({ summary, stats, theme, filterBar }: TrafficPagePro
     return merged;
   }, [dailyUsers, forecastDays]);
 
-  /* ----- KPI values + drill-downs ----- */
+  /* ----- KPI values ----- */
 
-  const lifetimeUsers = stats?.totals.lifetimeUsers ?? summary.stats.lifetimeUsers;
-  // True lifetime event counter (~230k); summary.stats.totalEvents is just the retained window.
-  const lifetimeEvents = stats?.totals.lifetimeEvents ?? summary.stats.lifetimeEvents ?? summary.stats.totalEvents;
-
-  const lifetimeUsersDrilldown = useMemo<KpiDrilldown | null>(() => {
-    if (!stats) return null;
-    const totalUsers = Math.max(1, stats.totals.lifetimeUsers);
-    const countries = [...stats.breakdowns.countries].sort((a, b) => b.users - a.users).slice(0, 6);
-    return {
-      timespans: [
-        { label: "In range", value: formatNumber(stats.totals.usersInRange) },
-        { label: "New in range", value: formatNumber(stats.totals.newUsersInRange) },
-        { label: "Lifetime", value: formatNumber(stats.totals.lifetimeUsers), hint: "unique HWIDs" },
-      ],
-      series: stats.series.newUsersPerDay.map((p) => ({ day: p.day, value: p.users })),
-      seriesName: "New users",
-      breakdown: countries.map((c) => ({
-        label: c.key || "Unknown",
-        value: formatNumber(c.users),
-        share: c.users / totalUsers,
-      })),
-      breakdownTitle: "Top countries",
-    };
-  }, [stats]);
-
-  const totalEventsDrilldown = useMemo<KpiDrilldown | null>(() => {
-    if (!stats) return null;
-    const rows = [...stats.breakdowns.eventsLifetime].sort((a, b) => b.count - a.count);
-    const total = Math.max(1, rows.reduce((acc, r) => acc + r.count, 0));
-    return {
-      breakdown: rows.map((r) => ({
-        label: formatEventName(r.service),
-        value: formatNumber(r.count),
-        share: r.count / total,
-      })),
-      breakdownTitle: "Lifetime events by type",
-      note: "Lifetime per-type counters, tracked server-side. Heartbeats are no longer stored as event rows — only counted.",
-    };
-  }, [stats]);
-
-  const totalSessionsDrilldown = useMemo<KpiDrilldown | null>(() => {
-    if (!stats) return null;
-    return {
-      timespans: [
-        { label: "In range", value: formatNumber(stats.totals.sessionsInRange) },
-        { label: "Lifetime", value: formatNumber(stats.totals.lifetimeSessions) },
-      ],
-      series: stats.series.sessionsPerDay.map((p) => ({ day: p.day, value: p.sessions })),
-      seriesName: "Sessions",
-    };
-  }, [stats]);
+  // Unique users per hour over the loaded 24 h window — peak is the busiest hour.
+  const hourlyUsers = useMemo(
+    () => buildTrafficTimeline(summary, 24).map((p) => p.users),
+    [summary],
+  );
+  const peakHourlyUsers = hourlyUsers.reduce((max, v) => Math.max(max, v), 0);
 
   /* ----- Panel meta (display aggregation only) ----- */
 
@@ -195,35 +151,8 @@ export function TrafficPage({ summary, stats, theme, filterBar }: TrafficPagePro
         right={filterBar}
       />
 
-      {/* Stat cards — pinned at top */}
-      <div className="stat-grid stat-grid-7 v2-stagger">
-        <KpiStatCard
-          label="Lifetime Users"
-          value={formatNumber(lifetimeUsers)}
-          sub="All-time · unique HWIDs"
-          icon={<Users size={14} />}
-          tone="accent"
-          drilldown={lifetimeUsersDrilldown}
-          chartColor="var(--chart-users)"
-        />
-        <KpiStatCard
-          label="Total Events"
-          value={formatNumber(lifetimeEvents)}
-          sub={`All-time · ${formatNumber(summary.stats.totalEvents)} retained`}
-          icon={<Zap size={14} />}
-          tone="primary"
-          drilldown={totalEventsDrilldown}
-        />
-        <KpiStatCard
-          label="Total Sessions"
-          value={formatNumber(stats?.totals.lifetimeSessions ?? summary.stats.totalSessions)}
-          sub={stats ? `${formatNumber(stats.totals.sessionsInRange)} in range` : "Last 200 loaded"}
-          icon={<Layers size={14} />}
-          tone="primary"
-          drilldown={totalSessionsDrilldown}
-          chartColor="var(--chart-users)"
-          spark={stats?.series.sessionsPerDay.map((p) => p.sessions)}
-        />
+      {/* Stat cards — traffic-specific only (lifetime totals live on Overview) */}
+      <div className="stat-grid stat-grid-5 v2-stagger">
         <KpiStatCard
           label="Active Right Now"
           value={formatNumber(stats?.totals.activeNow ?? summary.stats.activeUsers)}
@@ -232,17 +161,26 @@ export function TrafficPage({ summary, stats, theme, filterBar }: TrafficPagePro
           tone="primary"
         />
         <KpiStatCard
-          label="Avg Duration"
-          value={formatDuration(stats?.totals.averageSessionDurationSeconds ?? summary.stats.averageSessionDurationSeconds)}
-          sub={stats ? "In range · legacy excluded" : "Per session"}
-          icon={<Clock size={14} />}
-          tone="primary"
-        />
-        <KpiStatCard
           label="Started Today"
           value={formatNumber(summary.stats.sessionsStartedToday)}
           sub="Since midnight UTC"
           icon={<TrendingUp size={14} />}
+          tone="primary"
+        />
+        <KpiStatCard
+          label="Peak Users/h"
+          value={formatNumber(peakHourlyUsers)}
+          sub="Busiest hour · last 24 h"
+          icon={<Gauge size={14} />}
+          tone="primary"
+          chartColor="var(--chart-users)"
+          spark={hourlyUsers}
+        />
+        <KpiStatCard
+          label="Avg Duration"
+          value={formatDuration(stats?.totals.averageSessionDurationSeconds ?? summary.stats.averageSessionDurationSeconds)}
+          sub={stats ? "In range · legacy excluded" : "Per session"}
+          icon={<Clock size={14} />}
           tone="primary"
         />
         <KpiStatCard

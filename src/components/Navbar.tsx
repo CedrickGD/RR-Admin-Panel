@@ -115,14 +115,17 @@ export function Navbar({
             <span className="sb-brand-name">RazorReaper</span>
             <span className="sb-brand-sub">Operations Console</span>
           </div>
-          <button
-            type="button"
-            className="btn-icon sb-close"
-            onClick={() => setDrawerOpen(false)}
-            aria-label="Close navigation"
-          >
-            <X size={16} />
-          </button>
+          <span className="sb-brand-actions">
+            {refreshButton}
+            <button
+              type="button"
+              className="btn-icon sb-close"
+              onClick={() => setDrawerOpen(false)}
+              aria-label="Close navigation"
+            >
+              <X size={16} />
+            </button>
+          </span>
         </div>
 
         <nav className="sb-nav" aria-label="Primary">
@@ -147,7 +150,6 @@ export function Navbar({
           </div>
           <div className="sb-meta" title="Last ingest">ingest · {ingestLabel}</div>
           <div className="sb-actions">
-            {refreshButton}
             {authMode === "app" ? (
               <button
                 type="button"

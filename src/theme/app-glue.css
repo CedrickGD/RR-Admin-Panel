@@ -546,24 +546,28 @@ body::after {
   --sb-w: 236px;
   --glass-blur: 14px;
 
-  /* Very rounded cards like the reference (~20px) */
-  --r: 20px;
+  /* Rounded cards */
+  --r: 18px;
   --r-sm: 12px;
   --r-ctl: 12px;
 
-  /* Hero numbers dominate the tile */
-  --fs-stat: 1.5rem;
+  /* Compact tiles — the hero-number experiment was "insanely huge" */
+  --fs-stat: 1.25rem;
 
-  /* Breathing room — gaps up, real side margins */
-  --gap-panel: 18px;
-  --gap-tile: 14px;
+  /* Breathing room at the page edges, tight inside KPI grids */
+  --gap-panel: 16px;
+  --gap-tile: 10px;
   --page-pad: clamp(24px, 3vw, 52px);
 
-  /* Fill-glass surfaces (no backdrop blur): slightly deeper so text
-     keeps contrast over the brightest aurora blobs */
-  --surface-1: hsl(240 32% 10% / 0.58);
-  --surface-2: hsl(237 34% 14% / 0.66);
-  --surface-3: hsl(234 36% 19% / 0.72);
+  /* Lift the whole console out of the murk: lighter ground, lighter
+     glass, brighter secondary text */
+  --bg: #0b0d17;
+  --text-2: rgba(236, 241, 255, 0.70);
+  --text-3: rgba(236, 241, 255, 0.42);
+  --surface-1: hsl(238 30% 16% / 0.55);
+  --surface-2: hsl(236 32% 20% / 0.62);
+  --surface-3: hsl(234 34% 25% / 0.68);
+  --line: hsl(215 75% 82% / 0.14);
 }
 
 /* ── Liquid aurora — three blended layers, transform-only motion ──
@@ -574,33 +578,36 @@ body::after {
    GPU-composited (transform only), reduced-motion gated. */
 /* TWO layers only, modest 1.36x-viewport boxes (inset -18%) — the
    previous 3 double-viewport screen-blended layers saturated GPU
-   fill rate and froze the renderer. No blend modes. Gradient
-   positions: layer% = (viewport% + 18) / 1.36. */
+   fill rate. No blend modes. Gradient positions: layer% =
+   (viewport% + 18) / 1.36.
+   THE PALETTE FOLLOWS THE USER'S ACCENT: every blob hue derives
+   from --ah (analogous spread −40/+45/+90, complement counterweight)
+   so picking cyan in Settings makes a cyan-mixed liquid, red makes
+   red, etc. Visibly moving — water, not wallpaper. */
 html::before {
   inset: -18%;
   background:
-    radial-gradient(40% 36% at 26% 72%, hsl(272 92% 56% / calc(0.40 * var(--glow))), transparent 66%),
-    radial-gradient(46% 40% at 50% 47%, hsl(345 95% 56% / calc(0.32 * var(--glow))), transparent 68%);
-  animation: liquid-a 34s ease-in-out infinite alternate;
+    radial-gradient(40% 36% at 26% 72%, hsl(calc(var(--ah) - 40) 90% 56% / calc(0.46 * var(--glow))), transparent 66%),
+    radial-gradient(46% 40% at 50% 47%, hsl(var(--ah) 92% 58% / calc(0.36 * var(--glow))), transparent 68%);
+  animation: liquid-a 24s ease-in-out infinite alternate;
 }
 html::after {
   inset: -18%;
-  /* Orange leaning red, NOT yellow — yellow over violet goes olive. */
   background:
-    radial-gradient(36% 32% at 76% 24%, hsl(28 100% 56% / calc(0.24 * var(--glow))), transparent 66%),
-    radial-gradient(28% 26% at 64% 49%, hsl(14 95% 58% / calc(0.18 * var(--glow))), transparent 66%),
-    radial-gradient(24% 22% at 17% 33%, hsl(196 92% 55% / calc(0.12 * var(--glow))), transparent 66%);
-  animation: liquid-b 46s ease-in-out infinite alternate;
+    radial-gradient(36% 32% at 76% 24%, hsl(calc(var(--ah) + 45) 95% 58% / calc(0.30 * var(--glow))), transparent 66%),
+    radial-gradient(28% 26% at 64% 49%, hsl(calc(var(--ah) + 90) 85% 56% / calc(0.18 * var(--glow))), transparent 66%),
+    radial-gradient(24% 22% at 17% 33%, hsl(calc(var(--ah) + 180) 80% 55% / calc(0.10 * var(--glow))), transparent 66%);
+  animation: liquid-b 33s ease-in-out infinite alternate;
 }
 @keyframes liquid-a {
-  0%   { transform: translate3d(-3%, -2%, 0) rotate(0deg)  scale(1); }
-  45%  { transform: translate3d(4%, 3%, 0)   rotate(9deg)  scale(1.1); }
-  100% { transform: translate3d(-2%, 4%, 0)  rotate(-7deg) scale(1.03); }
+  0%   { transform: translate3d(-4%, -3%, 0) rotate(0deg)   scale(1); }
+  45%  { transform: translate3d(5%, 4%, 0)   rotate(11deg)  scale(1.13); }
+  100% { transform: translate3d(-3%, 5%, 0)  rotate(-8deg)  scale(1.04); }
 }
 @keyframes liquid-b {
-  0%   { transform: translate3d(3%, 3%, 0)   rotate(0deg)   scale(1.05); }
-  50%  { transform: translate3d(-4%, -3%, 0) rotate(-10deg) scale(0.97); }
-  100% { transform: translate3d(3%, -4%, 0)  rotate(8deg)   scale(1.1); }
+  0%   { transform: translate3d(4%, 4%, 0)   rotate(0deg)   scale(1.06); }
+  50%  { transform: translate3d(-5%, -4%, 0) rotate(-12deg) scale(0.97); }
+  100% { transform: translate3d(4%, -5%, 0)  rotate(10deg)  scale(1.12); }
 }
 
 /* ── Perf: NO backdrop-filter, anywhere, ever ────────────────────
@@ -615,11 +622,21 @@ html::after {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
+/* SVG drop-shadow filters recompute on EVERY chart hover re-render
+   (recharts repaints the filtered paths per mousemove) and the
+   gauge filter region even rendered as a ghost box behind the ring.
+   Kill them all; !important also beats the inline style props. */
+svg,
+svg * {
+  filter: none !important;
+}
+/* MapLibre canvas had a per-frame saturate/contrast filter. */
+.world-heatmap-map canvas { filter: none !important; }
 .stat-card { background: var(--surface-1); }
 .stat-card:hover { background: var(--surface-2); }
 /* Floating surfaces compensate with deeper fills (no blur behind) */
-.gdrop-menu { background: hsl(240 30% 9% / 0.97); }
-.kpi-modal { background: hsl(240 30% 8% / 0.97); }
+.gdrop-menu { background: hsl(240 30% 11% / 0.97); }
+.kpi-modal { background: hsl(240 30% 10% / 0.97); }
 
 /* ── Sidebar shell (nav back on the left) ───────────────────────── */
 .sidebar {
@@ -685,11 +702,14 @@ html::after {
 .sb-item:hover svg { opacity: 1; }
 .sb-item:active { transform: scale(0.97); }
 .sb-item.active {
-  background: #fff;
-  color: #0a0a12;
+  background: linear-gradient(135deg, hsl(var(--ah) var(--as) var(--al) / 0.24), hsl(calc(var(--ah) + 40) var(--as) var(--al) / 0.10));
+  color: var(--text-1);
   font-weight: 600;
+  box-shadow:
+    inset 0 0 0 1px hsl(var(--ah) var(--as) var(--al) / 0.45),
+    0 0 20px -8px hsl(var(--ah) var(--as) var(--al) / calc(0.6 * var(--glow)));
 }
-.sb-item.active svg { opacity: 1; color: #0a0a12; }
+.sb-item.active svg { opacity: 1; color: var(--accent); }
 
 .sb-foot {
   margin-top: auto;
@@ -808,10 +828,10 @@ html::after {
 }
 .seg-btn:active { transform: scale(0.96); }
 .seg-btn.active {
-  background: #fff;
-  color: #0a0a12;
+  background: hsl(var(--ah) var(--as) var(--al) / 0.22);
+  color: var(--text-1);
   font-weight: 600;
-  box-shadow: 0 2px 10px -4px rgba(0, 0, 0, 0.6);
+  box-shadow: inset 0 0 0 1px hsl(var(--ah) var(--as) var(--al) / 0.5);
 }
 
 .gdrop-trigger {
@@ -842,8 +862,8 @@ html::after {
   align-items: center;
   justify-content: flex-start;
   text-align: center;
-  gap: 3px;
-  padding: 20px 14px 16px;
+  gap: 2px;
+  padding: 12px 12px 11px;
 }
 .stat-card::before { content: none; }   /* left accent tick retired */
 .stat-card .tile-main,
@@ -858,13 +878,13 @@ html::after {
   transition: color var(--t-med) var(--ease-smooth);
 }
 .stat-card .tile-icon,
-.stat-card .tile-spark { order: -1; margin-bottom: 8px; }
-.tile-icon svg { width: 26px; height: 26px; stroke-width: 1.75; }
+.stat-card .tile-spark { order: -1; margin-bottom: 4px; }
+.tile-icon svg { width: 16px; height: 16px; stroke-width: 2; }
 .stat-card:hover .tile-icon { color: var(--accent-text); }
 
 .stat-card .stat-value {
   order: 0;
-  font-size: 1.7rem;
+  font-size: 1.25rem;
   line-height: 1.12;
   white-space: normal;
   display: flex;
@@ -873,7 +893,7 @@ html::after {
   flex-wrap: wrap;
   column-gap: 6px;
 }
-.stat-card .stat-label { order: 1; margin-top: 3px; max-width: 100%; }
+.stat-card .stat-label { order: 1; margin-top: 2px; max-width: 100%; }
 .stat-card .stat-sub { order: 2; max-width: 100%; }
 
 /* Tones recolor the icon (the tick is gone) */
@@ -894,24 +914,152 @@ html::after {
   .page-enter { animation: none; }
 }
 
-/* ── Primary actions: white pill, dark text (reference) ─────────── */
+/* ── Primary actions: accent gradient, soft glow (no white slabs) ── */
 .btn-primary {
-  background: #fff;
-  border-color: #fff;
-  color: #0a0a12;
+  background: linear-gradient(135deg, var(--accent), hsl(calc(var(--ah) + 32) var(--as) calc(var(--al) - 6%)));
+  border-color: transparent;
+  color: #fff;
   font-weight: 600;
-  box-shadow: 0 4px 18px -8px rgba(255, 255, 255, 0.35);
+  box-shadow: 0 6px 22px -8px hsl(var(--ah) var(--as) var(--al) / calc(0.55 * var(--glow)));
 }
 .btn-primary:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.9);
+  background: linear-gradient(135deg, hsl(var(--ah) var(--as) calc(var(--al) + 6%)), hsl(calc(var(--ah) + 32) var(--as) var(--al)));
   border-color: transparent;
-  color: #0a0a12;
+  color: #fff;
+  transform: translateY(-1px);
 }
-.btn-primary .spinner { border-color: rgba(10, 10, 18, 0.25); border-top-color: #0a0a12; }
+.btn-primary .spinner { border-color: rgba(255, 255, 255, 0.35); border-top-color: #fff; }
 
-/* ── Radial gauges: vivid ring (ramp defs live in each gauge SVG) ── */
+/* ── Radial gauges: clean ring, no filter (the drop-shadow filter
+   region rendered as a ghost box behind the circle) ── */
 .gauge-fill {
   /* SVG2 paint fallback: solid pink if the defs id is absent in a frame */
   stroke: url(#gauge-vivid-ramp) hsl(345 95% 58%);
-  filter: drop-shadow(0 0 6px hsl(345 95% 56% / 0.35));
 }
+.gauge { background: none; border: none; box-shadow: none; }
+
+/* Refresh lives beside the brand now, not buried in the footer */
+.sb-brand-actions { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+
+
+/* ═══════════════════════════════════════════════════════════════
+   ROUND-3 FUNCTIONAL FIX NEEDS (from the parallel fixers)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Heatmap page (scoped via .heatmap-page on the page root) — the map shell sizes to
+   the remaining viewport so header + chips + full map fit a ~1080p screen with no
+   page scroll. Fullscreen keeps its own sizing; >900px so mobile rules still win. */
+@media (min-width: 901px) {
+  .heatmap-page .world-heatmap:not(.world-heatmap-fullscreen) .world-heatmap-map-shell {
+    min-height: clamp(380px, calc(100vh - 375px), 820px);
+  }
+  .heatmap-page .heatmap-map-container { min-height: 0; }
+  .page-content.heatmap-page { padding-bottom: 24px; }
+}
+
+/* TrafficPage: 5-up KPI row */
+.stat-grid-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+@media (max-width: 1280px) { .stat-grid-5 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 900px) { .stat-grid-5 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* KPI drill-down modal — ONE clean entrance (overrides the duplicate
+   legacy entrance rules in index.css/components.css by source order). */
+@keyframes kpi-overlay-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes kpi-modal-in {
+  from { opacity: 0; transform: scale(0.97); }
+  to   { opacity: 1; transform: none; }
+}
+.kpi-overlay { animation: kpi-overlay-fade 0.15s ease-out; }
+.kpi-modal { animation: kpi-modal-in 0.18s ease-out; }
+/* Belt-and-braces: never let a stagger-grid nth-child delay replay the
+   overlay entrance (the old visible->blank->fade double blink). */
+.v2-stagger > .kpi-overlay {
+  animation-delay: 0s;
+  animation-fill-mode: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .kpi-overlay,
+  .kpi-modal { animation: none; }
+}
+
+/* ── FilterBar compact pill + popover ───────────────────────────── */
+.filter-bar-right { position: relative; }
+.filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 13px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill, 999px);
+  color: var(--text-2);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.18s, color 0.18s, background 0.18s, transform 0.13s;
+}
+.filter-pill:active { transform: scale(0.97); }
+.filter-pill:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+  color: var(--text-1);
+}
+.filter-pill[aria-expanded="true"] {
+  border-color: rgba(255, 255, 255, 0.18);
+  color: var(--text-1);
+  background: rgba(255, 255, 255, 0.06);
+}
+.filter-pill-active,
+.filter-pill-active:hover {
+  border-color: hsl(var(--ah) var(--as) var(--al) / 0.5);
+  color: var(--accent-text);
+  background: var(--accent-subtle);
+}
+.filter-pill-sep { opacity: 0.45; }
+.filter-pill-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: hsl(var(--ah) var(--as) var(--al) / 0.25);
+  color: var(--accent-text);
+  font-size: 0.65rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.filter-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 232px;
+  padding: 12px;
+  background: hsl(240 30% 11% / 0.97);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 16px 48px -12px rgba(0, 0, 0, 0.6);
+  animation: kpi-modal-in 0.16s ease-out;
+}
+.filter-pop .seg-control {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+}
+.filter-pop .seg-btn {
+  flex: 1;
+  text-align: center;
+}
+.filter-pop .gdrop { width: 100%; }
+.filter-pop .gdrop-trigger {
+  width: 100%;
+  justify-content: space-between;
+}
+.filter-pop .btn { justify-content: center; }

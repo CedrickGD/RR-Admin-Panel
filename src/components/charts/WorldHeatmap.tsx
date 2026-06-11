@@ -2,11 +2,10 @@ import { Crosshair, Globe2, Info, Layers, LocateFixed, Map as MapIcon, Maximize2
 import maplibregl, {
   type GeoJSONSource,
   LngLatBounds,
-  Marker,
   Popup,
 } from "maplibre-gl";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { FeatureCollection, LineString } from "geojson";
+import type { FeatureCollection, LineString, Point } from "geojson";
 import type { ThemeMode } from "../../types/telemetry";
 import type {
   HeatmapPoint,
@@ -93,6 +92,11 @@ function readSavedMapStyle(): MapStyleMode {
 const CONNECTIONS_SOURCE_ID = "active-connections";
 const CONNECTIONS_GLOW_LAYER_ID = "active-connections-glow";
 const CONNECTIONS_LINE_LAYER_ID = "active-connections-line";
+const SESSIONS_SOURCE_ID = "session-dots";
+const SESSIONS_GLOW_LAYER_ID = "session-dots-glow";
+const SESSIONS_CORE_LAYER_ID = "session-dots-core";
+const SESSIONS_RING_LAYER_ID = "session-dots-ring";
+const NO_ACTIVE_DOT_KEY = "__none__";
 const INITIAL_CENTER: [number, number] = [12, 20];
 const INITIAL_ZOOM = 1.45;
 const DEFAULT_MAX_ZOOM = 18.8;
@@ -331,34 +335,137 @@ function fitToPoints(
   });
 }
 
-function getZoomScale(zoom: number) {
-  return 0.7 + (zoom / INITIAL_ZOOM) * 0.3;
+interface DotPalette {
+  glow: string;
+  corePrecise: string;
+  coreSpread: string;
+  ring: string;
 }
 
-function createMarkerElement(point: SessionMapPoint, currentZoom: number) {
-  const button = document.createElement("button");
-  const baseSize = (point.precise ? 4.6 : 5) + (point.intensity * 3.6);
-  const size = baseSize * getZoomScale(currentZoom);
-  const pulseScale = point.precise ? 1.95 : 2.15;
-  const pulseOpacity = 0.1 + (point.intensity * 0.1);
+/** Resolve the user-themeable accent (--ah/--as/--al) into concrete colors for
+ *  MapLibre paint properties, mirroring the retired .map-node-* CSS markers
+ *  (core lightness 85% precise / 70% spread, accent halo). Re-read on every
+ *  ensureSessionDots call so theme/accent changes propagate. */
+function readDotPalette(): DotPalette {
+  const styles = getComputedStyle(document.documentElement);
+  const hue = styles.getPropertyValue("--ah").trim() || "217";
+  const saturation = styles.getPropertyValue("--as").trim() || "83%";
+  const lightness = styles.getPropertyValue("--al").trim() || "62%";
 
-  button.type = "button";
-  button.className = `map-node-marker ${point.precise ? "map-node-marker-precise" : "map-node-marker-spread"}`;
-  button.setAttribute("aria-label", `${point.label}: ${point.marketValue} active users`);
-  button.setAttribute("data-base-size", baseSize.toFixed(2));
-  button.title = `${point.label} · ${formatNumber(point.marketValue)} live sessions`;
-  const breathDelay = (Math.random() * 3).toFixed(2);
-  button.style.setProperty("--map-node-size", `${size}px`);
-  button.style.setProperty("--map-node-pulse-scale", pulseScale.toFixed(2));
-  button.style.setProperty("--map-node-pulse-opacity", pulseOpacity.toFixed(3));
-  button.style.setProperty("--map-node-breath-delay", `${breathDelay}s`);
-  button.innerHTML = `
-    <span class="map-node-pulse"></span>
-    <span class="map-node-halo"></span>
-    <span class="map-node-core"></span>
-  `;
+  return {
+    glow: `hsl(${hue}, ${saturation}, ${lightness})`,
+    corePrecise: `hsl(${hue}, ${saturation}, 85%)`,
+    coreSpread: `hsl(${hue}, ${saturation}, 70%)`,
+    ring: `hsl(${hue}, ${saturation}, ${lightness})`,
+  };
+}
 
-  return button;
+function buildSessionDotsCollection(points: SessionMapPoint[]): FeatureCollection<Point> {
+  return {
+    type: "FeatureCollection",
+    features: points.map((point) => ({
+      type: "Feature",
+      properties: {
+        key: point.key,
+        // Intensity drives radius + opacity; the all-time set ships intensity 0
+        // (HeatmapPage), so it renders as the smallest, dimmest variant.
+        intensity: point.intensity,
+        precise: point.precise,
+      },
+      geometry: { type: "Point", coordinates: point.coordinates },
+    })),
+  };
+}
+
+/** Session dots are a real GeoJSON source + circle layers (not HTML overlays),
+ *  so every dot stays glued to its [longitude, latitude] at any zoom/pan and on
+ *  both globe and mercator projections. */
+function ensureSessionDots(
+  map: maplibregl.Map,
+  data: FeatureCollection<Point>,
+  activeKey: string | null,
+) {
+  const palette = readDotPalette();
+  const source = map.getSource(SESSIONS_SOURCE_ID) as GeoJSONSource | undefined;
+
+  if (source) {
+    source.setData(data);
+  } else {
+    map.addSource(SESSIONS_SOURCE_ID, { type: "geojson", data });
+  }
+
+  if (!map.getLayer(SESSIONS_GLOW_LAYER_ID)) {
+    map.addLayer({
+      id: SESSIONS_GLOW_LAYER_ID,
+      type: "circle",
+      source: SESSIONS_SOURCE_ID,
+      paint: {
+        "circle-color": palette.glow,
+        "circle-blur": 0.9,
+        "circle-opacity": ["+", 0.16, ["*", ["get", "intensity"], 0.2]],
+        "circle-radius": [
+          "interpolate", ["linear"], ["zoom"],
+          1, ["+", 4.4, ["*", ["get", "intensity"], 3.4]],
+          5, ["+", 7, ["*", ["get", "intensity"], 5.4]],
+          10, ["+", 11, ["*", ["get", "intensity"], 8.4]],
+          16, ["+", 15, ["*", ["get", "intensity"], 11]],
+        ],
+      },
+    });
+  } else {
+    map.setPaintProperty(SESSIONS_GLOW_LAYER_ID, "circle-color", palette.glow);
+  }
+
+  if (!map.getLayer(SESSIONS_CORE_LAYER_ID)) {
+    map.addLayer({
+      id: SESSIONS_CORE_LAYER_ID,
+      type: "circle",
+      source: SESSIONS_SOURCE_ID,
+      paint: {
+        "circle-color": ["case", ["to-boolean", ["get", "precise"]], palette.corePrecise, palette.coreSpread],
+        "circle-opacity": ["+", 0.78, ["*", ["get", "intensity"], 0.22]],
+        "circle-stroke-width": 1,
+        "circle-stroke-color": "rgba(255,255,255,0.14)",
+        "circle-radius": [
+          "interpolate", ["linear"], ["zoom"],
+          1, ["+", 1.8, ["*", ["get", "intensity"], 1.4]],
+          5, ["+", 2.9, ["*", ["get", "intensity"], 2.3]],
+          10, ["+", 4.4, ["*", ["get", "intensity"], 3.4]],
+          16, ["+", 6.2, ["*", ["get", "intensity"], 4.6]],
+        ],
+      },
+    });
+  } else {
+    map.setPaintProperty(SESSIONS_CORE_LAYER_ID, "circle-color", [
+      "case", ["to-boolean", ["get", "precise"]], palette.corePrecise, palette.coreSpread,
+    ]);
+  }
+
+  if (!map.getLayer(SESSIONS_RING_LAYER_ID)) {
+    map.addLayer({
+      id: SESSIONS_RING_LAYER_ID,
+      type: "circle",
+      source: SESSIONS_SOURCE_ID,
+      paint: {
+        "circle-color": "rgba(0,0,0,0)",
+        "circle-stroke-width": 1.6,
+        "circle-stroke-color": palette.ring,
+        "circle-stroke-opacity": 0.92,
+        "circle-radius": [
+          "interpolate", ["linear"], ["zoom"],
+          1, ["+", 4.6, ["*", ["get", "intensity"], 1.4]],
+          5, ["+", 5.9, ["*", ["get", "intensity"], 2.3]],
+          10, ["+", 7.4, ["*", ["get", "intensity"], 3.4]],
+          16, ["+", 9.2, ["*", ["get", "intensity"], 4.6]],
+        ],
+      },
+    });
+  } else {
+    map.setPaintProperty(SESSIONS_RING_LAYER_ID, "circle-stroke-color", palette.ring);
+  }
+
+  // Selection ring follows the active dot; parked on a sentinel when nothing is active.
+  map.setFilter(SESSIONS_RING_LAYER_ID, ["==", ["get", "key"], activeKey ?? NO_ACTIVE_DOT_KEY]);
 }
 
 function createPalette(theme: ThemeMode): MapPalette {
@@ -710,8 +817,8 @@ export function WorldHeatmap({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const popupRef = useRef<Popup | null>(null);
-  const markersRef = useRef<Array<{ key: string; marker: Marker; element: HTMLButtonElement }>>([]);
   const autoFitRef = useRef(false);
+  const handledFocusTokenRef = useRef(0);
   const themeRef = useRef(theme);
   const activeKeyRef = useRef<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
@@ -727,6 +834,9 @@ export function WorldHeatmap({
   const sessionMarkerPoints = useMemo(() => buildSessionPoints(sessionPoints), [sessionPoints]);
   const connections = useMemo(() => buildConnections(marketMarkerPoints, sessionMarkerPoints), [marketMarkerPoints, sessionMarkerPoints]);
   const connectionsRef = useRef(connections);
+  const sessionDots = useMemo(() => buildSessionDotsCollection(sessionMarkerPoints), [sessionMarkerPoints]);
+  const sessionDotsRef = useRef(sessionDots);
+  const onOpenSessionRef = useRef(onOpenSession);
   const activePoint = sessionMarkerPoints.find((point) => point.key === activeKey) ?? null;
 
   useEffect(() => {
@@ -740,6 +850,14 @@ export function WorldHeatmap({
   useEffect(() => {
     connectionsRef.current = connections;
   }, [connections]);
+
+  useEffect(() => {
+    sessionDotsRef.current = sessionDots;
+  }, [sessionDots]);
+
+  useEffect(() => {
+    onOpenSessionRef.current = onOpenSession;
+  }, [onOpenSession]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -796,6 +914,7 @@ export function WorldHeatmap({
         styleMap(map, themeRef.current);
       }
       ensureConnections(map, connectionsRef.current);
+      ensureSessionDots(map, sessionDotsRef.current, activeKeyRef.current);
       setMapReady(true);
       setZoom(map.getZoom());
     });
@@ -803,34 +922,44 @@ export function WorldHeatmap({
     map.on("styledata", () => {
       if (!map.isStyleLoaded()) return;
       ensureConnections(map, connectionsRef.current);
+      ensureSessionDots(map, sessionDotsRef.current, activeKeyRef.current);
     });
     map.on("zoom", () => {
-      const currentZoom = map.getZoom();
-      setZoom(currentZoom);
-      const scale = getZoomScale(currentZoom);
-      for (const item of markersRef.current) {
-        const base = parseFloat(item.element.getAttribute("data-base-size") ?? "6");
-        item.element.style.setProperty("--map-node-size", `${base * scale}px`);
-      }
+      setZoom(map.getZoom());
     });
     map.on("click", (event) => {
-      const target = event.originalEvent.target;
-      if (target instanceof Element && target.closest(".map-node-marker")) {
+      const dotLayers = [SESSIONS_CORE_LAYER_ID, SESSIONS_GLOW_LAYER_ID]
+        .filter((layerId) => Boolean(map.getLayer(layerId)));
+      const features = dotLayers.length > 0
+        ? map.queryRenderedFeatures(event.point, { layers: dotLayers })
+        : [];
+      const rawKey: unknown = features[0]?.properties?.key;
+      const key = typeof rawKey === "string" ? rawKey : null;
+
+      if (key) {
+        // First click selects (popup + ring); a second click on the same dot drills in.
+        const shouldOpenSession = activeKeyRef.current === key;
+        setActiveKey(key);
+
+        if (shouldOpenSession) {
+          onOpenSessionRef.current(key);
+        }
+
         return;
       }
 
       setActiveKey(null);
     });
+    map.on("mouseenter", SESSIONS_CORE_LAYER_ID, () => {
+      map.getCanvas().style.cursor = "pointer";
+    });
+    map.on("mouseleave", SESSIONS_CORE_LAYER_ID, () => {
+      map.getCanvas().style.cursor = "";
+    });
 
     return () => {
       popupRef.current?.remove();
       popupRef.current = null;
-
-      for (const item of markersRef.current) {
-        item.marker.remove();
-      }
-
-      markersRef.current = [];
       map.remove();
       mapRef.current = null;
     };
@@ -856,6 +985,10 @@ export function WorldHeatmap({
       restoreDefaultStyle(map, savedPaintsRef.current);
     }
     ensureConnections(map, connections);
+
+    if (map.isStyleLoaded()) {
+      ensureSessionDots(map, sessionDotsRef.current, activeKeyRef.current);
+    }
   }, [connections, mapReady, theme]);
 
   useEffect(() => {
@@ -875,32 +1008,8 @@ export function WorldHeatmap({
       return;
     }
 
-    for (const item of markersRef.current) {
-      item.marker.remove();
-    }
-
-    markersRef.current = [];
-
-    for (const point of sessionMarkerPoints) {
-      const element = createMarkerElement(point, map.getZoom());
-      const marker = new maplibregl.Marker({
-        element,
-        anchor: "center",
-      })
-        .setLngLat(point.coordinates)
-        .addTo(map);
-
-      element.addEventListener("click", (event) => {
-        event.stopPropagation();
-        const shouldOpenSession = activeKeyRef.current === point.key;
-        setActiveKey(point.key);
-
-        if (shouldOpenSession) {
-          onOpenSession(point.key);
-        }
-      });
-
-      markersRef.current.push({ key: point.key, marker, element });
+    if (map.isStyleLoaded()) {
+      ensureSessionDots(map, sessionDots, activeKeyRef.current);
     }
 
     if (sessionMarkerPoints.length === 0) {
@@ -918,7 +1027,7 @@ export function WorldHeatmap({
     if (!sessionMarkerPoints.some((point) => point.key === activeKeyRef.current)) {
       setActiveKey(null);
     }
-  }, [mapReady, sessionMarkerPoints]);
+  }, [mapReady, sessionDots, sessionMarkerPoints]);
 
   useEffect(() => {
     const popup = popupRef.current;
@@ -928,8 +1037,8 @@ export function WorldHeatmap({
       return;
     }
 
-    for (const item of markersRef.current) {
-      item.element.classList.toggle("map-node-marker-active", item.key === activeKey);
+    if (map.getLayer(SESSIONS_RING_LAYER_ID)) {
+      map.setFilter(SESSIONS_RING_LAYER_ID, ["==", ["get", "key"], activeKey ?? NO_ACTIVE_DOT_KEY]);
     }
 
     if (!activePoint) {
@@ -948,6 +1057,13 @@ export function WorldHeatmap({
       return;
     }
 
+    // Each show-on-map click bumps the token. Handle it exactly once: data polls
+    // refresh sessionPoints (new identity) and must NOT re-fly to / reopen the
+    // focused session after the owner has dismissed it and panned away.
+    if (handledFocusTokenRef.current === focusedSessionToken) {
+      return;
+    }
+
     const map = mapRef.current;
 
     if (!map || !mapReady) {
@@ -957,9 +1073,11 @@ export function WorldHeatmap({
     const point = sessionMarkerPoints.find((entry) => entry.key === focusedSessionId);
 
     if (!point) {
+      // Leave the token unhandled so the focus completes once the dot arrives.
       return;
     }
 
+    handledFocusTokenRef.current = focusedSessionToken;
     setActiveKey(point.key);
     map.easeTo({
       center: point.coordinates,
@@ -1024,6 +1142,7 @@ export function WorldHeatmap({
           styleMap(map, themeRef.current);
         }
         ensureConnections(map, connectionsRef.current);
+        ensureSessionDots(map, sessionDotsRef.current, activeKeyRef.current);
       });
     } else {
       // tactical <-> standard: instant paint swap

@@ -315,6 +315,22 @@ export function WorkersPage({ summary, stats, users, onOpenMapSession, filterBar
     setExpandedUsers((curr) => curr.includes(identity) ? curr.filter((id) => id !== identity) : [...curr, identity]);
   }
 
+  // The rollup doesn't carry a session id, so lift each user's most recent one from
+  // the summary window (same identity key the rollup uses: hwid, else installId).
+  // Lets a rollup row deep-link to the map exactly like LivePage / the Sessions tab.
+  const lastSessionByIdentity = useMemo(() => {
+    const map = new Map<string, { id: string; lastSeenTs: number }>();
+    for (const session of [...summary.activeSessions, ...summary.recentSessions]) {
+      if (session.id.startsWith("install:")) continue;
+      const identity = (session.hwid ?? session.installId).trim().toLowerCase();
+      const ts = parseTimestamp(session.lastSeenAt);
+      const lastSeenTs = Number.isFinite(ts) ? ts : 0;
+      const existing = map.get(identity);
+      if (!existing || lastSeenTs > existing.lastSeenTs) map.set(identity, { id: session.id, lastSeenTs });
+    }
+    return map;
+  }, [summary.activeSessions, summary.recentSessions]);
+
   /* ── header KPI values (stats/rollup driven, summary fallback) ── */
 
   const totalUsersValue = users ? users.length : stats ? stats.totals.lifetimeUsers : summary.stats.lifetimeUsers;
@@ -524,6 +540,7 @@ export function WorkersPage({ summary, stats, users, onOpenMapSession, filterBar
                         const isExpanded = expandedUsers.includes(user.identity);
                         const features = Object.entries(user.features ?? {}).sort((a, b) => b[1] - a[1]);
                         const recentErrors = user.recentErrors ?? [];
+                        const lastSessionId = lastSessionByIdentity.get(user.identity.trim().toLowerCase())?.id ?? null;
 
                         return (
                           <Fragment key={user.identity}>
@@ -570,12 +587,23 @@ export function WorkersPage({ summary, stats, users, onOpenMapSession, filterBar
                               </td>
                               <td className="muted" style={{ whiteSpace: "nowrap" }}>{formatDateOnly(user.firstSeen)}</td>
                               <td>
-                                <IconButton
-                                  icon={isExpanded ? <ChevronUp /> : <ChevronDown />}
-                                  style={{ padding: 4 }}
-                                  onClick={(e) => { e.stopPropagation(); toggleUserExpanded(user.identity); }}
-                                  aria-label={isExpanded ? "Collapse" : "Expand"}
-                                />
+                                <div style={{ display: "flex", gap: 4 }}>
+                                  {lastSessionId ? (
+                                    <IconButton
+                                      icon={<Globe2 />}
+                                      style={{ padding: 4 }}
+                                      title="Show on map"
+                                      aria-label="Show on map"
+                                      onClick={(e) => { e.stopPropagation(); onOpenMapSession(lastSessionId); }}
+                                    />
+                                  ) : null}
+                                  <IconButton
+                                    icon={isExpanded ? <ChevronUp /> : <ChevronDown />}
+                                    style={{ padding: 4 }}
+                                    onClick={(e) => { e.stopPropagation(); toggleUserExpanded(user.identity); }}
+                                    aria-label={isExpanded ? "Collapse" : "Expand"}
+                                  />
+                                </div>
                               </td>
                             </tr>
 

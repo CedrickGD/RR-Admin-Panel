@@ -1,5 +1,6 @@
 import { X } from "lucide-react";
 import { useEffect, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 export interface ModalProps {
   open: boolean;
@@ -33,7 +34,13 @@ export function Modal({ open, onClose, kicker, title, sub, children }: ModalProp
     return null;
   }
 
-  return (
+  // Portal to <body>: callers render the modal inline next to their tile, which would
+  // make .kpi-overlay a direct child of .v2-stagger grids — the stagger's nth-child
+  // animation-delay then outranks the overlay's own entrance and the modal flashes
+  // visible → blank → fade-in (the "double blink"). On <body> only the dedicated
+  // .kpi-overlay/.kpi-modal entrance applies, and it runs once per open (mount-only;
+  // data polls update props without remounting, so it never replays).
+  return createPortal(
     <div className="kpi-overlay" onClick={onClose}>
       <div className="kpi-modal" onClick={(event) => event.stopPropagation()}>
         <div className="kpi-modal-head">
@@ -48,7 +55,8 @@ export function Modal({ open, onClose, kicker, title, sub, children }: ModalProp
         </div>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

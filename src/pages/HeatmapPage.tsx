@@ -391,7 +391,7 @@ export function HeatmapPage({
         ];
 
   return (
-    <div className="page-content page-stack-lg">
+    <div className="page-content page-stack-lg heatmap-page">
       {/* Header — view seg + country filter + meta right; region chips on their own row */}
       <PageHeader
         kicker="Geography"
@@ -457,8 +457,9 @@ export function HeatmapPage({
         ))}
       </div>
 
-      {/* Map + regions */}
-      <div className="main-side-lg">
+      {/* Map + regions — Regional Load sits beside the map; stretch the row so the
+          side panel tracks the map height instead of leaving a dead band below. */}
+      <div className="main-side-lg main-side-stretch">
         {/* World map */}
         <section className="panel">
           <div className="panel-head">

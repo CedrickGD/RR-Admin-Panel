@@ -19,9 +19,9 @@ export function formatUtc(value: string): string {
 }
 
 export function formatNumber(n: number): string {
+  // Exact counts below a million — abbreviating to "3.0K" read like a cap.
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return n.toLocaleString();
+  return n.toLocaleString("en-US");
 }
 
 export function timeAgo(value: string | null): string {

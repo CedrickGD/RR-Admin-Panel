@@ -1,4 +1,4 @@
-import { CircleCheck, Crown, Download, Layers, Package, Users } from "lucide-react";
+import { CircleCheck, Crown, Download, History, Layers, Package } from "lucide-react";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { CollapsiblePanel } from "../components/CollapsiblePanel";
 import { KpiStatCard, type KpiDrilldown } from "../components/KpiStatCard";
@@ -111,7 +111,7 @@ const RELEASE_COLUMNS: Array<DataTableColumn<VersionRow>> = [
   { key: "status", header: "Status", render: (row) => statusBadge(row) },
 ];
 
-export function VersionsPage({ summary, stats, theme, accentHue = 217, filterBar }: VersionsPageProps) {
+export function VersionsPage({ stats, theme, accentHue = 217, filterBar }: VersionsPageProps) {
   const latestVersion = useLatestVersion();
   const releaseVersions = useReleaseVersions();
   const [view, setView] = useState<AdoptionView>("current");
@@ -178,11 +178,13 @@ export function VersionsPage({ summary, stats, theme, accentHue = 217, filterBar
     [versionRows, view],
   );
 
-  const lifetimeUsers = stats?.totals.lifetimeUsers ?? summary.stats.lifetimeUsers;
   const totalCurrentKnown = useMemo(() => versionRows.reduce((sum, row) => sum + row.currentUsers, 0), [versionRows]);
   const latestRow = useMemo(() => versionRows.find((row) => row.isLatest) ?? null, [versionRows]);
   const onLatestUsers = latestRow?.currentUsers ?? 0;
   const onLatestSharePct = totalCurrentKnown > 0 ? Math.round((onLatestUsers / totalCurrentKnown) * 100) : 0;
+  // Version-specific: known current users whose latest session is NOT on the latest release.
+  const outdatedUsers = Math.max(0, totalCurrentKnown - onLatestUsers);
+  const outdatedSharePct = totalCurrentKnown > 0 ? Math.round((outdatedUsers / totalCurrentKnown) * 100) : 0;
   const topVersion = useMemo(() => {
     let best: ChartRow | null = null;
     for (const row of chartRows) {
@@ -205,20 +207,21 @@ export function VersionsPage({ summary, stats, theme, accentHue = 217, filterBar
     [versionRows, totalCurrentKnown],
   );
 
-  const lifetimeDrilldown = useMemo<KpiDrilldown | null>(() => {
-    if (!stats) return null;
+  const outdatedDrilldown = useMemo<KpiDrilldown | null>(() => {
+    const rows = versionRows
+      .filter((row) => !row.isLatest && row.currentUsers > 0)
+      .sort((a, b) => b.currentUsers - a.currentUsers);
+    if (rows.length === 0) return null;
     return {
-      timespans: [
-        { label: "Lifetime", value: formatNumber(stats.totals.lifetimeUsers) },
-        { label: "In range", value: formatNumber(stats.totals.usersInRange) },
-        { label: "New in range", value: formatNumber(stats.totals.newUsersInRange) },
-        { label: "Active now", value: formatNumber(stats.totals.activeNow) },
-      ],
-      breakdown: currentBreakdown,
-      breakdownTitle: "By current version",
-      note: "Each user is counted once under the version of their latest session.",
+      breakdown: rows.map((row) => ({
+        label: row.label,
+        value: formatNumber(row.currentUsers),
+        share: outdatedUsers > 0 ? row.currentUsers / outdatedUsers : 0,
+      })),
+      breakdownTitle: "Outdated users by version",
+      note: `Known current users whose latest session is not on v${latestVersion}.`,
     };
-  }, [stats, currentBreakdown]);
+  }, [versionRows, outdatedUsers, latestVersion]);
 
   const onLatestDrilldown = useMemo<KpiDrilldown | null>(() => {
     if (!stats || !currentBreakdown || currentBreakdown.length === 0) return null;
@@ -350,17 +353,8 @@ export function VersionsPage({ summary, stats, theme, accentHue = 217, filterBar
         }
       />
 
-      {/* Adoption KPIs */}
+      {/* Adoption KPIs — version-specific only (lifetime totals live on Overview) */}
       <div className="stat-grid stat-grid-4 v2-stagger">
-        <KpiStatCard
-          label="Lifetime Users"
-          value={formatNumber(lifetimeUsers)}
-          sub="All-time unique · HWID"
-          icon={<Users size={14} />}
-          tone="primary"
-          drilldown={lifetimeDrilldown}
-          chartColor={chartPalette.sessionsLine}
-        />
         <KpiStatCard
           label="On Latest"
           value={formatNumber(onLatestUsers)}
@@ -368,6 +362,15 @@ export function VersionsPage({ summary, stats, theme, accentHue = 217, filterBar
           icon={<CircleCheck size={14} />}
           tone="success"
           drilldown={onLatestDrilldown}
+          chartColor={chartPalette.sessionsLine}
+        />
+        <KpiStatCard
+          label="Outdated"
+          value={formatNumber(outdatedUsers)}
+          sub={`${outdatedSharePct}% of known · not on v${latestVersion}`}
+          icon={<History size={14} />}
+          tone={outdatedUsers > 0 ? "warning" : "primary"}
+          drilldown={outdatedDrilldown}
           chartColor={chartPalette.sessionsLine}
         />
         <KpiStatCard

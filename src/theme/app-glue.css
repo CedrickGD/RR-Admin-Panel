@@ -28,9 +28,13 @@
 
 /* ── (b) Legacy neutralization ───────────────────────────────────
    The aurora owns the ground: kill index.css's radial washes and
-   the masked micro-grid texture. */
+   the masked micro-grid texture. Body must stay TRANSPARENT — its
+   background paints above the html::before/::after aurora layers
+   (negative-z root pseudos sit under in-flow box backgrounds), so
+   an opaque body fill would hide the aurora entirely; html paints
+   the --bg ground instead (base.css). */
 body {
-  background: var(--bg);
+  background: transparent;
   background-attachment: scroll;
 }
 body::before,

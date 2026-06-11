@@ -582,9 +582,11 @@ html::before {
 }
 html::after {
   inset: -50%;
+  /* Orange leaning red, NOT yellow — yellow screen-blended over the
+     violet ground turns olive/muddy. */
   background:
-    radial-gradient(36% 32% at 68% 31%, hsl(45 100% 55% / calc(0.32 * var(--glow))), transparent 68%),
-    radial-gradient(28% 26% at 61% 48%, hsl(25 100% 56% / calc(0.24 * var(--glow))), transparent 68%);
+    radial-gradient(32% 28% at 69% 30%, hsl(28 100% 56% / calc(0.26 * var(--glow))), transparent 66%),
+    radial-gradient(26% 24% at 60% 47%, hsl(14 95% 58% / calc(0.20 * var(--glow))), transparent 66%);
   mix-blend-mode: screen;
   animation: liquid-b 52s ease-in-out infinite alternate;
 }
@@ -796,7 +798,8 @@ body::before {
       -webkit-backdrop-filter: blur(0px);
     }
     to {
-      background: hsl(240 36% 9% / 0.6);
+      /* Near-opaque: content must NOT read through the stuck header */
+      background: hsl(240 36% 8% / 0.94);
       box-shadow: inset 0 0 0 1px var(--line), 0 14px 36px -20px rgba(0, 0, 0, 0.8);
       backdrop-filter: blur(var(--glass-blur));
       -webkit-backdrop-filter: blur(var(--glass-blur));

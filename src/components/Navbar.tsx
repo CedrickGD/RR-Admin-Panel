@@ -6,11 +6,13 @@ import {
   Layers,
   LogOut,
   Map,
+  Menu,
   Radio,
   RefreshCw,
   Settings2,
+  X,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type { AuthMode, AuthUser, HealthPayload, PageKey, SummaryPayload } from "../types/telemetry";
 import { timeAgo } from "../utils/format";
 
@@ -47,10 +49,10 @@ export interface NavbarProps {
 }
 
 /**
- * DS TopNav shell: sticky frosted top navbar — brand lockup left, flat
- * horizontal nav with a glowing accent tick on the navbar's bottom edge,
- * live ingest status + mono meta + icon actions right. Below 900px the
- * nav drops to a second horizontally scrollable row (see css/shell.css).
+ * Frosted left sidebar shell: generous brand lockup on top, vertical nav
+ * with white-pill active state, live-ingest status + actions pinned to the
+ * bottom. Below 900px it becomes an off-canvas drawer behind a slim
+ * frosted mobile bar (hamburger).
  */
 export function Navbar({
   page,
@@ -63,64 +65,103 @@ export function Navbar({
   refreshing = false,
   onLogout,
 }: NavbarProps) {
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const apiOk = health?.api === "alive";
   const ingestLabel = timeAgo(summary?.stats.lastIngestAt ?? health?.lastIngestAt ?? null);
 
+  function navigate(key: PageKey) {
+    onNavigate(key);
+    setDrawerOpen(false);
+  }
+
+  const refreshButton = (
+    <button
+      type="button"
+      className="btn-icon"
+      onClick={onRefresh}
+      disabled={refreshing}
+      aria-label="Refresh data"
+      title={refreshing ? "Syncing" : "Refresh data"}
+    >
+      <RefreshCw size={16} className={refreshing ? "animate-spin" : undefined} />
+    </button>
+  );
+
   return (
-    <header className="topnav">
-      <div className="tn-brand">
-        <img src={brandLogo} alt="RazorReaper logo" className="tn-brand-img" />
-        <div>
-          <span className="tn-brand-name">RazorReaper</span>
-          <span className="tn-brand-sub">Operations Console</span>
+    <>
+      {/* Slim frosted bar — mobile only (≤900px) */}
+      <header className="mobilebar">
+        <button
+          type="button"
+          className="btn-icon"
+          onClick={() => setDrawerOpen(true)}
+          aria-label="Open navigation"
+        >
+          <Menu size={17} />
+        </button>
+        <div className="mobilebar-brand">
+          <img src={brandLogo} alt="" className="mobilebar-logo" />
+          <span>RazorReaper</span>
         </div>
-      </div>
+        {refreshButton}
+      </header>
 
-      <nav className="tn-nav" aria-label="Primary">
-        {NAV_ITEMS.map((item) => (
-          <button
-            key={item.key}
-            type="button"
-            className={`tn-item${page === item.key ? " active" : ""}`}
-            onClick={() => onNavigate(item.key)}
-            aria-current={page === item.key ? "page" : undefined}
-          >
-            {item.icon}
-            <span>{item.label}</span>
-          </button>
-        ))}
-      </nav>
+      {drawerOpen ? <div className="sb-scrim" onClick={() => setDrawerOpen(false)} aria-hidden /> : null}
 
-      <div className="tn-right">
-        <div className={`tn-live${apiOk ? "" : " offline"}`} title={`API ${apiOk ? "online" : "offline"}`}>
-          <span className="tn-live-dot" />
-          {apiOk ? "Ingest online" : "Ingest offline"}
-        </div>
-        <div className="tn-meta" title="Last ingest">ingest · {ingestLabel}</div>
-        <div className="tn-actions">
+      <aside className={`sidebar${drawerOpen ? " open" : ""}`} aria-label="Primary">
+        <div className="sb-brand">
+          <img src={brandLogo} alt="RazorReaper logo" className="sb-brand-img" />
+          <div className="sb-brand-text">
+            <span className="sb-brand-name">RazorReaper</span>
+            <span className="sb-brand-sub">Operations Console</span>
+          </div>
           <button
             type="button"
-            className="btn-icon"
-            onClick={onRefresh}
-            disabled={refreshing}
-            aria-label="Refresh data"
-            title={refreshing ? "Syncing" : "Refresh data"}
+            className="btn-icon sb-close"
+            onClick={() => setDrawerOpen(false)}
+            aria-label="Close navigation"
           >
-            <RefreshCw size={16} className={refreshing ? "animate-spin" : undefined} />
+            <X size={16} />
           </button>
-          {authMode === "app" ? (
+        </div>
+
+        <nav className="sb-nav" aria-label="Primary">
+          {NAV_ITEMS.map((item) => (
             <button
+              key={item.key}
               type="button"
-              className="btn-icon"
-              onClick={onLogout}
-              aria-label="Sign out"
-              title={`Signed in as ${user.email}`}
+              className={`sb-item${page === item.key ? " active" : ""}`}
+              onClick={() => navigate(item.key)}
+              aria-current={page === item.key ? "page" : undefined}
             >
-              <LogOut size={16} />
+              {item.icon}
+              <span>{item.label}</span>
             </button>
-          ) : null}
+          ))}
+        </nav>
+
+        <div className="sb-foot">
+          <div className={`tn-live${apiOk ? "" : " offline"}`} title={`API ${apiOk ? "online" : "offline"}`}>
+            <span className="tn-live-dot" />
+            {apiOk ? "Ingest online" : "Ingest offline"}
+          </div>
+          <div className="sb-meta" title="Last ingest">ingest · {ingestLabel}</div>
+          <div className="sb-actions">
+            {refreshButton}
+            {authMode === "app" ? (
+              <button
+                type="button"
+                className="btn-icon"
+                onClick={onLogout}
+                aria-label="Sign out"
+                title={`Signed in as ${user.email}`}
+              >
+                <LogOut size={16} />
+              </button>
+            ) : null}
+          </div>
         </div>
-      </div>
-    </header>
+      </aside>
+    </>
   );
 }

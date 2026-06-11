@@ -530,20 +530,21 @@ body::after {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   AMBIENCE — frosted-glassmorphism reference pass
-   (design-system/REFERENCE-ambience.md, owner-supplied image).
-   Overrides the DS's deliberately-quiet ambience defaults: bold
-   multi-hue aurora bleeding through heavier frost, rounder cards,
-   bigger hero numbers, white-pill primary actions. Structure,
-   components, icons, and voice stay 100% DS.
+   AMBIENCE v2 — liquid glassmorphism pass
+   (design-system/REFERENCE-ambience.md + owner feedback round 2):
+   liquid moving aurora, left sidebar shell, breathing-room layout,
+   soft borderless controls, bare tile icons, scroll-frost header.
+   PERFORMANCE CONTRACT: the background animates every frame, so
+   backdrop-filter lives ONLY on the few chrome surfaces that truly
+   need it (sidebar, mobile bar, scrolled header, menus, modals).
+   Cards and panels are translucent fills with NO backdrop blur —
+   re-blurring ~20 large surfaces over moving paint is what caused
+   the stutter.
    ═══════════════════════════════════════════════════════════════ */
 
 :root {
-  /* Heavier frost — the aurora must visibly bleed through the glass */
-  --glass-blur: 26px;
-  --surface-1: hsl(240 34% 10% / 0.38);
-  --surface-2: hsl(237 36% 14% / 0.46);
-  --surface-3: hsl(234 38% 19% / 0.54);
+  --sb-w: 236px;
+  --glass-blur: 14px;
 
   /* Very rounded cards like the reference (~20px) */
   --r: 20px;
@@ -552,60 +553,348 @@ body::after {
 
   /* Hero numbers dominate the tile */
   --fs-stat: 1.5rem;
+
+  /* Breathing room — gaps up, real side margins */
+  --gap-panel: 18px;
+  --gap-tile: 14px;
+  --page-pad: clamp(24px, 3vw, 52px);
+
+  /* Fill-glass surfaces (no backdrop blur): slightly deeper so text
+     keeps contrast over the brightest aurora blobs */
+  --surface-1: hsl(240 32% 10% / 0.58);
+  --surface-2: hsl(237 34% 14% / 0.66);
+  --surface-3: hsl(234 36% 19% / 0.72);
 }
 
-/* Vivid aurora: violet bottom-left, hot pink/red center sweep,
-   orange→yellow top-right, faint cyan counterweight. Same GPU
-   transform loops and reduced-motion gating as the DS base layer;
-   --glow scales the intensity (0 disables). */
-/* The layer box is 2x the viewport (inset -50%), so gradient positions
-   are in LAYER space: layer% = (viewport% + 50) / 2. */
+/* ── Liquid aurora — three blended layers, transform-only motion ──
+   Layer boxes are 2x the viewport (inset -50%): gradient positions
+   are LAYER space, layer% = (viewport% + 50) / 2. mix-blend screen
+   makes overlapping blobs pool and merge like backlit fluid; the
+   different durations/paths keep them drifting through each other.
+   GPU-composited (transform only), reduced-motion gated. */
 html::before {
   inset: -50%;
   background:
-    radial-gradient(34% 30% at 30% 68%, hsl(272 92% 56% / calc(0.36 * var(--glow))), transparent 68%),
-    radial-gradient(40% 34% at 50% 50%, hsl(345 95% 56% / calc(0.30 * var(--glow))), transparent 70%),
-    radial-gradient(24% 20% at 42% 33%, hsl(300 85% 50% / calc(0.14 * var(--glow))), transparent 70%);
-  animation-duration: 58s;
+    radial-gradient(34% 30% at 30% 68%, hsl(272 92% 56% / calc(0.40 * var(--glow))), transparent 66%),
+    radial-gradient(40% 34% at 50% 50%, hsl(345 95% 56% / calc(0.34 * var(--glow))), transparent 68%);
+  mix-blend-mode: screen;
+  animation: liquid-a 38s ease-in-out infinite alternate;
 }
 html::after {
   inset: -50%;
   background:
-    radial-gradient(36% 32% at 68% 31%, hsl(45 100% 55% / calc(0.30 * var(--glow))), transparent 70%),
-    radial-gradient(28% 26% at 61% 48%, hsl(25 100% 56% / calc(0.22 * var(--glow))), transparent 70%),
-    radial-gradient(22% 20% at 28% 40%, hsl(196 90% 55% / calc(0.10 * var(--glow))), transparent 70%);
-  animation-duration: 76s;
+    radial-gradient(36% 32% at 68% 31%, hsl(45 100% 55% / calc(0.32 * var(--glow))), transparent 68%),
+    radial-gradient(28% 26% at 61% 48%, hsl(25 100% 56% / calc(0.24 * var(--glow))), transparent 68%);
+  mix-blend-mode: screen;
+  animation: liquid-b 52s ease-in-out infinite alternate;
+}
+/* Third layer (counter-current) — overrides the legacy-neutralization
+   content:none above; body::after stays dead. */
+body::before {
+  content: "";
+  display: block;
+  position: fixed;
+  inset: -50%;
+  z-index: -1;
+  pointer-events: none;
+  will-change: transform;
+  background:
+    radial-gradient(26% 24% at 42% 33%, hsl(300 88% 52% / calc(0.18 * var(--glow))), transparent 66%),
+    radial-gradient(24% 22% at 28% 42%, hsl(196 92% 55% / calc(0.14 * var(--glow))), transparent 66%);
+  mix-blend-mode: screen;
+  animation: liquid-c 29s ease-in-out infinite alternate;
+}
+@keyframes liquid-a {
+  0%   { transform: translate3d(-5%, -3%, 0) rotate(0deg)   scale(1); }
+  45%  { transform: translate3d(6%, 5%, 0)   rotate(14deg)  scale(1.16); }
+  100% { transform: translate3d(-3%, 7%, 0)  rotate(-10deg) scale(1.04); }
+}
+@keyframes liquid-b {
+  0%   { transform: translate3d(4%, 5%, 0)   rotate(0deg)   scale(1.08); }
+  50%  { transform: translate3d(-7%, -4%, 0) rotate(-16deg) scale(0.96); }
+  100% { transform: translate3d(5%, -7%, 0)  rotate(12deg)  scale(1.2); }
+}
+@keyframes liquid-c {
+  0%   { transform: translate3d(6%, -5%, 0)  rotate(8deg)   scale(1.12); }
+  50%  { transform: translate3d(-5%, 6%, 0)  rotate(-12deg) scale(0.94); }
+  100% { transform: translate3d(3%, -3%, 0)  rotate(16deg)  scale(1.18); }
+}
+@media (prefers-reduced-motion: reduce) {
+  body::before { animation: none; }
 }
 
-/* Active nav item: clean white pill (reference treatment) instead of
-   the DS underline tick. */
-.tn-item.active {
-  align-self: center;
-  padding: 6px 13px;
-  border-radius: var(--r-pill);
+/* ── Perf: glass = translucent fill, NOT backdrop blur ──────────
+   The DS css puts backdrop-filter on panels/cards; over a moving
+   background every one of them re-blurs per frame. Kill it on the
+   many big surfaces; the soft aurora + deeper fills keep the
+   frosted reading. */
+.panel,
+.stat-card,
+.timezone-card,
+.login-card,
+.auth-card {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.stat-card { background: var(--surface-1); }
+.stat-card:hover { background: var(--surface-2); }
+
+/* ── Sidebar shell (nav back on the left) ───────────────────────── */
+.sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: var(--sb-w);
+  z-index: 120;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 22px 14px 18px;
+  background: hsl(240 36% 9% / 0.55);
+  backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  border-right: 1px solid var(--line);
+}
+
+/* Brand lockup — generous, never squeezed */
+.sb-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 8px 18px;
+  border-bottom: 1px solid var(--line);
+}
+.sb-brand-img { width: 38px; height: 38px; object-fit: contain; flex: none; }
+.sb-brand-text { min-width: 0; }
+.sb-brand-name {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+  color: var(--text-1);
+  line-height: 1.15;
+  white-space: nowrap;
+}
+.sb-brand-sub {
+  display: block;
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--accent-text);
+  margin-top: 2px;
+  white-space: nowrap;
+}
+.sb-close { display: none; margin-left: auto; }
+
+.sb-nav { display: flex; flex-direction: column; gap: 4px; min-height: 0; overflow-y: auto; }
+.sb-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 13px;
+  border-radius: 13px;
+  font-size: var(--fs-body);
+  font-weight: 500;
+  color: var(--text-2);
+  text-align: left;
+  transition: background var(--t-med) var(--ease-smooth), color var(--t-med) var(--ease-smooth), transform var(--t-fast) var(--ease-smooth);
+}
+.sb-item svg { opacity: 0.75; flex: none; transition: opacity var(--t-med), color var(--t-med); }
+.sb-item:hover { color: var(--text-1); background: rgba(255, 255, 255, 0.06); }
+.sb-item:hover svg { opacity: 1; }
+.sb-item:active { transform: scale(0.97); }
+.sb-item.active {
   background: #fff;
   color: #0a0a12;
+  font-weight: 600;
 }
-.tn-item.active svg { color: #0a0a12; opacity: 1; }
-.tn-item.active::after { display: none; }
-.tn-item.active:hover { color: #0a0a12; background: #fff; }
+.sb-item.active svg { opacity: 1; color: #0a0a12; }
 
-/* Primary actions: white pill, dark text (reference LOGIN button). */
+.sb-foot {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 14px 8px 0;
+  border-top: 1px solid var(--line);
+}
+.sb-meta { font-size: 0.65625rem; color: var(--text-3); font-family: var(--font-mono); }
+.sb-actions { display: flex; gap: 8px; }
+
+/* Mobile bar + drawer */
+.mobilebar { display: none; }
+.sb-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 110;
+  background: rgba(2, 3, 9, 0.55);
+  animation: scrimIn 0.2s ease both;
+}
+@keyframes scrimIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* Content sits right of the sidebar, centered with real side margins */
+.v2-main { margin-left: var(--sb-w); }
+.page-content {
+  max-width: 1660px;
+  margin: 0 auto;
+  padding: 22px var(--page-pad) 56px;
+}
+
+@media (max-width: 900px) {
+  .v2-main { margin-left: 0; }
+  .sidebar {
+    transform: translateX(-102%);
+    transition: transform 0.28s var(--ease-smooth);
+    box-shadow: 0 0 60px rgba(0, 0, 0, 0.6);
+  }
+  .sidebar.open { transform: translateX(0); }
+  .sb-close { display: inline-flex; }
+  .mobilebar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px var(--page-pad);
+    background: hsl(240 36% 9% / 0.62);
+    backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+    border-bottom: 1px solid var(--line);
+  }
+  .mobilebar-brand {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin: 0 auto;
+    font-family: var(--font-display);
+    font-weight: 700;
+    color: var(--text-1);
+  }
+  .mobilebar-logo { width: 24px; height: 24px; }
+}
+
+/* ── Page header: frosts in as you scroll (scroll-driven) ───────── */
+@supports (animation-timeline: scroll()) {
+  .page-header {
+    position: sticky;
+    top: 10px;
+    z-index: 60;
+    padding: 10px 16px;
+    margin: -10px -16px 4px;
+    border-radius: 16px;
+    animation: hdr-frost linear both;
+    animation-timeline: scroll(root block);
+    animation-range: 0px 140px;
+  }
+  @keyframes hdr-frost {
+    from {
+      background: transparent;
+      box-shadow: none;
+      backdrop-filter: blur(0px);
+      -webkit-backdrop-filter: blur(0px);
+    }
+    to {
+      background: hsl(240 36% 9% / 0.6);
+      box-shadow: inset 0 0 0 1px var(--line), 0 14px 36px -20px rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(var(--glass-blur));
+      -webkit-backdrop-filter: blur(var(--glass-blur));
+    }
+  }
+}
+
+/* ── Controls: soft borderless fills, smooth press ──────────────── */
+.btn,
+.btn-icon {
+  background: rgba(255, 255, 255, 0.065);
+  border: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  transition: background var(--t-med) var(--ease-smooth), color var(--t-med), transform var(--t-fast) var(--ease-smooth), box-shadow var(--t-med);
+}
+.btn-icon { border-radius: 50%; }
+.btn:hover:not(:disabled),
+.btn-icon:hover:not(:disabled) { background: rgba(255, 255, 255, 0.12); color: var(--text-1); transform: translateY(-1px); }
+.btn:active:not(:disabled),
+.btn-icon:active:not(:disabled) { transform: translateY(0) scale(0.97); }
+
+.seg-control {
+  background: rgba(255, 255, 255, 0.05);
+  border: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  border-radius: var(--r-pill);
+  padding: 3px;
+}
+.seg-btn {
+  border-radius: var(--r-pill);
+  border: none;
+  transition: background var(--t-med) var(--ease-smooth), color var(--t-med), transform var(--t-fast);
+}
+.seg-btn:active { transform: scale(0.96); }
+.seg-btn.active {
+  background: #fff;
+  color: #0a0a12;
+  font-weight: 600;
+  box-shadow: 0 2px 10px -4px rgba(0, 0, 0, 0.6);
+}
+
+.gdrop-trigger {
+  background: rgba(255, 255, 255, 0.065);
+  border: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  border-radius: var(--r-pill);
+  transition: background var(--t-med) var(--ease-smooth), box-shadow var(--t-med), transform var(--t-fast);
+}
+.gdrop-trigger:hover { background: rgba(255, 255, 255, 0.11); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1); }
+.gdrop-trigger:active { transform: scale(0.98); }
+.gdrop-active .gdrop-trigger { box-shadow: inset 0 0 0 1px hsl(var(--ah) var(--as) var(--al) / 0.5); }
+
+.search-wrap,
+.glass-input {
+  border: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  border-radius: var(--r-pill);
+}
+
+/* ── Tile icons: bare line icons, no boxed wells ────────────────── */
+.tile-icon {
+  background: none;
+  border: none;
+  width: auto;
+  height: auto;
+  color: var(--text-3);
+  transition: color var(--t-med) var(--ease-smooth);
+}
+.tile-icon svg { width: 19px; height: 19px; }
+.stat-card:hover .tile-icon { color: var(--accent-text); }
+
+/* ── Page switch: quick rise so navigation feels alive ──────────── */
+.page-enter { animation: pageIn 0.26s var(--ease-rise) both; }
+@keyframes pageIn {
+  from { opacity: 0; transform: translateY(7px); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-enter { animation: none; }
+}
+
+/* ── Primary actions: white pill, dark text (reference) ─────────── */
 .btn-primary {
   background: #fff;
   border-color: #fff;
   color: #0a0a12;
   font-weight: 600;
+  box-shadow: 0 4px 18px -8px rgba(255, 255, 255, 0.35);
 }
 .btn-primary:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.88);
-  border-color: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.9);
+  border-color: transparent;
   color: #0a0a12;
 }
 .btn-primary .spinner { border-color: rgba(10, 10, 18, 0.25); border-top-color: #0a0a12; }
 
-/* Radial gauges: vivid pink→orange→yellow ring with a soft glow
-   (reference donut). The gradient is ambience, not data encoding. */
+/* ── Radial gauges: vivid ring (ramp defs live in each gauge SVG) ── */
 .gauge-fill {
   /* SVG2 paint fallback: solid pink if the defs id is absent in a frame */
   stroke: url(#gauge-vivid-ramp) hsl(345 95% 58%);

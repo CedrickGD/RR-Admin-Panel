@@ -1010,6 +1010,13 @@ export function WorldHeatmap({
 
     if (map.isStyleLoaded()) {
       ensureSessionDots(map, sessionDots, activeKeyRef.current);
+    } else {
+      // A data update landing mid style-transition would otherwise be
+      // dropped silently (e.g. switching Live -> All time right after
+      // cycling the map style left a single stale dot rendered).
+      map.once("idle", () => {
+        ensureSessionDots(map, sessionDotsRef.current, activeKeyRef.current);
+      });
     }
 
     if (sessionMarkerPoints.length === 0) {

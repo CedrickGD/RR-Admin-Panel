@@ -572,74 +572,54 @@ body::after {
    makes overlapping blobs pool and merge like backlit fluid; the
    different durations/paths keep them drifting through each other.
    GPU-composited (transform only), reduced-motion gated. */
+/* TWO layers only, modest 1.36x-viewport boxes (inset -18%) — the
+   previous 3 double-viewport screen-blended layers saturated GPU
+   fill rate and froze the renderer. No blend modes. Gradient
+   positions: layer% = (viewport% + 18) / 1.36. */
 html::before {
-  inset: -50%;
+  inset: -18%;
   background:
-    radial-gradient(34% 30% at 30% 68%, hsl(272 92% 56% / calc(0.40 * var(--glow))), transparent 66%),
-    radial-gradient(40% 34% at 50% 50%, hsl(345 95% 56% / calc(0.34 * var(--glow))), transparent 68%);
-  mix-blend-mode: screen;
-  animation: liquid-a 38s ease-in-out infinite alternate;
+    radial-gradient(40% 36% at 26% 72%, hsl(272 92% 56% / calc(0.40 * var(--glow))), transparent 66%),
+    radial-gradient(46% 40% at 50% 47%, hsl(345 95% 56% / calc(0.32 * var(--glow))), transparent 68%);
+  animation: liquid-a 34s ease-in-out infinite alternate;
 }
 html::after {
-  inset: -50%;
-  /* Orange leaning red, NOT yellow — yellow screen-blended over the
-     violet ground turns olive/muddy. */
+  inset: -18%;
+  /* Orange leaning red, NOT yellow — yellow over violet goes olive. */
   background:
-    radial-gradient(32% 28% at 69% 30%, hsl(28 100% 56% / calc(0.26 * var(--glow))), transparent 66%),
-    radial-gradient(26% 24% at 60% 47%, hsl(14 95% 58% / calc(0.20 * var(--glow))), transparent 66%);
-  mix-blend-mode: screen;
-  animation: liquid-b 52s ease-in-out infinite alternate;
-}
-/* Third layer (counter-current) — overrides the legacy-neutralization
-   content:none above; body::after stays dead. */
-body::before {
-  content: "";
-  display: block;
-  position: fixed;
-  inset: -50%;
-  z-index: -1;
-  pointer-events: none;
-  will-change: transform;
-  background:
-    radial-gradient(26% 24% at 42% 33%, hsl(300 88% 52% / calc(0.18 * var(--glow))), transparent 66%),
-    radial-gradient(24% 22% at 28% 42%, hsl(196 92% 55% / calc(0.14 * var(--glow))), transparent 66%);
-  mix-blend-mode: screen;
-  animation: liquid-c 29s ease-in-out infinite alternate;
+    radial-gradient(36% 32% at 76% 24%, hsl(28 100% 56% / calc(0.24 * var(--glow))), transparent 66%),
+    radial-gradient(28% 26% at 64% 49%, hsl(14 95% 58% / calc(0.18 * var(--glow))), transparent 66%),
+    radial-gradient(24% 22% at 17% 33%, hsl(196 92% 55% / calc(0.12 * var(--glow))), transparent 66%);
+  animation: liquid-b 46s ease-in-out infinite alternate;
 }
 @keyframes liquid-a {
-  0%   { transform: translate3d(-5%, -3%, 0) rotate(0deg)   scale(1); }
-  45%  { transform: translate3d(6%, 5%, 0)   rotate(14deg)  scale(1.16); }
-  100% { transform: translate3d(-3%, 7%, 0)  rotate(-10deg) scale(1.04); }
+  0%   { transform: translate3d(-3%, -2%, 0) rotate(0deg)  scale(1); }
+  45%  { transform: translate3d(4%, 3%, 0)   rotate(9deg)  scale(1.1); }
+  100% { transform: translate3d(-2%, 4%, 0)  rotate(-7deg) scale(1.03); }
 }
 @keyframes liquid-b {
-  0%   { transform: translate3d(4%, 5%, 0)   rotate(0deg)   scale(1.08); }
-  50%  { transform: translate3d(-7%, -4%, 0) rotate(-16deg) scale(0.96); }
-  100% { transform: translate3d(5%, -7%, 0)  rotate(12deg)  scale(1.2); }
-}
-@keyframes liquid-c {
-  0%   { transform: translate3d(6%, -5%, 0)  rotate(8deg)   scale(1.12); }
-  50%  { transform: translate3d(-5%, 6%, 0)  rotate(-12deg) scale(0.94); }
-  100% { transform: translate3d(3%, -3%, 0)  rotate(16deg)  scale(1.18); }
-}
-@media (prefers-reduced-motion: reduce) {
-  body::before { animation: none; }
+  0%   { transform: translate3d(3%, 3%, 0)   rotate(0deg)   scale(1.05); }
+  50%  { transform: translate3d(-4%, -3%, 0) rotate(-10deg) scale(0.97); }
+  100% { transform: translate3d(3%, -4%, 0)  rotate(8deg)   scale(1.1); }
 }
 
-/* ── Perf: glass = translucent fill, NOT backdrop blur ──────────
-   The DS css puts backdrop-filter on panels/cards; over a moving
-   background every one of them re-blurs per frame. Kill it on the
-   many big surfaces; the soft aurora + deeper fills keep the
-   frosted reading. */
-.panel,
-.stat-card,
-.timezone-card,
-.login-card,
-.auth-card {
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
+/* ── Perf: NO backdrop-filter, anywhere, ever ────────────────────
+   The background animates every frame; any backdrop-filtered
+   surface re-blurs its backdrop every frame. index.css + the DS css
+   together had ~30 of them (panels, heatmap chrome, drawers,
+   modals) and the renderer froze outright. Glass is translucent
+   FILL only — the liquid bleeding through keeps the look. */
+*,
+*::before,
+*::after {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 .stat-card { background: var(--surface-1); }
 .stat-card:hover { background: var(--surface-2); }
+/* Floating surfaces compensate with deeper fills (no blur behind) */
+.gdrop-menu { background: hsl(240 30% 9% / 0.97); }
+.kpi-modal { background: hsl(240 30% 8% / 0.97); }
 
 /* ── Sidebar shell (nav back on the left) ───────────────────────── */
 .sidebar {
@@ -651,9 +631,7 @@ body::before {
   flex-direction: column;
   gap: 18px;
   padding: 22px 14px 18px;
-  background: hsl(240 36% 9% / 0.55);
-  backdrop-filter: blur(var(--glass-blur)) saturate(150%);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  background: hsl(240 38% 8% / 0.88);
   border-right: 1px solid var(--line);
 }
 
@@ -760,9 +738,7 @@ body::before {
     align-items: center;
     gap: 12px;
     padding: 10px var(--page-pad);
-    background: hsl(240 36% 9% / 0.62);
-    backdrop-filter: blur(var(--glass-blur)) saturate(150%);
-    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+    background: hsl(240 38% 8% / 0.92);
     border-bottom: 1px solid var(--line);
   }
   .mobilebar-brand {
@@ -794,15 +770,11 @@ body::before {
     from {
       background: transparent;
       box-shadow: none;
-      backdrop-filter: blur(0px);
-      -webkit-backdrop-filter: blur(0px);
     }
     to {
       /* Near-opaque: content must NOT read through the stuck header */
-      background: hsl(240 36% 8% / 0.94);
+      background: hsl(240 36% 8% / 0.97);
       box-shadow: inset 0 0 0 1px var(--line), 0 14px 36px -20px rgba(0, 0, 0, 0.8);
-      backdrop-filter: blur(var(--glass-blur));
-      -webkit-backdrop-filter: blur(var(--glass-blur));
     }
   }
 }
@@ -860,7 +832,23 @@ body::before {
   border-radius: var(--r-pill);
 }
 
-/* ── Tile icons: bare line icons, no boxed wells ────────────────── */
+/* ── KPI cards: reference anatomy — icon on top, huge centered
+   number, label under it, sub last. Pure CSS reorder (flex order +
+   display:contents) so the KpiStatCard tile markup AND the raw
+   label/value/sub cards restyle identically. No left tick, no boxed
+   icon wells. ── */
+.stat-card {
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  text-align: center;
+  gap: 3px;
+  padding: 20px 14px 16px;
+}
+.stat-card::before { content: none; }   /* left accent tick retired */
+.stat-card .tile-main,
+.stat-card .tile-side { display: contents; }
+
 .tile-icon {
   background: none;
   border: none;
@@ -869,8 +857,32 @@ body::before {
   color: var(--text-3);
   transition: color var(--t-med) var(--ease-smooth);
 }
-.tile-icon svg { width: 19px; height: 19px; }
+.stat-card .tile-icon,
+.stat-card .tile-spark { order: -1; margin-bottom: 8px; }
+.tile-icon svg { width: 26px; height: 26px; stroke-width: 1.75; }
 .stat-card:hover .tile-icon { color: var(--accent-text); }
+
+.stat-card .stat-value {
+  order: 0;
+  font-size: 1.7rem;
+  line-height: 1.12;
+  white-space: normal;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  flex-wrap: wrap;
+  column-gap: 6px;
+}
+.stat-card .stat-label { order: 1; margin-top: 3px; max-width: 100%; }
+.stat-card .stat-sub { order: 2; max-width: 100%; }
+
+/* Tones recolor the icon (the tick is gone) */
+.stat-card.tone-danger .tile-icon,
+.stat-card.tone-danger:hover .tile-icon { color: var(--danger-text); }
+.stat-card.tone-warning .tile-icon,
+.stat-card.tone-warning:hover .tile-icon { color: var(--warning-text); }
+.stat-card.tone-success .tile-icon,
+.stat-card.tone-success:hover .tile-icon { color: var(--success-text); }
 
 /* ── Page switch: quick rise so navigation feels alive ──────────── */
 .page-enter { animation: pageIn 0.26s var(--ease-rise) both; }

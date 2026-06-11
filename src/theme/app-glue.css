@@ -1,0 +1,606 @@
+/* ═══════════════════════════════════════════════════════════════
+   APP GLUE — app-specific overrides on top of the design system.
+   Load order: src/index.css (legacy base) → src/theme/styles.css
+   (the DS) → this file. This file owns the final word.
+   Rules here are either (a) app-only layout tweaks the DS doesn't
+   ship, (b) neutralization of legacy index.css visuals that fight
+   the DS, or (c) token bridges for not-yet-migrated corners.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── (c) Token bridge: legacy var names → DS tokens ──────────────
+   index.css still references the old glass vocabulary in untouched
+   corners. Point those names at the DS frost ladder so everything
+   renders in the new palette until pages migrate, then drop these. */
+:root {
+  --glass-1: var(--surface-1);
+  --glass-2: var(--surface-2);
+  --glass-3: var(--surface-3);
+  --glass-border: var(--line);
+  --glass-border2: var(--line-hi);
+
+  /* Legacy chart series aliases — keep in lockstep with the DS
+     chart tokens (useChartColors writes both sets at runtime). */
+  --chart-1: var(--chart-users);
+  --chart-2: var(--chart-sessions);
+  --chart-3: var(--chart-errors);
+  --chart-4: var(--chart-axis);
+}
+
+/* ── (b) Legacy neutralization ───────────────────────────────────
+   The aurora owns the ground: kill index.css's radial washes and
+   the masked micro-grid texture. */
+body {
+  background: var(--bg);
+  background-attachment: scroll;
+}
+body::before,
+body::after {
+  content: none;
+  display: none;
+}
+
+/* Old fixed top navbar + its content offset. The DS .topnav is
+   sticky and in-flow, so main needs no padding compensation. */
+.navbar,
+.navbar-mobile-drawer {
+  display: none;
+}
+.main-area {
+  padding-top: 0;
+  min-height: 0;
+}
+
+/* Login screen sits outside the shell — let the aurora ground it
+   instead of the old accent radial wash. */
+.login-wrap {
+  background: none;
+}
+
+/* Panels have no drop shadows — frost is the depth. Only floating
+   surfaces (menus, modals) keep --shadow-float. */
+.panel,
+.glass,
+.stat-card,
+.stat-card:hover,
+.login-card {
+  box-shadow: none;
+}
+
+/* Old stat-card bottom glow line — the DS signature is the 2px
+   accent tick on the LEFT edge (components.css ::before). */
+.stat-card::after,
+.stat-card.tone-success::after,
+.stat-card.tone-warning::after,
+.stat-card.tone-danger::after {
+  display: none;
+}
+/* Old floating top-right icon chip — DS tiles use .tile-icon wells. */
+.stat-icon {
+  position: static;
+  width: auto;
+  height: auto;
+  background: none;
+  border: none;
+  box-shadow: none;
+}
+.stat-label { padding-right: 0; }
+
+/* Static accent glow hairlines on panel edges — retired (no static
+   glows; the aurora is the only ambience). */
+.glow-top::before,
+.panel-glow-accent::before,
+.panel-glow-success::before {
+  content: none;
+}
+
+/* index.css renders .page-title as transparent gradient text and
+   restyles its inline kicker — restore the DS solid display type. */
+.page-title {
+  background: none;
+  -webkit-text-fill-color: var(--text-1);
+}
+.page-title > .kicker {
+  -webkit-text-fill-color: var(--accent-text);
+  text-transform: uppercase;
+  position: static;
+}
+.kicker { text-shadow: none; }
+
+/* Page subtitles were filler — the title row stays lean. */
+.page-subtitle { display: none; }
+
+/* Single fadeInUp page blob retired in favor of per-element rises. */
+.page-enter { animation: none; }
+
+/* ── (a) Transitional page-mount stagger ─────────────────────────
+   Carried over from theme-v2 so entrances stay alive until each
+   page adopts .v2-stagger explicitly (then delete this block). */
+.page-content > .stat-grid > * { animation: v2rise var(--t-rise) var(--ease-rise) both; }
+.page-content > .stat-grid > *:nth-child(1) { animation-delay: 0.02s; }
+.page-content > .stat-grid > *:nth-child(2) { animation-delay: 0.05s; }
+.page-content > .stat-grid > *:nth-child(3) { animation-delay: 0.08s; }
+.page-content > .stat-grid > *:nth-child(4) { animation-delay: 0.11s; }
+.page-content > .stat-grid > *:nth-child(5) { animation-delay: 0.14s; }
+.page-content > .stat-grid > *:nth-child(6) { animation-delay: 0.17s; }
+.page-content > .stat-grid > *:nth-child(7) { animation-delay: 0.20s; }
+.page-content > .panel,
+.page-content > .main-side,
+.page-content > section.panel { animation: v2rise 0.45s var(--ease-rise) 0.12s both; }
+@media (prefers-reduced-motion: reduce) {
+  .page-content > .stat-grid > *,
+  .page-content > .panel,
+  .page-content > .main-side,
+  .page-content > section.panel { animation: none; }
+}
+
+/* ── (a) Heatmap: map fills the viewport instead of stopping at
+   520px. Scoped to >900px so the index.css mobile heights still
+   apply; fullscreen mode has a more specific selector. */
+@media (min-width: 901px) {
+  .world-heatmap-map-shell { min-height: clamp(460px, calc(100vh - 330px), 940px); }
+}
+
+/* ── Component/page port needs ─────────────────────────────────── */
+
+/* KPI tile icon wells render lucide icons at the DS 14px regardless
+   of caller-passed Tailwind utility classes (pages still pass
+   h-4 w-4 = 16px, a no-op in this codebase) or the lucide 24px
+   default. */
+.tile-icon svg { width: 14px; height: 14px; }
+
+/* App extension to the DS drill-down modal: the recharts area section
+   between TimespanGrid and BreakdownList. (Currently also in
+   index.css; this copy keeps the modal chart styled if the legacy kpi
+   block is ever pruned.) */
+.kpi-modal-chart { margin: 0 -6px; }
+
+/* FilterBar mobile — replaces the index.css ≤640px rules that were
+   scoped to the removed .filter-bar wrapper (the seg control now
+   lives inside .filter-bar-right). */
+@media (max-width: 640px) {
+  .filter-bar-right .seg-control {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .filter-bar-right .seg-btn {
+    flex: 1;
+    padding: 5px 6px;
+    text-align: center;
+  }
+}
+
+/* Chart tooltip: uppercase micro time label (DS tooltip anatomy —
+   extends the .chart-tip-label base in components.css). */
+.chart-tip-label { text-transform: uppercase; letter-spacing: 0.07em; }
+
+/* Chart tooltip: divider above the summed Total row
+   (TelemetryChartTooltip showTotal). */
+.chart-tip-total { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); }
+
+/* Overview · Recent Errors: per-row dismiss action — an app feature
+   the DS Feed component has no slot for; the rows themselves reuse
+   the DS .feed-* classes. */
+.feed-dismiss {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin: -2px 0 0 2px;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.feed-dismiss:hover {
+  color: var(--text-1);
+  background: var(--surface-2);
+}
+
+/* Traffic — timezone insight grid (TrafficPage tz view) */
+.tz-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
+  gap: var(--gap-panel);
+}
+
+/* TimezoneUsageChart card — previously unstyled classes; DS glass
+   recipe. Title in display type, IANA zone id as a mono machine
+   value, metrics styled like meta-row items. */
+.timezone-card {
+  background: var(--surface-1);
+  backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 12px 14px 6px;
+  transition: border-color 0.2s;
+}
+.timezone-card:hover { border-color: var(--line-hi); }
+.timezone-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.timezone-card-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-1);
+}
+.timezone-card-subtitle {
+  margin: 1px 0 0;
+  font-family: var(--font-mono);
+  font-size: 0.65625rem;
+  color: var(--text-3);
+}
+.timezone-card-metrics { display: flex; gap: 12px; }
+.timezone-card-metrics > div { display: flex; flex-direction: column; gap: 2px; text-align: right; }
+.timezone-card-metrics span {
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-3);
+}
+.timezone-card-metrics strong {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+}
+/* Chart well inside the timezone card — pull the recharts plot toward
+   the card edges (same recipe as .kpi-modal-chart). */
+.timezone-card-shell { margin: 0 -6px; }
+
+/* Inline danger note — one-line error banner under the KPI row
+   (WorkersPage TXT-export failures). */
+.inline-danger-note {
+  background: var(--danger-sub);
+  border: 1px solid hsl(4 86% 58% / 0.25);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: var(--fs-body);
+  color: var(--danger-text);
+}
+
+/* Filter row below the page header (Heatmap region chips): wraps like
+   .page-header-right and pulls slightly toward the header it follows. */
+.page-content > .filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: -4px;
+}
+
+/* Live: session row highlighted by show-on-map focus
+   (scrollIntoView target) */
+.data-table tbody tr.row-focused {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+/* LogsPage: DS base.css only ships stat-grid-4/6/7 — the Errors page
+   uses a 3-up KPI row. */
+.stat-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 900px) { .stat-grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* LogsPage: accent-tinted active state for the panel-head Filters
+   toggle (DS Button). */
+.btn.is-active {
+  background: var(--accent-subtle);
+  border-color: hsl(var(--ah) var(--as) var(--al) / 0.25);
+  color: var(--accent-text);
+}
+
+/* LogsPage: the expandable filter panel sits first in the flush panel
+   body — the panel head already draws a bottom hairline, so drop the
+   panel's own top border to avoid a double line. */
+.panel-body-flush > .error-filter-panel:first-child { border-top: 0; }
+
+/* ── Settings page (SettingsPage.tsx) ─────────────────────────── */
+
+/* Kicker with a leading 12px lucide icon */
+.kicker-row { display: inline-flex; align-items: center; gap: 6px; }
+
+/* Entrance rise for the Settings two-col identity/backend row
+   (matches the transitional panel stagger) */
+.page-content > .two-col { animation: v2rise 0.45s var(--ease-rise) 0.08s both; }
+@media (prefers-reduced-motion: reduce) {
+  .page-content > .two-col { animation: none; }
+}
+
+/* Copyable kv values (backend build info) — button reset only;
+   typography stays on .kv-val so machine values keep their mono */
+.kv-val-copy { background: none; border: none; padding: 0; cursor: copy; }
+.kv-val-copy:hover { color: var(--accent-text); }
+.kv-copied { display: inline-flex; align-items: center; gap: 4px; color: var(--success-text); }
+
+/* Current-accent chip in the Appearance panel head — follows the
+   live accent vars and the --glow multiplier */
+.accent-current { display: flex; align-items: center; gap: 10px; }
+.accent-current-chip {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-sm);
+  background: var(--accent);
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 0 16px hsl(var(--ah) var(--as) var(--al) / calc(0.5 * var(--glow)));
+}
+.accent-current-value { font-family: var(--font-mono); font-size: var(--fs-small); color: var(--text-2); }
+
+/* Inline mono suffix on .label-sm micro-labels ("262° — Purple") */
+.label-sm-suffix {
+  margin-left: 8px;
+  font-family: var(--font-mono);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-2);
+}
+
+/* Hue slider end-stop scale */
+.hue-scale {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: var(--fs-tiny);
+  color: var(--text-3);
+}
+
+/* Accent preview chip in the Appearance preview row */
+.accent-preview-card {
+  padding: 8px 14px;
+  border-radius: var(--r-sm);
+  background: var(--accent-subtle);
+  border: 1px solid var(--accent-glow);
+  font-size: var(--fs-body);
+  color: var(--accent-text);
+}
+
+/* Chart/donut color preset chips (Settings) */
+.preset-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.preset-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-radius: var(--r-ctl);
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  cursor: pointer;
+  transition: background var(--t-med), border-color var(--t-med), color var(--t-med);
+}
+.preset-chip:hover { background: var(--surface-2); border-color: var(--line-hi); color: var(--text-1); }
+.preset-chip.active { background: var(--surface-3); border-color: var(--line-hi); color: var(--text-1); font-weight: 500; }
+.preset-chip-dots { display: flex; gap: 4px; }
+.preset-dot { width: 12px; height: 12px; border-radius: 50%; }
+.preset-dot-sm { width: 10px; height: 10px; }
+.preset-check { display: flex; color: var(--accent-text); }
+
+/* ── Auth screen — centered frosted card on the aurora ground ── */
+.auth-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px var(--page-pad);
+}
+.auth-card {
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 28px;
+  background: var(--surface-1);
+  backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+}
+
+/* Brand lockup — mirrors .tn-brand */
+.auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+.auth-brand-img { width: 28px; height: 28px; object-fit: contain; }
+.auth-brand-name {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--fs-strong);
+  letter-spacing: -0.01em;
+  color: var(--text-1);
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.auth-brand-sub {
+  display: block;
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--accent-text);
+  margin-top: 1px;
+  white-space: nowrap;
+}
+
+.auth-head { display: flex; flex-direction: column; gap: 4px; }
+.auth-head .kicker { margin-bottom: 2px; }
+.auth-title { font-size: var(--fs-page); letter-spacing: -0.02em; }
+.auth-sub { margin: 0; font-size: var(--fs-body); color: var(--text-2); line-height: 1.65; }
+
+/* Scope / Mode meta strip — inset kv cells */
+.auth-meta {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 16px;
+  padding: 11px 14px;
+  background: rgba(3, 5, 14, 0.25);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+}
+.auth-meta > div { display: grid; gap: 3px; min-width: 0; }
+.auth-meta strong {
+  font-size: var(--fs-small);
+  font-weight: 600;
+  color: var(--text-1);
+  white-space: nowrap;
+}
+
+/* Auth error — align legacy .inline-error with DS danger tokens */
+.auth-card .inline-error {
+  border-radius: var(--r-sm);
+  border-color: hsl(4 86% 58% / 0.28);
+  background: var(--danger-sub);
+  color: var(--danger-text);
+  font-size: var(--fs-small);
+}
+
+.auth-form { display: flex; flex-direction: column; gap: 13px; }
+.auth-field { display: grid; gap: 6px; }
+
+/* Input wells — dark inset glass, accent focus ring (3px --accent-subtle) */
+.auth-input {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 38px;
+  padding: 0 12px;
+  background: rgba(3, 5, 14, 0.32);
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+  transition: border-color var(--t-med), box-shadow var(--t-med), background var(--t-med);
+}
+.auth-input:hover { border-color: var(--line-hi); }
+.auth-input:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-subtle);
+  background: rgba(3, 5, 14, 0.42);
+}
+.auth-input svg { color: var(--text-3); flex: none; }
+.auth-input input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 0;
+  border: none;
+  outline: none;
+  background: none;
+  color: var(--text-1);
+  font-size: var(--fs-body);
+}
+.auth-input input::placeholder { color: var(--text-3); }
+
+/* Keep Chrome autofill from flashing a white well */
+.auth-input input:-webkit-autofill,
+.auth-input input:-webkit-autofill:hover,
+.auth-input input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--text-1);
+  -webkit-box-shadow: 0 0 0 1000px #0a0c16 inset;
+  caret-color: var(--text-1);
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+.auth-submit { width: 100%; margin-top: 3px; }
+
+@media (max-width: 480px) {
+  .auth-card { padding: 22px 18px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   AMBIENCE — frosted-glassmorphism reference pass
+   (design-system/REFERENCE-ambience.md, owner-supplied image).
+   Overrides the DS's deliberately-quiet ambience defaults: bold
+   multi-hue aurora bleeding through heavier frost, rounder cards,
+   bigger hero numbers, white-pill primary actions. Structure,
+   components, icons, and voice stay 100% DS.
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Heavier frost — the aurora must visibly bleed through the glass */
+  --glass-blur: 26px;
+  --surface-1: hsl(240 34% 10% / 0.38);
+  --surface-2: hsl(237 36% 14% / 0.46);
+  --surface-3: hsl(234 38% 19% / 0.54);
+
+  /* Very rounded cards like the reference (~20px) */
+  --r: 20px;
+  --r-sm: 12px;
+  --r-ctl: 12px;
+
+  /* Hero numbers dominate the tile */
+  --fs-stat: 1.5rem;
+}
+
+/* Vivid aurora: violet bottom-left, hot pink/red center sweep,
+   orange→yellow top-right, faint cyan counterweight. Same GPU
+   transform loops and reduced-motion gating as the DS base layer;
+   --glow scales the intensity (0 disables). */
+html::before {
+  inset: -50%;
+  background:
+    radial-gradient(38% 34% at 14% 80%, hsl(272 92% 56% / calc(0.36 * var(--glow))), transparent 68%),
+    radial-gradient(46% 38% at 52% 50%, hsl(345 95% 56% / calc(0.30 * var(--glow))), transparent 70%),
+    radial-gradient(28% 24% at 34% 20%, hsl(300 85% 50% / calc(0.14 * var(--glow))), transparent 70%);
+  animation-duration: 58s;
+}
+html::after {
+  inset: -50%;
+  background:
+    radial-gradient(42% 38% at 88% 16%, hsl(45 100% 55% / calc(0.30 * var(--glow))), transparent 70%),
+    radial-gradient(34% 30% at 70% 46%, hsl(25 100% 56% / calc(0.22 * var(--glow))), transparent 70%),
+    radial-gradient(26% 22% at 6% 28%, hsl(196 90% 55% / calc(0.10 * var(--glow))), transparent 70%);
+  animation-duration: 76s;
+}
+
+/* Active nav item: clean white pill (reference treatment) instead of
+   the DS underline tick. */
+.tn-item.active {
+  align-self: center;
+  padding: 6px 13px;
+  border-radius: var(--r-pill);
+  background: #fff;
+  color: #0a0a12;
+}
+.tn-item.active svg { color: #0a0a12; opacity: 1; }
+.tn-item.active::after { display: none; }
+.tn-item.active:hover { color: #0a0a12; background: #fff; }
+
+/* Primary actions: white pill, dark text (reference LOGIN button). */
+.btn-primary {
+  background: #fff;
+  border-color: #fff;
+  color: #0a0a12;
+  font-weight: 600;
+}
+.btn-primary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.88);
+  border-color: rgba(255, 255, 255, 0.88);
+  color: #0a0a12;
+}
+.btn-primary .spinner { border-color: rgba(10, 10, 18, 0.25); border-top-color: #0a0a12; }
+
+/* Radial gauges: vivid pink→orange→yellow ring with a soft glow
+   (reference donut). The gradient is ambience, not data encoding. */
+.gauge-fill {
+  stroke: url(#gauge-vivid-ramp);
+  filter: drop-shadow(0 0 6px hsl(345 95% 56% / 0.35));
+}

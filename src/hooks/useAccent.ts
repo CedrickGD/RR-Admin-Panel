@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 const STORAGE_KEY = "rr-accent-hue";
-const DEFAULT_HUE = 217;
+const DEFAULT_HUE = 262; // DS default: violet (existing users keep their stored hue)
 
 export interface AccentPreset {
   label: string;
@@ -23,14 +23,8 @@ export const ACCENT_PRESETS: AccentPreset[] = [
 ];
 
 function applyHue(hue: number) {
+  // The aurora (theme/css/base.css) owns the ground — only the accent hue moves.
   document.documentElement.style.setProperty("--ah", String(hue));
-  // Reapply body background so radial gradient matches new hue
-  document.body.style.background = `
-    radial-gradient(ellipse 90% 45% at 50% -8%,  hsl(${hue} 55% 18% / 0.65), transparent),
-    radial-gradient(ellipse 55% 35% at 90% 110%, hsl(200 60% 12% / 0.35), transparent),
-    radial-gradient(ellipse 50% 30% at 5% 80%,   hsl(${hue} 40% 10% / 0.25), transparent),
-    #05050c
-  `;
 }
 
 export function useAccent() {

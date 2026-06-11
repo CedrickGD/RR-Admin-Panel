@@ -12,15 +12,15 @@ import {
 import { TelemetryChartTooltip } from "../components/charts/TelemetryChartTooltip";
 import { TimezoneUsageChart } from "../components/charts/TimezoneUsageChart";
 import { CollapsiblePanel } from "../components/CollapsiblePanel";
+import { MetaRow, PageHeader } from "../components/ds/PageHeader";
 import { KpiStatCard, type KpiDrilldown } from "../components/KpiStatCard";
-import { useChartColors } from "../hooks/useChartColors";
 import type { StatsPayload, SummaryPayload, ThemeMode } from "../types/telemetry";
 import {
   buildDailyUserTimeline,
   buildTimezoneActivity,
 } from "../utils/dashboardInsights";
 import { formatDuration, formatEventName, formatNumber, timeAgo } from "../utils/format";
-import { applyChartColorOverride, buildDashboardChartPalette, TIMEZONE_PANELS } from "./dashboardShared";
+import { TIMEZONE_PANELS } from "./dashboardShared";
 
 interface TrafficPageProps {
   summary: SummaryPayload;
@@ -87,7 +87,7 @@ function buildPrediction(
   return forecast;
 }
 
-export function TrafficPage({ summary, stats, theme, accentHue = 217, filterBar }: TrafficPageProps) {
+export function TrafficPage({ summary, stats, theme, filterBar }: TrafficPageProps) {
   const [insightView, setInsightView] = useState<"daily" | "timezones">("daily");
 
   // Daily series: prefer server-side aggregates over the FULL history (follows
@@ -103,10 +103,7 @@ export function TrafficPage({ summary, stats, theme, accentHue = 217, filterBar 
     return buildDailyUserTimeline(summary, 30);
   }, [stats, summary]);
 
-  const tzCharts    = useMemo(() => TIMEZONE_PANELS.map((p) => ({ ...p, data: buildTimezoneActivity(summary, p.timeZone) })), [summary]);
-  const basePalette = useMemo(() => buildDashboardChartPalette(theme, accentHue), [theme, accentHue]);
-  const { override: colorOverride } = useChartColors();
-  const chartPalette = useMemo(() => applyChartColorOverride(basePalette, colorOverride), [basePalette, colorOverride]);
+  const tzCharts = useMemo(() => TIMEZONE_PANELS.map((p) => ({ ...p, data: buildTimezoneActivity(summary, p.timeZone) })), [summary]);
 
   // Forecast days scale with the span of real data: ≤7d→3d, ≤14d→5d, ≤31d→7d, longer→14d
   const forecastDays = dailyUsers.length <= 7 ? 3 : dailyUsers.length <= 14 ? 5 : dailyUsers.length <= 31 ? 7 : 14;
@@ -182,75 +179,77 @@ export function TrafficPage({ summary, stats, theme, accentHue = 217, filterBar 
     };
   }, [stats]);
 
+  /* ----- Panel meta (display aggregation only) ----- */
+
+  const peakDailyUsers = dailyUsers.reduce((max, p) => Math.max(max, p.users), 0);
+  const metaSessions = stats ? stats.totals.sessionsInRange : summary.stats.totalSessions;
+  const metaErrors = stats ? stats.totals.errorsInRange : summary.stats.errorsLast24Hours;
+
   return (
     <div className="page-content page-stack-lg">
-      {/* Header — title left, global filters right */}
-      <section className="page-header">
-        <div>
-          <h1 className="page-title">
-            Traffic
-            <span className="kicker">Analytics</span>
-          </h1>
-          <p className="page-subtitle">Daily trends, forecast, and timezone activity.</p>
-        </div>
-        {filterBar ? <div className="page-header-right">{filterBar}</div> : null}
-      </section>
+      {/* Header — kicker + title left, global filters right */}
+      <PageHeader
+        kicker="Telemetry"
+        title="Traffic"
+        sub="Daily trends, forecast, and timezone activity."
+        right={filterBar}
+      />
 
       {/* Stat cards — pinned at top */}
-      <div className="stat-grid stat-grid-7">
+      <div className="stat-grid stat-grid-7 v2-stagger">
         <KpiStatCard
           label="Lifetime Users"
           value={formatNumber(lifetimeUsers)}
-          sub="All-time unique (HWID)"
-          icon={<Users className="h-4 w-4" />}
+          sub="All-time · unique HWIDs"
+          icon={<Users size={14} />}
           tone="accent"
           drilldown={lifetimeUsersDrilldown}
-          chartColor={chartPalette.sessionsLine}
+          chartColor="var(--chart-users)"
         />
         <KpiStatCard
           label="Total Events"
           value={formatNumber(lifetimeEvents)}
           sub={`All-time · ${formatNumber(summary.stats.totalEvents)} retained`}
-          icon={<Zap className="h-4 w-4" />}
+          icon={<Zap size={14} />}
           tone="primary"
           drilldown={totalEventsDrilldown}
-          chartColor={chartPalette.sessionsLine}
         />
         <KpiStatCard
           label="Total Sessions"
           value={formatNumber(stats?.totals.lifetimeSessions ?? summary.stats.totalSessions)}
-          sub={stats ? "All-time" : "Last 200 loaded"}
-          icon={<Layers className="h-4 w-4" />}
+          sub={stats ? `${formatNumber(stats.totals.sessionsInRange)} in range` : "Last 200 loaded"}
+          icon={<Layers size={14} />}
           tone="primary"
           drilldown={totalSessionsDrilldown}
-          chartColor={chartPalette.sessionsLine}
+          chartColor="var(--chart-users)"
+          spark={stats?.series.sessionsPerDay.map((p) => p.sessions)}
         />
         <KpiStatCard
           label="Active Right Now"
           value={formatNumber(stats?.totals.activeNow ?? summary.stats.activeUsers)}
           sub="Live sessions"
-          icon={<Radio className="h-4 w-4" />}
+          icon={<Radio size={14} />}
           tone="primary"
         />
         <KpiStatCard
           label="Avg Duration"
           value={formatDuration(stats?.totals.averageSessionDurationSeconds ?? summary.stats.averageSessionDurationSeconds)}
           sub={stats ? "In range · legacy excluded" : "Per session"}
-          icon={<Clock className="h-4 w-4" />}
+          icon={<Clock size={14} />}
           tone="primary"
         />
         <KpiStatCard
           label="Started Today"
           value={formatNumber(summary.stats.sessionsStartedToday)}
           sub="Since midnight UTC"
-          icon={<TrendingUp className="h-4 w-4" />}
+          icon={<TrendingUp size={14} />}
           tone="primary"
         />
         <KpiStatCard
           label="Last Ingest"
           value={timeAgo(summary.stats.lastIngestAt ?? null)}
           sub="Most recent event"
-          icon={<Activity className="h-4 w-4" />}
+          icon={<Activity size={14} />}
           tone="primary"
         />
       </div>
@@ -258,38 +257,49 @@ export function TrafficPage({ summary, stats, theme, accentHue = 217, filterBar 
       {/* Daily / Timezone toggle — the main chart */}
       <CollapsiblePanel
         kicker="Trends"
-        title="Insight View"
+        title={insightView === "daily" ? "Daily Users" : "Timezone Activity"}
         sub={insightView === "daily"
           ? stats
-            ? `Daily unique users in range with ${forecastDays}-day forecast (dashed).`
-            : `Daily unique users with ${forecastDays}-day forecast (dashed).`
-          : "Timezone-local activity breakdowns."}
+            ? `Daily unique users in range · ${forecastDays} d forecast (dashed).`
+            : `Daily unique users · ${forecastDays} d forecast (dashed).`
+          : "Timezone-local activity from the loaded event window."}
         right={
-          <div className="seg-control">
-            <button type="button" className={`seg-btn${insightView === "daily" ? " active" : ""}`} onClick={() => setInsightView("daily")}>Daily Users</button>
-            <button type="button" className={`seg-btn${insightView === "timezones" ? " active" : ""}`} onClick={() => setInsightView("timezones")}>Timezones</button>
-          </div>
+          <MetaRow
+            items={[
+              { label: "Peak Users/d", value: formatNumber(peakDailyUsers) },
+              { label: "Sessions", value: formatNumber(metaSessions) },
+              { label: "Errors", value: formatNumber(metaErrors) },
+            ]}
+          />
         }
       >
-        {insightView === "daily" ? (
-          <div className="panel-body">
+        <div className="panel-body">
+          {/* View switch — segmented control */}
+          <div style={{ display: "flex", paddingBottom: 6 }}>
+            <div className="seg-control">
+              <button type="button" className={`seg-btn${insightView === "daily" ? " active" : ""}`} onClick={() => setInsightView("daily")}>Daily Users</button>
+              <button type="button" className={`seg-btn${insightView === "timezones" ? " active" : ""}`} onClick={() => setInsightView("timezones")}>Timezones</button>
+            </div>
+          </div>
+
+          {insightView === "daily" ? (
             <div className="chart-wrap chart-wrap-tall">
               <ResponsiveContainer width="100%" height={320}>
                 <AreaChart data={chartData} margin={{ top: 8, right: 8, left: -14, bottom: 0 }}>
                   <defs>
                     <linearGradient id="dailyFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%"   stopColor={chartPalette.sessionsLine} stopOpacity={0.22} />
-                      <stop offset="55%"  stopColor={chartPalette.sessionsLine} stopOpacity={0.07} />
-                      <stop offset="100%" stopColor={chartPalette.sessionsLine} stopOpacity={0.01} />
+                      <stop offset="0%"   stopColor="var(--chart-users)" stopOpacity={0.22} />
+                      <stop offset="55%"  stopColor="var(--chart-users)" stopOpacity={0.07} />
+                      <stop offset="100%" stopColor="var(--chart-users)" stopOpacity={0.01} />
                     </linearGradient>
                     <linearGradient id="forecastFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%"   stopColor={chartPalette.sessionsLine} stopOpacity={0.08} />
-                      <stop offset="100%" stopColor={chartPalette.sessionsLine} stopOpacity={0.01} />
+                      <stop offset="0%"   stopColor="var(--chart-users)" stopOpacity={0.08} />
+                      <stop offset="100%" stopColor="var(--chart-users)" stopOpacity={0.01} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid stroke={chartPalette.grid} vertical={false} strokeDasharray="3 6" />
-                  <XAxis dataKey="shortLabel" tickLine={false} axisLine={false} minTickGap={28} tick={{ fill: chartPalette.axis, fontSize: 10.5 }} />
-                  <YAxis tickLine={false} axisLine={false} width={32} tick={{ fill: chartPalette.axisSoft, fontSize: 10.5 }} allowDecimals={false} tickFormatter={(v: number) => formatNumber(Number(v))} />
+                  <CartesianGrid stroke="var(--chart-grid)" vertical={false} strokeDasharray="3 6" />
+                  <XAxis dataKey="shortLabel" tickLine={false} axisLine={false} minTickGap={28} tick={{ fill: "var(--chart-axis)", fontSize: 10.5 }} />
+                  <YAxis tickLine={false} axisLine={false} width={32} tick={{ fill: "var(--chart-axis-soft)", fontSize: 10.5 }} allowDecimals={false} tickFormatter={(v: number) => formatNumber(Number(v))} />
                   <Tooltip cursor={false} content={({ active, payload, label }) => (
                     <TelemetryChartTooltip active={active} label={label} payload={payload?.filter((e) => e.value != null && e.value !== 0).map((e) => ({ name: String(e.name ?? ""), value: typeof e.value === "number" ? e.value : Number(e.value ?? 0), color: e.color })) ?? []} />
                   )} />
@@ -299,7 +309,7 @@ export function TrafficPage({ summary, stats, theme, accentHue = 217, filterBar 
                     type="monotone"
                     dataKey="users"
                     name="Unique users"
-                    stroke={chartPalette.sessionsLine}
+                    stroke="var(--chart-users)"
                     strokeWidth={2.2}
                     fill="url(#dailyFill)"
                     dot={false}
@@ -307,12 +317,10 @@ export function TrafficPage({ summary, stats, theme, accentHue = 217, filterBar 
                       r: 4.5,
                       strokeWidth: 2,
                       stroke: "rgba(0,0,0,0.3)",
-                      fill: chartPalette.sessionsLine,
-                      style: { filter: `drop-shadow(0 0 4px ${chartPalette.sessionsLine})` },
+                      fill: "var(--chart-users)",
+                      style: { filter: "drop-shadow(0 0 4px var(--chart-users))" },
                     }}
                     connectNulls={false}
-                    animationDuration={600}
-                    animationEasing="ease-out"
                   />
                   {/* Prediction */}
                   <Area
@@ -320,34 +328,33 @@ export function TrafficPage({ summary, stats, theme, accentHue = 217, filterBar 
                     type="monotone"
                     dataKey="predicted"
                     name="Forecast"
-                    stroke={chartPalette.sessionsLine}
+                    stroke="var(--chart-users)"
                     strokeWidth={1.8}
                     strokeDasharray="6 4"
                     strokeOpacity={0.6}
                     fill="url(#forecastFill)"
                     dot={false}
-                    activeDot={{ r: 3, strokeWidth: 0, fill: chartPalette.sessionsLine, opacity: 0.6 }}
+                    activeDot={{ r: 3, strokeWidth: 0, fill: "var(--chart-users)", opacity: 0.6 }}
                     connectNulls={false}
-                    animationDuration={600}
-                    animationEasing="ease-out"
                   />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
-          </div>
-        ) : (
-          <div className="panel-body">
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(280px, 100%),1fr))", gap: 12 }}>
+          ) : (
+            <div className="tz-grid">
               {tzCharts.map((tz) => (
-                <div key={tz.timeZone} className="glass-flat" style={{ borderRadius: 12, padding: "12px 14px" }}>
-                  <p className="kicker" style={{ marginBottom: 4 }}>{tz.timeZone}</p>
-                  <h3 style={{ fontSize: "0.875rem", fontFamily: "Space Grotesk, sans-serif", marginBottom: 8 }}>{tz.title}</h3>
-                  <TimezoneUsageChart title={tz.title} subtitle={tz.subtitle} accentColor={tz.accent} theme={theme} data={tz.data} />
-                </div>
+                <TimezoneUsageChart
+                  key={tz.timeZone}
+                  title={tz.title}
+                  subtitle={tz.subtitle}
+                  accentColor={tz.accent}
+                  theme={theme}
+                  data={tz.data}
+                />
               ))}
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </CollapsiblePanel>
     </div>
   );

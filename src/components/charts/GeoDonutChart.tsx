@@ -69,8 +69,7 @@ export function GeoDonutChart({
                   />
                 );
               }}
-              animationDuration={550}
-              animationEasing="ease-out"
+              isAnimationActive={false}
             >
               {data.map((entry, index) => (
                 <Cell

@@ -1,6 +1,12 @@
 import { ChevronDown, ChevronUp, Globe2, Radio } from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { CollapsiblePanel } from "../components/CollapsiblePanel";
 import { StatusBadge } from "../components/StatusBadge";
+import { Badge, LiveBadge } from "../components/ds/Badge";
+import { IconButton } from "../components/ds/Button";
+import { DetailGrid } from "../components/ds/DataTable";
+import { EmptyState } from "../components/ds/EmptyState";
+import { MetaRow, PageHeader } from "../components/ds/PageHeader";
 import type { AppSessionRecord, SummaryPayload, TelemetryEvent } from "../types/telemetry";
 import { formatAccuracy, formatDate, formatDuration, formatEventName, formatGeoSource, formatNumber, timeAgo } from "../utils/format";
 import { resolveCountry } from "../utils/geography";
@@ -164,56 +170,43 @@ export function LivePage({ summary, focusedSessionId = null, focusedSessionToken
   return (
     <div className="page-content page-stack-lg">
       {/* Header */}
-      <section className="page-header">
-        <div>
-          <h1 className="page-title">
-            Live Sessions
-            <span className="kicker">Realtime</span>
-          </h1>
-          <p className="page-subtitle">
-            Active sessions from the last 6 minutes. Rows hold stable order while you read.
-          </p>
-        </div>
-        <div className="page-header-right">
-          <span className="badge-live">{formatNumber(activeSessions.length)} live</span>
-          <span
-            className={rpcLive > 0 ? "badge badge-accent" : "badge badge-muted"}
+      <PageHeader
+        kicker="Realtime"
+        title="Live Sessions"
+        sub="Active sessions from the last 6 minutes. Rows hold stable order while you read."
+        right={<>
+          <LiveBadge>{formatNumber(activeSessions.length)} live</LiveBadge>
+          <Badge
+            tone={rpcLive > 0 ? "accent" : "muted"}
             title={rpcReported
               ? `${formatNumber(rpcLive)} active sessions report Discord Rich Presence on`
               : "No active session reports the RPC field yet"}
           >
             Discord RPC · {rpcReported ? formatNumber(rpcLive) : "—"}
-          </span>
-          <div className="meta-row" style={{ marginLeft: 8 }}>
-            {[
-              { label: "Live Errors",  val: formatNumber(liveErrors) },
-              { label: "Last Ingest",  val: summary.stats.lastIngestAt ? timeAgo(summary.stats.lastIngestAt) : "Waiting" },
-              { label: "Updated",      val: timeAgo(summary.generatedAt) },
-            ].map((m) => (
-              <div className="meta-item" key={m.label}><span>{m.label}</span><strong>{m.val}</strong></div>
-            ))}
-          </div>
-        </div>
-      </section>
+          </Badge>
+          <MetaRow items={[
+            { label: "Live Errors", value: formatNumber(liveErrors) },
+            { label: "Last Ingest", value: summary.stats.lastIngestAt ? timeAgo(summary.stats.lastIngestAt) : "Waiting" },
+            { label: "Updated",     value: timeAgo(summary.generatedAt) },
+          ]} />
+        </>}
+      />
 
       {/* Sessions table */}
-      <section className="panel">
-        <div className="panel-head">
-          <div className="panel-head-left">
-            <p className="kicker">Active</p>
-            <h2 className="section-title">Open Sessions</h2>
-            <p className="section-sub">Showing sessions active within the last 6 minutes.</p>
-          </div>
-          <div className="panel-head-right">
-            <span className="badge-live">{activeSessions.length}</span>
-            {liveErrors > 0 ? <span className="badge badge-danger">{liveErrors} errors</span> : null}
-          </div>
-        </div>
-
-        <div className="panel-body-flush">
-          {activeSessions.length > 0 ? (
-            <div className="data-table-wrap" style={{ borderRadius: 0, border: "none" }}>
-              <table className="data-table">
+      <CollapsiblePanel
+        collapsible={false}
+        kicker="Active"
+        title="Open Sessions"
+        sub="Showing sessions active within the last 6 minutes."
+        padding="flush"
+        right={<>
+          <LiveBadge>{activeSessions.length}</LiveBadge>
+          {liveErrors > 0 ? <Badge tone="danger">{liveErrors} errors</Badge> : null}
+        </>}
+      >
+        {activeSessions.length > 0 ? (
+          <div className="data-table-wrap" style={{ borderRadius: 0, border: "none" }}>
+            <table className="data-table">
                 <thead>
                   <tr>
                     <th>User</th>
@@ -238,26 +231,25 @@ export function LivePage({ summary, focusedSessionId = null, focusedSessionToken
                         <tr
                           ref={(el) => { if (el) rowRefs.current.set(session.id, el); else rowRefs.current.delete(session.id); }}
                           tabIndex={0}
-                          className={isExpanded ? "row-expanded" : ""}
-                          style={isFocused ? { outline: "1px solid var(--accent)", outlineOffset: -1 } : undefined}
+                          className={[isExpanded ? "row-expanded" : "", isFocused ? "row-focused" : ""].join(" ").trim() || undefined}
                         >
                           <td style={{ maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            <span style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 600, fontSize: "0.8125rem" }}>
-                              {displayUser(session)}
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                              <span style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: "0.8125rem" }}>
+                                {displayUser(session)}
+                              </span>
+                              {session.discordUser?.trim() ? (
+                                <span style={{ fontSize: "0.6875rem", color: "var(--text-2)" }} title={`Discord: ${session.discordUser.trim()}`}>
+                                  @{session.discordUser.trim()}
+                                </span>
+                              ) : null}
+                              {session.rpcEnabled === true ? (
+                                <Badge tone="accent" title="Discord Rich Presence on">RPC</Badge>
+                              ) : null}
                             </span>
-                            {session.discordUser?.trim() ? (
-                              <span className="muted" style={{ marginLeft: 6, fontSize: "0.6875rem" }} title={`Discord: ${session.discordUser.trim()}`}>
-                                @{session.discordUser.trim()}
-                              </span>
-                            ) : null}
-                            {session.rpcEnabled === true ? (
-                              <span className="badge badge-accent" style={{ marginLeft: 6, fontSize: "0.625rem", padding: "1px 6px", verticalAlign: "middle" }} title="Discord Rich Presence on">
-                                RPC
-                              </span>
-                            ) : null}
                           </td>
                           <td className="muted">{displayLocation(session)}</td>
-                          <td><span className="badge badge-muted">{session.appVersion ?? "—"}</span></td>
+                          <td><Badge tone="muted">{session.appVersion ?? "—"}</Badge></td>
                           <td className="muted">{session.platform ?? "—"}</td>
                           <td className="muted">{resolveSessionDuration(session)}</td>
                           <td>
@@ -267,16 +259,17 @@ export function LivePage({ summary, focusedSessionId = null, focusedSessionToken
                           </td>
                           <td><StatusBadge status={session.lastStatus ?? "unknown"} /></td>
                           <td>
-                            <div style={{ display: "flex", gap: 4 }}>
+                            <span style={{ display: "inline-flex", gap: 4 }}>
                               {canMap ? (
-                                <button type="button" className="btn-icon" style={{ padding: 4 }} title="View on map" onClick={() => onOpenMapSession(session.id)}>
-                                  <Globe2 className="h-3.5 w-3.5" />
-                                </button>
+                                <IconButton icon={<Globe2 />} title="View on map" onClick={() => onOpenMapSession(session.id)} />
                               ) : null}
-                              <button type="button" className="btn-icon" style={{ padding: 4 }} onClick={() => toggleExpanded(session.id)} aria-label={isExpanded ? "Collapse" : "Expand"}>
-                                {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                              </button>
-                            </div>
+                              <IconButton
+                                icon={isExpanded ? <ChevronUp /> : <ChevronDown />}
+                                title={isExpanded ? "Collapse" : "Expand"}
+                                aria-label={isExpanded ? "Collapse" : "Expand"}
+                                onClick={() => toggleExpanded(session.id)}
+                              />
+                            </span>
                           </td>
                         </tr>
 
@@ -305,27 +298,20 @@ export function LivePage({ summary, focusedSessionId = null, focusedSessionToken
                                 </div>
 
                                 {/* Meta grid */}
-                                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px,1fr))", gap: 10 }}>
-                                  {[
-                                    { k: "Install ID",  v: session.installId },
-                                    { k: "Session ID",  v: session.id },
-                                    { k: "Client IP",   v: session.clientIp ?? "—" },
-                                    { k: "Started",     v: formatDate(session.startedAt) },
-                                    { k: "Last Seen",   v: timeAgo(session.lastSeenAt) },
-                                    { k: "Events",      v: String(timeline.trackedEventCount) },
-                                    { k: "Error Count", v: String(session.errorCount) },
-                                    { k: "Discord RPC", v: session.rpcEnabled === true ? "On" : session.rpcEnabled === false ? "Off" : "Unknown" },
-                                    { k: "Discord User", v: session.discordUser?.trim() || "—" },
-                                    { k: "Timezone",    v: session.clientTimezone ?? "—" },
-                                    { k: "Geo Source",  v: formatGeoSource(session.clientGeoSource, session.clientGeoSignalSource) },
-                                    { k: "Geo Accuracy", v: formatAccuracy(session.clientAccuracyMeters) },
-                                  ].map(({ k, v }) => (
-                                    <div key={k} className="glass-inset" style={{ padding: "8px 12px" }}>
-                                      <p className="label-sm" style={{ marginBottom: 3 }}>{k}</p>
-                                      <p style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "0.75rem", color: "var(--text-1)", wordBreak: "break-all" }}>{v}</p>
-                                    </div>
-                                  ))}
-                                </div>
+                                <DetailGrid items={[
+                                  { k: "Install ID",   v: session.installId },
+                                  { k: "Session ID",   v: session.id },
+                                  { k: "Client IP",    v: session.clientIp ?? "—" },
+                                  { k: "Started",      v: formatDate(session.startedAt) },
+                                  { k: "Last Seen",    v: timeAgo(session.lastSeenAt) },
+                                  { k: "Events",       v: String(timeline.trackedEventCount) },
+                                  { k: "Error Count",  v: String(session.errorCount) },
+                                  { k: "Discord RPC",  v: session.rpcEnabled === true ? "On" : session.rpcEnabled === false ? "Off" : "Unknown" },
+                                  { k: "Discord User", v: session.discordUser?.trim() || "—" },
+                                  { k: "Timezone",     v: session.clientTimezone ?? "—" },
+                                  { k: "Geo Source",   v: formatGeoSource(session.clientGeoSource, session.clientGeoSignalSource) },
+                                  { k: "Geo Accuracy", v: formatAccuracy(session.clientAccuracyMeters) },
+                                ]} />
                               </div>
                             </td>
                           </tr>
@@ -334,17 +320,14 @@ export function LivePage({ summary, focusedSessionId = null, focusedSessionToken
                     );
                   })}
                 </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="empty-state">
-              <div className="empty-state-icon"><Radio className="h-5 w-5" /></div>
-              <strong>No active sessions</strong>
-              <p>No sessions seen in the last 6 minutes. Check back soon.</p>
-            </div>
-          )}
-        </div>
-      </section>
+            </table>
+          </div>
+        ) : (
+          <EmptyState icon={<Radio />} title="All quiet">
+            No sessions seen in the last 6 minutes. New sessions surface here within seconds of ingest.
+          </EmptyState>
+        )}
+      </CollapsiblePanel>
     </div>
   );
 }

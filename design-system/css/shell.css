@@ -1,0 +1,123 @@
+/* ═══════════════════════════════════════════════════════════════
+   SHELL — frosted top navbar (sticky), brand left · nav center ·
+   live status + actions right. Quiet glass: dark cool tint, crisp
+   ice hairline below, no milky washes.
+   ═══════════════════════════════════════════════════════════════ */
+.topnav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  min-height: var(--nav-h);
+  padding: 0 var(--page-pad);
+  background: hsl(240 36% 9% / 0.55);
+  backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+  border-bottom: 1px solid var(--line);
+}
+
+/* ── Brand block ──────────────────────────────────────────────── */
+.tn-brand { display: flex; align-items: center; gap: 10px; flex: none; }
+.tn-brand-img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+}
+.tn-brand-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--fs-strong);
+  letter-spacing: -0.01em;
+  color: var(--text-1);
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.tn-brand-sub {
+  display: block;
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--accent-text);
+  margin-top: 1px;
+  white-space: nowrap;
+}
+
+/* ── Nav items — horizontal, pill hover, accent tick on bottom ── */
+.tn-nav {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  align-self: stretch;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tn-nav::-webkit-scrollbar { display: none; }
+
+.tn-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px;
+  border: none;
+  background: none;
+  font-size: var(--fs-body);
+  font-weight: 500;
+  color: var(--text-2);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--t-fast), background var(--t-fast);
+}
+.tn-item svg { opacity: 0.75; flex: none; }
+.tn-item:hover { color: var(--text-1); background: hsl(210 80% 75% / 0.05); }
+.tn-item.active { color: var(--text-1); font-weight: 600; }
+.tn-item.active svg { opacity: 1; color: var(--accent); }
+/* Signature: glowing accent tick on the navbar's bottom edge */
+.tn-item.active::after {
+  content: "";
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--accent);
+  box-shadow: 0 0 12px hsl(var(--ah) var(--as) var(--al) / calc(0.7 * var(--glow)));
+}
+
+/* ── Right cluster: live status, meta, actions ────────────────── */
+.tn-right { display: flex; align-items: center; gap: 12px; margin-left: auto; flex: none; }
+.tn-live {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--fs-tiny);
+  font-weight: 550;
+  color: var(--success-text);
+  white-space: nowrap;
+}
+.tn-live .tn-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 8px var(--success);
+  animation: v2pulse 2.4s ease-in-out infinite;
+}
+.tn-live.offline { color: var(--danger); }
+.tn-live.offline .tn-live-dot { background: var(--danger); box-shadow: 0 0 8px var(--danger); animation: none; }
+.tn-meta { font-size: 0.65625rem; color: var(--text-3); font-family: var(--font-mono); white-space: nowrap; }
+.tn-actions { display: flex; align-items: center; gap: 6px; }
+
+/* ── Narrow viewports: stack brand row + scrollable nav row ───── */
+@media (max-width: 900px) {
+  .topnav { flex-wrap: wrap; row-gap: 0; padding-top: 8px; }
+  .tn-brand { order: 1; }
+  .tn-right { order: 2; }
+  .tn-nav { order: 3; flex-basis: 100%; align-self: auto; height: 40px; margin: 4px calc(-1 * var(--page-pad)) 0; padding: 0 var(--page-pad); }
+  .tn-meta { display: none; }
+}

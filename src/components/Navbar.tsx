@@ -2,19 +2,17 @@ import {
   AlertTriangle,
   BarChart3,
   Clock3,
-  Layers,
   History,
+  Layers,
   LogOut,
   Map,
-  Menu,
   Radio,
   RefreshCw,
   Settings2,
-  X,
 } from "lucide-react";
-import { type ReactNode, useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import type { AuthMode, AuthUser, HealthPayload, PageKey, SummaryPayload } from "../types/telemetry";
-import { formatNumber, timeAgo } from "../utils/format";
+import { timeAgo } from "../utils/format";
 
 const brandLogo = new URL("../img/logo.ico", import.meta.url).href;
 
@@ -24,28 +22,16 @@ interface NavEntry {
   icon: ReactNode;
 }
 
-const NAV_GROUPS: Array<{ label: string; items: NavEntry[] }> = [
-  {
-    label: "Monitor",
-    items: [
-      { key: "overview", label: "Overview", icon: <BarChart3 className="h-[15px] w-[15px]" /> },
-      { key: "traffic",  label: "Traffic",  icon: <Clock3    className="h-[15px] w-[15px]" /> },
-      { key: "live",     label: "Live",     icon: <Radio     className="h-[15px] w-[15px]" /> },
-      { key: "heatmap",  label: "Heatmap",  icon: <Map       className="h-[15px] w-[15px]" /> },
-    ],
-  },
-  {
-    label: "Analyze",
-    items: [
-      { key: "workers",  label: "Users & Sessions", icon: <History className="h-[15px] w-[15px]" /> },
-      { key: "versions", label: "Versions",         icon: <Layers  className="h-[15px] w-[15px]" /> },
-      { key: "logs",     label: "Errors",           icon: <AlertTriangle className="h-[15px] w-[15px]" /> },
-    ],
-  },
-  {
-    label: "System",
-    items: [{ key: "settings", label: "Settings", icon: <Settings2 className="h-[15px] w-[15px]" /> }],
-  },
+/** Canonical DS nav mapping — flat, no groups (design-system readme: ICONOGRAPHY). */
+const NAV_ITEMS: NavEntry[] = [
+  { key: "overview", label: "Overview", icon: <BarChart3 size={16} /> },
+  { key: "traffic",  label: "Traffic",  icon: <Clock3 size={16} /> },
+  { key: "versions", label: "Versions", icon: <Layers size={16} /> },
+  { key: "heatmap",  label: "Heatmap",  icon: <Map size={16} /> },
+  { key: "live",     label: "Live",     icon: <Radio size={16} /> },
+  { key: "workers",  label: "Sessions", icon: <History size={16} /> },
+  { key: "logs",     label: "Errors",   icon: <AlertTriangle size={16} /> },
+  { key: "settings", label: "Settings", icon: <Settings2 size={16} /> },
 ];
 
 export interface NavbarProps {
@@ -61,8 +47,10 @@ export interface NavbarProps {
 }
 
 /**
- * v2 shell navigation: fixed left sidebar (command-center style). On mobile it
- * collapses into an overlay drawer behind a slim top bar.
+ * DS TopNav shell: sticky frosted top navbar — brand lockup left, flat
+ * horizontal nav with a glowing accent tick on the navbar's bottom edge,
+ * live ingest status + mono meta + icon actions right. Below 900px the
+ * nav drops to a second horizontally scrollable row (see css/shell.css).
  */
 export function Navbar({
   page,
@@ -75,92 +63,64 @@ export function Navbar({
   refreshing = false,
   onLogout,
 }: NavbarProps) {
-  const [mobileOpen, setMobileOpen] = useState(false);
-
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [page]);
-
-  const activeUsers = summary?.stats.activeUsers ?? 0;
   const apiOk = health?.api === "alive";
   const ingestLabel = timeAgo(summary?.stats.lastIngestAt ?? health?.lastIngestAt ?? null);
 
   return (
-    <>
-      {/* Mobile top bar */}
-      <div className="v2-mobilebar">
-        <button type="button" className="btn-icon" onClick={() => setMobileOpen((v) => !v)} aria-label="Menu">
-          {mobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
-        </button>
-        <img src={brandLogo} alt="" className="sb-brand-img" style={{ width: 26, height: 26 }} />
-        <span className="sb-brand-name">RazorReaper</span>
-        <div style={{ marginLeft: "auto" }} className={`sb-live${apiOk ? "" : " offline"}`}>
-          <span className="sb-live-dot" />
-          {formatNumber(activeUsers)} active
+    <header className="topnav">
+      <div className="tn-brand">
+        <img src={brandLogo} alt="RazorReaper logo" className="tn-brand-img" />
+        <div>
+          <span className="tn-brand-name">RazorReaper</span>
+          <span className="tn-brand-sub">Operations Console</span>
         </div>
       </div>
-      {mobileOpen ? <div className="v2-scrim" onClick={() => setMobileOpen(false)} /> : null}
 
-      {/* Sidebar */}
-      <aside className={`sb${mobileOpen ? " open" : ""}`} aria-label="Main navigation">
-        <button type="button" className="sb-brand" onClick={() => onNavigate("overview")} style={{ background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
-          <img src={brandLogo} alt="RazorReaper" className="sb-brand-img" />
-          <span>
-            <span className="sb-brand-name">RazorReaper</span>
-            <span className="sb-brand-sub">Ops Console</span>
-          </span>
-        </button>
-
-        {NAV_GROUPS.map((group) => (
-          <div className="sb-group" key={group.label}>
-            <p className="sb-group-label">{group.label}</p>
-            {group.items.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                className={`sb-item${page === item.key ? " active" : ""}`}
-                onClick={() => onNavigate(item.key)}
-                aria-current={page === item.key ? "page" : undefined}
-              >
-                {item.icon}
-                {item.label}
-              </button>
-            ))}
-          </div>
+      <nav className="tn-nav" aria-label="Primary">
+        {NAV_ITEMS.map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            className={`tn-item${page === item.key ? " active" : ""}`}
+            onClick={() => onNavigate(item.key)}
+            aria-current={page === item.key ? "page" : undefined}
+          >
+            {item.icon}
+            <span>{item.label}</span>
+          </button>
         ))}
+      </nav>
 
-        <div className="sb-foot">
-          <div className={`sb-live${apiOk ? "" : " offline"}`} title={`API ${apiOk ? "online" : "offline"}`}>
-            <span className="sb-live-dot" />
-            {apiOk ? `${formatNumber(activeUsers)} active now` : "API offline"}
-          </div>
-          <span className="sb-foot-meta" title="Last ingest">ingest · {ingestLabel}</span>
-          <div className="sb-actions">
+      <div className="tn-right">
+        <div className={`tn-live${apiOk ? "" : " offline"}`} title={`API ${apiOk ? "online" : "offline"}`}>
+          <span className="tn-live-dot" />
+          {apiOk ? "Ingest online" : "Ingest offline"}
+        </div>
+        <div className="tn-meta" title="Last ingest">ingest · {ingestLabel}</div>
+        <div className="tn-actions">
+          <button
+            type="button"
+            className="btn-icon"
+            onClick={onRefresh}
+            disabled={refreshing}
+            aria-label="Refresh data"
+            title={refreshing ? "Syncing" : "Refresh data"}
+          >
+            <RefreshCw size={16} className={refreshing ? "animate-spin" : undefined} />
+          </button>
+          {authMode === "app" ? (
             <button
               type="button"
-              className="btn btn-ghost btn-sm"
-              onClick={onRefresh}
-              disabled={refreshing}
-              aria-label="Refresh data"
-              style={{ flex: 1, justifyContent: "center" }}
+              className="btn-icon"
+              onClick={onLogout}
+              aria-label="Sign out"
+              title={`Signed in as ${user.email}`}
             >
-              <RefreshCw className={`h-3.5 w-3.5${refreshing ? " animate-spin" : ""}`} />
-              {refreshing ? "Syncing" : "Refresh"}
+              <LogOut size={16} />
             </button>
-            {authMode === "app" ? (
-              <button
-                type="button"
-                className="btn-icon"
-                onClick={onLogout}
-                aria-label="Sign out"
-                title={`Signed in as ${user.email}`}
-              >
-                <LogOut className="h-3.5 w-3.5" />
-              </button>
-            ) : null}
-          </div>
+          ) : null}
         </div>
-      </aside>
-    </>
+      </div>
+    </header>
   );
 }

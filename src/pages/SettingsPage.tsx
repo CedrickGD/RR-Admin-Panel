@@ -1,5 +1,9 @@
-import { BarChart3, Check, CircleDot, LogOut, Palette, Server, Shield } from "lucide-react";
-import { useState } from "react";
+import { Check, CircleDot, KeyRound, LogOut, Palette, ShieldCheck, SlidersHorizontal } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Badge, LiveBadge } from "../components/ds/Badge";
+import { Button } from "../components/ds/Button";
+import { KvList } from "../components/ds/KvList";
+import { MetaRow, PageHeader } from "../components/ds/PageHeader";
 import { ACCENT_PRESETS, useAccent } from "../hooks/useAccent";
 import { useChartColors } from "../hooks/useChartColors";
 import { useDonutColors } from "../hooks/useDonutColors";
@@ -13,11 +17,44 @@ interface SettingsPageProps {
   onLogout: () => void;
 }
 
+/* ── Accent glow preference ──────────────────────────────────────
+   The DS exposes --glow as a multiplier on every accent halo
+   (tokens/accent.css — "set to 0 to kill all accent glows").
+   Persisted per-browser; applied at module load so the choice
+   holds on every page from boot, mirroring useChartColors. */
+const GLOW_STORAGE_KEY = "rr-accent-glow";
+
+function readGlowEnabled(): boolean {
+  try {
+    return localStorage.getItem(GLOW_STORAGE_KEY) !== "off";
+  } catch {
+    return true;
+  }
+}
+
+function applyGlow(enabled: boolean) {
+  const root = document.documentElement.style;
+  if (enabled) root.removeProperty("--glow"); // fall back to the DS default (1)
+  else root.setProperty("--glow", "0");
+}
+
+applyGlow(readGlowEnabled());
+
 export function SettingsPage({ user, authMode, summary, health, onLogout }: SettingsPageProps) {
   const { hue, setHue, activePreset } = useAccent();
-  const { override: chartColorOverride, setPreset: setChartPreset, activeLabel: chartActiveLabel, presets: chartPresets } = useChartColors();
+  const { setPreset: setChartPreset, activeLabel: chartActiveLabel, presets: chartPresets } = useChartColors();
   const { setPreset: setDonutPreset, activeLabel: donutActiveLabel, presets: donutPresets } = useDonutColors();
   const [copied, setCopied] = useState<string | null>(null);
+  const [glowEnabled, setGlowEnabled] = useState<boolean>(readGlowEnabled);
+
+  useEffect(() => {
+    applyGlow(glowEnabled);
+    try {
+      localStorage.setItem(GLOW_STORAGE_KEY, glowEnabled ? "on" : "off");
+    } catch {
+      /* ignore */
+    }
+  }, [glowEnabled]);
 
   function copyToClipboard(value: string, key: string) {
     void navigator.clipboard.writeText(value).then(() => {
@@ -26,97 +63,91 @@ export function SettingsPage({ user, authMode, summary, health, onLogout }: Sett
     });
   }
 
+  const apiOnline = health.api === "alive";
+
   return (
     <div className="page-content page-stack-lg">
-      <section className="page-header">
-        <div>
-          <h1 className="page-title">
-            Settings
-            <span className="kicker">Configuration</span>
-          </h1>
-          <p className="page-subtitle">Account identity, appearance, and backend configuration.</p>
-        </div>
-        <div className="page-header-right">
-          <div className="meta-row">
-            {[
-              { label: "Auth Mode", val: authMode === "access" ? "Zero Trust" : "App Auth" },
-              { label: "Storage",   val: summary.storage.toUpperCase() },
-              { label: "API",       val: health.api === "alive" ? "Online" : "Offline" },
-            ].map((m) => (
-              <div className="meta-item" key={m.label}><span>{m.label}</span><strong>{m.val}</strong></div>
-            ))}
-          </div>
-        </div>
-      </section>
+      <PageHeader
+        kicker="Configuration"
+        title="Settings"
+        sub="Account identity, appearance, and backend configuration."
+        right={
+          <MetaRow
+            items={[
+              { label: "Auth Mode", value: authMode === "access" ? "Zero Trust" : "App Auth" },
+              { label: "Storage", value: summary.storage.toUpperCase() },
+              { label: "API", value: apiOnline ? "Online" : "Offline" },
+            ]}
+          />
+        }
+      />
 
       <div className="two-col">
+        {/* Account identity */}
         <section className="panel">
           <div className="panel-head">
             <div className="panel-head-left">
-              <p className="kicker" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <Shield className="h-3 w-3" /> Account
+              <p className="kicker kicker-row">
+                <KeyRound size={12} /> Account
               </p>
               <h2 className="section-title">Identity</h2>
             </div>
           </div>
           <div className="panel-body-tight">
-            <div className="kv-list">
-              {[
-                { k: "Email",     v: user.email },
-                { k: "Role",      v: user.role },
+            <KvList
+              items={[
+                { k: "Email", v: user.email },
+                { k: "Role", v: user.role },
                 { k: "Auth Mode", v: authMode === "access" ? "Cloudflare Access (Zero Trust)" : "Email & Password" },
-              ].map(({ k, v }) => (
-                <div className="kv-row" key={k}>
-                  <span className="kv-key">{k}</span>
-                  <span className="kv-val">{v}</span>
-                </div>
-              ))}
-            </div>
+              ]}
+            />
             {authMode === "app" ? (
-              <div style={{ marginTop: 16 }}>
-                <button type="button" className="btn btn-danger btn-sm" onClick={onLogout}>
-                  <LogOut className="h-3.5 w-3.5" /> Sign Out
-                </button>
+              <div style={{ margin: "12px 0 8px" }}>
+                <Button variant="danger" size="sm" icon={<LogOut />} onClick={onLogout}>
+                  Sign Out
+                </Button>
               </div>
             ) : null}
           </div>
         </section>
 
+        {/* Backend status */}
         <section className="panel">
           <div className="panel-head">
             <div className="panel-head-left">
-              <p className="kicker" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <Server className="h-3 w-3" /> Backend
+              <p className="kicker kicker-row">
+                <ShieldCheck size={12} /> Backend
               </p>
               <h2 className="section-title">System Status</h2>
             </div>
-            <span className={`badge ${health.api === "alive" ? "badge-success" : "badge-danger"}`}>
-              {health.api === "alive" ? "Online" : "Offline"}
-            </span>
+            <div className="panel-head-right">
+              <Badge tone={apiOnline ? "success" : "danger"}>{apiOnline ? "Online" : "Offline"}</Badge>
+            </div>
           </div>
           <div className="panel-body-tight">
             <div className="kv-list">
               {[
-                { k: "Storage",     v: summary.storage.toUpperCase() },
-                { k: "API",         v: health.api === "alive" ? "Alive" : "Down" },
-                { k: "Commit",      v: health.build?.commit ?? "unknown" },
-                { k: "Branch",      v: health.build?.branch ?? "unknown" },
+                { k: "Storage", v: summary.storage.toUpperCase() },
+                { k: "API", v: apiOnline ? "Alive" : "Down" },
+                { k: "Commit", v: health.build?.commit ?? "unknown" },
+                { k: "Branch", v: health.build?.branch ?? "unknown" },
                 { k: "Environment", v: health.build?.environment ?? "unknown" },
               ].map(({ k, v }) => (
                 <div className="kv-row" key={k}>
                   <span className="kv-key">{k}</span>
                   <button
                     type="button"
-                    className="kv-val"
-                    style={{ cursor: "copy", background: "none", border: "none", padding: 0, font: "inherit", color: "inherit" }}
+                    className="kv-val kv-val-copy"
                     onClick={() => copyToClipboard(v, k)}
                     title="Click to copy"
                   >
                     {copied === k ? (
-                      <span style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--success)" }}>
-                        <Check className="h-3 w-3" /> Copied
+                      <span className="kv-copied">
+                        <Check size={12} /> Copied
                       </span>
-                    ) : v}
+                    ) : (
+                      v
+                    )}
                   </button>
                 </div>
               ))}
@@ -125,19 +156,23 @@ export function SettingsPage({ user, authMode, summary, health, onLogout }: Sett
         </section>
       </div>
 
-      <section className="panel" style={{ position: "relative", overflow: "visible" }}>
-        <div style={{ position: "absolute", top: 0, left: "10%", right: "10%", height: 1, background: "linear-gradient(90deg, transparent, var(--accent-glow), transparent)" }} />
+      {/* Accent color */}
+      <section className="panel">
         <div className="panel-head">
           <div className="panel-head-left">
-            <p className="kicker" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <Palette className="h-3 w-3" /> Appearance
+            <p className="kicker kicker-row">
+              <Palette size={12} /> Appearance
             </p>
             <h2 className="section-title">Accent Color</h2>
-            <p className="section-sub">Pick any accent hue — all interface highlights, buttons, and glows update instantly. Saved to your browser.</p>
+            <p className="section-sub">
+              Pick any accent hue — all interface highlights, buttons, and glows update instantly. Saved to your browser.
+            </p>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 28, height: 28, borderRadius: 8, background: `hsl(${hue} 83% 62%)`, border: "2px solid rgba(255,255,255,0.15)", boxShadow: `0 0 16px hsl(${hue} 83% 62% / 0.5)` }} />
-            <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "0.75rem", color: "var(--text-2)" }}>hsl({hue}°)</span>
+          <div className="panel-head-right">
+            <div className="accent-current">
+              <div className="accent-current-chip" />
+              <span className="accent-current-value">hsl({hue}°)</span>
+            </div>
           </div>
         </div>
         <div className="panel-body">
@@ -145,56 +180,113 @@ export function SettingsPage({ user, authMode, summary, health, onLogout }: Sett
             <p className="label-sm" style={{ marginBottom: 12 }}>Presets</p>
             <div className="accent-picker-swatches">
               {ACCENT_PRESETS.map((preset) => (
-                <button key={preset.hue} type="button" className={`accent-swatch${preset.hue === hue ? " active" : ""}`} style={{ background: preset.color }} onClick={() => setHue(preset.hue)} title={preset.label} aria-label={`Set accent to ${preset.label}`} />
+                <button
+                  key={preset.hue}
+                  type="button"
+                  className={`accent-swatch${preset.hue === hue ? " active" : ""}`}
+                  style={{ background: preset.color }}
+                  onClick={() => setHue(preset.hue)}
+                  title={preset.label}
+                  aria-label={`Set accent to ${preset.label}`}
+                />
               ))}
             </div>
           </div>
           <div>
             <p className="label-sm" style={{ marginBottom: 12 }}>
               Custom Hue
-              <span style={{ marginLeft: 8, fontFamily: "JetBrains Mono, monospace", color: "var(--text-2)", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>
+              <span className="label-sm-suffix">
                 {hue}°{activePreset ? ` — ${activePreset.label}` : ""}
               </span>
             </p>
-            <input type="range" min={0} max={360} step={1} value={hue} onChange={(e) => setHue(Number(e.target.value))} className="accent-hue-slider" />
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
-              <span style={{ fontSize: "0.6875rem", color: "var(--text-3)" }}>0°</span>
-              <span style={{ fontSize: "0.6875rem", color: "var(--text-3)" }}>360°</span>
+            <input
+              type="range"
+              min={0}
+              max={360}
+              step={1}
+              value={hue}
+              onChange={(e) => setHue(Number(e.target.value))}
+              className="accent-hue-slider"
+              aria-label="Custom accent hue"
+            />
+            <div className="hue-scale">
+              <span>0°</span>
+              <span>360°</span>
+            </div>
+          </div>
+          <div style={{ marginTop: 20 }}>
+            <p className="label-sm" style={{ marginBottom: 10 }}>Accent Glow</p>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              <div className="seg-control">
+                <button
+                  type="button"
+                  className={`seg-btn${glowEnabled ? " active" : ""}`}
+                  onClick={() => setGlowEnabled(true)}
+                  title="Accent elements carry their soft glow halos"
+                >
+                  On
+                </button>
+                <button
+                  type="button"
+                  className={`seg-btn${!glowEnabled ? " active" : ""}`}
+                  onClick={() => setGlowEnabled(false)}
+                  title="Disable every accent glow halo"
+                >
+                  Off
+                </button>
+              </div>
+              <span className="section-sub">Halos on accent elements — Off disables every glow. Saved to your browser.</span>
             </div>
           </div>
           <div style={{ marginTop: 24, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
             <p className="label-sm" style={{ width: "100%", marginBottom: 4 }}>Preview</p>
-            <button type="button" className="btn btn-primary btn-sm">Primary Button</button>
-            <button type="button" className="btn btn-ghost btn-sm">Ghost Button</button>
-            <span className="badge badge-accent">Accent Badge</span>
-            <span className="badge-live">Live</span>
-            <div style={{ padding: "8px 14px", borderRadius: 8, background: "var(--accent-subtle)", border: "1px solid var(--accent-glow)", fontSize: "0.8125rem", color: "var(--accent-text)" }}>Accent card</div>
+            <Button variant="primary" size="sm">Primary Button</Button>
+            <Button size="sm">Ghost Button</Button>
+            <Badge tone="accent">Accent Badge</Badge>
+            <LiveBadge>Live</LiveBadge>
+            <div className="accent-preview-card">Accent card</div>
           </div>
         </div>
       </section>
 
+      {/* Chart colors — writes the DS tokens (--chart-users/sessions/errors) */}
       <section className="panel">
         <div className="panel-head">
           <div className="panel-head-left">
-            <p className="kicker" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <BarChart3 className="h-3 w-3" /> Charts
+            <p className="kicker kicker-row">
+              <SlidersHorizontal size={12} /> Charts
             </p>
             <h2 className="section-title">Chart Colors</h2>
             <p className="section-sub">Choose a color theme for traffic and analytics charts. Saved to your browser.</p>
           </div>
         </div>
         <div className="panel-body">
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div className="preset-row">
             {chartPresets.map((preset) => {
               const isActive = chartActiveLabel === preset.label;
               return (
-                <button key={preset.label} type="button" onClick={() => setChartPreset(preset.label === "Default" ? null : preset)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", borderRadius: 10, border: isActive ? "1px solid rgba(255,255,255,0.18)" : "1px solid rgba(255,255,255,0.06)", cursor: "pointer", background: isActive ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.02)", transition: "all 0.15s" }}>
-                  <div style={{ display: "flex", gap: 4 }}>
-                    <span style={{ width: 12, height: 12, borderRadius: "50%", background: preset.users, boxShadow: isActive ? `0 0 8px ${preset.users}` : "none" }} />
-                    <span style={{ width: 12, height: 12, borderRadius: "50%", background: preset.errors, boxShadow: isActive ? `0 0 8px ${preset.errors}` : "none" }} />
-                  </div>
-                  <span style={{ fontSize: "0.8rem", color: isActive ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.55)", fontWeight: isActive ? 500 : 400 }}>{preset.label}</span>
-                  {isActive && <Check className="h-3.5 w-3.5" style={{ color: "var(--accent-text)", marginLeft: 2 }} />}
+                <button
+                  key={preset.label}
+                  type="button"
+                  className={`preset-chip${isActive ? " active" : ""}`}
+                  onClick={() => setChartPreset(preset.label === "Default" ? null : preset)}
+                >
+                  <span className="preset-chip-dots">
+                    <span
+                      className="preset-dot"
+                      style={{ background: preset.users, boxShadow: isActive ? `0 0 8px ${preset.users}` : "none" }}
+                    />
+                    <span
+                      className="preset-dot"
+                      style={{ background: preset.errors, boxShadow: isActive ? `0 0 8px ${preset.errors}` : "none" }}
+                    />
+                  </span>
+                  {preset.label}
+                  {isActive ? (
+                    <span className="preset-check">
+                      <Check size={14} />
+                    </span>
+                  ) : null}
                 </button>
               );
             })}
@@ -202,29 +294,43 @@ export function SettingsPage({ user, authMode, summary, health, onLogout }: Sett
         </div>
       </section>
 
+      {/* Donut palette */}
       <section className="panel">
         <div className="panel-head">
           <div className="panel-head-left">
-            <p className="kicker" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <CircleDot className="h-3 w-3" /> Donut Charts
+            <p className="kicker kicker-row">
+              <CircleDot size={12} /> Donut Charts
             </p>
             <h2 className="section-title">Donut Colors</h2>
             <p className="section-sub">Choose a color palette for geographic donut charts. Saved to your browser.</p>
           </div>
         </div>
         <div className="panel-body">
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div className="preset-row">
             {donutPresets.map((preset) => {
               const isActive = donutActiveLabel === preset.label;
               return (
-                <button key={preset.label} type="button" onClick={() => setDonutPreset(preset.label === "Default" ? null : preset)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", borderRadius: 10, border: isActive ? "1px solid rgba(255,255,255,0.18)" : "1px solid rgba(255,255,255,0.06)", cursor: "pointer", background: isActive ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.02)", transition: "all 0.15s" }}>
-                  <div style={{ display: "flex", gap: 3 }}>
+                <button
+                  key={preset.label}
+                  type="button"
+                  className={`preset-chip${isActive ? " active" : ""}`}
+                  onClick={() => setDonutPreset(preset.label === "Default" ? null : preset)}
+                >
+                  <span className="preset-chip-dots">
                     {preset.colors.slice(0, 4).map((c, i) => (
-                      <span key={i} style={{ width: 10, height: 10, borderRadius: "50%", background: c, boxShadow: isActive ? `0 0 6px ${c}` : "none" }} />
+                      <span
+                        key={i}
+                        className="preset-dot preset-dot-sm"
+                        style={{ background: c, boxShadow: isActive ? `0 0 6px ${c}` : "none" }}
+                      />
                     ))}
-                  </div>
-                  <span style={{ fontSize: "0.8rem", color: isActive ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.55)", fontWeight: isActive ? 500 : 400 }}>{preset.label}</span>
-                  {isActive && <Check className="h-3.5 w-3.5" style={{ color: "var(--accent-text)", marginLeft: 2 }} />}
+                  </span>
+                  {preset.label}
+                  {isActive ? (
+                    <span className="preset-check">
+                      <Check size={14} />
+                    </span>
+                  ) : null}
                 </button>
               );
             })}

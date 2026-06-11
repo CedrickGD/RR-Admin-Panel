@@ -39,7 +39,6 @@ export function TimezoneUsageChart({
   subtitle,
   data,
   accentColor,
-  theme,
   chartHeight = 180,
 }: TimezoneUsageChartProps) {
   const gradientId = useMemo(() => `tz-fill-${Math.random().toString(36).slice(2, 9)}`, []);
@@ -49,22 +48,6 @@ export function TimezoneUsageChart({
     (peak, point) => (point.activity > peak.activity ? point : peak),
     data[0] ?? { activity: 0, label: "--:--" },
   );
-  const palette =
-    theme === "dark"
-      ? {
-          grid: "rgba(255,255,255,0.07)",
-          axis: "rgba(255,255,255,0.56)",
-          axisSoft: "rgba(255,255,255,0.38)",
-          cursor: "rgba(255,255,255,0.18)",
-          error: "hsl(4 60% 64% / 0.88)",
-        }
-      : {
-          grid: "rgba(24,43,66,0.1)",
-          axis: "rgba(24,43,66,0.66)",
-          axisSoft: "rgba(24,43,66,0.42)",
-          cursor: "rgba(24,43,66,0.24)",
-          error: "hsl(4 50% 52% / 0.8)",
-        };
 
   return (
     <article className="timezone-card">
@@ -100,14 +83,14 @@ export function TimezoneUsageChart({
                 <stop offset="100%" stopColor={accentColor} stopOpacity={0.02} />
               </linearGradient>
             </defs>
-            <CartesianGrid stroke={palette.grid} vertical={false} />
+            <CartesianGrid stroke="var(--chart-grid)" strokeDasharray="3 6" vertical={false} />
             <XAxis
               dataKey="label"
               tickLine={false}
               axisLine={false}
               interval={3}
               tickMargin={7}
-              tick={{ fill: palette.axis, fontSize: 10.5 }}
+              tick={{ fill: "var(--chart-axis)", fontSize: 10.5 }}
             />
             <YAxis
               tickLine={false}
@@ -115,11 +98,11 @@ export function TimezoneUsageChart({
               width={34}
               allowDecimals={false}
               tickMargin={4}
-              tick={{ fill: palette.axisSoft, fontSize: 10.5 }}
+              tick={{ fill: "var(--chart-axis-soft)", fontSize: 10.5 }}
               tickFormatter={(value: number) => formatNumber(value)}
             />
             <Tooltip
-              cursor={{ stroke: palette.cursor, strokeWidth: 1, strokeDasharray: "3 3" }}
+              cursor={{ stroke: "rgba(255,255,255,0.12)", strokeWidth: 1 }}
               content={({ active, payload, label }) => (
                 <TelemetryChartTooltip
                   active={active}
@@ -148,20 +131,18 @@ export function TimezoneUsageChart({
                 stroke: withAlpha(accentColor, 0.28),
                 strokeWidth: 5,
               }}
-              animationDuration={650}
-              animationEasing="ease-out"
+              isAnimationActive={false}
             />
             <Line
               type="monotone"
               dataKey="errors"
               name="Errors"
-              stroke={palette.error}
+              stroke="var(--chart-errors)"
               strokeWidth={1.8}
               strokeDasharray="5 3"
               dot={false}
-              activeDot={{ r: 3.5, fill: palette.error, strokeWidth: 0 }}
-              animationDuration={650}
-              animationEasing="ease-out"
+              activeDot={{ r: 3.5, fill: "var(--chart-errors)", strokeWidth: 0 }}
+              isAnimationActive={false}
             />
           </AreaChart>
         </ResponsiveContainer>

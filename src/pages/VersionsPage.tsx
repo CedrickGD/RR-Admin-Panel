@@ -1,19 +1,16 @@
-import { Crown, Download, Layers, Rocket, Users } from "lucide-react";
+import { CircleCheck, Crown, Download, Layers, Package, Users } from "lucide-react";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  LabelList,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import { TelemetryChartTooltip } from "../components/charts/TelemetryChartTooltip";
 import { CollapsiblePanel } from "../components/CollapsiblePanel";
 import { KpiStatCard, type KpiDrilldown } from "../components/KpiStatCard";
+import { Badge } from "../components/ds/Badge";
+import { IconButton } from "../components/ds/Button";
+import { DataTable, type DataTableColumn } from "../components/ds/DataTable";
+import { EmptyState } from "../components/ds/EmptyState";
+import { KvList } from "../components/ds/KvList";
+import { PageHeader } from "../components/ds/PageHeader";
+import { RadialGauge } from "../components/ds/RadialGauge";
+import { RankList } from "../components/ds/RankList";
+import { Tag } from "../components/ds/Tag";
 import { useChartColors } from "../hooks/useChartColors";
 import { useLatestVersion } from "../hooks/useLatestVersion";
 import { useReleaseVersions } from "../hooks/useReleaseVersions";
@@ -98,11 +95,21 @@ function formatDay(value: string | null): string {
 }
 
 function statusBadge(row: VersionRow) {
-  if (row.isLatest) return <span className="badge badge-accent">Latest</span>;
-  if (row.currentUsers > 0) return <span className="badge badge-success">Active</span>;
-  if (row.allTimeUsers > 0) return <span className="badge badge-muted">Retired</span>;
-  return <span className="badge badge-muted">No telemetry</span>;
+  if (row.isLatest) return <Badge tone="accent">Latest</Badge>;
+  if (row.currentUsers > 0) return <Badge tone="success">Active</Badge>;
+  if (row.allTimeUsers > 0) return <Badge tone="muted">Retired</Badge>;
+  return <Badge tone="muted">No telemetry</Badge>;
 }
+
+const RELEASE_COLUMNS: Array<DataTableColumn<VersionRow>> = [
+  { key: "version", header: "Version", render: (row) => <Tag accent={row.isLatest}>{row.label}</Tag> },
+  { key: "currentUsers", header: "Current Users", render: (row) => formatNumber(row.currentUsers) },
+  { key: "allTimeUsers", header: "All-Time Users", render: (row) => formatNumber(row.allTimeUsers) },
+  { key: "sessions", header: "Sessions", muted: true, render: (row) => formatNumber(row.sessions) },
+  { key: "firstSeen", header: "First Seen", muted: true, render: (row) => formatDay(row.firstSeen) },
+  { key: "lastSeen", header: "Last Seen", muted: true, render: (row) => formatDay(row.lastSeen) },
+  { key: "status", header: "Status", render: (row) => statusBadge(row) },
+];
 
 export function VersionsPage({ summary, stats, theme, accentHue = 217, filterBar }: VersionsPageProps) {
   const latestVersion = useLatestVersion();
@@ -253,8 +260,17 @@ export function VersionsPage({ summary, stats, theme, accentHue = 217, filterBar
     };
   }, [topVersion, view]);
 
-  const chartHeight = Math.max(200, chartRows.length * 44 + 24);
-  const barTrackFill = theme === "dark" ? "rgba(255,255,255,0.04)" : "rgba(24,43,66,0.05)";
+  // Rank bars: share is normalized against the largest bucket in the active view.
+  const maxChartValue = useMemo(() => chartRows.reduce((max, row) => Math.max(max, row.value), 0), [chartRows]);
+  const rankItems = useMemo(
+    () =>
+      chartRows.map((row) => ({
+        label: row.label,
+        value: row.valueLabel,
+        share: maxChartValue > 0 ? row.value / maxChartValue : 0,
+      })),
+    [chartRows, maxChartValue],
+  );
 
   const downloadCsv = useCallback(() => {
     const header = "version,currentUsers,allTimeUsers,sessions,firstSeen,lastSeen\n";
@@ -274,18 +290,9 @@ export function VersionsPage({ summary, stats, theme, accentHue = 217, filterBar
   if (!stats) {
     return (
       <div className="page-content page-stack-lg">
-        <section className="page-header">
-          <div>
-            <h1 className="page-title">
-              Versions
-              <span className="kicker">Client Adoption</span>
-            </h1>
-            <p className="page-subtitle">Loading full-history version adoption…</p>
-          </div>
-          {filterBar ? <div className="page-header-right">{filterBar}</div> : null}
-        </section>
+        <PageHeader kicker="Distribution" title="Versions" right={filterBar} />
 
-        <div className="stat-grid stat-grid-4">
+        <div className="stat-grid stat-grid-4 v2-stagger">
           {[0, 1, 2, 3].map((i) => (
             <div className="stat-card" key={i}>
               <div className="skeleton" style={{ height: 12, width: "55%" }} />
@@ -299,7 +306,7 @@ export function VersionsPage({ summary, stats, theme, accentHue = 217, filterBar
           <div className="panel-head">
             <div className="panel-head-left">
               <p className="kicker">Distribution</p>
-              <h2 className="section-title">Users per Version</h2>
+              <h2 className="section-title">Users by Version</h2>
               <p className="section-sub">Fetching server-side aggregates…</p>
             </div>
           </div>
@@ -313,45 +320,43 @@ export function VersionsPage({ summary, stats, theme, accentHue = 217, filterBar
 
   return (
     <div className="page-content page-stack-lg">
-      {/* Header — title left; view toggle + global filters right */}
-      <section className="page-header">
-        <div>
-          <h1 className="page-title">
-            Versions
-            <span className="kicker">Client Adoption</span>
-          </h1>
-          <p className="page-subtitle">Adoption per release — telemetry merged with GitHub releases.</p>
-        </div>
-        <div className="page-header-right">
-          <div className="seg-control">
-            <button
-              type="button"
-              className={`seg-btn${view === "current" ? " active" : ""}`}
-              onClick={() => setView("current")}
-              title="Users currently on each version (latest session per user)"
-            >
-              Current
-            </button>
-            <button
-              type="button"
-              className={`seg-btn${view === "alltime" ? " active" : ""}`}
-              onClick={() => setView("alltime")}
-              title="Distinct users who ever ran each version"
-            >
-              All-time
-            </button>
-          </div>
-          {filterBar}
-        </div>
-      </section>
+      {/* Header — mandate kicker left; latest badge + view toggle + global filters right */}
+      <PageHeader
+        kicker="Distribution"
+        title="Versions"
+        right={
+          <>
+            <Badge tone="accent" title="Latest GitHub release">Latest · {latestVersion}</Badge>
+            <div className="seg-control">
+              <button
+                type="button"
+                className={`seg-btn${view === "current" ? " active" : ""}`}
+                onClick={() => setView("current")}
+                title="Users currently on each version (latest session per user)"
+              >
+                Current
+              </button>
+              <button
+                type="button"
+                className={`seg-btn${view === "alltime" ? " active" : ""}`}
+                onClick={() => setView("alltime")}
+                title="Distinct users who ever ran each version"
+              >
+                All-time
+              </button>
+            </div>
+            {filterBar}
+          </>
+        }
+      />
 
-      {/* Stat cards */}
-      <div className="stat-grid stat-grid-4">
+      {/* Adoption KPIs */}
+      <div className="stat-grid stat-grid-4 v2-stagger">
         <KpiStatCard
           label="Lifetime Users"
           value={formatNumber(lifetimeUsers)}
-          sub="All-time unique (HWID)"
-          icon={<Users className="h-3.5 w-3.5" />}
+          sub="All-time unique · HWID"
+          icon={<Users size={14} />}
           tone="primary"
           drilldown={lifetimeDrilldown}
           chartColor={chartPalette.sessionsLine}
@@ -360,8 +365,8 @@ export function VersionsPage({ summary, stats, theme, accentHue = 217, filterBar
           label="On Latest"
           value={formatNumber(onLatestUsers)}
           sub={`${onLatestSharePct}% of known · v${latestVersion}`}
-          icon={<Rocket className="h-3.5 w-3.5" />}
-          tone="accent"
+          icon={<CircleCheck size={14} />}
+          tone="success"
           drilldown={onLatestDrilldown}
           chartColor={chartPalette.sessionsLine}
         />
@@ -369,7 +374,7 @@ export function VersionsPage({ summary, stats, theme, accentHue = 217, filterBar
           label="Versions Tracked"
           value={String(versionRows.length)}
           sub="Incl. zero-user releases"
-          icon={<Layers className="h-3.5 w-3.5" />}
+          icon={<Layers size={14} />}
           tone="primary"
           drilldown={trackedDrilldown}
           chartColor={chartPalette.sessionsLine}
@@ -378,145 +383,86 @@ export function VersionsPage({ summary, stats, theme, accentHue = 217, filterBar
           label="Top Version"
           value={topVersion?.label ?? "—"}
           sub={topVersion ? `${formatNumber(topVersion.value)} ${view === "current" ? "current" : "all-time"} users` : "No data"}
-          icon={<Crown className="h-3.5 w-3.5" />}
+          icon={<Crown size={14} />}
           tone="primary"
           drilldown={topVersionDrilldown}
           chartColor={chartPalette.sessionsLine}
         />
       </div>
 
-      {/* Version chart */}
-      <CollapsiblePanel
-        kicker="Distribution"
-        title="Users per Version"
-        sub={view === "current"
-          ? "Users whose latest session ran each version — adoption right now."
-          : "Distinct users who ever ran each version — all-time."}
-      >
-        <div className="panel-body">
-          {chartRows.length > 0 ? (
-            <div className="chart-wrap">
-              <ResponsiveContainer width="100%" height={chartHeight}>
-                <BarChart data={chartRows} layout="vertical" margin={{ top: 4, right: 44, left: 8, bottom: 4 }}>
-                  <defs>
-                    <linearGradient id="verBarLatest" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stopColor={chartPalette.sessionsLine} stopOpacity={0.5} />
-                      <stop offset="100%" stopColor={chartPalette.sessionsLine} stopOpacity={0.95} />
-                    </linearGradient>
-                    <linearGradient id="verBarMuted" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stopColor={chartPalette.sessionsLine} stopOpacity={0.12} />
-                      <stop offset="100%" stopColor={chartPalette.sessionsLine} stopOpacity={0.34} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid stroke={chartPalette.grid} horizontal={false} />
-                  <XAxis
-                    type="number"
-                    allowDecimals={false}
-                    tickLine={false}
-                    axisLine={false}
-                    tick={{ fill: chartPalette.axis, fontSize: 10.5 }}
-                  />
-                  <YAxis
-                    type="category"
-                    dataKey="label"
-                    width={108}
-                    tickLine={false}
-                    axisLine={false}
-                    tick={{ fill: chartPalette.axis, fontSize: 10.5 }}
-                  />
-                  <Tooltip
-                    cursor={false}
-                    content={({ active, payload }) => {
-                      const row = payload?.[0]?.payload as ChartRow | undefined;
-                      return (
-                        <TelemetryChartTooltip
-                          active={active}
-                          label={row?.label}
-                          payload={
-                            row
-                              ? [
-                                  { name: "Current users", value: row.currentUsers, color: chartPalette.sessionsLine },
-                                  { name: "All-time users", value: row.allTimeUsers, color: chartPalette.axisSoft },
-                                  { name: "Sessions", value: row.sessions, color: chartPalette.axisSoft },
-                                ]
-                              : []
-                          }
-                        />
-                      );
-                    }}
-                  />
-                  <Bar
-                    isAnimationActive={false}
-                    dataKey="value"
-                    name="Users"
-                    radius={[0, 6, 6, 0]}
-                    barSize={18}
-                    background={{ fill: barTrackFill, radius: 6 }}
-                  >
-                    {chartRows.map((row) => (
-                      <Cell key={row.key} fill={row.isLatest ? "url(#verBarLatest)" : "url(#verBarMuted)"} />
-                    ))}
-                    <LabelList dataKey="valueLabel" position="right" fill={chartPalette.axis} fontSize={10.5} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+      {/* Adoption funnel: rank bars left, coverage gauges + latest release right */}
+      <div className="main-side">
+        <CollapsiblePanel
+          kicker="Distribution"
+          title="Users by Version"
+          sub={view === "current"
+            ? "Users whose latest session ran each version — adoption right now."
+            : "Distinct users who ever ran each version — all-time."}
+          padding="body"
+        >
+          {rankItems.length > 0 ? (
+            <RankList items={rankItems} />
           ) : (
-            <div className="empty-state">
-              <p>No version data yet.</p>
-            </div>
+            <EmptyState icon={<Layers />} title="No version data">
+              Adoption populates here with the first session ingest.
+            </EmptyState>
           )}
+        </CollapsiblePanel>
+
+        <div className="side-stack">
+          <CollapsiblePanel kicker="Health" title="Coverage" padding="body">
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <RadialGauge
+                ratio={totalCurrentKnown > 0 ? onLatestUsers / totalCurrentKnown : 0}
+                title="On Latest"
+                sub={`${formatNumber(onLatestUsers)} of ${formatNumber(totalCurrentKnown)} known current`}
+              />
+              <RadialGauge
+                ratio={stats.totals.rpcKnownUsers > 0 ? stats.totals.rpcEnabledUsers / stats.totals.rpcKnownUsers : 0}
+                title="Discord RPC On"
+                sub={`${formatNumber(stats.totals.rpcEnabledUsers)} of ${formatNumber(stats.totals.rpcKnownUsers)} reporting`}
+              />
+            </div>
+          </CollapsiblePanel>
+
+          {latestRow ? (
+            <CollapsiblePanel kicker="Release" title="Latest Release" padding="tight">
+              <KvList
+                items={[
+                  { k: "Version", v: latestRow.label, tag: "accent" },
+                  { k: "Current Users", v: formatNumber(latestRow.currentUsers) },
+                  { k: "All-Time Users", v: formatNumber(latestRow.allTimeUsers) },
+                  { k: "Sessions", v: formatNumber(latestRow.sessions) },
+                  { k: "First Seen", v: formatDay(latestRow.firstSeen) },
+                  { k: "Last Seen", v: formatDay(latestRow.lastSeen) },
+                ]}
+              />
+            </CollapsiblePanel>
+          ) : null}
         </div>
-      </CollapsiblePanel>
+      </div>
 
       {/* Release table */}
       <CollapsiblePanel
         kicker="Releases"
         title="Release History"
-        sub="Every known release with current vs. all-time adoption."
+        sub="Every known release · current vs. all-time adoption."
         defaultOpen={false}
-        right={
-          <button type="button" className="btn-icon" title="Download CSV" onClick={downloadCsv}>
-            <Download className="h-3.5 w-3.5" />
-          </button>
-        }
+        padding="flush"
+        right={<IconButton icon={<Download />} title="Download CSV" onClick={downloadCsv} />}
       >
-        <div className="panel-body">
-          {versionRows.length > 0 ? (
-            <div className="data-table-wrap scroll-x">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Version</th>
-                    <th>Current users</th>
-                    <th>All-time users</th>
-                    <th>Sessions</th>
-                    <th>First seen</th>
-                    <th>Last seen</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {versionRows.map((row) => (
-                    <tr key={row.key}>
-                      <td className="mono">{row.label}</td>
-                      <td>{formatNumber(row.currentUsers)}</td>
-                      <td>{formatNumber(row.allTimeUsers)}</td>
-                      <td className="muted">{formatNumber(row.sessions)}</td>
-                      <td className="muted">{formatDay(row.firstSeen)}</td>
-                      <td className="muted">{formatDay(row.lastSeen)}</td>
-                      <td>{statusBadge(row)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="empty-state">
-              <p>No releases found.</p>
-            </div>
-          )}
-        </div>
+        {versionRows.length > 0 ? (
+          <DataTable<VersionRow>
+            flush
+            columns={RELEASE_COLUMNS}
+            rows={versionRows}
+            rowKey={(row) => row.key}
+          />
+        ) : (
+          <EmptyState icon={<Package />} title="No releases">
+            GitHub releases and telemetry versions merge here once available.
+          </EmptyState>
+        )}
       </CollapsiblePanel>
     </div>
   );

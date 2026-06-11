@@ -1,5 +1,6 @@
-import { KeyRound, Loader2, Mail } from "lucide-react";
+import { KeyRound, Mail } from "lucide-react";
 import { useState } from "react";
+import { Button } from "./ds/Button";
 const brandLogo = new URL("../img/logo.ico", import.meta.url).href;
 
 interface LoginFormProps {
@@ -8,6 +9,19 @@ interface LoginFormProps {
   busy: boolean;
   error: string | null;
   onSubmit: (email: string, password: string, confirm: string) => void;
+}
+
+/** Brand lockup — logo + name + accent undertitle, mirroring the topnav. */
+function AuthBrand() {
+  return (
+    <div className="auth-brand">
+      <img src={brandLogo} alt="RazorReaper logo" className="auth-brand-img" />
+      <div>
+        <span className="auth-brand-name">RazorReaper</span>
+        <span className="auth-brand-sub">Operations Console</span>
+      </div>
+    </div>
+  );
 }
 
 export function LoginForm({
@@ -24,21 +38,17 @@ export function LoginForm({
   if (authMode === "access") {
     return (
       <div className="auth-shell">
-        <div className="auth-panel auth-panel-compact">
-          <div className="auth-brand">
-            <div className="auth-brand-mark">
-              <img src={brandLogo} alt="RazorReaper logo" className="auth-brand-image" />
-            </div>
-            <div>
-              <p className="auth-kicker">Zero Trust</p>
-              <h1 className="auth-title">Cloudflare Access gate</h1>
-            </div>
+        <div className="auth-card v2-rise">
+          <AuthBrand />
+          <div className="auth-head">
+            <p className="kicker">Zero Trust</p>
+            <h1 className="auth-title">Cloudflare Access Gate</h1>
+            <p className="auth-sub">
+              This dashboard stays behind Cloudflare Access. Continue through the protected portal and return here
+              once the session is established.
+            </p>
           </div>
-          <p className="auth-copy">
-            This dashboard stays behind Cloudflare Access. Continue through the protected portal and return here once
-            the session is established.
-          </p>
-          <a href="/" className="btn-primary w-full inline-flex items-center justify-center">
+          <a href="/" className="btn btn-primary auth-submit">
             Open Access Portal
           </a>
         </div>
@@ -48,35 +58,31 @@ export function LoginForm({
 
   return (
     <div className="auth-shell">
-      <div className="auth-panel">
-        <div className="auth-brand">
-          <div className="auth-brand-mark">
-            <img src={brandLogo} alt="RazorReaper logo" className="auth-brand-image" />
+      <div className="auth-card v2-rise">
+        <AuthBrand />
+
+        <div className="auth-head">
+          <p className="kicker">{isBootstrap ? "First-Time Setup" : "Operator Sign-In"}</p>
+          <h1 className="auth-title">{isBootstrap ? "Create Admin Account" : "Enter the Dashboard"}</h1>
+          <p className="auth-sub">
+            {isBootstrap
+              ? "Set up the first admin account for this panel."
+              : "Use your operator credentials to access live telemetry, sessions, and error feeds."}
+          </p>
+        </div>
+
+        <div className="auth-meta">
+          <div>
+            <span className="label-sm">Scope</span>
+            <strong>Sessions · Incidents · Rollout Health</strong>
           </div>
           <div>
-            <p className="auth-kicker">{isBootstrap ? "First-time setup" : "Operator sign-in"}</p>
-            <h1 className="auth-title">{isBootstrap ? "Create Admin Account" : "Enter the dashboard"}</h1>
+            <span className="label-sm">Mode</span>
+            <strong>{isBootstrap ? "Bootstrap" : "Protected Access"}</strong>
           </div>
         </div>
 
-        <p className="auth-copy">
-          {isBootstrap
-            ? "Set up the first admin account for this panel."
-            : "Use your operator credentials to access live telemetry, sessions, and error feeds."}
-        </p>
-
-        <div className="auth-note-grid">
-          <div>
-            <span>Scope</span>
-            <strong>Sessions, incidents, rollout health</strong>
-          </div>
-          <div>
-            <span>Mode</span>
-            <strong>{isBootstrap ? "Bootstrap" : "Protected access"}</strong>
-          </div>
-        </div>
-
-        {error ? <div className="inline-error">{error}</div> : null}
+        {error ? <div className="inline-error" role="alert">{error}</div> : null}
 
         <form
           onSubmit={(event) => {
@@ -85,60 +91,57 @@ export function LoginForm({
           }}
           className="auth-form"
         >
-          <div>
-            <label className="auth-label">Email</label>
-            <div className="input-group">
-              <Mail className="w-4 h-4 text-[hsl(var(--muted-foreground))]" />
+          <label className="auth-field">
+            <span className="label-sm">Email</span>
+            <div className="auth-input">
+              <Mail size={16} />
               <input
                 type="email"
                 placeholder="admin@example.com"
-                className="input"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 required
                 autoFocus
               />
             </div>
-          </div>
+          </label>
 
-          <div>
-            <label className="auth-label">Password</label>
-            <div className="input-group">
-              <KeyRound className="w-4 h-4 text-[hsl(var(--muted-foreground))]" />
+          <label className="auth-field">
+            <span className="label-sm">Password</span>
+            <div className="auth-input">
+              <KeyRound size={16} />
               <input
                 type="password"
                 placeholder="Minimum 10 characters"
-                className="input"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 required
                 minLength={10}
               />
             </div>
-          </div>
+          </label>
 
           {isBootstrap ? (
-            <div>
-              <label className="auth-label">Confirm Password</label>
-              <div className="input-group">
-                <KeyRound className="w-4 h-4 text-[hsl(var(--muted-foreground))]" />
+            <label className="auth-field">
+              <span className="label-sm">Confirm Password</span>
+              <div className="auth-input">
+                <KeyRound size={16} />
                 <input
                   type="password"
                   placeholder="Re-enter password"
-                  className="input"
                   value={confirm}
                   onChange={(event) => setConfirm(event.target.value)}
                   required
                   minLength={10}
                 />
               </div>
-            </div>
+            </label>
           ) : null}
 
-          <button className="btn-primary w-full flex items-center justify-center gap-2" type="submit" disabled={busy}>
-            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+          <Button variant="primary" type="submit" disabled={busy} className="auth-submit">
+            {busy ? <span className="spinner spinner-sm" aria-hidden="true" /> : null}
             {isBootstrap ? "Create Account" : "Sign In"}
-          </button>
+          </Button>
         </form>
       </div>
     </div>

@@ -2,22 +2,26 @@ import { Check, ChevronDown, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 interface GlassDropdownProps {
-  /** Shown when nothing is selected, e.g. "All versions". */
+  /** Empty/"all" state label, e.g. "All versions". Selecting it passes null to onChange. */
   placeholder: string;
   options: string[];
+  /** Currently selected option, or null for the placeholder/all state. */
   value: string | null;
   onChange: (next: string | null) => void;
-  /** Optional label rendering for option values (e.g. "legacy" -> "Legacy (pre-1.4)"). */
+  /** Optional display mapping, e.g. "legacy" -> "Legacy (pre-1.4)" */
   renderOption?: (option: string) => string;
-  /** Show the search input when the list is longer than this. */
+  /** Show the filter input when the list is longer than this. Default 8. */
   searchThreshold?: number;
+  /** Popover anchor edge. Default "right". */
+  align?: "left" | "right";
 }
 
 /**
  * Custom select replacement — native dropdowns can't be themed and look foreign
- * in the glass UI. Trigger pill + anchored glass popover with type-to-filter.
+ * in the console. Trigger pill + anchored dark popover with type-to-filter.
+ * NEVER use a native <select> in this design system.
  */
-export function GlassDropdown({ placeholder, options, value, onChange, renderOption, searchThreshold = 8 }: GlassDropdownProps) {
+export function GlassDropdown({ placeholder, options, value, onChange, renderOption, searchThreshold = 8, align = "right" }: GlassDropdownProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const rootRef = useRef<HTMLDivElement>(null);
@@ -68,14 +72,14 @@ export function GlassDropdown({ placeholder, options, value, onChange, renderOpt
     <div className={`gdrop${value ? " gdrop-active" : ""}`} ref={rootRef}>
       <button type="button" className="gdrop-trigger" onClick={() => setOpen((current) => !current)} aria-expanded={open}>
         <span className="gdrop-trigger-label">{value ? label(value) : placeholder}</span>
-        <ChevronDown className={`h-3.5 w-3.5 gdrop-chevron${open ? " gdrop-chevron-open" : ""}`} />
+        <ChevronDown size={14} className={`gdrop-chevron${open ? " gdrop-chevron-open" : ""}`} />
       </button>
 
       {open ? (
-        <div className="gdrop-menu" role="listbox">
+        <div className="gdrop-menu" role="listbox" style={align === "left" ? { right: "auto", left: 0 } : undefined}>
           {searchable ? (
             <div className="gdrop-search">
-              <Search className="h-3.5 w-3.5" />
+              <Search size={14} />
               <input
                 ref={searchRef}
                 value={query}
@@ -95,7 +99,7 @@ export function GlassDropdown({ placeholder, options, value, onChange, renderOpt
               aria-selected={value === null}
             >
               <span>{placeholder}</span>
-              {value === null ? <Check className="h-3.5 w-3.5" /> : null}
+              {value === null ? <Check size={14} /> : null}
             </button>
             {visibleOptions.map((option) => (
               <button
@@ -107,7 +111,7 @@ export function GlassDropdown({ placeholder, options, value, onChange, renderOpt
                 aria-selected={value === option}
               >
                 <span>{label(option)}</span>
-                {value === option ? <Check className="h-3.5 w-3.5" /> : null}
+                {value === option ? <Check size={14} /> : null}
               </button>
             ))}
             {visibleOptions.length === 0 ? <p className="gdrop-empty">No matches.</p> : null}

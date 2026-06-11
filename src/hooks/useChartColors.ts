@@ -18,6 +18,28 @@ export const CHART_COLOR_PRESETS: ChartColorPreset[] = [
   { label: "Violet", users: "#a78bfa", sessions: "rgba(167,139,250,0.25)", errors: "#fb923c" },
 ];
 
+/**
+ * Mirror the active preset into the DS chart tokens (tokens/colors.css) so
+ * CSS-driven surfaces follow the user preset too. The old --chart-N alias
+ * names are kept in lockstep for back-compat during the DS port. When no
+ * preset is active the properties are removed and the DS defaults apply.
+ */
+function applyPresetTokens(preset: ChartColorPreset | null) {
+  const root = document.documentElement.style;
+  const tokens: Array<[string, string | undefined]> = [
+    ["--chart-users", preset?.users],
+    ["--chart-sessions", preset?.sessions],
+    ["--chart-errors", preset?.errors],
+    ["--chart-1", preset?.users],
+    ["--chart-2", preset?.sessions],
+    ["--chart-3", preset?.errors],
+  ];
+  for (const [name, value] of tokens) {
+    if (value) root.setProperty(name, value);
+    else root.removeProperty(name);
+  }
+}
+
 // Simple in-memory store that syncs to localStorage and notifies all subscribers
 let currentPreset: ChartColorPreset | null = (() => {
   try {
@@ -28,6 +50,8 @@ let currentPreset: ChartColorPreset | null = (() => {
     return null;
   }
 })();
+
+applyPresetTokens(currentPreset);
 
 const listeners = new Set<() => void>();
 
@@ -42,6 +66,7 @@ function getSnapshot(): ChartColorPreset | null {
 
 function setPresetInternal(preset: ChartColorPreset | null) {
   currentPreset = preset;
+  applyPresetTokens(preset);
   try {
     localStorage.setItem(STORAGE_KEY, preset?.label ?? "Default");
   } catch { /* ignore */ }

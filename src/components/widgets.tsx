@@ -1,14 +1,23 @@
-/** v2 widget set: Sparkline, RadialGauge, RankList — small, dependency-free SVG/DOM pieces. */
+/** DS metrics widgets: Sparkline, RadialGauge, RankList — small, dependency-free
+ *  SVG/DOM pieces ported from design-system/components/metrics. Styling lives in
+ *  the design system stylesheet (.tile-spark, .gauge*, .rank*). */
+import { useMemo } from "react";
+
+let sparkUid = 0;
 
 interface SparklineProps {
+  /** Raw series — scaled to fit. Needs 2+ points or renders nothing. */
   values: number[];
+  /** Default 64×26 — sized for the KPI tile's right side. */
   width?: number;
   height?: number;
+  /** Line color. Default var(--accent); use var(--chart-errors) for error series. */
   color?: string;
 }
 
-/** Tiny inline area sparkline for stat tiles. */
+/** Tiny inline area sparkline for KPI tiles. */
 export function Sparkline({ values, width = 64, height = 26, color = "var(--accent)" }: SparklineProps) {
+  const gid = useMemo(() => `spk-${++sparkUid}`, []);
   if (values.length < 2) {
     return null;
   }
@@ -20,10 +29,9 @@ export function Sparkline({ values, width = 64, height = 26, color = "var(--acce
   const points = values.map((v, i) => [i * step, height - 2 - ((v - min) / span) * (height - 5)] as const);
   const line = points.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`).join("");
   const area = `${line}L${width},${height}L0,${height}Z`;
-  const gid = `spk${Math.round(max * 1000 + values.length)}`;
 
   return (
-    <svg className="tile-spark" width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden>
+    <svg className="tile-spark" width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
       <defs>
         <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor={color} stopOpacity={0.3} />
@@ -37,14 +45,17 @@ export function Sparkline({ values, width = 64, height = 26, color = "var(--acce
 }
 
 interface RadialGaugeProps {
-  /** 0..1 */
+  /** 0–1 fill ratio */
   ratio: number;
+  /** e.g. "Version adoption" */
   title: string;
+  /** e.g. "162 of 220 on 1.6.x" */
   sub?: string;
+  /** Diameter in px. Default 64. */
   size?: number;
 }
 
-/** Donut gauge with the percentage in the center. */
+/** Donut gauge with the percentage in the center — accent stroke with soft glow. */
 export function RadialGauge({ ratio, title, sub, size = 64 }: RadialGaugeProps) {
   const clamped = Math.max(0, Math.min(1, ratio));
   const stroke = 6;
@@ -54,6 +65,16 @@ export function RadialGauge({ ratio, title, sub, size = 64 }: RadialGaugeProps) 
   return (
     <div className="gauge">
       <svg className="gauge-svg" width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <defs>
+          {/* Vivid pink->orange->yellow ring ramp; app-glue's .gauge-fill
+              stroke references this id (ambience, not data encoding).
+              Duplicate ids across gauge instances resolve to the first. */}
+          <linearGradient id="gauge-vivid-ramp" x1="0" y1="1" x2="1" y2="0">
+            <stop offset="0%" stopColor="hsl(330 90% 58%)" />
+            <stop offset="55%" stopColor="hsl(25 95% 58%)" />
+            <stop offset="100%" stopColor="hsl(55 95% 60%)" />
+          </linearGradient>
+        </defs>
         <circle className="gauge-track" cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={stroke} />
         <circle
           className="gauge-fill"
@@ -80,13 +101,14 @@ export function RadialGauge({ ratio, title, sub, size = 64 }: RadialGaugeProps) 
 }
 
 interface RankListProps {
+  /** Sorted descending by the caller. share is 0–1 of the max/total. */
   items: Array<{ label: string; value: string; share: number }>;
 }
 
-/** Ranked share bars (versions, countries, platforms). */
+/** Ranked share bars — versions, countries, platforms. Accent-gradient fills grow in. */
 export function RankList({ items }: RankListProps) {
   if (items.length === 0) {
-    return <p className="empty-state" style={{ padding: "10px 0" }}>No data.</p>;
+    return <p style={{ padding: "10px 0", fontSize: "0.8125rem", color: "var(--text-2)", margin: 0 }}>No data.</p>;
   }
 
   return (

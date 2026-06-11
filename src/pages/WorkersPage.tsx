@@ -7,6 +7,7 @@ import {
   ChevronUp,
   Download,
   Globe2,
+  History,
   RadioTower,
   Search,
   Users as UsersIcon,
@@ -15,6 +16,14 @@ import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { CollapsiblePanel } from "../components/CollapsiblePanel";
 import { type KpiDrilldown, KpiStatCard } from "../components/KpiStatCard";
 import { type SessionPresence, StatusBadge } from "../components/StatusBadge";
+import { Badge } from "../components/ds/Badge";
+import { Button, IconButton } from "../components/ds/Button";
+import { DetailGrid } from "../components/ds/DataTable";
+import { EmptyState } from "../components/ds/EmptyState";
+import { Feed } from "../components/ds/Feed";
+import { PageHeader } from "../components/ds/PageHeader";
+import { SearchInput } from "../components/ds/SearchInput";
+import { Tag } from "../components/ds/Tag";
 import type { AppSessionRecord, StatsPayload, SummaryPayload, TelemetryEvent, UserRollupRecord } from "../types/telemetry";
 import { downloadSessionExport } from "../utils/api";
 import { formatAccuracy, formatDate, formatDuration, formatEventName, formatGeoSource, formatNumber, timeAgo } from "../utils/format";
@@ -67,6 +76,11 @@ function formatDateOnly(value: string | null): string {
   const ts = Date.parse(value);
   if (!Number.isFinite(ts)) return value;
   return new Date(ts).toLocaleDateString();
+}
+
+/** Discord handles render as muted `@name` — strip a stored leading @ so we never double it. */
+function discordHandle(value: string): string {
+  return `@${value.trim().replace(/^@/, "")}`;
 }
 
 /* ── users tab helpers ──────────────────────────────────────── */
@@ -183,9 +197,10 @@ function buildSessionTimeline(session: AppSessionRecord, recentEvents: Telemetry
 
 /* ── small presentational pieces ────────────────────────────── */
 
+/** Rich Presence renders as a tiny accent "RPC" badge; Off and not-yet-reported stay quiet. */
 function RpcBadge({ rpcEnabled }: { rpcEnabled: boolean | null }) {
-  if (rpcEnabled === true)  return <span className="badge badge-success">On</span>;
-  if (rpcEnabled === false) return <span className="badge badge-muted">Off</span>;
+  if (rpcEnabled === true)  return <Badge tone="accent" title="Discord Rich Presence on">RPC</Badge>;
+  if (rpcEnabled === false) return <Badge tone="muted">Off</Badge>;
   return (
     <span className="badge badge-muted" style={{ opacity: 0.55 }} title="Not reported yet — RPC telemetry is a newer field">
       —
@@ -214,8 +229,8 @@ function SortableTh({ label, sortKey, activeKey, dir, onSort }: SortableThProps)
         {label}
         {isActive
           ? dir === "asc"
-            ? <ArrowUp className="h-3 w-3" style={{ color: "var(--accent)" }} />
-            : <ArrowDown className="h-3 w-3" style={{ color: "var(--accent)" }} />
+            ? <ArrowUp size={12} style={{ color: "var(--accent)" }} />
+            : <ArrowDown size={12} style={{ color: "var(--accent)" }} />
           : null}
       </span>
     </th>
@@ -312,7 +327,7 @@ export function WorkersPage({ summary, stats, users, onOpenMapSession, filterBar
       timespans: [
         { label: "In range",     value: formatNumber(stats.totals.usersInRange) },
         { label: "New in range", value: formatNumber(stats.totals.newUsersInRange) },
-        { label: "Lifetime",     value: formatNumber(lifetime) },
+        { label: "All-time",     value: formatNumber(lifetime) },
       ],
       series: stats.series.newUsersPerDay.map((p) => ({ day: p.day, value: p.users })),
       seriesName: "New users",
@@ -395,50 +410,43 @@ export function WorkersPage({ summary, stats, users, onOpenMapSession, filterBar
 
   return (
     <div className="page-content page-stack-lg">
-      {/* Header */}
-      <section className="page-header">
-        <div>
-          <h1 className="page-title">
-            Users
-            <span className="kicker">Directory</span>
-          </h1>
-          <p className="page-subtitle">
-            Every user ever seen, rolled up across the full session history.
-          </p>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          {filterBar}
-          <div className="seg-control">
-            {([
-              { key: "users",    label: "Users" },
-              { key: "sessions", label: "Sessions" },
-            ] as Array<{ key: TabKey; label: string }>).map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                className={`seg-btn${tab === t.key ? " active" : ""}`}
-                onClick={() => setTab(t.key)}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-          {tab === "sessions" ? (
-            <button type="button" className="btn btn-ghost btn-sm" onClick={() => void handleExport()} disabled={exporting}>
-              <Download className="h-3.5 w-3.5" />
-              {exporting ? "Preparing…" : "Export TXT"}
-            </button>
-          ) : null}
-        </div>
-      </section>
+      <PageHeader
+        kicker="Directory"
+        title="Users & Sessions"
+        right={
+          <>
+            {filterBar}
+            <div className="seg-control">
+              {([
+                { key: "users",    label: "Users" },
+                { key: "sessions", label: "Sessions" },
+              ] as Array<{ key: TabKey; label: string }>).map((t) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  className={`seg-btn${tab === t.key ? " active" : ""}`}
+                  onClick={() => setTab(t.key)}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+            {tab === "sessions" ? (
+              <Button size="sm" icon={<Download />} onClick={() => void handleExport()} disabled={exporting}>
+                {exporting ? "Preparing…" : "Export TXT"}
+              </Button>
+            ) : null}
+          </>
+        }
+      />
 
       {/* Headline KPIs */}
-      <div className="stat-grid stat-grid-4">
+      <div className="stat-grid stat-grid-4 v2-stagger">
         <KpiStatCard
           label="Total Users"
           value={formatNumber(totalUsersValue)}
-          sub={stats ? `${formatNumber(stats.totals.lifetimeUsers)} lifetime · ${formatNumber(stats.totals.newUsersInRange)} new in range` : "Lifetime unique users"}
-          icon={<UsersIcon className="h-4 w-4" />}
+          sub={stats ? `${formatNumber(stats.totals.lifetimeUsers)} all-time · ${formatNumber(stats.totals.newUsersInRange)} new in range` : "All-time unique users"}
+          icon={<UsersIcon size={14} />}
           tone="primary"
           drilldown={totalUsersDrill}
         />
@@ -447,51 +455,45 @@ export function WorkersPage({ summary, stats, users, onOpenMapSession, filterBar
           value={formatNumber(activeNowValue)}
           sub="Sessions live right now"
           tone="accent"
-          icon={<Activity className="h-4 w-4" />}
+          icon={<Activity size={14} />}
         />
         <KpiStatCard
           label="RPC On"
           value={stats ? formatNumber(stats.totals.rpcEnabledUsers) : "—"}
           sub={stats ? `of ${formatNumber(stats.totals.rpcKnownUsers)} reporting · ${formatNumber(stats.totals.rpcLiveNow)} live now` : "Waiting for stats…"}
-          icon={<RadioTower className="h-4 w-4" />}
+          icon={<RadioTower size={14} />}
           tone="amber"
           drilldown={rpcDrill}
         />
         <KpiStatCard
           label="Errors in Range"
           value={stats ? formatNumber(stats.totals.errorsInRange) : formatNumber(summary.stats.errorsLast24Hours)}
-          sub={stats ? "Within selected range" : "Last 24 hours (fallback)"}
-          icon={<AlertTriangle className="h-4 w-4" />}
+          sub={stats ? "Within selected range" : "Last 24 h · fallback window"}
+          icon={<AlertTriangle size={14} />}
           tone="rose"
           drilldown={errorsDrill}
         />
       </div>
 
       {exportError ? (
-        <div style={{ background: "var(--danger-sub)", border: "1px solid hsl(4 86% 58% / 0.25)", borderRadius: 10, padding: "10px 14px", fontSize: "0.8125rem", color: "hsl(4 86% 72%)" }}>
-          {exportError}
-        </div>
+        <div className="inline-danger-note" role="alert">{exportError}</div>
       ) : null}
 
       {tab === "users" ? (
         /* ════════════════ USERS TAB ════════════════ */
         <CollapsiblePanel
-          kicker="Directory"
+          kicker="Rollup"
           title="All Users"
           sub={filteredUsers
-            ? `${formatNumber(filteredUsers.length)} of ${formatNumber(users?.length ?? 0)} users · full history rollup`
+            ? `${formatNumber(filteredUsers.length)} of ${formatNumber(users?.length ?? 0)} shown · every user ever seen, rolled up across the full session history`
             : "Loading user rollup…"}
           right={
-            <div className="search-wrap" style={{ width: "min(280px,100%)" }}>
-              <Search className="search-icon h-3.5 w-3.5" />
-              <input
-                type="search"
-                className="glass-input"
-                placeholder="Search user, Discord, version…"
-                value={userQuery}
-                onChange={(e) => setUserQuery(e.target.value)}
-              />
-            </div>
+            <SearchInput
+              value={userQuery}
+              onChange={setUserQuery}
+              placeholder="Search user, Discord, version…"
+              style={{ width: "min(280px,100%)" }}
+            />
           }
         >
           <div className="panel-body-flush">
@@ -531,24 +533,24 @@ export function WorkersPage({ summary, stats, users, onOpenMapSession, filterBar
                               style={{ cursor: "pointer" }}
                             >
                               <td style={{ whiteSpace: "nowrap" }}>
-                                <span style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 600, fontSize: "0.8125rem" }}>{userDisplayName(user)}</span>
-                                <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "0.6875rem", color: "var(--text-3)", marginLeft: 8 }}>
+                                <span style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: "0.8125rem" }}>{userDisplayName(user)}</span>
+                                <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.6875rem", color: "var(--text-3)", marginLeft: 8 }}>
                                   {user.identity.slice(0, 8)}
                                 </span>
                               </td>
                               <td style={{ whiteSpace: "nowrap", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis" }}>
                                 {user.discordUser?.trim() ? (
-                                  <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "0.71875rem", color: "var(--text-2)" }} title={user.discordUser}>
-                                    {user.discordUser}
+                                  <span style={{ fontSize: "0.71875rem", color: "var(--text-2)" }} title={`Discord: ${user.discordUser}`}>
+                                    {discordHandle(user.discordUser)}
                                   </span>
                                 ) : (
                                   <span style={{ color: "var(--text-3)", opacity: 0.55 }} title="RPC not connected / not reported yet">—</span>
                                 )}
                               </td>
                               <td>
-                                <span className="badge badge-muted" title={user.appVersion ?? undefined}>
+                                <Badge tone="muted" title={user.appVersion ?? undefined}>
                                   {versionLabel(user.displayVersion ?? user.appVersion)}
-                                </span>
+                                </Badge>
                               </td>
                               <td className="muted">{user.platform ?? "—"}</td>
                               <td className="muted" style={{ whiteSpace: "nowrap" }}>{userLocation(user) || "—"}</td>
@@ -557,8 +559,8 @@ export function WorkersPage({ summary, stats, users, onOpenMapSession, filterBar
                               <td className="muted" style={{ whiteSpace: "nowrap" }}>{user.totalDurationSeconds > 0 ? formatDuration(user.totalDurationSeconds) : "—"}</td>
                               <td>
                                 {user.errors > 0
-                                  ? <span className="badge badge-danger">{formatNumber(user.errors)}</span>
-                                  : <span className="badge badge-muted">0</span>}
+                                  ? <Badge tone="danger">{formatNumber(user.errors)}</Badge>
+                                  : <Badge tone="muted">0</Badge>}
                               </td>
                               <td className="muted" style={{ whiteSpace: "nowrap" }}>
                                 <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
@@ -568,15 +570,12 @@ export function WorkersPage({ summary, stats, users, onOpenMapSession, filterBar
                               </td>
                               <td className="muted" style={{ whiteSpace: "nowrap" }}>{formatDateOnly(user.firstSeen)}</td>
                               <td>
-                                <button
-                                  type="button"
-                                  className="btn-icon"
+                                <IconButton
+                                  icon={isExpanded ? <ChevronUp /> : <ChevronDown />}
                                   style={{ padding: 4 }}
                                   onClick={(e) => { e.stopPropagation(); toggleUserExpanded(user.identity); }}
                                   aria-label={isExpanded ? "Collapse" : "Expand"}
-                                >
-                                  {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                                </button>
+                                />
                               </td>
                             </tr>
 
@@ -584,50 +583,35 @@ export function WorkersPage({ summary, stats, users, onOpenMapSession, filterBar
                               <tr>
                                 <td colSpan={USER_COLUMN_COUNT} className="row-expand-panel">
                                   <div className="row-expand-inner">
-                                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px,1fr))", gap: 10, marginBottom: 14 }}>
-                                      {[
-                                        { k: "Identity",     v: user.identity },
-                                        { k: "Discord",      v: user.discordUser?.trim() || "—" },
-                                        { k: "Device Model", v: user.deviceModel ?? "—" },
-                                        { k: "OS Version",   v: user.osVersion ?? "—" },
-                                        { k: "Timezone",     v: user.timezone ?? "—" },
-                                        { k: "App Version",  v: user.appVersion ?? "—" },
-                                        { k: "Last Status",  v: user.lastStatus ?? "—" },
-                                        { k: "Last Event",   v: user.lastEvent ? formatEventName(user.lastEvent) : "—" },
-                                        { k: "First Seen",   v: formatDate(user.firstSeen) },
-                                        { k: "Last Seen",    v: formatDate(user.lastSeen) },
-                                      ].map(({ k, v }) => (
-                                        <div key={k} className="glass-inset" style={{ padding: "8px 12px" }}>
-                                          <p className="label-sm" style={{ marginBottom: 3 }}>{k}</p>
-                                          <p style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "0.75rem", color: "var(--text-1)", wordBreak: "break-all" }}>{v}</p>
-                                        </div>
-                                      ))}
+                                    <div style={{ marginBottom: 14 }}>
+                                      <DetailGrid
+                                        items={[
+                                          { k: "Identity",     v: user.identity },
+                                          { k: "Discord",      v: user.discordUser?.trim() ? discordHandle(user.discordUser) : "—" },
+                                          { k: "Device Model", v: user.deviceModel ?? "—" },
+                                          { k: "OS Version",   v: user.osVersion ?? "—" },
+                                          { k: "Timezone",     v: user.timezone ?? "—" },
+                                          { k: "App Version",  v: user.appVersion ?? "—" },
+                                          { k: "Last Status",  v: user.lastStatus ?? "—" },
+                                          { k: "Last Event",   v: user.lastEvent ? formatEventName(user.lastEvent) : "—" },
+                                          { k: "First Seen",   v: formatDate(user.firstSeen) },
+                                          { k: "Last Seen",    v: formatDate(user.lastSeen) },
+                                        ]}
+                                      />
                                     </div>
 
                                     <p className="label-sm" style={{ marginBottom: 8 }}>Recent Errors</p>
                                     {recentErrors.length > 0 ? (
-                                      <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 14 }}>
-                                        {recentErrors.map((err, i) => (
-                                          <div
-                                            key={`${err.timestamp}-${i}`}
-                                            className="glass-inset"
-                                            style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 12px", minWidth: 0 }}
-                                          >
-                                            <span
-                                              style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "0.6875rem", color: "var(--text-3)", whiteSpace: "nowrap", flexShrink: 0, minWidth: 72 }}
-                                              title={formatDate(err.timestamp)}
-                                            >
-                                              {timeAgo(err.timestamp)}
-                                            </span>
-                                            <span className="badge badge-danger" style={{ flexShrink: 0 }}>{err.type?.trim() || "error"}</span>
-                                            <span
-                                              style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "0.75rem", color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}
-                                              title={err.message ?? undefined}
-                                            >
-                                              {err.message?.trim() || "(no message)"}
-                                            </span>
-                                          </div>
-                                        ))}
+                                      <div style={{ marginBottom: 14 }}>
+                                        <Feed
+                                          items={recentErrors.map((err, i) => ({
+                                            id: `${err.timestamp}-${i}`,
+                                            tone: "bad" as const,
+                                            title: <span title={err.message ?? undefined}>{err.type?.trim() || "error"}</span>,
+                                            meta: <span title={err.message ?? undefined}>{err.message?.trim() || "(no message)"}</span>,
+                                            time: timeAgo(err.timestamp),
+                                          }))}
+                                        />
                                       </div>
                                     ) : (
                                       <p style={{ fontSize: "0.75rem", color: "var(--text-3)", marginBottom: 14 }}>No errors recorded.</p>
@@ -637,9 +621,9 @@ export function WorkersPage({ summary, stats, users, onOpenMapSession, filterBar
                                     {features.length > 0 ? (
                                       <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                                         {features.map(([feature, count]) => (
-                                          <span key={feature} className="badge badge-accent" style={{ fontFamily: "JetBrains Mono, monospace" }}>
+                                          <Tag key={feature} accent>
                                             {feature} ×{formatNumber(count)}
-                                          </span>
+                                          </Tag>
                                         ))}
                                       </div>
                                     ) : (
@@ -656,11 +640,14 @@ export function WorkersPage({ summary, stats, users, onOpenMapSession, filterBar
                   </tbody>
                 </table>
               </div>
+            ) : userQuery ? (
+              <EmptyState icon={<Search />} title="No users match">
+                Nothing in the rollup matches “{userQuery}”. Clear the search to see every user.
+              </EmptyState>
             ) : (
-              <div className="empty-state">
-                <strong>{userQuery ? "No users match your search." : "No users recorded yet."}</strong>
-                <p>{userQuery ? "Try a different search term." : "Users will appear as telemetry arrives."}</p>
-              </div>
+              <EmptyState icon={<UsersIcon />} title="No users recorded yet">
+                The directory fills as telemetry arrives.
+              </EmptyState>
             )}
           </div>
         </CollapsiblePanel>
@@ -669,18 +656,14 @@ export function WorkersPage({ summary, stats, users, onOpenMapSession, filterBar
         <CollapsiblePanel
           kicker="Archive"
           title="Recent Sessions"
-          sub="Most recent sessions from the retained window. Expand for full timeline detail."
+          sub="One row per user · most recent session from the retained window. Expand for timeline detail."
           right={
-            <div className="search-wrap" style={{ width: "min(280px,100%)" }}>
-              <Search className="search-icon h-3.5 w-3.5" />
-              <input
-                type="search"
-                className="glass-input"
-                placeholder="Search user, IP, version…"
-                value={sessionQuery}
-                onChange={(e) => setSessionQuery(e.target.value)}
-              />
-            </div>
+            <SearchInput
+              value={sessionQuery}
+              onChange={setSessionQuery}
+              placeholder="Search user, IP, version…"
+              style={{ width: "min(280px,100%)" }}
+            />
           }
         >
           <div className="panel-body-flush">
@@ -709,28 +692,37 @@ export function WorkersPage({ summary, stats, users, onOpenMapSession, filterBar
                         <Fragment key={session.id}>
                           <tr className={isExpanded ? "row-expanded" : ""}>
                             <td style={{ whiteSpace: "nowrap" }}>
-                              <span style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 600, fontSize: "0.8125rem" }}>{displaySessionUser(session)}</span>
+                              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                                <span style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: "0.8125rem" }}>{displaySessionUser(session)}</span>
+                                {session.discordUser?.trim() ? (
+                                  <span style={{ fontSize: "0.6875rem", color: "var(--text-2)" }} title={`Discord: ${session.discordUser}`}>
+                                    {discordHandle(session.discordUser)}
+                                  </span>
+                                ) : null}
+                                {session.rpcEnabled ? <Badge tone="accent" title="Discord Rich Presence on">RPC</Badge> : null}
+                              </span>
                             </td>
                             <td className="muted" style={{ whiteSpace: "nowrap" }}>{buildSessionLocationLabel(session) || "—"}</td>
-                            <td><span className="badge badge-muted">{session.appVersion ?? "—"}</span></td>
+                            <td><Badge tone="muted">{session.appVersion ?? "—"}</Badge></td>
                             <td className="muted">{session.platform ?? "—"}</td>
                             <td className="muted">{resolveSessionDuration(session)}</td>
                             <td className="muted">{timeAgo(session.lastSeenAt)}</td>
                             <td>
                               {session.errorCount > 0
-                                ? <span className="badge badge-warning">{session.errorCount}</span>
-                                : <span className="badge badge-success">0</span>
+                                ? <Badge tone="warning">{session.errorCount}</Badge>
+                                : <Badge tone="success">0</Badge>
                               }
                             </td>
                             <td><StatusBadge presence={resolvePresence(session)} /></td>
                             <td>
                               <div style={{ display: "flex", gap: 4 }}>
-                                <button type="button" className="btn-icon" style={{ padding: 4 }} title="Show on map" onClick={() => onOpenMapSession(session.id)}>
-                                  <Globe2 className="h-3.5 w-3.5" />
-                                </button>
-                                <button type="button" className="btn-icon" style={{ padding: 4 }} onClick={() => toggleSessionExpanded(session.id)} aria-label={isExpanded ? "Collapse" : "Expand"}>
-                                  {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                                </button>
+                                <IconButton icon={<Globe2 />} style={{ padding: 4 }} title="Show on map" onClick={() => onOpenMapSession(session.id)} />
+                                <IconButton
+                                  icon={isExpanded ? <ChevronUp /> : <ChevronDown />}
+                                  style={{ padding: 4 }}
+                                  onClick={() => toggleSessionExpanded(session.id)}
+                                  aria-label={isExpanded ? "Collapse" : "Expand"}
+                                />
                               </div>
                             </td>
                           </tr>
@@ -755,25 +747,22 @@ export function WorkersPage({ summary, stats, users, onOpenMapSession, filterBar
                                     </div>
                                   ) : null}
 
-                                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px,1fr))", gap: 10 }}>
-                                    {[
+                                  <DetailGrid
+                                    items={[
                                       { k: "Install ID",  v: session.installId },
                                       { k: "Session ID",  v: session.id },
                                       { k: "Client IP",   v: session.clientIp ?? "—" },
                                       { k: "Started",     v: formatDate(session.startedAt) },
                                       { k: "Last Seen",   v: timeAgo(session.lastSeenAt) },
                                       { k: "Events",      v: String(timeline.trackedEventCount) },
+                                      { k: "Discord User", v: session.discordUser?.trim() ? discordHandle(session.discordUser) : "—" },
+                                      { k: "Discord RPC", v: session.rpcEnabled === true ? "On" : session.rpcEnabled === false ? "Off" : "—" },
                                       { k: "Timezone",    v: session.clientTimezone ?? "—" },
                                       { k: "Geo Source",  v: formatGeoSource(session.clientGeoSource, session.clientGeoSignalSource) },
                                       { k: "Geo Accuracy", v: formatAccuracy(session.clientAccuracyMeters) },
                                       { k: "Last Event",  v: session.lastEvent ? formatEventName(session.lastEvent) : "—" },
-                                    ].map(({ k, v }) => (
-                                      <div key={k} className="glass-inset" style={{ padding: "8px 12px" }}>
-                                        <p className="label-sm" style={{ marginBottom: 3 }}>{k}</p>
-                                        <p style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "0.75rem", color: "var(--text-1)", wordBreak: "break-all" }}>{v}</p>
-                                      </div>
-                                    ))}
-                                  </div>
+                                    ]}
+                                  />
                                 </div>
                               </td>
                             </tr>
@@ -784,11 +773,14 @@ export function WorkersPage({ summary, stats, users, onOpenMapSession, filterBar
                   </tbody>
                 </table>
               </div>
+            ) : sessionQuery ? (
+              <EmptyState icon={<Search />} title="No sessions match">
+                Nothing in the retained window matches “{sessionQuery}”. Clear the search to see every session.
+              </EmptyState>
             ) : (
-              <div className="empty-state">
-                <strong>{sessionQuery ? "No sessions match your search." : "No sessions recorded yet."}</strong>
-                <p>{sessionQuery ? "Try a different search term." : "Sessions will appear as telemetry arrives."}</p>
-              </div>
+              <EmptyState icon={<History />} title="No sessions recorded yet">
+                Sessions surface here within seconds of ingest.
+              </EmptyState>
             )}
           </div>
         </CollapsiblePanel>

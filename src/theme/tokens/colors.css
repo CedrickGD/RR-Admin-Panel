@@ -1,0 +1,61 @@
+/* ═══════════════════════════════════════════════════════════════
+   COLOR TOKENS — "Frost" language.
+   Deep blue-black ground with a slowly drifting violet/cyan aurora
+   behind everything; surfaces are icy translucent glass with crisp
+   cool hairlines. NEVER milky: glass fills are dark and cool-tinted,
+   never white-washed.
+   ═══════════════════════════════════════════════════════════════ */
+:root {
+  /* Ground — deep blue-black, sits under the aurora layer */
+  --bg: #05060c;
+
+  /* Aurora ambience hues (background only — separate from accent) */
+  --aur-1: 263;   /* @kind other */ /* violet drift blob */
+  --aur-2: 191;   /* @kind other */ /* cyan drift blob */
+
+  /* Glass surface ladder — translucent, frosted via backdrop blur.
+     Dark cool tints only; no white-washed "milky" fills. */
+  --surface-1: hsl(240 34% 12% / 0.40);   /* primary glass panel */
+  --surface-2: hsl(237 36% 16% / 0.48);   /* raised / hover glass */
+  --surface-3: hsl(234 38% 21% / 0.55);   /* inset / active glass */
+  --glass-blur: 22px;                      /* frost strength for panels */
+
+  /* Ice hairlines — cool-tinted, crisp 1px */
+  --line:     hsl(215 75% 80% / 0.11);
+  --line-hi:  hsl(198 85% 78% / 0.22);   /* hover border — icy cyan lift */
+  --line-row: hsl(220 65% 80% / 0.06);   /* table row divider */
+
+  /* Text scale — cold white at stepped opacity */
+  --text-1: rgba(235, 240, 254, 0.96);
+  --text-2: rgba(235, 240, 254, 0.60);
+  --text-3: rgba(235, 240, 254, 0.34);
+  --text-4: rgba(235, 240, 254, 0.18);
+
+  /* Floating surfaces (menus, modals) — near-opaque frosted glass */
+  --surface-float:  hsl(var(--ah) 30% 9% / 0.88);
+  --shadow-float:   0 18px 44px -14px rgba(2, 4, 12, 0.85);
+  --shadow-overlay: 0 40px 80px -20px rgba(2, 4, 12, 0.65);
+
+  /* Status / semantic — fixed, NOT themeable */
+  --success:     hsl(142 71% 45%);
+  --success-sub: hsl(142 71% 45% / 0.14);
+  --success-text: hsl(142 60% 62%);
+  --warning:     hsl(37 91% 55%);    /* #f5a524 */
+  --warning-sub: hsl(37 91% 55% / 0.14);
+  --warning-text: hsl(37 91% 72%);
+  --danger:      hsl(4 86% 58%);     /* #f04438 */
+  --danger-sub:  hsl(4 86% 58% / 0.14);
+  --danger-text: hsl(4 86% 75%);
+  --info:        hsl(207 90% 60%);
+  --info-sub:    hsl(207 90% 60% / 0.14);
+  --info-text:   hsl(207 90% 75%);
+
+  /* Chart palette — defaults; users can swap presets at runtime (see readme).
+     Chart series colors are a SEPARATE user preference from the accent. */
+  --chart-users:    #5fd6f2;
+  --chart-sessions: rgba(95, 214, 242, 0.22);
+  --chart-errors:   #e06b6b;
+  --chart-grid:     hsl(220 70% 85% / 0.07);
+  --chart-axis:     rgba(235, 240, 254, 0.58);
+  --chart-axis-soft: rgba(235, 240, 254, 0.4);
+}

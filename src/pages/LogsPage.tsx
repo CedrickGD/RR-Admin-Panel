@@ -1,5 +1,13 @@
-import { AlertTriangle, ChevronDown, ChevronRight, Eye, EyeOff, Filter, Search, X } from "lucide-react";
+import { Activity, AlertTriangle, ChevronDown, ChevronRight, Eye, EyeOff, Filter, SearchX, Timer, X } from "lucide-react";
 import { useMemo, useState } from "react";
+import { CollapsiblePanel } from "../components/CollapsiblePanel";
+import { KpiStatCard } from "../components/KpiStatCard";
+import { Badge } from "../components/ds/Badge";
+import { Button } from "../components/ds/Button";
+import { EmptyState } from "../components/ds/EmptyState";
+import { MetaRow, PageHeader } from "../components/ds/PageHeader";
+import { SearchInput } from "../components/ds/SearchInput";
+import { Tag } from "../components/ds/Tag";
 import type { SummaryPayload, TelemetryEvent } from "../types/telemetry";
 import { formatDate, formatNumber, timeAgo } from "../utils/format";
 
@@ -134,81 +142,83 @@ export function LogsPage({ summary }: LogsPageProps) {
 
   return (
     <div className="page-content page-stack-lg">
-      {/* Header */}
-      <section className="page-header">
-        <div>
-          <h1 className="page-title">
-            Errors
-            <span className="kicker">Incident Feed</span>
-          </h1>
-          <p className="page-subtitle">Application error log — real failures only, no telemetry noise.</p>
-        </div>
-        <div className="page-header-right">
-          <div className="meta-row">
-            {[
-              { label: "Errors 24h",   val: formatNumber(summary.stats.errorsLast24Hours) },
-              { label: "Unique",       val: formatNumber(groups.length) },
-              { label: "Total Visible", val: formatNumber(totalVisible) },
-              { label: "Latest",       val: latestError ? timeAgo(latestError.timestamp) : "None" },
-            ].map((m) => (
-              <div className="meta-item" key={m.label}><span>{m.label}</span><strong>{m.val}</strong></div>
-            ))}
-          </div>
-        </div>
-      </section>
+      <PageHeader
+        kicker="Failures"
+        title="Errors"
+        sub="Application error log — real failures only, no telemetry noise."
+        right={
+          <MetaRow
+            items={[
+              { label: "Retained", value: formatNumber(summary.recentErrors.length) },
+              { label: "Storage", value: summary.storage.toUpperCase() },
+            ]}
+          />
+        }
+      />
 
-      {/* Error list */}
-      <section className="panel">
-        <div className="panel-head">
-          <div className="panel-head-left">
-            <p className="kicker">Log</p>
-            <h2 className="section-title">Error Events</h2>
-          </div>
-          <div className="panel-head-right">
-            <div className="search-wrap" style={{ width: "min(320px, 100%)" }}>
-              <Search className="search-icon h-3.5 w-3.5" />
-              <input
-                type="search"
-                placeholder="Search errors…"
-                className="glass-input"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-            </div>
-          </div>
-        </div>
+      {/* KPIs */}
+      <div className="stat-grid stat-grid-3 v2-stagger">
+        <KpiStatCard
+          label="Errors 24 h"
+          value={formatNumber(summary.stats.errorsLast24Hours)}
+          sub="Real failures only · noise filtered at ingest"
+          tone={summary.stats.errorsLast24Hours > 0 ? "danger" : "primary"}
+          icon={<AlertTriangle size={14} />}
+        />
+        <KpiStatCard
+          label="Unique Failures"
+          value={formatNumber(groups.length)}
+          sub={`${formatNumber(totalVisible)} in view · ${formatNumber(summary.recentErrors.length)} retained`}
+          icon={<Activity size={14} />}
+        />
+        <KpiStatCard
+          label="Last Failure"
+          value={latestError ? timeAgo(latestError.timestamp) : "None"}
+          sub={latestError ? groups[0]?.type ?? "—" : "No failures in view"}
+          tone={latestError ? "warning" : "primary"}
+          icon={<Timer size={14} />}
+        />
+      </div>
 
-        {/* Filter toolbar */}
-        <div className="error-filter-toolbar">
-          <div className="error-filter-toolbar-left">
-            <button
-              className="error-filter-toggle"
+      {/* Grouped failures */}
+      <CollapsiblePanel
+        kicker="Grouped"
+        title="Recent Failures"
+        sub="Real application failures only — heartbeats and noise are filtered at ingest."
+        padding="flush"
+        right={
+          <>
+            <SearchInput
+              value={query}
+              onChange={setQuery}
+              placeholder="Search errors…"
+              style={{ width: "min(240px, 60vw)" }}
+            />
+            <Button
+              size="sm"
+              icon={<Filter />}
+              className={showFilterPanel || activeFilterCount > 0 ? "is-active" : ""}
               onClick={() => setShowFilterPanel((p) => !p)}
-              data-active={showFilterPanel || activeFilterCount > 0 ? "" : undefined}
             >
-              <Filter className="h-3.5 w-3.5" />
-              <span>Filters</span>
-              {activeFilterCount > 0 && (
-                <span className="error-filter-count">{activeFilterCount}</span>
-              )}
-            </button>
-            {activeFilterCount > 0 && (
-              <button className="error-filter-clear" onClick={clearFilters}>
-                <X className="h-3 w-3" />
-                Clear all
-              </button>
-            )}
-          </div>
-          {activeFilterCount > 0 && (
-            <p className="error-filter-summary">
-              Hiding {summary.recentErrors.length - totalVisible} of {summary.recentErrors.length} errors
-            </p>
-          )}
-        </div>
-
+              Filters
+              {activeFilterCount > 0 ? <Badge tone="accent">{activeFilterCount}</Badge> : null}
+            </Button>
+            {activeFilterCount > 0 ? (
+              <Button size="sm" icon={<X />} onClick={clearFilters}>
+                Clear All
+              </Button>
+            ) : null}
+          </>
+        }
+      >
         {/* Expandable filter panel */}
         {showFilterPanel && (
           <div className="error-filter-panel">
+            {activeFilterCount > 0 && (
+              <p className="error-filter-summary">
+                Hiding {summary.recentErrors.length - totalVisible} of {summary.recentErrors.length} errors
+              </p>
+            )}
             <div className="error-filter-section">
               <p className="label-sm" style={{ marginBottom: 6 }}>Error Kind</p>
               <div className="error-filter-chips">
@@ -221,7 +231,7 @@ export function LogsPage({ summary }: LogsPageProps) {
                       onClick={() => toggleKind(kind)}
                       title={hidden ? `Show "${kindLabel(kind)}" errors` : `Hide "${kindLabel(kind)}" errors`}
                     >
-                      {hidden ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                      {hidden ? <EyeOff size={12} /> : <Eye size={12} />}
                       <span>{kindLabel(kind)}</span>
                       <span className="error-filter-chip-count">{count}</span>
                     </button>
@@ -242,7 +252,7 @@ export function LogsPage({ summary }: LogsPageProps) {
                       onClick={() => toggleType(type)}
                       title={hidden ? `Show "${type}" errors` : `Hide "${type}" errors`}
                     >
-                      {hidden ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                      {hidden ? <EyeOff size={12} /> : <Eye size={12} />}
                       <span className="mono">{type}</span>
                       <span className="error-filter-chip-count">{count}</span>
                     </button>
@@ -254,108 +264,106 @@ export function LogsPage({ summary }: LogsPageProps) {
         )}
 
         {/* Grouped error rows */}
-        <div className="panel-body-flush">
-          {groups.length > 0 ? (
-            <div className="error-group-list">
-              {groups.map((group) => {
-                const isOpen = expanded.has(group.key);
-                return (
-                  <div key={group.key} className={`error-group${isOpen ? " is-open" : ""}`}>
-                    {/* Summary row */}
-                    <button
-                      type="button"
-                      className="error-group-row"
-                      onClick={() => toggleExpand(group.key)}
-                    >
-                      <div className="error-group-chevron">
-                        {isOpen
-                          ? <ChevronDown className="h-3.5 w-3.5" />
-                          : <ChevronRight className="h-3.5 w-3.5" />}
-                      </div>
-                      <AlertTriangle className="h-3.5 w-3.5 shrink-0" style={{ color: "var(--danger)" }} />
-                      <div className="error-group-info">
-                        <span className="error-group-type mono">{group.type}</span>
-                        <span className="error-group-msg">{group.message}</span>
-                      </div>
-                      <div className="error-group-meta">
-                        <span className={`badge ${group.kind === "unhandled" ? "badge-danger" : group.kind === "background" ? "badge-warning" : "badge-muted"}`}>
-                          {kindLabel(group.kind)}
-                        </span>
-                        {group.count > 1 && (
-                          <span className="error-group-count">{group.count}x</span>
-                        )}
-                        <span className="error-group-time muted" title={formatDate(group.latest.timestamp)}>
-                          {timeAgo(group.latest.timestamp)}
-                        </span>
-                      </div>
-                    </button>
+        {groups.length > 0 ? (
+          <div className="error-group-list">
+            {groups.map((group) => {
+              const isOpen = expanded.has(group.key);
+              return (
+                <div key={group.key} className={`error-group${isOpen ? " is-open" : ""}`}>
+                  {/* Summary row */}
+                  <button
+                    type="button"
+                    className="error-group-row"
+                    onClick={() => toggleExpand(group.key)}
+                  >
+                    <div className="error-group-chevron">
+                      {isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                    </div>
+                    <AlertTriangle size={14} style={{ flexShrink: 0, color: "var(--danger)" }} />
+                    <div className="error-group-info">
+                      <span className="error-group-type mono">{group.type}</span>
+                      <span className="error-group-msg">{group.message}</span>
+                    </div>
+                    <div className="error-group-meta">
+                      <Badge tone={group.kind === "unhandled" ? "danger" : group.kind === "background" ? "warning" : "muted"}>
+                        {kindLabel(group.kind)}
+                      </Badge>
+                      <Badge tone="warning" title={`${group.count} occurrence${group.count !== 1 ? "s" : ""}`}>
+                        {group.count}×
+                      </Badge>
+                      <span className="error-group-time muted-text" title={formatDate(group.latest.timestamp)}>
+                        {timeAgo(group.latest.timestamp)}
+                      </span>
+                    </div>
+                  </button>
 
-                    {/* Expanded detail */}
-                    {isOpen && (
-                      <div className="error-group-detail">
-                        <div className="error-group-detail-header">
-                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                            <span className="badge badge-muted">{group.source}</span>
-                            {group.code && <span className="badge badge-muted">{group.code}</span>}
-                            <span className="muted" style={{ fontSize: "0.75rem" }}>
-                              {group.count} occurrence{group.count !== 1 ? "s" : ""}
-                            </span>
+                  {/* Expanded detail */}
+                  {isOpen && (
+                    <div className="error-group-detail">
+                      <div className="error-group-detail-header">
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                          <Tag>{group.source}</Tag>
+                          {group.code && <Tag>{group.code}</Tag>}
+                          <span className="muted-text" style={{ fontSize: "0.75rem" }}>
+                            {group.count} occurrence{group.count !== 1 ? "s" : ""}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Latest occurrence metrics */}
+                      {Object.keys(group.latest.metrics).length > 0 && (
+                        <div style={{ marginTop: 10 }}>
+                          <p className="label-sm" style={{ marginBottom: 6 }}>Latest Metrics</p>
+                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                            {Object.entries(group.latest.metrics).map(([k, v]) => (
+                              <span key={k} className="error-metric-tag">
+                                {k}: {String(v)}
+                              </span>
+                            ))}
                           </div>
                         </div>
+                      )}
 
-                        {/* Latest occurrence metrics */}
-                        {Object.keys(group.latest.metrics).length > 0 && (
-                          <div style={{ marginTop: 10 }}>
-                            <p className="label-sm" style={{ marginBottom: 6 }}>Latest Metrics</p>
-                            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                              {Object.entries(group.latest.metrics).map(([k, v]) => (
-                                <span key={k} className="error-metric-tag">
-                                  {k}: {String(v)}
-                                </span>
-                              ))}
-                            </div>
+                      {/* Occurrence timeline (if more than 1) */}
+                      {group.count > 1 && (
+                        <div style={{ marginTop: 12 }}>
+                          <p className="label-sm" style={{ marginBottom: 6 }}>Occurrences</p>
+                          <div className="error-occurrence-list">
+                            {group.all.map((e) => (
+                              <div key={e.id} className="error-occurrence-item">
+                                <span className="mono muted-text" style={{ fontSize: "0.6875rem" }}>{formatDate(e.timestamp)}</span>
+                                <span className="muted-text" style={{ fontSize: "0.75rem" }}>{timeAgo(e.timestamp)}</span>
+                                <Tag>{e.source}</Tag>
+                              </div>
+                            ))}
                           </div>
-                        )}
-
-                        {/* Occurrence timeline (if more than 1) */}
-                        {group.count > 1 && (
-                          <div style={{ marginTop: 12 }}>
-                            <p className="label-sm" style={{ marginBottom: 6 }}>Occurrences</p>
-                            <div className="error-occurrence-list">
-                              {group.all.map((e) => (
-                                <div key={e.id} className="error-occurrence-item">
-                                  <span className="mono muted" style={{ fontSize: "0.6875rem" }}>{formatDate(e.timestamp)}</span>
-                                  <span className="muted" style={{ fontSize: "0.75rem" }}>{timeAgo(e.timestamp)}</span>
-                                  <span className="badge badge-muted" style={{ fontSize: "0.625rem" }}>{e.source}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="empty-state">
-              <div className="empty-state-icon"><AlertTriangle className="h-5 w-5" /></div>
-              <strong>{query || activeFilterCount > 0 ? "No errors match your filters." : "No errors recorded."}</strong>
-              <p>
-                {query || activeFilterCount > 0
-                  ? "Try adjusting your search or filter settings."
-                  : "The system is clean."}
-              </p>
-              {activeFilterCount > 0 && (
-                <button className="error-filter-clear" onClick={clearFilters} style={{ marginTop: 8 }}>
-                  <X className="h-3 w-3" /> Clear filters
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-      </section>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : query || activeFilterCount > 0 ? (
+          <>
+            <EmptyState icon={<SearchX />} title="No Matches">
+              No errors match the active search or filters.
+            </EmptyState>
+            {activeFilterCount > 0 && (
+              <div style={{ display: "flex", justifyContent: "center", padding: "0 0 18px" }}>
+                <Button size="sm" icon={<X />} onClick={clearFilters}>
+                  Clear Filters
+                </Button>
+              </div>
+            )}
+          </>
+        ) : (
+          <EmptyState allClear>
+            No failures in the selected range. New errors surface here within seconds of ingest.
+          </EmptyState>
+        )}
+      </CollapsiblePanel>
     </div>
   );
 }

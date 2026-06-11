@@ -1,6 +1,10 @@
-import { useMemo, useState } from "react";
+import { Activity, AlertTriangle, Earth, Map as MapIcon, MapPin, MapPinOff, Users } from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
 import { WorldHeatmap } from "../components/charts/WorldHeatmap";
+import { EmptyState } from "../components/ds/EmptyState";
+import { MetaRow, PageHeader } from "../components/ds/PageHeader";
 import { GlassDropdown } from "../components/GlassDropdown";
+import { KpiStatCard } from "../components/KpiStatCard";
 import type {
   AppSessionRecord,
   SummaryPayload,
@@ -47,6 +51,8 @@ interface StatChip {
   label: string;
   val: string;
   sub: string;
+  /** Lucide icon for the tile's right-side well (DS tile anatomy, 14px). */
+  icon: ReactNode;
   tone?: "danger";
 }
 
@@ -368,91 +374,86 @@ export function HeatmapPage({
   const statCards: StatChip[] =
     view === "live"
       ? [
-          { label: "Active Users", val: formatNumber(liveSessions.length), sub: "Online right now" },
-          { label: "Mapped Dots", val: formatNumber(dots.length), sub: filtersActive ? "Matching filters" : "With geo data" },
-          { label: "Regions Online", val: `${regionsActive} / ${regionRows.length}`, sub: "Macro regions active" },
-          { label: "Countries Live", val: formatNumber(markets.length), sub: topMarket ? `Top: ${topMarket.label}` : "No data" },
-          { label: "Active Errors", val: formatNumber(errorTotal), sub: "Across live sessions", tone: errorTotal > 0 ? "danger" : undefined },
-          { label: "Unmapped", val: formatNumber(Math.max(0, liveSessions.length - liveMappedCount)), sub: "No geo data" },
+          { label: "Active Users", val: formatNumber(liveSessions.length), sub: "Online right now", icon: <Activity size={14} /> },
+          { label: "Mapped Dots", val: formatNumber(dots.length), sub: filtersActive ? "Matching filters" : "With geo data", icon: <MapPin size={14} /> },
+          { label: "Regions Online", val: `${regionsActive} / ${regionRows.length}`, sub: "Macro regions active", icon: <Earth size={14} /> },
+          { label: "Countries Live", val: formatNumber(markets.length), sub: topMarket ? `Top: ${topMarket.label}` : "No data", icon: <MapIcon size={14} /> },
+          { label: "Active Errors", val: formatNumber(errorTotal), sub: "Across live sessions", icon: <AlertTriangle size={14} />, tone: errorTotal > 0 ? "danger" : undefined },
+          { label: "Unmapped", val: formatNumber(Math.max(0, liveSessions.length - liveMappedCount)), sub: "No geo data", icon: <MapPinOff size={14} /> },
         ]
       : [
-          { label: "Total Users", val: formatNumber(totalUsers), sub: users ? "All-time rollup" : "Rollup loading…" },
-          { label: "Mapped Users", val: formatNumber(dots.length), sub: filtersActive ? "Matching filters" : "With coordinates" },
-          { label: "Regions Reached", val: `${regionsActive} / ${regionRows.length}`, sub: "Macro regions ever" },
-          { label: "Countries", val: formatNumber(markets.length), sub: topMarket ? `Top: ${topMarket.label}` : "No data" },
-          { label: "Lifetime Errors", val: formatNumber(errorTotal), sub: "Across mapped users", tone: errorTotal > 0 ? "danger" : undefined },
-          { label: "Unmapped", val: formatNumber(Math.max(0, totalUsers - mappedUsers.length)), sub: "No coordinates" },
+          { label: "Total Users", val: formatNumber(totalUsers), sub: users ? "All-time rollup" : "Rollup loading…", icon: <Users size={14} /> },
+          { label: "Mapped Users", val: formatNumber(dots.length), sub: filtersActive ? "Matching filters" : "With coordinates", icon: <MapPin size={14} /> },
+          { label: "Regions Reached", val: `${regionsActive} / ${regionRows.length}`, sub: "Macro regions ever", icon: <Earth size={14} /> },
+          { label: "Countries", val: formatNumber(markets.length), sub: topMarket ? `Top: ${topMarket.label}` : "No data", icon: <MapIcon size={14} /> },
+          { label: "Lifetime Errors", val: formatNumber(errorTotal), sub: "Across mapped users", icon: <AlertTriangle size={14} />, tone: errorTotal > 0 ? "danger" : undefined },
+          { label: "Unmapped", val: formatNumber(Math.max(0, totalUsers - mappedUsers.length)), sub: "No coordinates", icon: <MapPinOff size={14} /> },
         ];
 
   return (
     <div className="page-content page-stack-lg">
-      {/* Header */}
-      <section className="page-header">
-        <div>
-          <h1 className="page-title">
-            Heatmap
-            <span className="kicker">{view === "live" ? "Live Geography" : "All-Time Geography"}</span>
-          </h1>
-        </div>
-        <div className="page-header-right">
-          {/* View mode */}
-          <div className="seg-control">
-            <button type="button" className={`seg-btn${view === "live" ? " active" : ""}`} onClick={() => setView("live")}>
-              Live
-            </button>
-            <button type="button" className={`seg-btn${view === "alltime" ? " active" : ""}`} onClick={() => setView("alltime")}>
-              All time
-            </button>
-          </div>
-          {/* Region chips */}
-          <div className="seg-control">
-            <button
-              type="button"
-              title="All regions"
-              className={`seg-btn${regionFilter === null ? " active" : ""}`}
-              onClick={() => selectRegion(null)}
-            >
-              All
-            </button>
-            {ALL_REGIONS.map((region) => (
-              <button
-                key={region}
-                type="button"
-                title={region}
-                className={`seg-btn${regionFilter === region ? " active" : ""}`}
-                onClick={() => selectRegion(regionFilter === region ? null : region)}
-              >
-                {REGION_SHORT[region] ?? region}
+      {/* Header — view seg + country filter + meta right; region chips on their own row */}
+      <PageHeader
+        kicker="Geography"
+        title="Heatmap"
+        right={
+          <>
+            {/* View mode */}
+            <div className="seg-control">
+              <button type="button" className={`seg-btn${view === "live" ? " active" : ""}`} onClick={() => setView("live")}>
+                Live
               </button>
-            ))}
-          </div>
-          {/* Country filter */}
-          <GlassDropdown
-            placeholder="All countries"
-            options={countryCodes}
-            value={countryCode}
-            onChange={setCountryCode}
-            renderOption={renderCountryOption}
-          />
-          <div className="meta-row">
-            {[
-              { label: "Errors", val: formatNumber(errorTotal) },
-              { label: "Ingest", val: summary.stats.lastIngestAt ? timeAgo(summary.stats.lastIngestAt) : "Waiting" },
-            ].map((m) => (
-              <div className="meta-item" key={m.label}><span>{m.label}</span><strong>{m.val}</strong></div>
-            ))}
-          </div>
-        </div>
-      </section>
+              <button type="button" className={`seg-btn${view === "alltime" ? " active" : ""}`} onClick={() => setView("alltime")}>
+                All time
+              </button>
+            </div>
+            {/* Country filter */}
+            <GlassDropdown
+              placeholder="All countries"
+              options={countryCodes}
+              value={countryCode}
+              onChange={setCountryCode}
+              renderOption={renderCountryOption}
+            />
+            <MetaRow
+              items={[
+                { label: "Errors", value: formatNumber(errorTotal) },
+                { label: "Ingest", value: summary.stats.lastIngestAt ? timeAgo(summary.stats.lastIngestAt) : "Waiting" },
+              ]}
+            />
+          </>
+        }
+      />
 
-      {/* Stat row */}
-      <div className="stat-grid" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))" }}>
+      {/* Region chips */}
+      <div className="filters">
+        <div className="seg-control">
+          <button
+            type="button"
+            title="All regions"
+            className={`seg-btn${regionFilter === null ? " active" : ""}`}
+            onClick={() => selectRegion(null)}
+          >
+            All
+          </button>
+          {ALL_REGIONS.map((region) => (
+            <button
+              key={region}
+              type="button"
+              title={region}
+              className={`seg-btn${regionFilter === region ? " active" : ""}`}
+              onClick={() => selectRegion(regionFilter === region ? null : region)}
+            >
+              {REGION_SHORT[region] ?? region}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* KPI row */}
+      <div className="stat-grid stat-grid-6 v2-stagger">
         {statCards.map((s) => (
-          <div className={`stat-card${s.tone ? ` tone-${s.tone}` : ""}`} key={s.label}>
-            <span className="stat-label">{s.label}</span>
-            <strong className="stat-value">{s.val}</strong>
-            <p className="stat-sub">{s.sub}</p>
-          </div>
+          <KpiStatCard key={s.label} label={s.label} value={s.val} sub={s.sub} icon={s.icon} tone={s.tone} />
         ))}
       </div>
 
@@ -462,7 +463,8 @@ export function HeatmapPage({
         <section className="panel">
           <div className="panel-head">
             <div className="panel-head-left">
-              <p className="kicker">World View</p>
+              <p className="kicker">Map</p>
+              <h2 className="section-title">World View</h2>
             </div>
             <div className="panel-head-right">
               <span className="section-sub">
@@ -513,9 +515,16 @@ export function HeatmapPage({
                 ))}
               </div>
             ) : (
-              <div className="empty-state" style={{ padding: "24px 16px" }}>
-                <p>{filtersActive ? "No geographic data matches the active filters." : view === "live" ? "No active geographic data." : "No mapped users yet."}</p>
-              </div>
+              <EmptyState
+                icon={<Earth />}
+                title={filtersActive ? "No matching data" : view === "live" ? "No live geography" : "No mapped users"}
+              >
+                {filtersActive
+                  ? "No geographic data matches the active filters."
+                  : view === "live"
+                    ? "No active sessions with geo data. Dots surface here as users come online."
+                    : "No mapped users yet. Users appear once coordinates are ingested."}
+              </EmptyState>
             )}
           </div>
         </section>

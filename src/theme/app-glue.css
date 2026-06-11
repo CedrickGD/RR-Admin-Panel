@@ -779,11 +779,11 @@ body::before {
 @supports (animation-timeline: scroll()) {
   .page-header {
     position: sticky;
-    top: 10px;
+    top: 0;
     z-index: 60;
-    padding: 10px 16px;
-    margin: -10px -16px 4px;
-    border-radius: 16px;
+    padding: 12px 16px;
+    margin: -12px -16px 2px;
+    border-radius: 0 0 16px 16px;
     animation: hdr-frost linear both;
     animation-timeline: scroll(root block);
     animation-range: 0px 140px;

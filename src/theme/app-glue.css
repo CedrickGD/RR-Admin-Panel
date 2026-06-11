@@ -558,20 +558,22 @@ body::after {
    orange→yellow top-right, faint cyan counterweight. Same GPU
    transform loops and reduced-motion gating as the DS base layer;
    --glow scales the intensity (0 disables). */
+/* The layer box is 2x the viewport (inset -50%), so gradient positions
+   are in LAYER space: layer% = (viewport% + 50) / 2. */
 html::before {
   inset: -50%;
   background:
-    radial-gradient(38% 34% at 14% 80%, hsl(272 92% 56% / calc(0.36 * var(--glow))), transparent 68%),
-    radial-gradient(46% 38% at 52% 50%, hsl(345 95% 56% / calc(0.30 * var(--glow))), transparent 70%),
-    radial-gradient(28% 24% at 34% 20%, hsl(300 85% 50% / calc(0.14 * var(--glow))), transparent 70%);
+    radial-gradient(34% 30% at 30% 68%, hsl(272 92% 56% / calc(0.36 * var(--glow))), transparent 68%),
+    radial-gradient(40% 34% at 50% 50%, hsl(345 95% 56% / calc(0.30 * var(--glow))), transparent 70%),
+    radial-gradient(24% 20% at 42% 33%, hsl(300 85% 50% / calc(0.14 * var(--glow))), transparent 70%);
   animation-duration: 58s;
 }
 html::after {
   inset: -50%;
   background:
-    radial-gradient(42% 38% at 88% 16%, hsl(45 100% 55% / calc(0.30 * var(--glow))), transparent 70%),
-    radial-gradient(34% 30% at 70% 46%, hsl(25 100% 56% / calc(0.22 * var(--glow))), transparent 70%),
-    radial-gradient(26% 22% at 6% 28%, hsl(196 90% 55% / calc(0.10 * var(--glow))), transparent 70%);
+    radial-gradient(36% 32% at 68% 31%, hsl(45 100% 55% / calc(0.30 * var(--glow))), transparent 70%),
+    radial-gradient(28% 26% at 61% 48%, hsl(25 100% 56% / calc(0.22 * var(--glow))), transparent 70%),
+    radial-gradient(22% 20% at 28% 40%, hsl(196 90% 55% / calc(0.10 * var(--glow))), transparent 70%);
   animation-duration: 76s;
 }
 

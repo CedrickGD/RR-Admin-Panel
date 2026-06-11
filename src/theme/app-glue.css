@@ -607,6 +607,7 @@ html::after {
 /* Radial gauges: vivid pink→orange→yellow ring with a soft glow
    (reference donut). The gradient is ambience, not data encoding. */
 .gauge-fill {
-  stroke: url(#gauge-vivid-ramp);
+  /* SVG2 paint fallback: solid pink if the defs id is absent in a frame */
+  stroke: url(#gauge-vivid-ramp) hsl(345 95% 58%);
   filter: drop-shadow(0 0 6px hsl(345 95% 56% / 0.35));
 }

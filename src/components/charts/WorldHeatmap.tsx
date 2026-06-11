@@ -927,7 +927,16 @@ export function WorldHeatmap({
     });
 
     map.on("styledata", () => {
-      if (!map.isStyleLoaded()) return;
+      if (!map.isStyleLoaded()) {
+        // Style still streaming (initial load of the standard style took
+        // this path and left the dot/arc layers missing entirely) —
+        // re-ensure once rendering settles instead of dropping the pass.
+        map.once("idle", () => {
+          ensureConnections(map, connectionsRef.current);
+          ensureSessionDots(map, sessionDotsRef.current, activeKeyRef.current);
+        });
+        return;
+      }
       ensureConnections(map, connectionsRef.current);
       ensureSessionDots(map, sessionDotsRef.current, activeKeyRef.current);
     });

@@ -646,8 +646,8 @@ svg * {
   z-index: 120;
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  padding: 22px 14px 18px;
+  gap: 14px;
+  padding: 18px 12px 16px;
   background: hsl(240 38% 8% / 0.88);
   border-right: 1px solid var(--line);
 }
@@ -656,11 +656,11 @@ svg * {
 .sb-brand {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 4px 8px 18px;
+  gap: 11px;
+  padding: 2px 7px 15px;
   border-bottom: 1px solid var(--line);
 }
-.sb-brand-img { width: 38px; height: 38px; object-fit: contain; flex: none; }
+.sb-brand-img { width: 34px; height: 34px; object-fit: contain; flex: none; }
 .sb-brand-text { min-width: 0; }
 .sb-brand-name {
   display: block;
@@ -688,10 +688,10 @@ svg * {
 .sb-item {
   display: flex;
   align-items: center;
-  gap: 11px;
-  padding: 10px 13px;
-  border-radius: 13px;
-  font-size: var(--fs-body);
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 11px;
+  font-size: 0.8125rem;
   font-weight: 500;
   color: var(--text-2);
   text-align: left;
@@ -852,22 +852,30 @@ svg * {
   border-radius: var(--r-pill);
 }
 
-/* ── KPI cards: reference anatomy — icon on top, huge centered
-   number, label under it, sub last. Pure CSS reorder (flex order +
-   display:contents) so the KpiStatCard tile markup AND the raw
-   label/value/sub cards restyle identically. No left tick, no boxed
-   icon wells. ── */
+/* ── KPI cards: DENSE rows. Bare icon right, tight stack left
+   (tiny label / value / sub) — ~58px tall, no boxes, no ticks. Raw
+   label/value/sub cards (no tile wrappers) stack the same. ── */
 .stat-card {
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  justify-content: flex-start;
-  text-align: center;
-  gap: 2px;
-  padding: 12px 12px 11px;
+  justify-content: space-between;
+  text-align: left;
+  gap: 10px;
+  padding: 9px 13px;
+}
+.stat-card:not(:has(.tile-main)) {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
 }
 .stat-card::before { content: none; }   /* left accent tick retired */
-.stat-card .tile-main,
-.stat-card .tile-side { display: contents; }
+.stat-card .tile-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.stat-card .tile-side { display: flex; flex: none; align-items: center; }
 
 .tile-icon {
   background: none;
@@ -877,24 +885,20 @@ svg * {
   color: var(--text-3);
   transition: color var(--t-med) var(--ease-smooth);
 }
-.stat-card .tile-icon,
-.stat-card .tile-spark { order: -1; margin-bottom: 4px; }
-.tile-icon svg { width: 16px; height: 16px; stroke-width: 2; }
+.tile-icon svg { width: 15px; height: 15px; stroke-width: 2; }
 .stat-card:hover .tile-icon { color: var(--accent-text); }
 
 .stat-card .stat-value {
-  order: 0;
-  font-size: 1.25rem;
-  line-height: 1.12;
-  white-space: normal;
+  font-size: 1.05rem;
+  line-height: 1.15;
   display: flex;
   align-items: baseline;
-  justify-content: center;
   flex-wrap: wrap;
   column-gap: 6px;
+  min-width: 0;
 }
-.stat-card .stat-label { order: 1; margin-top: 2px; max-width: 100%; }
-.stat-card .stat-sub { order: 2; max-width: 100%; }
+.stat-card .stat-label { font-size: 0.6rem; letter-spacing: 0.1em; }
+.stat-card .stat-sub { font-size: 0.66rem; margin-top: 1px; }
 
 /* Tones recolor the icon (the tick is gone) */
 .stat-card.tone-danger .tile-icon,
@@ -903,6 +907,27 @@ svg * {
 .stat-card.tone-warning:hover .tile-icon { color: var(--warning-text); }
 .stat-card.tone-success .tile-icon,
 .stat-card.tone-success:hover .tile-icon { color: var(--success-text); }
+
+/* Header tools: filter pill + refresh side by side in page headers */
+.header-tools { display: flex; align-items: center; gap: 8px; }
+
+/* Sidebar resize handle: thin grab strip on the right edge */
+.sb-resize {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  bottom: 0;
+  width: 7px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.sb-resize:hover,
+.sb-resize:active {
+  background: linear-gradient(90deg, transparent, hsl(var(--ah) var(--as) var(--al) / 0.35), transparent);
+}
+@media (max-width: 900px) {
+  .sb-resize { display: none; }
+}
 
 /* ── Page switch: quick rise so navigation feels alive ──────────── */
 .page-enter { animation: pageIn 0.26s var(--ease-rise) both; }

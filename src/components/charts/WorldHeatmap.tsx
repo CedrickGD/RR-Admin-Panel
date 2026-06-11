@@ -766,6 +766,11 @@ function ensureConnections(
   map: maplibregl.Map,
   connections: FeatureCollection<LineString>,
 ) {
+  // Accent-tinted arcs so the network reads clearly on the dark styles
+  // (and follows the user's accent). Resolved per call like the dots.
+  const palette = readDotPalette();
+  const glowColor = palette.glow;
+  const lineColor = palette.coreSpread;
   const source = map.getSource(CONNECTIONS_SOURCE_ID) as GeoJSONSource | undefined;
 
   if (source) {
@@ -783,12 +788,14 @@ function ensureConnections(
       type: "line",
       source: CONNECTIONS_SOURCE_ID,
       paint: {
-        "line-color": "rgba(110,157,176,0.12)",
-        "line-width": ["interpolate", ["linear"], ["get", "weight"], 0, 1, 1, 3.2],
-        "line-opacity": ["interpolate", ["linear"], ["zoom"], 1, 0.48, 7, 0.2],
+        "line-color": glowColor,
+        "line-width": ["interpolate", ["linear"], ["get", "weight"], 0, 1.2, 1, 3.6],
+        "line-opacity": ["interpolate", ["linear"], ["zoom"], 1, 0.22, 7, 0.1],
         "line-blur": 1.3,
       },
     });
+  } else {
+    map.setPaintProperty(CONNECTIONS_GLOW_LAYER_ID, "line-color", glowColor);
   }
 
   if (!map.getLayer(CONNECTIONS_LINE_LAYER_ID)) {
@@ -797,12 +804,14 @@ function ensureConnections(
       type: "line",
       source: CONNECTIONS_SOURCE_ID,
       paint: {
-        "line-color": "rgba(184,205,216,0.58)",
-        "line-width": ["interpolate", ["linear"], ["get", "weight"], 0, 0.6, 1, 1.5],
-        "line-opacity": ["interpolate", ["linear"], ["zoom"], 1, 0.76, 7, 0.36],
+        "line-color": lineColor,
+        "line-width": ["interpolate", ["linear"], ["get", "weight"], 0, 0.8, 1, 1.7],
+        "line-opacity": ["interpolate", ["linear"], ["zoom"], 1, 0.85, 7, 0.42],
         "line-dasharray": [2, 1.5],
       },
     });
+  } else {
+    map.setPaintProperty(CONNECTIONS_LINE_LAYER_ID, "line-color", lineColor);
   }
 }
 
@@ -823,7 +832,6 @@ export function WorldHeatmap({
   const activeKeyRef = useRef<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [activeKey, setActiveKey] = useState<string | null>(null);
-  const [zoom, setZoom] = useState(INITIAL_ZOOM);
   const [showPanel, setShowPanel] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [globe, setGlobe] = useState(true);
@@ -916,16 +924,12 @@ export function WorldHeatmap({
       ensureConnections(map, connectionsRef.current);
       ensureSessionDots(map, sessionDotsRef.current, activeKeyRef.current);
       setMapReady(true);
-      setZoom(map.getZoom());
     });
 
     map.on("styledata", () => {
       if (!map.isStyleLoaded()) return;
       ensureConnections(map, connectionsRef.current);
       ensureSessionDots(map, sessionDotsRef.current, activeKeyRef.current);
-    });
-    map.on("zoom", () => {
-      setZoom(map.getZoom());
     });
     map.on("click", (event) => {
       const dotLayers = [SESSIONS_CORE_LAYER_ID, SESSIONS_GLOW_LAYER_ID]

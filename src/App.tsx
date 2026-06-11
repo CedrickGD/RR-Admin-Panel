@@ -42,8 +42,23 @@ export default function App() {
   const { stats, users } = useAdminStats(Boolean(user), filters);
 
   // Rendered by each data page inside its own header so the filters sit with the
-  // content they affect instead of in a detached strip.
-  const filterBar = <FilterBar filters={filters} stats={stats} onChange={setFilters} />;
+  // content they affect instead of in a detached strip. Refresh lives here too —
+  // top-right of the page, where a dashboard reload belongs.
+  const filterBar = (
+    <div className="header-tools">
+      <FilterBar filters={filters} stats={stats} onChange={setFilters} />
+      <button
+        type="button"
+        className="btn-icon"
+        onClick={refresh}
+        disabled={refreshing}
+        aria-label="Refresh data"
+        title={refreshing ? "Syncing" : "Refresh data"}
+      >
+        <RefreshCw size={15} className={refreshing ? "animate-spin" : undefined} />
+      </button>
+    </div>
+  );
 
   function nextFocusedSession(current: FocusedSession, sessionId: string): FocusedSession {
     return { id: sessionId, token: current?.id === sessionId ? current.token + 1 : 1 };

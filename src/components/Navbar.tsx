@@ -12,7 +12,7 @@ import {
   Settings2,
   X,
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { AuthMode, AuthUser, HealthPayload, PageKey, SummaryPayload } from "../types/telemetry";
 import { timeAgo } from "../utils/format";
 
@@ -69,9 +69,47 @@ export function Navbar({
   const apiOk = health?.api === "alive";
   const ingestLabel = timeAgo(summary?.stats.lastIngestAt ?? health?.lastIngestAt ?? null);
 
+  // Restore the persisted sidebar width once on mount.
+  useEffect(() => {
+    try {
+      const stored = Number(localStorage.getItem("rr-sb-w"));
+      if (Number.isFinite(stored) && stored >= 188 && stored <= 330) {
+        document.documentElement.style.setProperty("--sb-w", `${stored}px`);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
   function navigate(key: PageKey) {
     onNavigate(key);
     setDrawerOpen(false);
+  }
+
+  /* Drag the sidebar's right edge to resize (persisted); double-click resets. */
+  function startResize(event: React.PointerEvent<HTMLDivElement>) {
+    event.preventDefault();
+    const root = document.documentElement;
+    const startX = event.clientX;
+    const startWidth = parseInt(getComputedStyle(root).getPropertyValue("--sb-w"), 10) || 236;
+
+    function onMove(move: PointerEvent) {
+      const width = Math.max(188, Math.min(330, startWidth + (move.clientX - startX)));
+      root.style.setProperty("--sb-w", `${width}px`);
+    }
+    function onUp() {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      const final = parseInt(getComputedStyle(root).getPropertyValue("--sb-w"), 10);
+      if (Number.isFinite(final)) {
+        try { localStorage.setItem("rr-sb-w", String(final)); } catch { /* ignore */ }
+      }
+    }
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }
+
+  function resetResize() {
+    document.documentElement.style.setProperty("--sb-w", "236px");
+    try { localStorage.removeItem("rr-sb-w"); } catch { /* ignore */ }
   }
 
   const refreshButton = (
@@ -115,17 +153,14 @@ export function Navbar({
             <span className="sb-brand-name">RazorReaper</span>
             <span className="sb-brand-sub">Operations Console</span>
           </div>
-          <span className="sb-brand-actions">
-            {refreshButton}
-            <button
-              type="button"
-              className="btn-icon sb-close"
-              onClick={() => setDrawerOpen(false)}
-              aria-label="Close navigation"
-            >
-              <X size={16} />
-            </button>
-          </span>
+          <button
+            type="button"
+            className="btn-icon sb-close"
+            onClick={() => setDrawerOpen(false)}
+            aria-label="Close navigation"
+          >
+            <X size={16} />
+          </button>
         </div>
 
         <nav className="sb-nav" aria-label="Primary">
@@ -163,6 +198,14 @@ export function Navbar({
             ) : null}
           </div>
         </div>
+
+        <div
+          className="sb-resize"
+          onPointerDown={startResize}
+          onDoubleClick={resetResize}
+          title="Drag to resize · double-click to reset"
+          aria-hidden
+        />
       </aside>
     </>
   );

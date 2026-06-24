@@ -100,6 +100,16 @@ export interface AppSessionRecord {
   lastEvent: string | null;
   lastStatus: TelemetryStatus;
   errorCount: number;
+  licenses?: Array<{
+    license_key: string;
+    type: string;
+    status: string;
+    max_uses: number;
+    usage_count: number;
+    duration_days: number | null;
+    expires_at: string | null;
+    created_at: string;
+  }>;
 }
 
 export interface StatsFilters {

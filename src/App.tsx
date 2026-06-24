@@ -14,6 +14,7 @@ import { VersionsPage } from "./pages/VersionsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { TrafficPage } from "./pages/TrafficPage";
 import { WorkersPage } from "./pages/WorkersPage";
+import { LicensesPage } from "./pages/LicensesPage";
 import type { PageKey, StatsFilters } from "./types/telemetry";
 
 type FocusedSession = { id: string; token: number } | null;
@@ -174,6 +175,7 @@ export default function App() {
             ) : null}
             {page === "workers"   ? <WorkersPage   summary={summary} stats={stats} users={users} onOpenMapSession={handleOpenHeatmapSession} filterBar={filterBar} /> : null}
             {page === "logs"      ? <LogsPage      summary={summary} /> : null}
+            {page === "licenses"  ? <LicensesPage  onOpenSession={handleOpenLiveSession} /> : null}
             {page === "settings"  ? (
               <SettingsPage
                 user={user}

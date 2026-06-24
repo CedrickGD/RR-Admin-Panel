@@ -71,3 +71,21 @@ CREATE TABLE IF NOT EXISTS telemetry_counters (
   counter_value INTEGER NOT NULL DEFAULT 0,
   updated_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS licenses (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  license_key TEXT NOT NULL UNIQUE,
+  type TEXT NOT NULL DEFAULT 'lifetime', 
+  duration_days INTEGER,
+  hwid TEXT,
+  max_uses INTEGER NOT NULL DEFAULT 1,
+  usage_count INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'revoked', 'expired')),
+  custom_options TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL,
+  activated_at TEXT,
+  expires_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_licenses_key ON licenses(license_key);
+CREATE INDEX IF NOT EXISTS idx_licenses_hwid ON licenses(hwid);

@@ -11,6 +11,7 @@ import {
   RefreshCw,
   Settings2,
   X,
+  Key,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import type { AuthMode, AuthUser, HealthPayload, PageKey, SummaryPayload } from "../types/telemetry";
@@ -34,6 +35,7 @@ const NAV_ITEMS: NavEntry[] = [
   { key: "workers",  label: "Sessions", icon: <History size={16} /> },
   { key: "logs",     label: "Errors",   icon: <AlertTriangle size={16} /> },
   { key: "settings", label: "Settings", icon: <Settings2 size={16} /> },
+  { key: "licenses", label: "Licenses", icon: <Key size={16} /> },
 ];
 
 export interface NavbarProps {

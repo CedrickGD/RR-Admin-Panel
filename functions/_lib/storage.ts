@@ -376,11 +376,29 @@ async function loadSummaryD1(env: RuntimeEnv): Promise<SummaryPayload> {
     .prepare(`SELECT counter_value FROM telemetry_counters WHERE counter_key = 'events_total'`)
     .first<{ counter_value: number | string }>();
 
+  const allLicenses = await db.prepare("SELECT * FROM licenses WHERE hwid IS NOT NULL").all<any>();
+  const licenseMap = new Map<string, any[]>();
+  for (const lic of (allLicenses?.results || [])) {
+    if (!lic.hwid) continue;
+    if (!licenseMap.has(lic.hwid)) licenseMap.set(lic.hwid, []);
+    licenseMap.get(lic.hwid)!.push(lic);
+  }
+
+  const mapSessionWithLicenses = (row: D1SessionRow) => {
+    const session = mapD1Session(row);
+    if (session.hwid) {
+      session.licenses = licenseMap.get(session.hwid) || [];
+    } else {
+      session.licenses = [];
+    }
+    return session;
+  };
+
   return {
     generatedAt: nowIso(),
     storage: "d1",
-    activeSessions: activeRows.results.map(mapD1Session),
-    recentSessions: recentSessionRows.results.map(mapD1Session),
+    activeSessions: activeRows.results.map(mapSessionWithLicenses),
+    recentSessions: recentSessionRows.results.map(mapSessionWithLicenses),
     recentErrors: recentErrorRows.results.map(mapD1Event),
     recentEvents: recentEventRows.results.map(mapD1Event),
     stats: {

@@ -312,6 +312,29 @@ export function LivePage({ summary, focusedSessionId = null, focusedSessionToken
                                   { k: "Geo Source",   v: formatGeoSource(session.clientGeoSource, session.clientGeoSignalSource) },
                                   { k: "Geo Accuracy", v: formatAccuracy(session.clientAccuracyMeters) },
                                 ]} />
+
+                                {/* Licenses grid */}
+                                {session.licenses && session.licenses.length > 0 && (
+                                  <div style={{ marginTop: 24, borderTop: "1px solid var(--border)", paddingTop: 16 }}>
+                                    <p className="label-sm" style={{ marginBottom: 12, color: "var(--accent)" }}>Bound Licenses ({session.licenses.length})</p>
+                                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 12 }}>
+                                      {session.licenses.map(lic => (
+                                        <div key={lic.license_key} style={{ background: "var(--bg-card)", padding: 12, borderRadius: 8, border: "1px solid var(--border)" }}>
+                                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                                            <span style={{ fontFamily: "monospace", fontWeight: 600, fontSize: "0.875rem", color: lic.max_uses > 1 ? "var(--accent)" : "var(--text)" }}>{lic.license_key}</span>
+                                            <Badge tone={lic.status === "active" ? "success" : lic.status === "revoked" ? "danger" : "warning"}>{lic.status.toUpperCase()}</Badge>
+                                          </div>
+                                          <DetailGrid items={[
+                                            { k: "Type", v: lic.type === "lifetime" ? "Lifetime" : `${lic.duration_days} Days` },
+                                            { k: "Uses", v: lic.max_uses === -1 ? `${lic.usage_count} / Infinite` : `${lic.usage_count} / ${lic.max_uses}` },
+                                            { k: "Expires", v: lic.expires_at ? formatDate(lic.expires_at) : "Never" },
+                                            { k: "Created", v: formatDate(lic.created_at) }
+                                          ]} />
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             </td>
                           </tr>

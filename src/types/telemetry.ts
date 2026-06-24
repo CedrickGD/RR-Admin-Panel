@@ -9,7 +9,8 @@ export type PageKey =
   | "live"
   | "workers"
   | "logs"
-  | "settings";
+  | "settings"
+  | "licenses";
 
 export interface TelemetryEvent {
   id: string;

@@ -57,7 +57,8 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
     const durationDays = body.duration_days || null;
     const customOptions = body.custom_options ? JSON.stringify(body.custom_options) : '{}';
     const customKey = body.custom_key?.trim();
-    const maxUses = Math.max(body.max_uses || 1, 1);
+    const rawMaxUses = body.max_uses ?? 1;
+    const maxUses = rawMaxUses === -1 ? -1 : Math.max(rawMaxUses, 1);
     // If a custom key is provided, we can only create 1 key exactly.
     const count = customKey ? 1 : Math.min(Math.max(body.count || 1, 1), 100);
 

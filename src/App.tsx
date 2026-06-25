@@ -23,7 +23,8 @@ export default function App() {
   const { hue: accentHue } = useAccent();
   const [page, setPage] = useState<PageKey>("overview");
   const [focusedLiveSession, setFocusedLiveSession] = useState<FocusedSession>(null);
-  const [focusedHeatmapSession, setFocusedHeatmapSession] = useState<FocusedSession>(null);
+  const [focusedHeatmapSession, setFocusedHeatmapSession] = useState<FocusedSession | null>(null);
+  const [focusedWorkerId, setFocusedWorkerId] = useState<string | null>(null);
   const [filters, setFilters] = useState<StatsFilters>(DEFAULT_STATS_FILTERS);
   const {
     authMode,
@@ -45,19 +46,23 @@ export default function App() {
   // Rendered by each data page inside its own header so the filters sit with the
   // content they affect instead of in a detached strip. Refresh lives here too —
   // top-right of the page, where a dashboard reload belongs.
+  const refreshButton = (
+    <button
+      type="button"
+      className="btn-icon"
+      onClick={refresh}
+      disabled={refreshing}
+      aria-label="Refresh data"
+      title={refreshing ? "Syncing" : "Refresh data"}
+    >
+      <RefreshCw size={15} className={refreshing ? "animate-spin" : undefined} />
+    </button>
+  );
+
   const filterBar = (
     <div className="header-tools">
       <FilterBar filters={filters} stats={stats} onChange={setFilters} />
-      <button
-        type="button"
-        className="btn-icon"
-        onClick={refresh}
-        disabled={refreshing}
-        aria-label="Refresh data"
-        title={refreshing ? "Syncing" : "Refresh data"}
-      >
-        <RefreshCw size={15} className={refreshing ? "animate-spin" : undefined} />
-      </button>
+      {refreshButton}
     </div>
   );
 
@@ -71,6 +76,10 @@ export default function App() {
   function handleOpenHeatmapSession(sessionId: string) {
     setFocusedHeatmapSession((c) => nextFocusedSession(c, sessionId));
     setPage("heatmap");
+  }
+  function handleOpenWorker(userId: string) {
+    setFocusedWorkerId(userId);
+    setPage("workers");
   }
 
   /* ─── Loading ─── */
@@ -163,6 +172,7 @@ export default function App() {
                 onOpenSession={handleOpenLiveSession}
                 focusedSessionId={focusedHeatmapSession?.id ?? null}
                 focusedSessionToken={focusedHeatmapSession?.token ?? 0}
+                filterBar={refreshButton}
               />
             ) : null}
             {page === "live" ? (
@@ -171,11 +181,12 @@ export default function App() {
                 focusedSessionId={focusedLiveSession?.id ?? null}
                 focusedSessionToken={focusedLiveSession?.token ?? 0}
                 onOpenMapSession={handleOpenHeatmapSession}
+                filterBar={refreshButton}
               />
             ) : null}
-            {page === "workers"   ? <WorkersPage   summary={summary} stats={stats} users={users} onOpenMapSession={handleOpenHeatmapSession} filterBar={filterBar} /> : null}
-            {page === "logs"      ? <LogsPage      summary={summary} /> : null}
-            {page === "licenses"  ? <LicensesPage  onOpenSession={handleOpenLiveSession} /> : null}
+            {page === "workers"   ? <WorkersPage   summary={summary} stats={stats} users={users} focusedWorkerId={focusedWorkerId} onOpenMapSession={handleOpenHeatmapSession} filterBar={filterBar} /> : null}
+            {page === "logs"      ? <LogsPage      summary={summary} filterBar={refreshButton} /> : null}
+            {page === "licenses"  ? <LicensesPage  summary={summary} onOpenSession={handleOpenLiveSession} onOpenWorker={handleOpenWorker} filterBar={refreshButton} /> : null}
             {page === "settings"  ? (
               <SettingsPage
                 user={user}
@@ -183,6 +194,7 @@ export default function App() {
                 summary={summary}
                 health={health}
                 onLogout={() => void logout()}
+                filterBar={refreshButton}
               />
             ) : null}
           </div>

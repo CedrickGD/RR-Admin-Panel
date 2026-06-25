@@ -1,5 +1,5 @@
 import { Activity, AlertTriangle, ChevronDown, ChevronRight, Eye, EyeOff, Filter, SearchX, Timer, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { CollapsiblePanel } from "../components/CollapsiblePanel";
 import { KpiStatCard } from "../components/KpiStatCard";
 import { Badge } from "../components/ds/Badge";
@@ -13,6 +13,7 @@ import { formatDate, formatNumber, timeAgo } from "../utils/format";
 
 interface LogsPageProps {
   summary: SummaryPayload;
+  filterBar?: ReactNode;
 }
 
 /* ── helpers ─────────────────────────────────────────────────── */
@@ -47,7 +48,7 @@ interface GroupedError {
 
 /* ── component ───────────────────────────────────────────────── */
 
-export function LogsPage({ summary }: LogsPageProps) {
+export function LogsPage({ summary, filterBar }: LogsPageProps) {
   const [query, setQuery] = useState("");
   const [hiddenKinds, setHiddenKinds] = useState<Set<string>>(() => new Set(DEFAULT_HIDDEN_KINDS));
   const [hiddenTypes, setHiddenTypes] = useState<Set<string>>(new Set());
@@ -188,11 +189,12 @@ export function LogsPage({ summary }: LogsPageProps) {
         padding="flush"
         right={
           <>
+            {filterBar}
             <SearchInput
               value={query}
               onChange={setQuery}
-              placeholder="Search errors…"
-              style={{ width: "min(240px, 60vw)" }}
+              placeholder="Filter errors…"
+              style={{ width: "min(280px,100%)" }}
             />
             <Button
               size="sm"

@@ -49,6 +49,7 @@ export interface RuntimeEnv {
   ACCESS_ALLOWED_EMAIL?: string;
   ACCESS_ADMIN_EMAIL?: string;
   BUILD_SHA?: string;
+  STORE_SECRET_KEY?: string;
   DB?: D1Database;
   KV?: KVNamespace;
   CF_PAGES?: string;
@@ -192,6 +193,7 @@ export interface UserRollupRecord {
   totalDurationSeconds: number;
   errors: number;
   isActive: boolean;
+  hwid: string | null;
   appVersion: string | null;
   displayVersion: string | null;
   platform: string | null;

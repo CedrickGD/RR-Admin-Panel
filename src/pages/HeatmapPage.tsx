@@ -45,6 +45,7 @@ interface HeatmapPageProps {
   onOpenSession: (sessionId: string) => void;
   focusedSessionId?: string | null;
   focusedSessionToken?: number;
+  filterBar?: ReactNode;
 }
 
 interface StatChip {
@@ -107,6 +108,7 @@ export function HeatmapPage({
   onOpenSession,
   focusedSessionId = null,
   focusedSessionToken = 0,
+  filterBar,
 }: HeatmapPageProps) {
   const [view, setView] = useState<MapView>("live");
   const [regionFilter, setRegionFilter] = useState<string | null>(null);
@@ -398,6 +400,7 @@ export function HeatmapPage({
         title="Heatmap"
         right={
           <>
+            {filterBar}
             {/* View mode */}
             <div className="seg-control">
               <button type="button" className={`seg-btn${view === "live" ? " active" : ""}`} onClick={() => setView("live")}>

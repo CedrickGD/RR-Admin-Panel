@@ -1,13 +1,14 @@
 import { Key, Plus, Trash2, Search, User } from "lucide-react";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, type ReactNode } from "react";
 import { Badge } from "../components/ds/Badge";
 import { Button } from "../components/ds/Button";
 import { EmptyState } from "../components/ds/EmptyState";
 import { Modal } from "../components/ds/Modal";
+import { StatusBadge } from "../components/StatusBadge";
 import { PageHeader } from "../components/ds/PageHeader";
 import { SearchInput } from "../components/ds/SearchInput";
-import { Select } from "../components/ds/Select";
 import { timeAgo, formatDate } from "../utils/format";
+import type { SummaryPayload } from "../types/telemetry";
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
 
@@ -28,13 +29,23 @@ interface LicenseRecord {
   app_version?: string | null;
   session_last_seen?: string | null;
   session_id?: string | null;
+  usage_count: number;
+  max_uses: number;
 }
 
-export function LicensesPage({ onOpenSession }: { onOpenSession?: (id: string) => void }) {
+interface LicensesPageProps {
+  summary?: SummaryPayload | null;
+  onOpenSession?: (sessionId: string) => void;
+  onOpenWorker?: (hwid: string) => void;
+  filterBar?: ReactNode;
+}
+
+export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }: LicensesPageProps) {
   const [licenses, setLicenses] = useState<LicenseRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
   
   const [genType, setGenType] = useState("lifetime");
   const [genDuration, setGenDuration] = useState(30);
@@ -96,6 +107,7 @@ export function LicensesPage({ onOpenSession }: { onOpenSession?: (id: string) =
       const data = await res.json();
       if (data.ok) {
         await fetchLicenses();
+        setIsGenerateModalOpen(false);
       } else {
         alert("Error generating license: " + (data.error || JSON.stringify(data)));
       }
@@ -218,26 +230,36 @@ export function LicensesPage({ onOpenSession }: { onOpenSession?: (id: string) =
                     </div>
                   </td>
                   <td style={{ padding: "14px 20px" }}>
-                    <Badge tone={lic.status === "active" ? "success" : lic.status === "revoked" ? "danger" : "warning"}>
-                      {lic.status.toUpperCase()}
-                    </Badge>
+                    <StatusBadge 
+                      presence={lic.status === "active" ? "online" : lic.status === "revoked" ? "unreachable" : "idle"} 
+                      label={lic.status.toUpperCase()} 
+                    />
                   </td>
                   <td style={{ padding: "14px 20px" }}>
                     {lic.hwid ? (
                       <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                         <User size={12} style={{ color: "var(--text-muted)" }} />
-                        {lic.session_id && onOpenSession ? (
-                          <button 
-                            type="button"
-                            onClick={() => onOpenSession(lic.session_id!)}
-                            style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--accent)", padding: 0, fontSize: "0.8125rem", fontWeight: 600, maxWidth: "120px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textDecoration: "underline", textDecorationStyle: "dotted" }}
-                            title="View Live Session"
-                          >
-                            {lic.user_label || "Unknown User"}
-                          </button>
-                        ) : (
+                        {lic.session_id || lic.hwid ? (() => {
+                          const isLive = lic.session_id && summary?.activeSessions.some(s => s.id === lic.session_id);
+                          return (
+                            <button 
+                              type="button"
+                              onClick={() => {
+                                if (isLive && onOpenSession && lic.session_id) {
+                                  onOpenSession(lic.session_id);
+                                } else if (onOpenWorker && lic.hwid) {
+                                  onOpenWorker(lic.hwid);
+                                }
+                              }}
+                              style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--accent)", padding: 0, fontSize: "0.8125rem", fontWeight: 600, maxWidth: "120px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textDecoration: "underline", textDecorationStyle: "dotted" }}
+                              title={isLive ? "View Live Session" : "View User Sessions"}
+                            >
+                              {lic.user_label || "Unknown User"}
+                            </button>
+                          );
+                        })() : (
                           <strong style={{ color: "var(--text)", fontSize: "0.8125rem", maxWidth: "120px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={lic.user_label || "Unknown User"}>
-                            {lic.user_label || "Unknown"}
+                            {lic.user_label || "Unknown User"}
                           </strong>
                         )}
                       </div>
@@ -279,16 +301,19 @@ export function LicensesPage({ onOpenSession }: { onOpenSession?: (id: string) =
 
   return (
     <div className="page-content page-stack-lg v2-rise">
-      <PageHeader
-        kicker="Access Control"
-        title="License Manager"
-        sub="Manage, generate, and track HWID-bound license keys."
+      <PageHeader 
+        kicker="Access" 
+        title="Licenses" 
+        right={
+          <>
+            {filterBar}
+            <Button size="sm" onClick={() => setIsGenerateModalOpen(true)}>Generate Key(s)</Button>
+          </>
+        }
       />
 
       <div className="two-col" style={{ alignItems: "flex-start", marginBottom: 24 }}>
-        
-        {/* Generator Controls */}
-        <section className="panel" style={{ flex: "1 1 500px" }}>
+        <section className="panel" style={{ flex: "2 1 400px", height: "100%" }}>
           <div className="panel-head">
             <div className="panel-head-left">
               <p className="kicker kicker-row">
@@ -435,7 +460,7 @@ export function LicensesPage({ onOpenSession }: { onOpenSession?: (id: string) =
           : "This license is currently bound to a session. Revoking it will instantly kill their access."}
       >
         <div style={{ marginTop: 24, display: "flex", justifyContent: "flex-end", gap: 12 }}>
-          <Button variant="secondary" onClick={() => setDeleteCandidate(null)}>Cancel</Button>
+          <Button variant="ghost" onClick={() => setDeleteCandidate(null)}>Cancel</Button>
           <Button variant="danger" onClick={confirmDelete} disabled={isDeleting}>
             {isDeleting ? "Processing..." : "Confirm"}
           </Button>

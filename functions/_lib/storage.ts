@@ -17,7 +17,7 @@ const RECENT_SESSION_LIMIT = 200;
 const RECENT_ERROR_LIMIT = 50;
 const MAX_KV_SESSIONS = 500;
 const MAX_KV_EVENTS = 1000;
-const ACTIVE_SESSION_TIMEOUT_MS = 6 * 60 * 1000;
+const ACTIVE_SESSION_TIMEOUT_MS = 2 * 60 * 1000;
 const EVENT_RETENTION_DAYS = 90;
 // Legacy clients heartbeat every 30s; coalesce those into at most one session write per interval.
 const HEARTBEAT_MIN_WRITE_MS = 75 * 1000;

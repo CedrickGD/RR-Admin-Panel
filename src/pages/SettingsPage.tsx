@@ -1,5 +1,5 @@
 import { Check, CircleDot, KeyRound, LogOut, Palette, ShieldCheck, SlidersHorizontal } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Badge, LiveBadge } from "../components/ds/Badge";
 import { Button } from "../components/ds/Button";
 import { KvList } from "../components/ds/KvList";
@@ -15,6 +15,7 @@ interface SettingsPageProps {
   summary: SummaryPayload;
   health: HealthPayload;
   onLogout: () => void;
+  filterBar?: ReactNode;
 }
 
 /* ── Accent glow preference ──────────────────────────────────────
@@ -40,7 +41,7 @@ function applyGlow(enabled: boolean) {
 
 applyGlow(readGlowEnabled());
 
-export function SettingsPage({ user, authMode, summary, health, onLogout }: SettingsPageProps) {
+export function SettingsPage({ user, authMode, summary, health, onLogout, filterBar }: SettingsPageProps) {
   const { hue, setHue, activePreset } = useAccent();
   const { setPreset: setChartPreset, activeLabel: chartActiveLabel, presets: chartPresets } = useChartColors();
   const { setPreset: setDonutPreset, activeLabel: donutActiveLabel, presets: donutPresets } = useDonutColors();
@@ -72,13 +73,16 @@ export function SettingsPage({ user, authMode, summary, health, onLogout }: Sett
         title="Settings"
         sub="Account identity, appearance, and backend configuration."
         right={
-          <MetaRow
-            items={[
-              { label: "Auth Mode", value: authMode === "access" ? "Zero Trust" : "App Auth" },
-              { label: "Storage", value: summary.storage.toUpperCase() },
-              { label: "API", value: apiOnline ? "Online" : "Offline" },
-            ]}
-          />
+          <>
+            {filterBar}
+            <MetaRow
+              items={[
+                { label: "Auth Mode", value: authMode === "app" ? "App Auth" : "Zero Trust" },
+                { label: "Storage", value: summary.storage.toUpperCase() },
+                { label: "API", value: apiOnline ? "Online" : "Offline" },
+              ]}
+            />
+          </>
         }
       />
 

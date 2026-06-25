@@ -187,6 +187,16 @@ export function Navbar({
           </div>
           <div className="sb-meta" title="Last ingest">ingest · {ingestLabel}</div>
           <div className="sb-actions">
+            <button
+              type="button"
+              className="btn-icon"
+              onClick={onRefresh}
+              disabled={refreshing}
+              aria-label="Refresh data"
+              title={refreshing ? "Syncing" : "Refresh data"}
+            >
+              <RefreshCw size={16} className={refreshing ? "animate-spin" : undefined} />
+            </button>
             {authMode === "app" ? (
               <button
                 type="button"

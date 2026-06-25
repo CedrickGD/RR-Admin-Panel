@@ -374,6 +374,7 @@ interface UserRollupRow {
   discord_user: string | null;
   last_status: TelemetryStatus | null;
   last_event: string | null;
+  hwid: string | null;
 }
 
 export async function loadUsersRollup(env: RuntimeEnv, filters: StatsFilters): Promise<UserRollupRecord[]> {
@@ -386,13 +387,13 @@ export async function loadUsersRollup(env: RuntimeEnv, filters: StatsFilters): P
 
   const dim = buildDimensionClause(filters);
 
-  const [rollups, featureRows, errorEvents] = await Promise.all([
+  const [rollups, featureRows, errorEvents, premiumHwidsRow] = await Promise.all([
     db
       .prepare(
         `WITH base AS (
            SELECT *, ${IDENTITY_SQL} AS identity FROM app_sessions ${dim.sql}
          ), ranked AS (
-           SELECT identity, user_label, app_version, display_version, platform, os_version, device_model,
+           SELECT identity, user_label, app_version, display_version, platform, os_version, device_model, hwid,
              client_country, client_city, client_timezone, client_latitude, client_longitude, rpc_enabled, discord_user, last_status, last_event,
              ROW_NUMBER() OVER (PARTITION BY identity ORDER BY last_seen_at DESC) AS rn
            FROM base
@@ -408,7 +409,7 @@ export async function loadUsersRollup(env: RuntimeEnv, filters: StatsFilters): P
            FROM base GROUP BY identity
          )
          SELECT agg.identity, agg.first_seen, agg.last_seen, agg.sessions, agg.total_duration_seconds, agg.errors, agg.is_active,
-           r.user_label, r.app_version, r.display_version, r.platform, r.os_version, r.device_model,
+           r.user_label, r.app_version, r.display_version, r.platform, r.os_version, r.device_model, r.hwid,
            r.client_country, r.client_city, r.client_timezone, r.client_latitude, r.client_longitude, r.rpc_enabled, r.discord_user, r.last_status, r.last_event
          FROM agg JOIN ranked r ON r.identity = agg.identity AND r.rn = 1
          ORDER BY agg.last_seen DESC`
@@ -434,7 +435,12 @@ export async function loadUsersRollup(env: RuntimeEnv, filters: StatsFilters): P
          LIMIT 400`
       )
       .all<{ ts: string; message: string | null; metrics_json: string | null }>(),
+    db
+      .prepare(`SELECT hwid FROM licenses WHERE hwid IS NOT NULL AND status = 'active'`)
+      .all<{ hwid: string }>(),
   ]);
+
+  const premiumHwids = new Set(premiumHwidsRow.results.map((r) => r.hwid));
 
   const featuresByIdentity = new Map<string, Record<string, number>>();
   for (const row of featureRows.results) {
@@ -497,6 +503,8 @@ export async function loadUsersRollup(env: RuntimeEnv, filters: StatsFilters): P
     totalDurationSeconds: toNumber(row.total_duration_seconds),
     errors: toNumber(row.errors),
     isActive: toNumber(row.is_active) === 1,
+    licenseTier: premiumHwids.has(row.identity) || (row.hwid && premiumHwids.has(row.hwid)) ? "premium" : "free",
+    hwid: row.hwid ?? null,
     appVersion: row.app_version ?? null,
     displayVersion: row.display_version ?? normalizeDisplayVersion(row.app_version ?? null),
     platform: row.platform ?? null,

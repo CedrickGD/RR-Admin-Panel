@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronUp, Globe2, Radio } from "lucide-react";
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CollapsiblePanel } from "../components/CollapsiblePanel";
 import { StatusBadge } from "../components/StatusBadge";
 import { Badge, LiveBadge } from "../components/ds/Badge";
@@ -16,6 +16,7 @@ interface LivePageProps {
   focusedSessionId?: string | null;
   focusedSessionToken?: number;
   onOpenMapSession: (sessionId: string) => void;
+  filterBar?: ReactNode;
 }
 
 const LIVE_SESSION_MAX_AGE_MS = 6 * 60 * 1000;
@@ -108,7 +109,7 @@ function buildLiveSessionTimeline(session: AppSessionRecord, recentEvents: Telem
   return { trackedEventCount: relevantEvents.length, hiddenErrorCount: Math.max(0, session.errorCount - markers.length), markers };
 }
 
-export function LivePage({ summary, focusedSessionId = null, focusedSessionToken = 0, onOpenMapSession }: LivePageProps) {
+export function LivePage({ summary, focusedSessionId = null, focusedSessionToken = 0, onOpenMapSession, filterBar }: LivePageProps) {
   const [now, setNow] = useState(() => Date.now());
   const [expandedSessionIds, setExpandedSessionIds] = useState<string[]>([]);
   const rowRefs = useRef(new Map<string, HTMLTableRowElement>());
@@ -175,6 +176,7 @@ export function LivePage({ summary, focusedSessionId = null, focusedSessionToken
         title="Live Sessions"
         sub="Active sessions from the last 6 minutes. Rows hold stable order while you read."
         right={<>
+          {filterBar}
           <LiveBadge>{formatNumber(activeSessions.length)} live</LiveBadge>
           <Badge
             tone={rpcLive > 0 ? "accent" : "muted"}
@@ -249,7 +251,7 @@ export function LivePage({ summary, focusedSessionId = null, focusedSessionToken
                             </span>
                           </td>
                           <td className="muted">{displayLocation(session)}</td>
-                          <td><Badge tone="muted">{session.appVersion ?? "—"}</Badge></td>
+                          <td><Badge tone="muted">{session.displayVersion ?? session.appVersion ?? "—"}</Badge></td>
                           <td className="muted">{session.platform ?? "—"}</td>
                           <td className="muted">{resolveSessionDuration(session)}</td>
                           <td>
@@ -302,6 +304,7 @@ export function LivePage({ summary, focusedSessionId = null, focusedSessionToken
                                   { k: "Install ID",   v: session.installId },
                                   { k: "Session ID",   v: session.id },
                                   { k: "Client IP",    v: session.clientIp ?? "—" },
+                                  { k: "Hardware ID",  v: session.hwid ?? "—" },
                                   { k: "Started",      v: formatDate(session.startedAt) },
                                   { k: "Last Seen",    v: timeAgo(session.lastSeenAt) },
                                   { k: "Events",       v: String(timeline.trackedEventCount) },

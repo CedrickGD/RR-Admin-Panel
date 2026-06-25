@@ -30,6 +30,7 @@ export interface AppSessionRecord {
   source: string;
   userLabel: string | null;
   clientIp: string | null;
+  licenses?: Array<{ license_key: string; max_uses: number; custom_options: string; status: string; type: string; duration_days: number | null; usage_count: number; expires_at: string | null; created_at: string }>;
   clientCountry: string | null;
   clientCity?: string | null;
   clientRegion?: string | null;
@@ -140,6 +141,8 @@ export interface UserRollupRecord {
   totalDurationSeconds: number;
   errors: number;
   isActive: boolean;
+  licenseTier?: "premium" | "free";
+  hwid: string | null;
   appVersion: string | null;
   displayVersion: string | null;
   platform: string | null;

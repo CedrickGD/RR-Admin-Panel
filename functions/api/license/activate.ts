@@ -21,6 +21,8 @@ export async function onRequestPost(context: { request: Request; env: RuntimeEnv
         hwid: string | null;
         duration_days: number | null;
         expires_at: string | null;
+        type: string;
+        max_uses: number;
     }>();
     
     if (!license) return error(404, "Invalid license key.");
@@ -61,10 +63,10 @@ export async function onRequestPost(context: { request: Request; env: RuntimeEnv
         "UPDATE licenses SET hwid = ?, usage_count = ?, activated_at = COALESCE(activated_at, ?), expires_at = ?, status = 'active' WHERE id = ?"
       ).bind(newHwidsStr, newUsageCount, now, expiresAt, license.id).run();
       
-      return json({ ok: true, message: "License activated.", expires_at: expiresAt });
+      return json({ ok: true, message: "License activated.", expires_at: expiresAt, type: license.type });
     }
 
-    return json({ ok: true, message: "License is active.", expires_at: license.expires_at });
+    return json({ ok: true, message: "License is active.", expires_at: license.expires_at, type: license.type });
   } catch (err) {
     return error(500, "Failed to activate license.", err instanceof Error ? err.message : null);
   }

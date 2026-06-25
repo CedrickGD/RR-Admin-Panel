@@ -12,7 +12,7 @@ import {
   Search,
   Users as UsersIcon,
 } from "lucide-react";
-import { Fragment, useMemo, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
 import { CollapsiblePanel } from "../components/CollapsiblePanel";
 import { type KpiDrilldown, KpiStatCard } from "../components/KpiStatCard";
 import { type SessionPresence, StatusBadge } from "../components/StatusBadge";
@@ -32,6 +32,7 @@ interface WorkersPageProps {
   summary: SummaryPayload;
   stats: StatsPayload | null;
   users: UserRollupRecord[] | null;
+  focusedWorkerId?: string | null;
   onOpenMapSession: (sessionId: string) => void;
   filterBar?: ReactNode;
 }
@@ -255,7 +256,7 @@ function SkeletonRows() {
 
 /* ── page ───────────────────────────────────────────────────── */
 
-export function WorkersPage({ summary, stats, users, onOpenMapSession, filterBar }: WorkersPageProps) {
+export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapSession, filterBar }: WorkersPageProps) {
   const [tab, setTab] = useState<TabKey>("users");
 
   // Users tab state
@@ -263,6 +264,14 @@ export function WorkersPage({ summary, stats, users, onOpenMapSession, filterBar
   const [sortKey, setSortKey] = useState<SortKey>("lastSeen");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [expandedUsers, setExpandedUsers] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (focusedWorkerId) {
+      setTab("users");
+      setUserQuery(focusedWorkerId);
+      setExpandedUsers([focusedWorkerId]);
+    }
+  }, [focusedWorkerId]);
 
   // Sessions tab state
   const [sessionQuery, setSessionQuery] = useState("");
@@ -550,7 +559,12 @@ export function WorkersPage({ summary, stats, users, onOpenMapSession, filterBar
                               style={{ cursor: "pointer" }}
                             >
                               <td style={{ whiteSpace: "nowrap" }}>
-                                <span style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: "0.8125rem" }}>{userDisplayName(user)}</span>
+                                <span style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: "0.8125rem", marginRight: 6 }}>{userDisplayName(user)}</span>
+                                {user.licenseTier === "premium" ? (
+                                  <span style={{ fontSize: "0.625rem", padding: "2px 6px", borderRadius: "4px", background: "var(--accent-subtle)", color: "var(--accent-text)", fontWeight: 700, letterSpacing: "0.05em", verticalAlign: "middle" }}>PREMIUM</span>
+                                ) : (
+                                  <span style={{ fontSize: "0.625rem", padding: "2px 6px", borderRadius: "4px", background: "var(--bg-subtle)", color: "var(--text-muted)", fontWeight: 700, letterSpacing: "0.05em", verticalAlign: "middle" }}>FREE</span>
+                                )}
                                 <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.6875rem", color: "var(--text-3)", marginLeft: 8 }}>
                                   {user.identity.slice(0, 8)}
                                 </span>
@@ -615,11 +629,12 @@ export function WorkersPage({ summary, stats, users, onOpenMapSession, filterBar
                                       <DetailGrid
                                         items={[
                                           { k: "Identity",     v: user.identity },
+                                          { k: "Hardware ID",  v: user.hwid ?? "—" },
                                           { k: "Discord",      v: user.discordUser?.trim() ? discordHandle(user.discordUser) : "—" },
                                           { k: "Device Model", v: user.deviceModel ?? "—" },
                                           { k: "OS Version",   v: user.osVersion ?? "—" },
                                           { k: "Timezone",     v: user.timezone ?? "—" },
-                                          { k: "App Version",  v: user.appVersion ?? "—" },
+                                          { k: "App Version",  v: user.displayVersion ?? user.appVersion ?? "—" },
                                           { k: "Last Status",  v: user.lastStatus ?? "—" },
                                           { k: "Last Event",   v: user.lastEvent ? formatEventName(user.lastEvent) : "—" },
                                           { k: "First Seen",   v: formatDate(user.firstSeen) },
@@ -731,7 +746,7 @@ export function WorkersPage({ summary, stats, users, onOpenMapSession, filterBar
                               </span>
                             </td>
                             <td className="muted" style={{ whiteSpace: "nowrap" }}>{buildSessionLocationLabel(session) || "—"}</td>
-                            <td><Badge tone="muted">{session.appVersion ?? "—"}</Badge></td>
+                            <td><Badge tone="muted">{session.displayVersion ?? session.appVersion ?? "—"}</Badge></td>
                             <td className="muted">{session.platform ?? "—"}</td>
                             <td className="muted">{resolveSessionDuration(session)}</td>
                             <td className="muted">{timeAgo(session.lastSeenAt)}</td>
@@ -779,6 +794,7 @@ export function WorkersPage({ summary, stats, users, onOpenMapSession, filterBar
                                     items={[
                                       { k: "Install ID",  v: session.installId },
                                       { k: "Session ID",  v: session.id },
+                                      { k: "Hardware ID", v: session.hwid ?? "—" },
                                       { k: "Client IP",   v: session.clientIp ?? "—" },
                                       { k: "Started",     v: formatDate(session.startedAt) },
                                       { k: "Last Seen",   v: timeAgo(session.lastSeenAt) },

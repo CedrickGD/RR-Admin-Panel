@@ -20,6 +20,7 @@ export async function onRequestPost(context: { request: Request; env: RuntimeEnv
         status: string;
         hwid: string | null;
         expires_at: string | null;
+        type: string;
     }>();
     
     if (!license) return error(404, "Invalid license key.");
@@ -43,7 +44,7 @@ export async function onRequestPost(context: { request: Request; env: RuntimeEnv
       return error(403, "License is bound to another hardware ID.");
     }
 
-    return json({ ok: true, message: "License is valid." });
+    return json({ ok: true, message: "License is valid.", expires_at: license.expires_at, type: license.type });
   } catch (err) {
     return error(500, "Failed to validate license.", err instanceof Error ? err.message : null);
   }

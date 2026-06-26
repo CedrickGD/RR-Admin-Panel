@@ -456,11 +456,15 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
                 </button>
               ))}
             </div>
-            {tab === "sessions" ? (
-              <Button size="sm" icon={<Download />} onClick={() => void handleExport()} disabled={exporting}>
-                {exporting ? "Preparing…" : "Export TXT"}
-              </Button>
-            ) : null}
+            <Button
+              size="sm"
+              icon={<Download />}
+              onClick={() => void handleExport()}
+              disabled={exporting}
+              title="Download every session ever recorded as a clean .txt log"
+            >
+              {exporting ? "Preparing…" : "Export Sessions"}
+            </Button>
           </>
         }
       />

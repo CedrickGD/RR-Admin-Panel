@@ -25,7 +25,6 @@ import { PageHeader } from "../components/ds/PageHeader";
 import { SearchInput } from "../components/ds/SearchInput";
 import { Tag } from "../components/ds/Tag";
 import type { AppSessionRecord, StatsPayload, SummaryPayload, TelemetryEvent, UserRollupRecord } from "../types/telemetry";
-import { downloadSessionExport } from "../utils/api";
 import { formatAccuracy, formatDate, formatDuration, formatEventName, formatGeoSource, formatNumber, timeAgo } from "../utils/format";
 
 interface WorkersPageProps {
@@ -82,6 +81,72 @@ function formatDateOnly(value: string | null): string {
 /** Discord handles render as muted `@name` — strip a stored leading @ so we never double it. */
 function discordHandle(value: string): string {
   return `@${value.trim().replace(/^@/, "")}`;
+}
+
+/* ── per-user CSV export ─────────────────────────────────────── */
+
+/** RFC-4180 cell: quote only when needed, escape embedded quotes. */
+function csvCell(value: unknown): string {
+  const s = value === null || value === undefined ? "" : String(value);
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+/**
+ * One row per user — the whole rollup (every user ever seen), not a row per
+ * session. Defensive dedupe by identity in case the rollup ever ships dupes.
+ */
+function buildUserCsv(users: UserRollupRecord[]): string {
+  const byIdentity = new Map<string, UserRollupRecord>();
+  for (const u of users) {
+    const key = u.identity.trim().toLowerCase();
+    const existing = byIdentity.get(key);
+    if (!existing || parseTimestamp(u.lastSeen) > parseTimestamp(existing.lastSeen)) byIdentity.set(key, u);
+  }
+  const rows = [...byIdentity.values()].sort((a, b) => parseTimestamp(b.lastSeen) - parseTimestamp(a.lastSeen));
+
+  const header = [
+    "User", "Identity", "HWID", "Discord", "Tier", "Version", "Platform", "OS",
+    "Device", "City", "Country", "Timezone", "RPC", "Sessions", "Total Time",
+    "Errors", "First Seen", "Last Seen", "Last Event",
+  ];
+  const lines = [header.join(",")];
+  for (const u of rows) {
+    lines.push([
+      u.userLabel?.trim() || u.identity,
+      u.identity,
+      u.hwid ?? "",
+      u.discordUser?.trim() ? discordHandle(u.discordUser) : "",
+      u.licenseTier ?? "",
+      u.displayVersion ?? u.appVersion ?? "",
+      u.platform ?? "",
+      u.osVersion ?? "",
+      u.deviceModel ?? "",
+      u.city ?? "",
+      u.country ?? "",
+      u.timezone ?? "",
+      u.rpcEnabled === true ? "On" : u.rpcEnabled === false ? "Off" : "",
+      u.sessions,
+      u.totalDurationSeconds > 0 ? formatDuration(u.totalDurationSeconds) : "",
+      u.errors,
+      u.firstSeen,
+      u.lastSeen,
+      u.lastEvent ? formatEventName(u.lastEvent) : "",
+    ].map(csvCell).join(","));
+  }
+  return lines.join("\r\n");
+}
+
+function downloadCsv(filename: string, text: string): void {
+  const blob = new Blob(["﻿" + text], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.style.display = "none";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 /* ── users tab helpers ──────────────────────────────────────── */
@@ -276,7 +341,6 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
   // Sessions tab state
   const [sessionQuery, setSessionQuery] = useState("");
   const [expandedSessions, setExpandedSessions] = useState<string[]>([]);
-  const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
   /* ── users derivations (rollup-backed; never the 200-row window) ── */
@@ -424,13 +488,18 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
     setExpandedSessions((curr) => curr.includes(sessionId) ? curr.filter((id) => id !== sessionId) : [...curr, sessionId]);
   }
 
-  async function handleExport() {
-    if (exporting) return;
-    setExporting(true);
+  function handleExport() {
+    if (!users || users.length === 0) {
+      setExportError("No users to export yet — the directory fills as telemetry arrives.");
+      return;
+    }
     setExportError(null);
-    try { await downloadSessionExport(); }
-    catch (err) { setExportError(err instanceof Error ? err.message : "Failed to download."); }
-    finally { setExporting(false); }
+    try {
+      const stamp = new Date().toISOString().slice(0, 19).replaceAll(":", "-");
+      downloadCsv(`rr-users-${stamp}.csv`, buildUserCsv(users));
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : "Failed to export users.");
+    }
   }
 
   return (
@@ -459,11 +528,11 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
             <Button
               size="sm"
               icon={<Download />}
-              onClick={() => void handleExport()}
-              disabled={exporting}
-              title="Download every session ever recorded as a clean .txt log"
+              onClick={handleExport}
+              disabled={!users || users.length === 0}
+              title="Download one row per user (every user ever seen) as a clean CSV"
             >
-              {exporting ? "Preparing…" : "Export Sessions"}
+              Export Users
             </Button>
           </>
         }

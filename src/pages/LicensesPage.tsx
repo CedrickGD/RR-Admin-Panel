@@ -123,16 +123,24 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
     if (!deleteCandidate) return;
     setIsDeleting(true);
     try {
-      const shouldHardDelete = !deleteCandidate.hwid || deleteCandidate.status === "revoked";
-      const url = new URL(API_BASE ? `${API_BASE}/api/admin/licenses/${deleteCandidate.license_key}${shouldHardDelete ? "" : "/revoke"}` : `/api/admin/licenses/${deleteCandidate.license_key}${shouldHardDelete ? "" : "/revoke"}`, window.location.origin);
-      
+      // Always hard-delete: removes the row and instantly cuts access on every bound machine
+      // (the app's next license poll gets "Invalid license key"). Master keys carry a custom
+      // key string, so the path segment MUST be encoded — a raw space / "+" / "/" in the key
+      // breaks the request, which is exactly why master keys were erroring before.
+      const encodedKey = encodeURIComponent(deleteCandidate.license_key);
+      const urlPath = `/api/admin/licenses/${encodedKey}`;
+      const url = new URL(API_BASE ? `${API_BASE}${urlPath}` : urlPath, window.location.origin);
+
       const res = await fetch(url.toString(), {
-        method: shouldHardDelete ? "DELETE" : "POST",
+        method: "DELETE",
         credentials: "include"
       });
-      
-      if (!res.ok) throw new Error("Failed to modify license");
-      
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(`Failed to delete license: ${errData.error || res.statusText}`);
+      }
+
       await fetchLicenses();
     } catch (err) {
       console.error(err);
@@ -284,7 +292,7 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
                       }}
                       onMouseEnter={e => { e.currentTarget.style.background = "var(--danger-subtle)"; }}
                       onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
-                      title={!lic.hwid || lic.status === "revoked" ? "Permanently Delete License" : "Revoke License"}
+                      title="Permanently Delete License"
                     >
                       <Trash2 size={16} />
                     </button>
@@ -454,10 +462,10 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
         open={!!deleteCandidate} 
         onClose={() => setDeleteCandidate(null)}
         kicker="DANGER ZONE"
-        title={!deleteCandidate?.hwid || deleteCandidate?.status === "revoked" ? "Delete License" : "Revoke License"}
-        sub={!deleteCandidate?.hwid || deleteCandidate?.status === "revoked" 
-          ? "This will permanently wipe this license from the database. It cannot be recovered." 
-          : "This license is currently bound to a session. Revoking it will instantly kill their access."}
+        title="Delete License"
+        sub={deleteCandidate?.hwid
+          ? "This permanently wipes the license from the database and instantly kills access on every bound machine. It cannot be recovered."
+          : "This will permanently wipe this license from the database. It cannot be recovered."}
       >
         <div style={{ marginTop: 24, display: "flex", justifyContent: "flex-end", gap: 12 }}>
           <Button variant="ghost" onClick={() => setDeleteCandidate(null)}>Cancel</Button>

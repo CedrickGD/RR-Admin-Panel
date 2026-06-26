@@ -1,5 +1,5 @@
 import { requireDashboardAccess } from "../../../../_lib/admin";
-import { error, json } from "../../../../_lib/http";
+import { decodeKeyParam, error, json } from "../../../../_lib/http";
 import type { RuntimeEnv } from "../../../../_lib/types";
 
 type HandlerContext = {
@@ -18,7 +18,7 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
     const db = context.env.DB;
     if (!db) return error(500, "Database not available");
 
-    const key = context.params.key;
+    const key = decodeKeyParam(context.params.key);
     if (!key) return error(400, "License key is required.");
 
     const license = await db.prepare("SELECT hwid FROM licenses WHERE license_key = ?").bind(key).first();

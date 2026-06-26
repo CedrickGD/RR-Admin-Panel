@@ -5,6 +5,14 @@ export type AppUserRole = "admin" | "viewer";
 export interface D1RunResult {
   success?: boolean;
   error?: string;
+  /** Runtime returns row-change counts here; `changes` is how many rows a write actually touched. */
+  meta?: {
+    changes?: number;
+    last_row_id?: number;
+    rows_read?: number;
+    rows_written?: number;
+    duration?: number;
+  };
 }
 
 export interface D1AllResult<T> {

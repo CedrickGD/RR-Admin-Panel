@@ -84,6 +84,19 @@ export function nowIso(): string {
   return new Date().toISOString();
 }
 
+// Cloudflare Pages hands dynamic route params ([key]) through still URL-encoded, so a master
+// key like "owner license key" arrives as "owner%20license%20key" and never matches the value
+// stored in D1. Decode before querying. decodeURIComponent is a safe no-op for already-decoded
+// values (a literal space stays a space); the try/catch tolerates a stray "%" in a key.
+export function decodeKeyParam(raw: string | undefined | null): string {
+  if (!raw) return "";
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
+
 export function getAccessIdentity(request: Request, env: RuntimeEnv): string | null {
   const emailHeader = request.headers.get("cf-access-authenticated-user-email");
   const jwtHeader = request.headers.get("cf-access-jwt-assertion");

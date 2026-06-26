@@ -13,6 +13,7 @@ import {
   Users as UsersIcon,
 } from "lucide-react";
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
+import * as XLSX from "xlsx";
 import { CollapsiblePanel } from "../components/CollapsiblePanel";
 import { type KpiDrilldown, KpiStatCard } from "../components/KpiStatCard";
 import { type SessionPresence, StatusBadge } from "../components/StatusBadge";
@@ -83,70 +84,61 @@ function discordHandle(value: string): string {
   return `@${value.trim().replace(/^@/, "")}`;
 }
 
-/* ── per-user CSV export ─────────────────────────────────────── */
+/* ── per-user Excel export ───────────────────────────────────── */
 
-/** RFC-4180 cell: quote only when needed, escape embedded quotes. */
-function csvCell(value: unknown): string {
-  const s = value === null || value === undefined ? "" : String(value);
-  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
+const USER_EXPORT_COLUMNS = [
+  "User", "Discord", "Tier", "Version", "Platform", "OS", "Device",
+  "City", "Country", "Timezone", "RPC", "Sessions", "Total Time",
+  "Errors", "First Seen", "Last Seen", "Last Event", "Identity", "HWID",
+] as const;
 
 /**
  * One row per user — the whole rollup (every user ever seen), not a row per
  * session. Defensive dedupe by identity in case the rollup ever ships dupes.
  */
-function buildUserCsv(users: UserRollupRecord[]): string {
+function buildUserRows(users: UserRollupRecord[]): Record<string, string | number>[] {
   const byIdentity = new Map<string, UserRollupRecord>();
   for (const u of users) {
     const key = u.identity.trim().toLowerCase();
     const existing = byIdentity.get(key);
     if (!existing || parseTimestamp(u.lastSeen) > parseTimestamp(existing.lastSeen)) byIdentity.set(key, u);
   }
-  const rows = [...byIdentity.values()].sort((a, b) => parseTimestamp(b.lastSeen) - parseTimestamp(a.lastSeen));
-
-  const header = [
-    "User", "Identity", "HWID", "Discord", "Tier", "Version", "Platform", "OS",
-    "Device", "City", "Country", "Timezone", "RPC", "Sessions", "Total Time",
-    "Errors", "First Seen", "Last Seen", "Last Event",
-  ];
-  const lines = [header.join(",")];
-  for (const u of rows) {
-    lines.push([
-      u.userLabel?.trim() || u.identity,
-      u.identity,
-      u.hwid ?? "",
-      u.discordUser?.trim() ? discordHandle(u.discordUser) : "",
-      u.licenseTier ?? "",
-      u.displayVersion ?? u.appVersion ?? "",
-      u.platform ?? "",
-      u.osVersion ?? "",
-      u.deviceModel ?? "",
-      u.city ?? "",
-      u.country ?? "",
-      u.timezone ?? "",
-      u.rpcEnabled === true ? "On" : u.rpcEnabled === false ? "Off" : "",
-      u.sessions,
-      u.totalDurationSeconds > 0 ? formatDuration(u.totalDurationSeconds) : "",
-      u.errors,
-      u.firstSeen,
-      u.lastSeen,
-      u.lastEvent ? formatEventName(u.lastEvent) : "",
-    ].map(csvCell).join(","));
-  }
-  return lines.join("\r\n");
+  return [...byIdentity.values()]
+    .sort((a, b) => parseTimestamp(b.lastSeen) - parseTimestamp(a.lastSeen))
+    .map((u) => ({
+      User: u.userLabel?.trim() || u.identity,
+      Discord: u.discordUser?.trim() ? discordHandle(u.discordUser) : "",
+      Tier: u.licenseTier ?? "",
+      Version: u.displayVersion ?? u.appVersion ?? "",
+      Platform: u.platform ?? "",
+      OS: u.osVersion ?? "",
+      Device: u.deviceModel ?? "",
+      City: u.city ?? "",
+      Country: u.country ?? "",
+      Timezone: u.timezone ?? "",
+      RPC: u.rpcEnabled === true ? "On" : u.rpcEnabled === false ? "Off" : "",
+      Sessions: u.sessions,
+      "Total Time": u.totalDurationSeconds > 0 ? formatDuration(u.totalDurationSeconds) : "",
+      Errors: u.errors,
+      "First Seen": u.firstSeen ? formatDate(u.firstSeen) : "",
+      "Last Seen": u.lastSeen ? formatDate(u.lastSeen) : "",
+      "Last Event": u.lastEvent ? formatEventName(u.lastEvent) : "",
+      Identity: u.identity,
+      HWID: u.hwid ?? "",
+    }));
 }
 
-function downloadCsv(filename: string, text: string): void {
-  const blob = new Blob(["﻿" + text], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  anchor.style.display = "none";
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+/** Real .xlsx (not CSV) so it opens with clean columns in Excel on any locale. */
+function exportUsersXlsx(users: UserRollupRecord[]): void {
+  const header = [...USER_EXPORT_COLUMNS];
+  const sheet = XLSX.utils.json_to_sheet(buildUserRows(users), { header });
+  sheet["!cols"] = header.map((h) => ({
+    wch: h === "Identity" || h === "HWID" ? 34 : h === "User" || h === "Discord" || h === "City" || h === "Device" ? 18 : 12,
+  }));
+  const book = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(book, sheet, "Users");
+  const stamp = new Date().toISOString().slice(0, 19).replaceAll(":", "-");
+  XLSX.writeFile(book, `rr-users-${stamp}.xlsx`);
 }
 
 /* ── users tab helpers ──────────────────────────────────────── */
@@ -495,8 +487,7 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
     }
     setExportError(null);
     try {
-      const stamp = new Date().toISOString().slice(0, 19).replaceAll(":", "-");
-      downloadCsv(`rr-users-${stamp}.csv`, buildUserCsv(users));
+      exportUsersXlsx(users);
     } catch (err) {
       setExportError(err instanceof Error ? err.message : "Failed to export users.");
     }
@@ -530,7 +521,7 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
               icon={<Download />}
               onClick={handleExport}
               disabled={!users || users.length === 0}
-              title="Download one row per user (every user ever seen) as a clean CSV"
+              title="Download one row per user (every user ever seen) as a clean Excel (.xlsx) sheet"
             >
               Export Users
             </Button>

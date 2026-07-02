@@ -638,146 +638,176 @@ svg * {
 .gdrop-menu { background: hsl(240 30% 11% / 0.97); }
 .kpi-modal { background: hsl(240 30% 10% / 0.97); }
 
-/* ── Sidebar shell (nav back on the left) ───────────────────────── */
-.sidebar {
-  position: fixed;
-  inset: 0 auto 0 0;
-  width: var(--sb-w);
-  z-index: 120;
-  display: flex;
-  flex-direction: column;
+/* ═══════════════════════════════════════════════════════════════
+   TOP NAVBAR — builds on the DS .topnav (css/shell.css). shell.css
+   owns the sticky layout + the glowing accent-tick active state; we
+   own the fill and the phone burger drawer here.
+
+   Transparency: the DS fill is 0.55 alpha *with* a backdrop blur, but
+   blur is killed globally for perf — at 0.55 with no blur the rows
+   scrolling under a sticky bar read straight through it. So we lift
+   the opacity to a "little bit transparent": the liquid aurora still
+   glows through, but scrolling content only ghosts faintly.
+   ═══════════════════════════════════════════════════════════════ */
+.topnav {
   gap: 14px;
-  padding: 18px 12px 16px;
-  background: hsl(240 38% 8% / 0.88);
-  border-right: 1px solid var(--line);
-}
-
-/* Brand lockup — generous, never squeezed */
-.sb-brand {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  padding: 2px 7px 15px;
+  z-index: 120;
+  background: linear-gradient(180deg, hsl(240 42% 8% / 0.86), hsl(240 44% 7% / 0.80));
   border-bottom: 1px solid var(--line);
-}
-.sb-brand-img { width: 34px; height: 34px; object-fit: contain; flex: none; }
-.sb-brand-text { min-width: 0; }
-.sb-brand-name {
-  display: block;
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 1.05rem;
-  letter-spacing: -0.01em;
-  color: var(--text-1);
-  line-height: 1.15;
-  white-space: nowrap;
-}
-.sb-brand-sub {
-  display: block;
-  font-size: var(--fs-micro);
-  font-weight: 600;
-  letter-spacing: var(--track-caps);
-  text-transform: uppercase;
-  color: var(--accent-text);
-  margin-top: 2px;
-  white-space: nowrap;
-}
-.sb-close { display: none; margin-left: auto; }
-
-.sb-nav { display: flex; flex-direction: column; gap: 4px; min-height: 0; overflow-y: auto; }
-.sb-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 12px;
-  border-radius: 11px;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: var(--text-2);
-  text-align: left;
-  transition: background var(--t-med) var(--ease-smooth), color var(--t-med) var(--ease-smooth), transform var(--t-fast) var(--ease-smooth);
-}
-.sb-item svg { opacity: 0.75; flex: none; transition: opacity var(--t-med), color var(--t-med); }
-.sb-item:hover { color: var(--text-1); background: rgba(255, 255, 255, 0.06); }
-.sb-item:hover svg { opacity: 1; }
-.sb-item:active { transform: scale(0.97); }
-.sb-item.active {
-  background: linear-gradient(135deg, hsl(var(--ah) var(--as) var(--al) / 0.24), hsl(calc(var(--ah) + 40) var(--as) var(--al) / 0.10));
-  color: var(--text-1);
-  font-weight: 600;
   box-shadow:
-    inset 0 0 0 1px hsl(var(--ah) var(--as) var(--al) / 0.45),
-    0 0 20px -8px hsl(var(--ah) var(--as) var(--al) / calc(0.6 * var(--glow)));
+    inset 0 1px 0 hsl(0 0% 100% / 0.05),
+    0 12px 32px -24px rgba(0, 0, 0, 0.9);
 }
-.sb-item.active svg { opacity: 1; color: var(--accent); }
 
-.sb-foot {
-  margin-top: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-  padding: 14px 8px 0;
-  border-top: 1px solid var(--line);
+/* Brand is a button (click → Overview) — strip the default chrome. */
+.tn-brand {
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 10px;
+  transition: background var(--t-fast) var(--ease-smooth);
 }
-.sb-meta { font-size: 0.65625rem; color: var(--text-3); font-family: var(--font-mono); }
-.sb-actions { display: flex; gap: 8px; }
+.tn-brand:hover { background: hsl(210 80% 75% / 0.06); }
+.tn-brand-text { display: flex; flex-direction: column; min-width: 0; text-align: left; }
 
-/* Mobile bar + drawer */
-.mobilebar { display: none; }
-.sb-scrim {
+.tn-nav { gap: 3px; }
+.tn-item { border-radius: 10px 10px 0 0; }
+.tn-label { white-space: nowrap; }
+.tn-right { gap: 10px; }
+.tn-burger { flex: none; }
+
+/* ── "Sizes to the page": as the bar tightens it sheds chrome in
+   order — brand tagline, then meta, then inactive tab labels (so only
+   the CURRENT section reads as text; every other section stays one
+   glanceable icon), then the live pill. Nothing wraps or scrolls.
+   Breakpoints are sized to the real chrome: 9 full-label tabs + brand
+   + live pill ≈ 1400px, so labels must collapse well before that. ── */
+@media (max-width: 1580px) {
+  .tn-brand-sub { display: none; }
+}
+@media (max-width: 1520px) {
+  .tn-meta { display: none; }
+}
+@media (max-width: 1440px) {
+  .tn-item:not(.active) .tn-label { display: none; }
+  .tn-item { padding: 0 10px; }
+}
+@media (max-width: 1040px) {
+  .tn-live { display: none; }
+}
+
+/* ── Phone (JS-detected via useIsMobile → .topnav--mobile): burger +
+   brand on one row, full nav lives in a drop-down sheet. ── */
+.topnav.topnav--mobile { flex-wrap: nowrap; gap: 10px; padding-top: 0; }
+.topnav--mobile .tn-brand { margin: 0; }
+.topnav--mobile .tn-brand-sub { display: none; }
+
+.tn-scrim {
   position: fixed;
-  inset: 0;
-  z-index: 110;
-  background: rgba(2, 3, 9, 0.55);
+  inset: var(--nav-h) 0 0;
+  z-index: 115;
+  background: rgba(2, 3, 9, 0.58);
   animation: scrimIn 0.2s ease both;
 }
 @keyframes scrimIn { from { opacity: 0; } to { opacity: 1; } }
 
-/* Content sits right of the sidebar, centered with real side margins */
-.v2-main { margin-left: var(--sb-w); }
+.tn-sheet {
+  position: fixed;
+  top: var(--nav-h);
+  left: 0;
+  right: 0;
+  z-index: 118;
+  max-height: calc(100dvh - var(--nav-h));
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: hsl(240 42% 8% / 0.98);
+  border-bottom: 1px solid var(--line);
+  box-shadow: 0 26px 54px -20px rgba(0, 0, 0, 0.85);
+  animation: sheetIn 0.24s var(--ease-rise) both;
+}
+@keyframes sheetIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: none; } }
+
+.tn-sheet-list { display: flex; flex-direction: column; gap: 3px; }
+.tn-sheet-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: none;
+  background: none;
+  border-radius: 12px;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--text-2);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.tn-sheet-item svg { opacity: 0.8; flex: none; }
+.tn-sheet-item:active { transform: scale(0.99); }
+.tn-sheet-item:hover { background: rgba(255, 255, 255, 0.06); color: var(--text-1); }
+.tn-sheet-item.active {
+  background: linear-gradient(135deg, hsl(var(--ah) var(--as) var(--al) / 0.24), hsl(calc(var(--ah) + 40) var(--as) var(--al) / 0.10));
+  color: var(--text-1);
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px hsl(var(--ah) var(--as) var(--al) / 0.45);
+}
+.tn-sheet-item.active svg { opacity: 1; color: var(--accent); }
+
+.tn-sheet-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 6px 4px;
+  border-top: 1px solid var(--line);
+}
+.tn-sheet-logout {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-start;
+  width: 100%;
+}
+.tn-sheet-logout span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Content spans full width now that the nav is on top, not the side. */
+.v2-main { margin-left: 0; }
 .page-content {
   max-width: 1660px;
   margin: 0 auto;
   padding: 22px var(--page-pad) 56px;
 }
 
+/* shell.css wraps .tn-nav to a second scrollable row below 900px
+   (brand order:1, right order:2, nav order:3); we keep the bar on a
+   single row (desktop icon-collapse) or hand off to the burger sheet
+   (.topnav--mobile), so undo the wrap AND reset all three orders —
+   resetting only the nav would flex-reorder it ahead of the brand. */
 @media (max-width: 900px) {
-  .v2-main { margin-left: 0; }
-  .sidebar {
-    transform: translateX(-102%);
-    transition: transform 0.28s var(--ease-smooth);
-    box-shadow: 0 0 60px rgba(0, 0, 0, 0.6);
+  .topnav { flex-wrap: nowrap; padding-top: 0; }
+  .tn-brand { order: 0; }
+  .tn-right { order: 0; }
+  .tn-nav {
+    order: 0;
+    flex-basis: auto;
+    align-self: stretch;
+    height: auto;
+    margin: 0;
+    padding: 0;
   }
-  .sidebar.open { transform: translateX(0); }
-  .sb-close { display: inline-flex; }
-  .mobilebar {
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px var(--page-pad);
-    background: hsl(240 38% 8% / 0.92);
-    border-bottom: 1px solid var(--line);
-  }
-  .mobilebar-brand {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    margin: 0 auto;
-    font-family: var(--font-display);
-    font-weight: 700;
-    color: var(--text-1);
-  }
-  .mobilebar-logo { width: 24px; height: 24px; }
 }
 
 /* ── Page header: frosts in as you scroll (scroll-driven) ───────── */
 @supports (animation-timeline: scroll()) {
   .page-header {
     position: sticky;
-    top: 0;
+    /* Pin below the sticky topnav (z 120) — at top:0 the frosted
+       header slid underneath the bar and vanished. */
+    top: var(--nav-h);
     z-index: 60;
     padding: 12px 16px;
     margin: -12px -16px 2px;
@@ -911,24 +941,6 @@ svg * {
 /* Header tools: filter pill + refresh side by side in page headers */
 .header-tools { display: flex; align-items: center; gap: 8px; }
 
-/* Sidebar resize handle: thin grab strip on the right edge */
-.sb-resize {
-  position: absolute;
-  top: 0;
-  right: -3px;
-  bottom: 0;
-  width: 7px;
-  cursor: col-resize;
-  touch-action: none;
-}
-.sb-resize:hover,
-.sb-resize:active {
-  background: linear-gradient(90deg, transparent, hsl(var(--ah) var(--as) var(--al) / 0.35), transparent);
-}
-@media (max-width: 900px) {
-  .sb-resize { display: none; }
-}
-
 /* ── Page switch: quick rise so navigation feels alive ──────────── */
 .page-enter { animation: pageIn 0.26s var(--ease-rise) both; }
 @keyframes pageIn {
@@ -962,10 +974,6 @@ svg * {
   stroke: url(#gauge-vivid-ramp) hsl(345 95% 58%);
 }
 .gauge { background: none; border: none; box-shadow: none; }
-
-/* Refresh lives beside the brand now, not buried in the footer */
-.sb-brand-actions { display: flex; align-items: center; gap: 6px; margin-left: auto; }
-
 
 /* ═══════════════════════════════════════════════════════════════
    ROUND-3 FUNCTIONAL FIX NEEDS (from the parallel fixers)

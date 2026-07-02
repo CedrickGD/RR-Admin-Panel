@@ -3,7 +3,6 @@ import {
   BarChart3,
   Clock3,
   History,
-  Key,
   Layers,
   LogOut,
   Map,
@@ -12,10 +11,9 @@ import {
   RefreshCw,
   Settings2,
   X,
-  type LucideIcon,
+  Key,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { useIsMobile } from "../hooks/useIsMobile";
+import { useEffect, useState, type ReactNode } from "react";
 import type { AuthMode, AuthUser, HealthPayload, PageKey, SummaryPayload } from "../types/telemetry";
 import { timeAgo } from "../utils/format";
 
@@ -24,20 +22,20 @@ const brandLogo = new URL("../img/logo.ico", import.meta.url).href;
 interface NavEntry {
   key: PageKey;
   label: string;
-  Icon: LucideIcon;
+  icon: ReactNode;
 }
 
 /** Canonical DS nav mapping — flat, no groups (design-system readme: ICONOGRAPHY). */
 const NAV_ITEMS: NavEntry[] = [
-  { key: "overview", label: "Overview", Icon: BarChart3 },
-  { key: "traffic",  label: "Traffic",  Icon: Clock3 },
-  { key: "versions", label: "Versions", Icon: Layers },
-  { key: "heatmap",  label: "Heatmap",  Icon: Map },
-  { key: "live",     label: "Live",     Icon: Radio },
-  { key: "workers",  label: "Sessions", Icon: History },
-  { key: "logs",     label: "Errors",   Icon: AlertTriangle },
-  { key: "licenses", label: "Licenses", Icon: Key },
-  { key: "settings", label: "Settings", Icon: Settings2 },
+  { key: "overview", label: "Overview", icon: <BarChart3 size={16} /> },
+  { key: "traffic",  label: "Traffic",  icon: <Clock3 size={16} /> },
+  { key: "versions", label: "Versions", icon: <Layers size={16} /> },
+  { key: "heatmap",  label: "Heatmap",  icon: <Map size={16} /> },
+  { key: "live",     label: "Live",     icon: <Radio size={16} /> },
+  { key: "workers",  label: "Sessions", icon: <History size={16} /> },
+  { key: "logs",     label: "Errors",   icon: <AlertTriangle size={16} /> },
+  { key: "settings", label: "Settings", icon: <Settings2 size={16} /> },
+  { key: "licenses", label: "Licenses", icon: <Key size={16} /> },
 ];
 
 export interface NavbarProps {
@@ -53,11 +51,10 @@ export interface NavbarProps {
 }
 
 /**
- * Sticky horizontal top navbar: brand left · icon+label tabs · live status +
- * actions right. Slightly translucent so the aurora bleeds through (no blur —
- * that's disabled globally for perf). It sizes to the viewport: full labels on
- * wide screens, active-only labels when it gets tight, and on a detected phone
- * the tabs collapse behind a burger that opens a full nav drawer.
+ * Frosted left sidebar shell: generous brand lockup on top, vertical nav
+ * with white-pill active state, live-ingest status + actions pinned to the
+ * bottom. Below 900px it becomes an off-canvas drawer behind a slim
+ * frosted mobile bar (hamburger).
  */
 export function Navbar({
   page,
@@ -70,70 +67,52 @@ export function Navbar({
   refreshing = false,
   onLogout,
 }: NavbarProps) {
-  const isMobile = useIsMobile();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const burgerRef = useRef<HTMLButtonElement | null>(null);
-  const sheetRef = useRef<HTMLElement | null>(null);
-  const wasOpen = useRef(false);
   const apiOk = health?.api === "alive";
   const ingestLabel = timeAgo(summary?.stats.lastIngestAt ?? health?.lastIngestAt ?? null);
-  const showLogout = authMode === "app";
+
+  // Restore the persisted sidebar width once on mount.
+  useEffect(() => {
+    try {
+      const stored = Number(localStorage.getItem("rr-sb-w"));
+      if (Number.isFinite(stored) && stored >= 188 && stored <= 330) {
+        document.documentElement.style.setProperty("--sb-w", `${stored}px`);
+      }
+    } catch { /* ignore */ }
+  }, []);
 
   function navigate(key: PageKey) {
     onNavigate(key);
     setDrawerOpen(false);
   }
 
-  // Leaving mobile (rotate to landscape, resize) must not strand an open drawer.
-  useEffect(() => {
-    if (!isMobile) setDrawerOpen(false);
-  }, [isMobile]);
+  /* Drag the sidebar's right edge to resize (persisted); double-click resets. */
+  function startResize(event: React.PointerEvent<HTMLDivElement>) {
+    event.preventDefault();
+    const root = document.documentElement;
+    const startX = event.clientX;
+    const startWidth = parseInt(getComputedStyle(root).getPropertyValue("--sb-w"), 10) || 236;
 
-  // While the drawer is open: lock body scroll, close on Escape, and keep
-  // Tab cycling inside the sheet (the scrim'd content behind is inert).
-  useEffect(() => {
-    if (!drawerOpen) return;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setDrawerOpen(false);
-        return;
-      }
-      if (event.key !== "Tab") return;
-      const sheet = sheetRef.current;
-      if (!sheet) return;
-      const focusables = Array.from(sheet.querySelectorAll<HTMLElement>("button"));
-      if (focusables.length === 0) return;
-      const first = focusables[0];
-      const last = focusables[focusables.length - 1];
-      const active = document.activeElement;
-      if (event.shiftKey && (active === first || !sheet.contains(active))) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && (active === last || !sheet.contains(active))) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = prevOverflow;
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [drawerOpen]);
-
-  // Focus follows the drawer: into the sheet when it opens, back to the
-  // burger when it closes — otherwise closing strands focus on <body>.
-  useEffect(() => {
-    if (drawerOpen) {
-      wasOpen.current = true;
-      sheetRef.current?.querySelector<HTMLElement>(".tn-sheet-item")?.focus();
-    } else if (wasOpen.current) {
-      wasOpen.current = false;
-      burgerRef.current?.focus();
+    function onMove(move: PointerEvent) {
+      const width = Math.max(188, Math.min(330, startWidth + (move.clientX - startX)));
+      root.style.setProperty("--sb-w", `${width}px`);
     }
-  }, [drawerOpen]);
+    function onUp() {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      const final = parseInt(getComputedStyle(root).getPropertyValue("--sb-w"), 10);
+      if (Number.isFinite(final)) {
+        try { localStorage.setItem("rr-sb-w", String(final)); } catch { /* ignore */ }
+      }
+    }
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }
+
+  function resetResize() {
+    document.documentElement.style.setProperty("--sb-w", "236px");
+    try { localStorage.removeItem("rr-sb-w"); } catch { /* ignore */ }
+  }
 
   const refreshButton = (
     <button
@@ -148,64 +127,77 @@ export function Navbar({
     </button>
   );
 
-  const liveStatus = (
-    <div className={`tn-live${apiOk ? "" : " offline"}`} title={`API ${apiOk ? "online" : "offline"}`}>
-      <span className="tn-live-dot" />
-      {apiOk ? "Ingest online" : "Ingest offline"}
-    </div>
-  );
-
   return (
     <>
-      <header className={`topnav${isMobile ? " topnav--mobile" : ""}`}>
-        {isMobile ? (
-          <button
-            ref={burgerRef}
-            type="button"
-            className="btn-icon tn-burger"
-            onClick={() => setDrawerOpen((open) => !open)}
-            aria-label={drawerOpen ? "Close navigation" : "Open navigation"}
-            aria-expanded={drawerOpen}
-            // Only reference the sheet while it exists — a dangling IDREF
-            // when closed is an ARIA violation (the sheet mounts on open).
-            aria-controls={drawerOpen ? "tn-mobile-sheet" : undefined}
-          >
-            {drawerOpen ? <X size={18} /> : <Menu size={18} />}
-          </button>
-        ) : null}
-
-        <button type="button" className="tn-brand" onClick={() => navigate("overview")} title="RazorReaper — Overview">
-          <img src={brandLogo} alt="" className="tn-brand-img" />
-          <span className="tn-brand-text">
-            <span className="tn-brand-name">RazorReaper</span>
-            <span className="tn-brand-sub">Operations Console</span>
-          </span>
+      {/* Slim frosted bar — mobile only (≤900px) */}
+      <header className="mobilebar">
+        <button
+          type="button"
+          className="btn-icon"
+          onClick={() => setDrawerOpen(true)}
+          aria-label="Open navigation"
+        >
+          <Menu size={17} />
         </button>
+        <div className="mobilebar-brand">
+          <img src={brandLogo} alt="" className="mobilebar-logo" />
+          <span>RazorReaper</span>
+        </div>
+        {refreshButton}
+      </header>
 
-        {!isMobile ? (
-          <nav className="tn-nav" aria-label="Primary">
-            {NAV_ITEMS.map(({ key, label, Icon }) => (
-              <button
-                key={key}
-                type="button"
-                className={`tn-item${page === key ? " active" : ""}`}
-                onClick={() => navigate(key)}
-                aria-current={page === key ? "page" : undefined}
-                title={label}
-              >
-                <Icon size={17} />
-                <span className="tn-label">{label}</span>
-              </button>
-            ))}
-          </nav>
-        ) : null}
+      {drawerOpen ? <div className="sb-scrim" onClick={() => setDrawerOpen(false)} aria-hidden /> : null}
 
-        <div className="tn-right">
-          {!isMobile ? liveStatus : null}
-          {!isMobile ? <div className="tn-meta" title="Last ingest">ingest · {ingestLabel}</div> : null}
-          <div className="tn-actions">
-            {refreshButton}
-            {!isMobile && showLogout ? (
+      <aside className={`sidebar${drawerOpen ? " open" : ""}`} aria-label="Primary">
+        <div className="sb-brand">
+          <img src={brandLogo} alt="RazorReaper logo" className="sb-brand-img" />
+          <div className="sb-brand-text">
+            <span className="sb-brand-name">RazorReaper</span>
+            <span className="sb-brand-sub">Operations Console</span>
+          </div>
+          <button
+            type="button"
+            className="btn-icon sb-close"
+            onClick={() => setDrawerOpen(false)}
+            aria-label="Close navigation"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <nav className="sb-nav" aria-label="Primary">
+          {NAV_ITEMS.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              className={`sb-item${page === item.key ? " active" : ""}`}
+              onClick={() => navigate(item.key)}
+              aria-current={page === item.key ? "page" : undefined}
+            >
+              {item.icon}
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </nav>
+
+        <div className="sb-foot">
+          <div className={`tn-live${apiOk ? "" : " offline"}`} title={`API ${apiOk ? "online" : "offline"}`}>
+            <span className="tn-live-dot" />
+            {apiOk ? "Ingest online" : "Ingest offline"}
+          </div>
+          <div className="sb-meta" title="Last ingest">ingest · {ingestLabel}</div>
+          <div className="sb-actions">
+            <button
+              type="button"
+              className="btn-icon"
+              onClick={onRefresh}
+              disabled={refreshing}
+              aria-label="Refresh data"
+              title={refreshing ? "Syncing" : "Refresh data"}
+            >
+              <RefreshCw size={16} className={refreshing ? "animate-spin" : undefined} />
+            </button>
+            {authMode === "app" ? (
               <button
                 type="button"
                 className="btn-icon"
@@ -218,39 +210,15 @@ export function Navbar({
             ) : null}
           </div>
         </div>
-      </header>
 
-      {isMobile && drawerOpen ? (
-        <>
-          <div className="tn-scrim" onClick={() => setDrawerOpen(false)} aria-hidden />
-          <nav id="tn-mobile-sheet" ref={sheetRef} className="tn-sheet" aria-label="Primary">
-            <div className="tn-sheet-list">
-              {NAV_ITEMS.map(({ key, label, Icon }) => (
-                <button
-                  key={key}
-                  type="button"
-                  className={`tn-sheet-item${page === key ? " active" : ""}`}
-                  onClick={() => navigate(key)}
-                  aria-current={page === key ? "page" : undefined}
-                >
-                  <Icon size={18} />
-                  <span>{label}</span>
-                </button>
-              ))}
-            </div>
-            <div className="tn-sheet-foot">
-              {liveStatus}
-              <div className="tn-meta" title="Last ingest">ingest · {ingestLabel}</div>
-              {showLogout ? (
-                <button type="button" className="btn btn-ghost tn-sheet-logout" onClick={onLogout}>
-                  <LogOut size={16} />
-                  <span>Sign out · {user.email}</span>
-                </button>
-              ) : null}
-            </div>
-          </nav>
-        </>
-      ) : null}
+        <div
+          className="sb-resize"
+          onPointerDown={startResize}
+          onDoubleClick={resetResize}
+          title="Drag to resize · double-click to reset"
+          aria-hidden
+        />
+      </aside>
     </>
   );
 }

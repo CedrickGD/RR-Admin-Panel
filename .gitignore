@@ -52,3 +52,6 @@ obj/
 
 # Misc session artifacts
 chat-session-*.md
+
+# Claude Code local (per-machine) settings
+.claude/settings.local.json

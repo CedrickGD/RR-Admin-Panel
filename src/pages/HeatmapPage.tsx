@@ -479,7 +479,6 @@ export function HeatmapPage({
           </div>
           <div className="panel-body-flush heatmap-map-container">
             <WorldHeatmap
-              marketPoints={markets}
               sessionPoints={mapDots}
               theme={theme}
               onOpenSession={onOpenSession}

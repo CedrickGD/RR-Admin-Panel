@@ -610,6 +610,14 @@ html::after {
   100% { transform: translate3d(4%, -5%, 0)  rotate(10deg)  scale(1.12); }
 }
 
+/* While the heatmap is panning/zooming (WorldHeatmap toggles .map-moving on
+   <html>) the liquid pauses: both it and the map canvas repaint every frame,
+   and together they saturate GPU fill rate and stutter the drag. */
+html.map-moving::before,
+html.map-moving::after {
+  animation-play-state: paused;
+}
+
 /* ── Perf: NO backdrop-filter, anywhere, ever ────────────────────
    The background animates every frame; any backdrop-filtered
    surface re-blurs its backdrop every frame. index.css + the DS css

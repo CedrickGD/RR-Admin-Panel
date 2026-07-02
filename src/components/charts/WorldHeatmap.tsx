@@ -7,24 +7,15 @@ import maplibregl, {
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FeatureCollection, LineString, Point } from "geojson";
 import type { ThemeMode } from "../../types/telemetry";
-import type {
-  HeatmapPoint,
-  HeatmapSessionPoint,
-} from "../../utils/dashboardInsights";
+import type { HeatmapSessionPoint } from "../../utils/dashboardInsights";
 import { formatAccuracy, formatGeoSource, formatNumber } from "../../utils/format";
 
 interface WorldHeatmapProps {
-  marketPoints: HeatmapPoint[];
   sessionPoints: HeatmapSessionPoint[];
   theme: ThemeMode;
   onOpenSession: (sessionId: string) => void;
   focusedSessionId?: string | null;
   focusedSessionToken?: number;
-}
-
-interface MarketMapPoint extends HeatmapPoint {
-  key: string;
-  coordinates: [number, number];
 }
 
 interface SessionMapPoint extends HeatmapSessionPoint {
@@ -131,20 +122,6 @@ const PRIMARY_LABEL_LAYERS = new Set([
   "label_city_capital",
 ]);
 
-function buildMarketPoints(points: HeatmapPoint[]): MarketMapPoint[] {
-  return points
-    .filter(
-      (point) =>
-        Number.isFinite(point.longitude ?? Number.NaN) &&
-        Number.isFinite(point.latitude ?? Number.NaN),
-    )
-    .map((point) => ({
-      ...point,
-      key: point.code ?? point.label,
-      coordinates: [Number(point.longitude), Number(point.latitude)],
-    }));
-}
-
 function buildSessionPoints(points: HeatmapSessionPoint[]): SessionMapPoint[] {
   return points
     .filter(
@@ -158,106 +135,123 @@ function buildSessionPoints(points: HeatmapSessionPoint[]): SessionMapPoint[] {
     }));
 }
 
-interface MarketCentroid {
-  key: string;
-  coordinates: [number, number];
-  value: number;
-}
-
-function buildMarketCentroids(
-  marketPoints: MarketMapPoint[],
-  sessionPoints: SessionMapPoint[],
-): MarketCentroid[] {
-  const grouped = new globalThis.Map<string, [number, number][]>();
-
-  for (const sp of sessionPoints) {
-    const key = sp.marketKey;
-    const arr = grouped.get(key) ?? [];
-    arr.push(sp.coordinates);
-    grouped.set(key, arr);
+/** Connect every rendered dot into one constellation: a minimum spanning tree
+ *  over the dots themselves — so every dot joins the network and every string
+ *  starts and ends exactly on a dot — plus each dot's nearest neighbour for
+ *  local webbing. Distances are equirectangular-corrected so pairings stay
+ *  sane at high latitudes; antimeridian-crossing edges unwrap longitude so the
+ *  string takes the short way round instead of sweeping the whole map. */
+export function buildConnections(sessionPoints: SessionMapPoint[]): FeatureCollection<LineString> {
+  const n = sessionPoints.length;
+  if (n < 2) {
+    return { type: "FeatureCollection", features: [] };
   }
 
-  return marketPoints.map((mp) => {
-    const coords = grouped.get(mp.key);
-    if (coords && coords.length > 0) {
-      const lng = coords.reduce((s, c) => s + c[0], 0) / coords.length;
-      const lat = coords.reduce((s, c) => s + c[1], 0) / coords.length;
-      return { key: mp.key, coordinates: [lng, lat] as [number, number], value: mp.value };
+  const lng = new Float64Array(n);
+  const lat = new Float64Array(n);
+  const cosLat = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    lng[i] = sessionPoints[i].coordinates[0];
+    lat[i] = sessionPoints[i].coordinates[1];
+    cosLat[i] = Math.cos((lat[i] * Math.PI) / 180);
+  }
+
+  // Distance in degree units with the longitude leg wrapped to the short way.
+  const dist = (a: number, b: number): number => {
+    let dLng = lng[b] - lng[a];
+    if (dLng > 180) dLng -= 360;
+    else if (dLng < -180) dLng += 360;
+    dLng *= (cosLat[a] + cosLat[b]) / 2;
+    return Math.hypot(dLng, lat[b] - lat[a]);
+  };
+
+  // Prim's MST, O(n²): guarantees one connected network over all dots. The
+  // sweep evaluates every unordered pair exactly once (each pair is measured
+  // when its first endpoint joins the tree), so exact nearest-neighbour
+  // tracking rides along for free instead of needing a second O(n²) pass.
+  const inTree = new Uint8Array(n);
+  const bestDist = new Float64Array(n);
+  const bestFrom = new Int32Array(n);
+  const nearestDist = new Float64Array(n).fill(Number.POSITIVE_INFINITY);
+  const nearestOf = new Int32Array(n).fill(-1);
+  const edges: Array<[number, number, number]> = [];
+
+  const noteNearest = (a: number, b: number, d: number) => {
+    if (d < nearestDist[a]) {
+      nearestDist[a] = d;
+      nearestOf[a] = b;
     }
-    return { key: mp.key, coordinates: mp.coordinates, value: mp.value };
-  });
-}
-
-function buildConnections(
-  marketPoints: MarketMapPoint[],
-  sessionPoints: SessionMapPoint[],
-): FeatureCollection<LineString> {
-  const centroids = buildMarketCentroids(marketPoints, sessionPoints);
-  const edges = new globalThis.Map<
-    string,
-    { coordinates: [[number, number], [number, number]]; weight: number }
-  >();
-  const hubs = [...centroids].sort((left, right) => right.value - left.value).slice(0, 8);
-
-  const addEdge = (from: MarketCentroid, to: MarketCentroid, weight: number) => {
-    const key = from.key < to.key ? `${from.key}:${to.key}` : `${to.key}:${from.key}`;
-    const current = edges.get(key);
-
-    if (!current || current.weight < weight) {
-      edges.set(key, {
-        coordinates: [from.coordinates, to.coordinates],
-        weight,
-      });
+    if (d < nearestDist[b]) {
+      nearestDist[b] = d;
+      nearestOf[b] = a;
     }
   };
 
-  for (const point of centroids) {
-    const neighbors = centroids
-      .filter((candidate) => candidate !== point)
-      .map((candidate) => ({
-        candidate,
-        distance: Math.hypot(
-          candidate.coordinates[0] - point.coordinates[0],
-          candidate.coordinates[1] - point.coordinates[1],
-        ),
-      }))
-      .sort((left, right) => left.distance - right.distance)
-      .slice(0, 2);
-
-    for (const neighbor of neighbors) {
-      if (neighbor.distance <= 42) {
-        addEdge(point, neighbor.candidate, 1 - (neighbor.distance / 42));
+  inTree[0] = 1;
+  for (let i = 1; i < n; i++) {
+    const d = dist(0, i);
+    bestDist[i] = d;
+    noteNearest(0, i, d);
+  }
+  for (let added = 1; added < n; added++) {
+    let next = -1;
+    let nextDist = Number.POSITIVE_INFINITY;
+    for (let i = 0; i < n; i++) {
+      if (!inTree[i] && bestDist[i] < nextDist) {
+        next = i;
+        nextDist = bestDist[i];
+      }
+    }
+    if (next === -1) break;
+    inTree[next] = 1;
+    edges.push([bestFrom[next], next, nextDist]);
+    for (let i = 0; i < n; i++) {
+      if (!inTree[i]) {
+        const d = dist(next, i);
+        noteNearest(next, i, d);
+        if (d < bestDist[i]) {
+          bestDist[i] = d;
+          bestFrom[i] = next;
+        }
       }
     }
   }
 
-  if (hubs.length > 1) {
-    const anchor = hubs[0];
-
-    for (const hub of hubs.slice(1)) {
-      const distance = Math.hypot(
-        hub.coordinates[0] - anchor.coordinates[0],
-        hub.coordinates[1] - anchor.coordinates[1],
-      );
-
-      if (distance <= 140) {
-        addEdge(anchor, hub, 1 - (distance / 140));
-      }
+  // Local webbing: each dot also links to its nearest neighbour when the
+  // tree didn't already give it that edge.
+  const edgeKeys = new Set(edges.map(([a, b]) => (a < b ? a * n + b : b * n + a)));
+  for (let i = 0; i < n; i++) {
+    const j = nearestOf[i];
+    if (j === -1 || nearestDist[i] === 0) continue;
+    const key = i < j ? i * n + j : j * n + i;
+    if (!edgeKeys.has(key)) {
+      edgeKeys.add(key);
+      edges.push([i, j, nearestDist[i]]);
     }
   }
 
+  // Short hops render bright and wide; ocean-crossing links stay faint but
+  // present. Zero-length edges (stacked dots) are connectivity-only — skip.
   return {
     type: "FeatureCollection",
-    features: Array.from(edges.values()).map((edge) => ({
-      type: "Feature",
-      properties: {
-        weight: edge.weight,
-      },
-      geometry: {
-        type: "LineString",
-        coordinates: edge.coordinates,
-      },
-    })),
+    features: edges
+      .filter(([, , d]) => d > 0)
+      .map(([a, b, d]) => {
+        let endLng = lng[b];
+        if (endLng - lng[a] > 180) endLng -= 360;
+        else if (endLng - lng[a] < -180) endLng += 360;
+        return {
+          type: "Feature" as const,
+          properties: { weight: Math.max(0.05, 1 - d / 40) },
+          geometry: {
+            type: "LineString" as const,
+            coordinates: [
+              [lng[a], lat[a]],
+              [endLng, lat[b]],
+            ],
+          },
+        };
+      }),
   };
 }
 
@@ -816,7 +810,6 @@ function ensureConnections(
 }
 
 export function WorldHeatmap({
-  marketPoints,
   sessionPoints,
   theme,
   onOpenSession,
@@ -838,9 +831,8 @@ export function WorldHeatmap({
   const [mapStyle, setMapStyle] = useState<MapStyleMode>(readSavedMapStyle);
   const mapStyleRef = useRef(mapStyle);
   const savedPaintsRef = useRef<Map<string, Record<string, unknown>> | null>(null);
-  const marketMarkerPoints = useMemo(() => buildMarketPoints(marketPoints), [marketPoints]);
   const sessionMarkerPoints = useMemo(() => buildSessionPoints(sessionPoints), [sessionPoints]);
-  const connections = useMemo(() => buildConnections(marketMarkerPoints, sessionMarkerPoints), [marketMarkerPoints, sessionMarkerPoints]);
+  const connections = useMemo(() => buildConnections(sessionMarkerPoints), [sessionMarkerPoints]);
   const connectionsRef = useRef(connections);
   const sessionDots = useMemo(() => buildSessionDotsCollection(sessionMarkerPoints), [sessionMarkerPoints]);
   const sessionDotsRef = useRef(sessionDots);
@@ -900,6 +892,11 @@ export function WorldHeatmap({
       pitchWithRotate: false,
       cooperativeGestures: false,
       renderWorldCopies: true,
+      // High-DPI screens multiply the pixels the GL context pushes per frame
+      // (2x DPR = 4x fill cost on a near-viewport-sized canvas). Capping at
+      // 1.5 keeps pans smooth for a barely perceptible softness on this
+      // dark, low-detail style.
+      pixelRatio: Math.min(window.devicePixelRatio || 1, 1.5),
     });
 
     mapRef.current = map;
@@ -970,7 +967,33 @@ export function WorldHeatmap({
       map.getCanvas().style.cursor = "";
     });
 
+    // The liquid aurora repaints every frame and competes with the canvas for
+    // GPU fill rate — pause it while the map is actually in motion (app-glue
+    // styles html.map-moving). movestart/moveend cover drags, wheel zooms and
+    // programmatic easeTo/fitBounds flights alike.
+    const setMoving = (moving: boolean) => {
+      document.documentElement.classList.toggle("map-moving", moving);
+    };
+    map.on("movestart", () => setMoving(true));
+    map.on("moveend", () => setMoving(false));
+
+    // An explicit pixelRatio option freezes maplibre's own DPR tracking, so
+    // re-clamp whenever the window lands on a screen with a different DPR.
+    let dprMedia: MediaQueryList | null = null;
+    const onDprChange = () => {
+      map.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+      watchDpr();
+    };
+    const watchDpr = () => {
+      dprMedia?.removeEventListener("change", onDprChange);
+      dprMedia = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+      dprMedia.addEventListener("change", onDprChange);
+    };
+    watchDpr();
+
     return () => {
+      dprMedia?.removeEventListener("change", onDprChange);
+      setMoving(false);
       popupRef.current?.remove();
       popupRef.current = null;
       map.remove();

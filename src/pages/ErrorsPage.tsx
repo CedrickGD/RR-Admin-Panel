@@ -56,6 +56,9 @@ const KIND_LABELS: Record<string, string> = {
 interface VisibleGroup extends ErrorUserGroup {
   visibleEvents: ErrorEventDetail[];
   visibleCount: number;
+  /** First/last error under the current background toggle (events ship newest-first). */
+  firstAt: string;
+  lastAt: string;
 }
 
 interface FailureGroup {
@@ -121,9 +124,9 @@ function sortValue(group: VisibleGroup, key: SortKey): number {
     case "errors":
       return group.visibleCount;
     case "firstError":
-      return parseTimestamp(group.firstErrorAt);
+      return parseTimestamp(group.firstAt);
     case "lastError":
-      return parseTimestamp(group.lastErrorAt);
+      return parseTimestamp(group.lastAt);
   }
 }
 
@@ -243,10 +246,14 @@ export function ErrorsPage() {
 
   const { data, loading, error, refresh } = useAdminErrors(true, range);
 
+  // A payload for a different range is stale, not current — render skeletons
+  // instead of last range's numbers under this range's labels.
+  const current = data && data.range === range ? data : null;
+
   /* ── background-toggle-aware groups (pre-search) ──────────── */
   const visibleGroups = useMemo<VisibleGroup[] | null>(() => {
-    if (!data) return null;
-    return data.users
+    if (!current) return null;
+    return current.users
       .map((group) => {
         const visibleEvents = showBackground
           ? group.events
@@ -255,10 +262,17 @@ export function ErrorsPage() {
           ...group,
           visibleEvents,
           visibleCount: showBackground ? group.errorCount + group.backgroundCount : group.errorCount,
+          // Events ship newest-first; the newest visible one is exact. The oldest is
+          // only exact when nothing was capped away — otherwise keep the server bound.
+          lastAt: visibleEvents[0]?.timestamp ?? group.lastErrorAt,
+          firstAt:
+            !group.truncated && visibleEvents.length > 0
+              ? visibleEvents[visibleEvents.length - 1].timestamp
+              : group.firstErrorAt,
         };
       })
       .filter((group) => group.visibleCount > 0);
-  }, [data, showBackground]);
+  }, [current, showBackground]);
 
   /* ── searched + sorted rows for the users table ───────────── */
   const rows = useMemo(() => {
@@ -289,11 +303,13 @@ export function ErrorsPage() {
     return [...filtered].sort((a, b) => (sortValue(a, sortKey) - sortValue(b, sortKey)) * factor);
   }, [visibleGroups, query, sortKey, sortDir]);
 
-  /* ── failure-centric grouping (same visibility + search) ──── */
+  /* ── failure-centric grouping (grouped first, THEN searched, so a query
+        matches the failure itself or a hit user — never a user's unrelated
+        errors dragged along) ─────────────────────────────────── */
   const failures = useMemo<FailureGroup[] | null>(() => {
-    if (!rows) return null;
+    if (!visibleGroups) return null;
     const map = new Map<string, FailureGroup>();
-    for (const user of rows) {
+    for (const user of visibleGroups) {
       for (const event of user.visibleEvents) {
         const key = `${event.type ?? "unknown"}::${event.message ?? ""}`;
         const existing = map.get(key);
@@ -317,28 +333,37 @@ export function ErrorsPage() {
         }
       }
     }
-    const groups = [...map.values()];
+    const q = query.trim().toLowerCase();
+    const groups = [...map.values()].filter((group) => {
+      if (!q) return true;
+      if ([group.type, group.message, group.code ?? ""].join(" ").toLowerCase().includes(q)) return true;
+      return group.occurrences.some(({ user }) =>
+        [user.userLabel ?? "", user.identity, user.discordUser ?? ""].join(" ").toLowerCase().includes(q)
+      );
+    });
     for (const group of groups) {
       group.occurrences.sort((a, b) => parseTimestamp(b.event.timestamp) - parseTimestamp(a.event.timestamp));
     }
     return groups.sort((a, b) => parseTimestamp(b.latest.timestamp) - parseTimestamp(a.latest.timestamp));
-  }, [rows]);
+  }, [visibleGroups, query]);
 
   /* ── KPI values (respect the background toggle, not search) ── */
   const kpis = useMemo(() => {
-    if (!data || !visibleGroups) return null;
-    const errorsInRange = showBackground ? data.totals.errors + data.totals.backgroundErrors : data.totals.errors;
+    if (!current || !visibleGroups) return null;
+    const errorsInRange = showBackground
+      ? current.totals.errors + current.totals.backgroundErrors
+      : current.totals.errors;
     let lastErrorAt: string | null = null;
     for (const group of visibleGroups) {
-      if (lastErrorAt === null || parseTimestamp(group.lastErrorAt) > parseTimestamp(lastErrorAt)) {
-        lastErrorAt = group.lastErrorAt;
+      if (lastErrorAt === null || parseTimestamp(group.lastAt) > parseTimestamp(lastErrorAt)) {
+        lastErrorAt = group.lastAt;
       }
     }
     return { errorsInRange, affectedUsers: visibleGroups.length, lastErrorAt };
-  }, [data, visibleGroups, showBackground]);
+  }, [current, visibleGroups, showBackground]);
 
   const rangeTitle = RANGES.find((r) => r.key === range)?.title ?? "Selected range";
-  const backgroundTotal = data?.totals.backgroundErrors ?? 0;
+  const backgroundTotal = current?.totals.backgroundErrors ?? 0;
 
   /* ── interactions ─────────────────────────────────────────── */
   function handleSort(key: SortKey) {
@@ -447,16 +472,24 @@ export function ErrorsPage() {
         />
       </div>
 
-      {error && !data ? (
+      {error ? (
         <div className="inline-danger-note" role="alert" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ flex: 1 }}>{error}</span>
+          <span style={{ flex: 1 }}>
+            {error}
+            {current ? " Showing the last loaded data." : ""}
+          </span>
           <Button size="sm" onClick={refresh}>Retry</Button>
         </div>
       ) : null}
 
-      {data?.scanTruncated ? (
+      {current?.scanTruncated ? (
         <p style={{ fontSize: "0.75rem", color: "var(--text-3)", margin: "-8px 0 0" }}>
           Heavy range — only the most recent error events are included; narrow the timespan for full coverage.
+        </p>
+      ) : null}
+      {current?.usersTruncated ? (
+        <p style={{ fontSize: "0.75rem", color: "var(--text-3)", margin: "-8px 0 0" }}>
+          Showing the most recently affected users — totals still count everyone; narrow the timespan to see the rest.
         </p>
       ) : null}
 
@@ -588,13 +621,13 @@ export function ErrorsPage() {
                                 <span className="muted">—</span>
                               )}
                             </td>
-                            <td className="muted" style={{ whiteSpace: "nowrap" }} title={formatDate(user.firstErrorAt)}>
-                              {timeAgo(user.firstErrorAt)}
+                            <td className="muted" style={{ whiteSpace: "nowrap" }} title={formatDate(user.firstAt)}>
+                              {timeAgo(user.firstAt)}
                             </td>
-                            <td className="muted" style={{ whiteSpace: "nowrap" }} title={formatDate(user.lastErrorAt)}>
+                            <td className="muted" style={{ whiteSpace: "nowrap" }} title={formatDate(user.lastAt)}>
                               <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                                 {user.isActive ? <span className="status-dot pulse" title="User is online right now" /> : null}
-                                {timeAgo(user.lastErrorAt)}
+                                {timeAgo(user.lastAt)}
                               </span>
                             </td>
                             <td>
@@ -624,8 +657,8 @@ export function ErrorsPage() {
                                         { k: "App Version", v: user.displayVersion ?? user.appVersion ?? "—" },
                                         { k: "Last Seen", v: user.lastSeen ? formatDate(user.lastSeen) : "—" },
                                         { k: "Errors in Range", v: `${formatNumber(user.errorCount)} real · ${formatNumber(user.backgroundCount)} background` },
-                                        { k: "First Error", v: formatDate(user.firstErrorAt) },
-                                        { k: "Last Error", v: formatDate(user.lastErrorAt) },
+                                        { k: "First Error", v: formatDate(user.firstAt) },
+                                        { k: "Last Error", v: formatDate(user.lastAt) },
                                       ]}
                                     />
                                   </div>
@@ -675,7 +708,13 @@ export function ErrorsPage() {
         ) : failures === null || failures.length > 0 ? (
           <div className="error-group-list">
             {failures === null
-              ? null
+              ? Array.from({ length: 4 }, (_, i) => (
+                  <div key={`skeleton-${i}`} style={{ padding: "12px 16px", display: "flex", gap: 10, alignItems: "center" }}>
+                    <div className="skeleton" style={{ height: 12, width: 160 }} />
+                    <div className="skeleton" style={{ height: 12, flex: 1, maxWidth: 420 }} />
+                    <div className="skeleton" style={{ height: 12, width: 60 }} />
+                  </div>
+                ))
               : failures.map((failure) => {
                   const isOpen = expandedFailures.includes(failure.key);
                   const shown = failure.occurrences.slice(0, FAILURE_OCCURRENCES_SHOWN);

@@ -274,6 +274,8 @@ export interface ErrorsPayload {
   cutoff: string | null;
   /** True when the range held more error events than one scan reads (oldest are missing). */
   scanTruncated: boolean;
+  /** True when more users had errors than one response ships (totals still cover everyone). */
+  usersTruncated: boolean;
   totals: {
     errors: number;
     backgroundErrors: number;

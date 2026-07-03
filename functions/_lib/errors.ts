@@ -7,6 +7,14 @@ const BACKGROUND_KIND = "background";
 // One request scans at most this many error rows, newest first — bounds the
 // payload while still covering months of realistic error volume.
 const EVENT_SCAN_LIMIT = 4000;
+// The ingest key ships inside the client binary, so ts is attacker-influencable:
+// far-future timestamps would sort first forever (retention only prunes ts < cutoff)
+// and permanently occupy the newest-first scan window. Tolerate honest clock skew,
+// exclude the rest.
+const FUTURE_SKEW_TOLERANCE_MS = 48 * 60 * 60 * 1000;
+// Same threat, other axis: unique fabricated hwids mint one group per event and
+// dodge the per-user caps — cap how many user groups one response ships.
+const MAX_USER_GROUPS = 500;
 // Per-user caps keep one noisy install from flooding the payload. Real and
 // background errors are capped separately so a burst of background noise can
 // never crowd the real failures out of the detail list.
@@ -143,25 +151,26 @@ export async function loadErrorsByUser(env: RuntimeEnv, range: ErrorsRange): Pro
 
   await ensureTelemetrySchema(db);
 
+  const futureBoundIso = new Date(Date.now() + FUTURE_SKEW_TOLERANCE_MS).toISOString();
   const eventsStatement = range.cutoffIso
     ? db
         .prepare(
           `SELECT event_id, source, ts, metrics_json, message, received_at
            FROM telemetry_events
-           WHERE service = ? AND ts >= ?
+           WHERE service = ? AND ts >= ? AND ts <= ?
            ORDER BY ts DESC
            LIMIT ?`
         )
-        .bind(APP_ERROR, range.cutoffIso, EVENT_SCAN_LIMIT + 1)
+        .bind(APP_ERROR, range.cutoffIso, futureBoundIso, EVENT_SCAN_LIMIT + 1)
     : db
         .prepare(
           `SELECT event_id, source, ts, metrics_json, message, received_at
            FROM telemetry_events
-           WHERE service = ?
+           WHERE service = ? AND ts <= ?
            ORDER BY ts DESC
            LIMIT ?`
         )
-        .bind(APP_ERROR, EVENT_SCAN_LIMIT + 1);
+        .bind(APP_ERROR, futureBoundIso, EVENT_SCAN_LIMIT + 1);
 
   const [eventRows, sessionRows, licenseRows] = await Promise.all([
     eventsStatement.all<ErrorEventRow>(),
@@ -283,7 +292,7 @@ export async function loadErrorsByUser(env: RuntimeEnv, range: ErrorsRange): Pro
     }
   }
 
-  const users: ErrorUserGroup[] = [...working.values()]
+  const allUsers: ErrorUserGroup[] = [...working.values()]
     .map((group) => {
       const context = byIdentity.get(group.identity) ?? null;
       const row = context?.row ?? null;
@@ -321,11 +330,15 @@ export async function loadErrorsByUser(env: RuntimeEnv, range: ErrorsRange): Pro
     })
     .sort((left, right) => Date.parse(right.lastErrorAt) - Date.parse(left.lastErrorAt));
 
+  const usersTruncated = allUsers.length > MAX_USER_GROUPS;
+  const users = usersTruncated ? allUsers.slice(0, MAX_USER_GROUPS) : allUsers;
+
+  // Totals cover the full scan, not just the groups that ship.
   let totalErrors = 0;
   let totalBackground = 0;
   let affectedUsers = 0;
   let lastErrorAt: string | null = null;
-  for (const user of users) {
+  for (const user of allUsers) {
     totalErrors += user.errorCount;
     totalBackground += user.backgroundCount;
     if (user.errorCount > 0) {
@@ -341,6 +354,7 @@ export async function loadErrorsByUser(env: RuntimeEnv, range: ErrorsRange): Pro
     range: range.key,
     cutoff: range.cutoffIso,
     scanTruncated,
+    usersTruncated,
     totals: {
       errors: totalErrors,
       backgroundErrors: totalBackground,

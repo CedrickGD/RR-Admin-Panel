@@ -62,7 +62,8 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
     try {
       setLoading(true);
       const url = new URL(API_BASE ? `${API_BASE}/api/admin/licenses` : "/api/admin/licenses", window.location.origin);
-      const res = await fetch(url.toString(), { credentials: "include" });
+      url.searchParams.set("_ts", String(Date.now()));
+      const res = await fetch(url.toString(), { cache: "no-store", credentials: "include" });
       const data = await res.json();
       if (data.ok) {
         setLicenses(data.licenses);

@@ -47,7 +47,17 @@ export function useDashboard(activePage: PageKey) {
           throw new Error(data?.error ?? "Failed to load dashboard data.");
         }
 
-        setSummary(data.summary);
+        // The 5s live poll can race: a slow, older response may resolve after a
+        // newer one, and an edge/replica could hand back an older snapshot. Each
+        // response carries a server-stamped generatedAt, so never let an older
+        // payload clobber a newer one already on screen. (Unparseable timestamps
+        // fall through to accept, so a bad value can't wedge the view.)
+        const incoming = data.summary;
+        setSummary(prev =>
+          prev && Date.parse(incoming.generatedAt) < Date.parse(prev.generatedAt)
+            ? prev
+            : incoming
+        );
         setHealth(data.health);
         setUser(data.user);
         setAuthMode(prev => data.authMode ?? prev);

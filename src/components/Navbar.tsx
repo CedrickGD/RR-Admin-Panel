@@ -33,7 +33,7 @@ const NAV_ITEMS: NavEntry[] = [
   { key: "heatmap",  label: "Heatmap",  icon: <Map size={16} /> },
   { key: "live",     label: "Live",     icon: <Radio size={16} /> },
   { key: "workers",  label: "Sessions", icon: <History size={16} /> },
-  { key: "logs",     label: "Errors",   icon: <AlertTriangle size={16} /> },
+  { key: "errors",   label: "Errors",   icon: <AlertTriangle size={16} /> },
   { key: "settings", label: "Settings", icon: <Settings2 size={16} /> },
   { key: "licenses", label: "Licenses", icon: <Key size={16} /> },
 ];

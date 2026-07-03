@@ -8,7 +8,7 @@ export type PageKey =
   | "heatmap"
   | "live"
   | "workers"
-  | "logs"
+  | "errors"
   | "settings"
   | "licenses";
 
@@ -165,6 +165,65 @@ export interface UserErrorRecord {
   timestamp: string;
   message: string | null;
   type: string | null;
+}
+
+export type ErrorsRangeKey = "1h" | "6h" | "12h" | "24h" | "3d" | "7d" | "30d" | "all";
+
+export interface ErrorEventDetail {
+  id: string;
+  timestamp: string;
+  receivedAt: string;
+  message: string | null;
+  type: string | null;
+  kind: string | null;
+  code: string | null;
+  sessionId: string | null;
+  appVersion: string | null;
+  source: string;
+  /** Leftover metrics after the surfaced/identity/geo keys are stripped. */
+  extras: Record<string, string>;
+}
+
+export interface ErrorUserGroup {
+  identity: string;
+  userLabel: string | null;
+  discordUser: string | null;
+  hwid: string | null;
+  installId: string | null;
+  licenseTier: "premium" | "free";
+  country: string | null;
+  city: string | null;
+  timezone: string | null;
+  platform: string | null;
+  osVersion: string | null;
+  deviceModel: string | null;
+  appVersion: string | null;
+  displayVersion: string | null;
+  isActive: boolean;
+  lastSeen: string | null;
+  /** Real (non-background) errors in range — counted before the per-user event cap. */
+  errorCount: number;
+  backgroundCount: number;
+  firstErrorAt: string;
+  lastErrorAt: string;
+  /** Newest first; capped per user, background events flagged via `kind`. */
+  events: ErrorEventDetail[];
+  truncated: boolean;
+}
+
+export interface ErrorsPayload {
+  generatedAt: string;
+  range: string;
+  cutoff: string | null;
+  /** True when the range held more error events than one scan reads (oldest are missing). */
+  scanTruncated: boolean;
+  totals: {
+    errors: number;
+    backgroundErrors: number;
+    affectedUsers: number;
+    lastErrorAt: string | null;
+  };
+  users: ErrorUserGroup[];
 }
 
 export interface SummaryPayload {

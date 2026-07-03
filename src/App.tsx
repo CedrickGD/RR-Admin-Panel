@@ -6,7 +6,7 @@ import { Navbar } from "./components/Navbar";
 import { useAdminStats, DEFAULT_STATS_FILTERS } from "./hooks/useAdminStats";
 import { useDashboard } from "./hooks/useDashboard";
 import { useAccent } from "./hooks/useAccent";
-import { LogsPage } from "./pages/LogsPage";
+import { ErrorsPage } from "./pages/ErrorsPage";
 import { HeatmapPage } from "./pages/HeatmapPage";
 import { LivePage } from "./pages/LivePage";
 import { OverviewPage } from "./pages/OverviewPage";
@@ -185,7 +185,7 @@ export default function App() {
               />
             ) : null}
             {page === "workers"   ? <WorkersPage   summary={summary} stats={stats} users={users} focusedWorkerId={focusedWorkerId} onOpenMapSession={handleOpenHeatmapSession} filterBar={filterBar} /> : null}
-            {page === "logs"      ? <LogsPage      summary={summary} filterBar={refreshButton} /> : null}
+            {page === "errors"    ? <ErrorsPage /> : null}
             {page === "licenses"  ? <LicensesPage  summary={summary} onOpenSession={handleOpenLiveSession} onOpenWorker={handleOpenWorker} filterBar={refreshButton} /> : null}
             {page === "settings"  ? (
               <SettingsPage

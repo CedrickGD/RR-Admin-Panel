@@ -1,6 +1,7 @@
 import type {
   AdminDataPayload,
   AuthActionPayload,
+  ErrorsPayload,
   SessionPayload,
   StatsFilters,
   StatsPayload,
@@ -95,6 +96,23 @@ export async function fetchAdminUsers(filters: StatsFilters): Promise<{
   });
   const body = await parseJson<{ ok?: boolean; users?: UserRollupRecord[] }>(res);
   return { ok: res.ok && Array.isArray(body?.users), users: body?.users, status: res.status };
+}
+
+export async function fetchAdminErrors(range: string): Promise<{
+  ok: boolean;
+  errors?: ErrorsPayload;
+  status: number;
+}> {
+  const url = new URL(apiUrl("/api/admin/errors"), window.location.origin);
+  url.searchParams.set("range", range);
+  url.searchParams.set("_ts", String(Date.now()));
+  const res = await fetch(url.toString(), {
+    method: "GET",
+    cache: "no-store",
+    credentials: "include",
+  });
+  const body = await parseJson<{ ok?: boolean; errors?: ErrorsPayload }>(res);
+  return { ok: res.ok && Boolean(body?.errors), errors: body?.errors, status: res.status };
 }
 
 export async function postAuth(

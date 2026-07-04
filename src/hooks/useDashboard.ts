@@ -181,7 +181,9 @@ export function useDashboard(activePage: PageKey) {
     if (refreshing) return;
     setRefreshing(true);
     const startedAt = Date.now();
-    await loadDashboard(true);
+    // Not silent: this is a user-initiated click, so a failed fetch must surface
+    // as a load error (and a success clears it) instead of the button appearing dead.
+    await loadDashboard(false);
     const elapsed = Date.now() - startedAt;
     const minVisibleMs = 550;
     if (elapsed < minVisibleMs) {

@@ -8,9 +8,8 @@ import { StatusBadge } from "../components/StatusBadge";
 import { PageHeader } from "../components/ds/PageHeader";
 import { SearchInput } from "../components/ds/SearchInput";
 import { timeAgo, formatDate } from "../utils/format";
+import { apiUrl, fetchApi } from "../utils/api";
 import type { SummaryPayload } from "../types/telemetry";
-
-const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
 
 interface LicenseRecord {
   id: number;
@@ -61,9 +60,9 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
   const fetchLicenses = async () => {
     try {
       setLoading(true);
-      const url = new URL(API_BASE ? `${API_BASE}/api/admin/licenses` : "/api/admin/licenses", window.location.origin);
+      const url = new URL(apiUrl("/api/admin/licenses"), window.location.origin);
       url.searchParams.set("_ts", String(Date.now()));
-      const res = await fetch(url.toString(), { cache: "no-store", credentials: "include" });
+      const res = await fetchApi(url.toString(), { cache: "no-store", credentials: "include" });
       const data = await res.json();
       if (data.ok) {
         setLicenses(data.licenses);
@@ -83,7 +82,7 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
     if (generating) return;
     setGenerating(true);
     try {
-      const url = new URL(API_BASE ? `${API_BASE}/api/admin/licenses` : "/api/admin/licenses", window.location.origin);
+      const url = new URL(apiUrl("/api/admin/licenses"), window.location.origin);
       let calculatedDays: number | null = null;
       if (genType === 'days') calculatedDays = genDuration;
       else if (genType === 'weeks') calculatedDays = genDuration * 7;
@@ -99,12 +98,13 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
         custom_key: isMaster && customKey.trim() ? customKey.trim() : undefined,
         max_uses: isMaster ? (isInfiniteUses ? -1 : maxUses) : 1
       };
-      const res = await fetch(url.toString(), {
+      // No retry: generating keys is not idempotent.
+      const res = await fetchApi(url.toString(), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
         credentials: "include"
-      });
+      }, { retry: false });
       const data = await res.json();
       if (data.ok) {
         await fetchLicenses();
@@ -129,13 +129,12 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
       // key string, so the path segment MUST be encoded — a raw space / "+" / "/" in the key
       // breaks the request, which is exactly why master keys were erroring before.
       const encodedKey = encodeURIComponent(deleteCandidate.license_key);
-      const urlPath = `/api/admin/licenses/${encodedKey}`;
-      const url = new URL(API_BASE ? `${API_BASE}${urlPath}` : urlPath, window.location.origin);
+      const url = new URL(apiUrl(`/api/admin/licenses/${encodedKey}`), window.location.origin);
 
-      const res = await fetch(url.toString(), {
+      const res = await fetchApi(url.toString(), {
         method: "DELETE",
         credentials: "include"
-      });
+      }, { retry: false });
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));

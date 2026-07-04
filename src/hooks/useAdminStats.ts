@@ -22,6 +22,7 @@ export function useAdminStats(enabled: boolean, filters: StatsFilters) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestSeq = useRef(0);
+  const hasStats = useRef(false);
 
   const load = useCallback(
     async (silent: boolean) => {
@@ -37,9 +38,12 @@ export function useAdminStats(enabled: boolean, filters: StatsFilters) {
         }
 
         if (statsRes.ok && statsRes.stats) {
+          hasStats.current = true;
           setStats(statsRes.stats);
           setError(null);
-        } else if (!silent) {
+        } else if (!silent && !hasStats.current) {
+          // Only surface the failure state when there's nothing on screen —
+          // with data visible, the next background refresh self-heals quietly.
           setError("Failed to load stats.");
         }
 
@@ -47,7 +51,7 @@ export function useAdminStats(enabled: boolean, filters: StatsFilters) {
           setUsers(usersRes.users);
         }
       } catch {
-        if (seq === requestSeq.current && !silent) {
+        if (seq === requestSeq.current && !silent && !hasStats.current) {
           setError("Failed to load stats.");
         }
       } finally {

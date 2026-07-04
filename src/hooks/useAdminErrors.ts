@@ -14,6 +14,12 @@ export function useAdminErrors(enabled: boolean, range: ErrorsRangeKey) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestSeq = useRef(0);
+  // The page discards payloads whose range doesn't match the selector
+  // (ErrorsPage renders skeletons for a cross-range payload), so "data is on
+  // screen" means "the last good payload matches the CURRENT range" — a plain
+  // boolean would stay quiet while the user stares at unexplained skeletons
+  // after a failed range switch.
+  const lastGoodRange = useRef<ErrorsRangeKey | null>(null);
 
   const load = useCallback(
     async (silent: boolean) => {
@@ -29,13 +35,16 @@ export function useAdminErrors(enabled: boolean, range: ErrorsRangeKey) {
         }
 
         if (res.ok && res.errors) {
+          lastGoodRange.current = range;
           setData(res.errors);
           setError(null);
-        } else if (!silent) {
+        } else if (!silent && lastGoodRange.current !== range) {
+          // Only surface the failure state when nothing usable is on screen —
+          // with same-range data visible, the next refresh self-heals quietly.
           setError("Failed to load errors.");
         }
       } catch {
-        if (seq === requestSeq.current && !silent) {
+        if (seq === requestSeq.current && !silent && lastGoodRange.current !== range) {
           setError("Failed to load errors.");
         }
       } finally {

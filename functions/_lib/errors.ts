@@ -174,11 +174,16 @@ export async function loadErrorsByUser(env: RuntimeEnv, range: ErrorsRange): Pro
 
   const [eventRows, sessionRows, licenseRows] = await Promise.all([
     eventsStatement.all<ErrorEventRow>(),
+    // app_sessions has no retention (only telemetry_events is pruned), so an
+    // unbounded scan degrades forever. Newest rows carry the identity/context
+    // that matters; idx_sessions_updated makes this ordered read cheap.
     db
       .prepare(
         `SELECT session_id, install_id, hwid, user_label, discord_user, client_country, client_city, client_timezone,
            platform, os_version, device_model, app_version, display_version, last_seen_at, is_active
-         FROM app_sessions`
+         FROM app_sessions
+         ORDER BY updated_at DESC
+         LIMIT 5000`
       )
       .all<EnrichSessionRow>(),
     // License tier is enrichment only — a database without the licenses table

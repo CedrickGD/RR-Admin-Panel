@@ -619,6 +619,20 @@ export async function ensureTelemetrySchema(db: RuntimeEnv["DB"]): Promise<void>
     return;
   }
 
+  // Cold-start fast path: the full DDL run below is ~26 sequential D1 roundtrips,
+  // paid by the first request of every fresh isolate. If the newest columns and
+  // tables already exist the schema is current — probe once and skip the storm.
+  // (discord_user/features_json are the most recently added app_sessions columns.)
+  try {
+    await db.prepare("SELECT discord_user, features_json FROM app_sessions LIMIT 1").first();
+    await db.prepare("SELECT counter_value FROM telemetry_counters LIMIT 1").first();
+    await db.prepare("SELECT event_id FROM telemetry_events LIMIT 1").first();
+    schemaReady = true;
+    return;
+  } catch {
+    // Missing table or column — fall through to the full idempotent DDL run.
+  }
+
   const statements = [
     `CREATE TABLE IF NOT EXISTS telemetry_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -708,33 +722,61 @@ export async function ensureTelemetrySchema(db: RuntimeEnv["DB"]): Promise<void>
   schemaReady = true;
 }
 
-async function expireStaleSessionsD1(db: RuntimeEnv["DB"]): Promise<void> {
+// Lazy expiry is maintenance, not part of serving a read — but it used to run as
+// an UPDATE on EVERY summary/health/export request. /api/admin/data alone fired
+// two of them concurrently (loadSummary ‖ loadHealth) every 5s poll, all racing
+// the ingest writers on D1's single-writer lock. Throttle to once per interval
+// per isolate, share the in-flight run, and never let a failed sweep 500 a read:
+// worst case is_active lags by ~45s, which every consumer already tolerates
+// (LivePage filters at 6 minutes client-side; the session timeout itself is 2m).
+const EXPIRE_SWEEP_INTERVAL_MS = 45 * 1000;
+let expireLastSweepAt = 0;
+let expireSweepInFlight: Promise<void> | null = null;
+
+function expireStaleSessionsD1(db: RuntimeEnv["DB"]): Promise<void> {
   if (!db) {
-    return;
+    return Promise.resolve();
+  }
+  if (expireSweepInFlight) {
+    return expireSweepInFlight;
+  }
+  if (Date.now() - expireLastSweepAt < EXPIRE_SWEEP_INTERVAL_MS) {
+    return Promise.resolve();
   }
 
-  const cutoff = new Date(Date.now() - ACTIVE_SESSION_TIMEOUT_MS).toISOString();
+  expireSweepInFlight = (async () => {
+    try {
+      const cutoff = new Date(Date.now() - ACTIVE_SESSION_TIMEOUT_MS).toISOString();
+      await db
+        .prepare(
+          `UPDATE app_sessions
+           SET
+             is_active = 0,
+             ended_at = COALESCE(ended_at, last_seen_at),
+             duration_seconds = COALESCE(
+               duration_seconds,
+               CASE
+                 WHEN strftime('%s', last_seen_at) >= strftime('%s', started_at)
+                 THEN CAST(strftime('%s', last_seen_at) - strftime('%s', started_at) AS INTEGER)
+                 ELSE duration_seconds
+               END
+             ),
+             updated_at = ?
+           WHERE is_active = 1
+             AND last_seen_at < ?`
+        )
+        .bind(nowIso(), cutoff)
+        .run();
+      expireLastSweepAt = Date.now();
+    } catch {
+      // Write-lock contention or a transient D1 error: skip this sweep. The next
+      // request past the interval retries; reads must keep serving regardless.
+    } finally {
+      expireSweepInFlight = null;
+    }
+  })();
 
-  await db
-    .prepare(
-      `UPDATE app_sessions
-       SET
-         is_active = 0,
-         ended_at = COALESCE(ended_at, last_seen_at),
-         duration_seconds = COALESCE(
-           duration_seconds,
-           CASE
-             WHEN strftime('%s', last_seen_at) >= strftime('%s', started_at)
-             THEN CAST(strftime('%s', last_seen_at) - strftime('%s', started_at) AS INTEGER)
-             ELSE duration_seconds
-           END
-         ),
-         updated_at = ?
-       WHERE is_active = 1
-         AND last_seen_at < ?`
-    )
-    .bind(nowIso(), cutoff)
-    .run();
+  return expireSweepInFlight;
 }
 
 async function upsertSessionD1(db: RuntimeEnv["DB"], event: TelemetryEvent, existingRow: D1SessionRow | null): Promise<void> {

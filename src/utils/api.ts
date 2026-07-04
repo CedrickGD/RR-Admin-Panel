@@ -10,6 +10,13 @@ import type {
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
 
+const REQUEST_TIMEOUT_MS = 12_000;
+const RETRY_DELAY_MS = 400;
+// A full-page reload renews the Cloudflare Access session via silent SSO. Guard
+// it so a misbehaving edge can never put the app into a reload loop.
+const AUTH_RELOAD_GUARD_KEY = "rr:auth-reload-at";
+const AUTH_RELOAD_MIN_INTERVAL_MS = 2 * 60 * 1000;
+
 async function parseJson<T>(response: Response): Promise<T> {
   const text = await response.text();
   if (!text) return {} as T;
@@ -20,14 +27,98 @@ async function parseJson<T>(response: Response): Promise<T> {
   }
 }
 
-function apiUrl(path: string): string {
+/**
+ * The dashboard sits behind Cloudflare Access. When the Access session expires,
+ * the edge intercepts every /api call with a 302 to cloudflareaccess.com — the
+ * Function never runs, fetch can't follow cross-origin, and without handling the
+ * whole app just goes dead until a manual page reload. `redirect: "manual"`
+ * makes that state detectable (an opaqueredirect: same-origin /api routes never
+ * legitimately redirect), and a guarded full reload lets Access re-authenticate
+ * silently and the dashboard come back on its own.
+ */
+function isAuthRedirect(res: Response): boolean {
+  return res.type === "opaqueredirect" || (res.status >= 300 && res.status < 400);
+}
+
+function triggerAuthReload(): void {
+  try {
+    const last = Number(sessionStorage.getItem(AUTH_RELOAD_GUARD_KEY));
+    if (Number.isFinite(last) && Date.now() - last < AUTH_RELOAD_MIN_INTERVAL_MS) {
+      return;
+    }
+    sessionStorage.setItem(AUTH_RELOAD_GUARD_KEY, String(Date.now()));
+  } catch {
+    // No sessionStorage (private mode edge case): never risk a reload loop.
+    return;
+  }
+  window.location.reload();
+}
+
+export class SessionExpiredError extends Error {
+  constructor() {
+    super("Access session expired; reloading to re-authenticate.");
+    this.name = "SessionExpiredError";
+  }
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function fetchOnce(url: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, redirect: "manual", signal: controller.signal });
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
+/**
+ * Fetch with the failure handling every dashboard call needs:
+ * - hard timeout, so a hung request can never wedge a refresh forever;
+ * - Access-expiry detection -> guarded self-reload (see isAuthRedirect);
+ * - for idempotent requests, one automatic retry on network error, timeout, or
+ *   5xx, so a transient D1/edge blip never surfaces to the user at all.
+ */
+export async function fetchApi(url: string, init: RequestInit, options?: { retry?: boolean }): Promise<Response> {
+  const retry = options?.retry ?? true;
+
+  let response: Response | null = null;
+  try {
+    response = await fetchOnce(url, init);
+  } catch (err) {
+    if (!retry) throw err;
+  }
+
+  if (response && isAuthRedirect(response)) {
+    triggerAuthReload();
+    throw new SessionExpiredError();
+  }
+
+  if (!retry || (response && response.status < 500)) {
+    if (!response) throw new Error("Request failed.");
+    return response;
+  }
+
+  await delay(RETRY_DELAY_MS);
+  const second = await fetchOnce(url, init);
+  if (isAuthRedirect(second)) {
+    triggerAuthReload();
+    throw new SessionExpiredError();
+  }
+  return second;
+}
+
+export function apiUrl(path: string): string {
   const normalized = path.startsWith("/") ? path : `/${path}`;
   return API_BASE ? `${API_BASE}${normalized}` : normalized;
 }
 
 export async function fetchSession(): Promise<SessionPayload> {
   try {
-    const res = await fetch(apiUrl("/api/auth/session"), {
+    const res = await fetchApi(apiUrl("/api/auth/session"), {
       method: "GET",
       cache: "no-store",
       credentials: "include",
@@ -49,7 +140,7 @@ export async function fetchAdminData(): Promise<{
 }> {
   const url = new URL(apiUrl("/api/admin/data"), window.location.origin);
   url.searchParams.set("_ts", String(Date.now()));
-  const res = await fetch(url.toString(), {
+  const res = await fetchApi(url.toString(), {
     method: "GET",
     cache: "no-store",
     credentials: "include",
@@ -73,7 +164,7 @@ export async function fetchAdminStats(filters: StatsFilters): Promise<{
 }> {
   const url = new URL(apiUrl("/api/admin/stats"), window.location.origin);
   applyStatsFilters(url, filters);
-  const res = await fetch(url.toString(), {
+  const res = await fetchApi(url.toString(), {
     method: "GET",
     cache: "no-store",
     credentials: "include",
@@ -89,7 +180,7 @@ export async function fetchAdminUsers(filters: StatsFilters): Promise<{
 }> {
   const url = new URL(apiUrl("/api/admin/users"), window.location.origin);
   applyStatsFilters(url, filters);
-  const res = await fetch(url.toString(), {
+  const res = await fetchApi(url.toString(), {
     method: "GET",
     cache: "no-store",
     credentials: "include",
@@ -106,7 +197,7 @@ export async function fetchAdminErrors(range: string): Promise<{
   const url = new URL(apiUrl("/api/admin/errors"), window.location.origin);
   url.searchParams.set("range", range);
   url.searchParams.set("_ts", String(Date.now()));
-  const res = await fetch(url.toString(), {
+  const res = await fetchApi(url.toString(), {
     method: "GET",
     cache: "no-store",
     credentials: "include",
@@ -120,22 +211,23 @@ export async function postAuth(
   email: string,
   password: string
 ): Promise<{ ok: boolean; data?: AuthActionPayload; status: number }> {
-  const res = await fetch(apiUrl(endpoint), {
+  // No retry: login/bootstrap are not idempotent from the user's point of view.
+  const res = await fetchApi(apiUrl(endpoint), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
     credentials: "include",
-  });
+  }, { retry: false });
   const body = await parseJson<AuthActionPayload>(res);
   return { ok: res.ok, data: body, status: res.status };
 }
 
 export async function postLogout(): Promise<void> {
   try {
-    await fetch(apiUrl("/api/auth/logout"), {
+    await fetchApi(apiUrl("/api/auth/logout"), {
       method: "POST",
       credentials: "include",
-    });
+    }, { retry: false });
   } catch {
     // no-op
   }
@@ -145,7 +237,7 @@ export async function downloadSessionExport(): Promise<void> {
   const url = new URL(apiUrl("/api/admin/sessions-export"), window.location.origin);
   url.searchParams.set("_ts", String(Date.now()));
 
-  const res = await fetch(url.toString(), {
+  const res = await fetchApi(url.toString(), {
     method: "GET",
     cache: "no-store",
     credentials: "include",

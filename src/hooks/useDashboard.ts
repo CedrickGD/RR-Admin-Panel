@@ -181,9 +181,11 @@ export function useDashboard(activePage: PageKey) {
     if (refreshing) return;
     setRefreshing(true);
     const startedAt = Date.now();
-    // Not silent: this is a user-initiated click, so a failed fetch must surface
-    // as a load error (and a success clears it) instead of the button appearing dead.
-    await loadDashboard(false);
+    // Surface the full-page load error ONLY when there's nothing already on screen.
+    // The click still gives feedback (spinner + a data update on success), but a
+    // transient refresh blip must not throw a load-error banner over good data we're
+    // already showing — the next background poll self-heals it anyway.
+    await loadDashboard(summary !== null);
     const elapsed = Date.now() - startedAt;
     const minVisibleMs = 550;
     if (elapsed < minVisibleMs) {

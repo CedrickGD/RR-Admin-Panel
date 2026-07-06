@@ -521,7 +521,7 @@ h1, h2, h3, h4, h5, h6 {
   gap: 10px;
 }
 @media (max-width: 640px) {
-  .stat-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 }
 
 .stat-card {
@@ -1351,36 +1351,39 @@ h1, h2, h3, h4, h5, h6 {
 /* ═══════════════════════════════════════════════════════════════
    GRID LAYOUTS
    ═══════════════════════════════════════════════════════════════ */
+/* minmax(0, 1fr) everywhere, never bare 1fr: a bare 1fr track refuses to
+   shrink below its content's min-content width, which overflows the page
+   sideways on narrow phones. */
 .two-col {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
 }
 .three-col {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
 }
 .main-side {
   display: grid;
-  grid-template-columns: 1fr 340px;
+  grid-template-columns: minmax(0, 1fr) 340px;
   gap: 14px;
   align-items: start;
 }
 .main-side-lg {
   display: grid;
-  grid-template-columns: 1fr 400px;
+  grid-template-columns: minmax(0, 1fr) 400px;
   gap: 14px;
   align-items: start;
 }
 
 @media (max-width: 1100px) {
-  .main-side, .main-side-lg { grid-template-columns: 1fr; }
-  .three-col { grid-template-columns: repeat(2, 1fr); }
+  .main-side, .main-side-lg { grid-template-columns: minmax(0, 1fr); }
+  .three-col { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 700px) {
-  .two-col   { grid-template-columns: 1fr; }
-  .three-col { grid-template-columns: 1fr; }
+  .two-col   { grid-template-columns: minmax(0, 1fr); }
+  .three-col { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* Stretch variant — side column fills full grid height */
@@ -1972,7 +1975,7 @@ h1, h2, h3, h4, h5, h6 {
 .heatmap-region-bar-fill { display: block; height: 100%; border-radius: inherit; }
 
 @media (max-width: 900px) {
-  .donut-panel { grid-template-columns: 1fr; }
+  .donut-panel { grid-template-columns: minmax(0, 1fr); }
   .world-heatmap-map-shell { min-height: 360px; }
 }
 
@@ -2028,7 +2031,7 @@ h1, h2, h3, h4, h5, h6 {
   .page-subtitle { font-size: 0.8rem; margin-top: 4px; }
 
   /* Stat cards — single column on very small screens */
-  .stat-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .stat-card { padding: 8px 10px 6px; border-radius: 12px; }
   .stat-label { font-size: 0.6rem; }
   .stat-value { font-size: 1.1rem !important; }
@@ -2091,7 +2094,7 @@ h1, h2, h3, h4, h5, h6 {
   .navbar-brand-name { font-size: 0.85rem; }
 
   /* Grid layouts — force single column */
-  .two-col { grid-template-columns: 1fr; gap: 10px; }
+  .two-col { grid-template-columns: minmax(0, 1fr); gap: 10px; }
 
   /* Heatmap region rows */
   .heatmap-region-row {
@@ -2105,7 +2108,7 @@ h1, h2, h3, h4, h5, h6 {
    RESPONSIVE — VERY SMALL PHONE (≤ 360px)
    ═══════════════════════════════════════════════════════════════ */
 @media (max-width: 360px) {
-  .stat-grid { grid-template-columns: 1fr; gap: 6px; }
+  .stat-grid { grid-template-columns: minmax(0, 1fr); gap: 6px; }
   .page-title { font-size: 1.15rem; }
   .section-title { font-size: 0.875rem; }
   .panel { border-radius: 12px; }
@@ -2420,7 +2423,7 @@ h1, h2, h3, h4, h5, h6 {
     border-radius: 16px 16px 12px 12px;
   }
   .kpi-timespan-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

@@ -781,6 +781,17 @@ svg * {
   .mobilebar-logo { width: 24px; height: 24px; }
 }
 
+/* Phones: the 24px desktop floor wastes ~12% of a 400px screen in gutters,
+   and right-aligned meta stats read wrong once the panel head wraps. */
+@media (max-width: 640px) {
+  :root {
+    --page-pad: 14px;
+    --gap-panel: 12px;
+  }
+  .meta-row { gap: 14px; }
+  .meta-item { text-align: left; }
+}
+
 /* ── Page header: frosts in as you scroll (scroll-driven) ───────── */
 @supports (animation-timeline: scroll()) {
   .page-header {
@@ -803,6 +814,19 @@ svg * {
       /* Near-opaque: content must NOT read through the stuck header */
       background: hsl(240 36% 8% / 0.97);
       box-shadow: inset 0 0 0 1px var(--line), 0 14px 36px -20px rgba(0, 0, 0, 0.8);
+    }
+  }
+
+  /* Phones already have the fixed mobilebar as chrome; a second sticky layer
+     slides underneath it, collides with the brand row, and eats a large slice
+     of a small screen — let the header scroll away normally instead. */
+  @media (max-width: 900px) {
+    .page-header {
+      position: static;
+      padding: 0;
+      margin: 0;
+      border-radius: 0;
+      animation: none;
     }
   }
 }
@@ -907,6 +931,16 @@ svg * {
 }
 .stat-card .stat-label { font-size: 0.6rem; letter-spacing: 0.1em; }
 .stat-card .stat-sub { font-size: 0.66rem; margin-top: 1px; }
+/* Narrow phone cards truncate almost every sub-line mid-word — let them wrap
+   to two clamped lines instead of ellipsizing the information away. */
+@media (max-width: 480px) {
+  .stat-card .stat-sub {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+}
 
 /* Tones recolor the icon (the tick is gone) */
 .stat-card.tone-danger .tile-icon,

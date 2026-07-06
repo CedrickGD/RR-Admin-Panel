@@ -184,10 +184,13 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* ── Layout grids ─────────────────────────────────────────────── */
-.two-col   { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap-panel); }
-.three-col { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--gap-panel); }
-.main-side    { display: grid; grid-template-columns: 1fr 340px; gap: var(--gap-panel); align-items: start; }
-.main-side-lg { display: grid; grid-template-columns: 1fr 400px; gap: var(--gap-panel); align-items: start; }
+/* All layout tracks use minmax(0, 1fr), never bare 1fr: a bare 1fr track can
+   never shrink below its content's min-content width, which on narrow phones
+   silently widens the whole page and pans the layout viewport. */
+.two-col   { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gap-panel); }
+.three-col { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--gap-panel); }
+.main-side    { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: var(--gap-panel); align-items: start; }
+.main-side-lg { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: var(--gap-panel); align-items: start; }
 .main-side.main-side-stretch, .main-side-lg.main-side-stretch { align-items: stretch; }
 .side-stack { display: flex; flex-direction: column; gap: var(--gap-panel); }
 
@@ -198,9 +201,9 @@ h1, h2, h3, h4, h5, h6 {
 
 @media (max-width: 1280px) { .stat-grid-7 { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 @media (max-width: 1180px) { .stat-grid-6 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@media (max-width: 1100px) { .main-side, .main-side-lg { grid-template-columns: 1fr; } .three-col { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 1100px) { .main-side, .main-side-lg { grid-template-columns: minmax(0, 1fr); } .three-col { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 900px)  { .stat-grid-4, .stat-grid-6, .stat-grid-7 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 700px)  { .two-col, .three-col { grid-template-columns: 1fr; } }
+@media (max-width: 700px)  { .two-col, .three-col { grid-template-columns: minmax(0, 1fr); } }
 
 /* ── Motion: staggered entrances ──────────────────────────────── */
 .v2-rise { animation: v2rise var(--t-rise) var(--ease-rise) both; }

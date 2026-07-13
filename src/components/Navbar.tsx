@@ -12,6 +12,8 @@ import {
   Settings2,
   X,
   Key,
+  Megaphone,
+  MessageSquare,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import type { AuthMode, AuthUser, HealthPayload, PageKey, SummaryPayload } from "../types/telemetry";
@@ -36,6 +38,8 @@ const NAV_ITEMS: NavEntry[] = [
   { key: "errors",   label: "Errors",   icon: <AlertTriangle size={16} /> },
   { key: "settings", label: "Settings", icon: <Settings2 size={16} /> },
   { key: "licenses", label: "Licenses", icon: <Key size={16} /> },
+  { key: "announcements", label: "Announcements", icon: <Megaphone size={16} /> },
+  { key: "feedback",  label: "Feedback", icon: <MessageSquare size={16} /> },
 ];
 
 export interface NavbarProps {

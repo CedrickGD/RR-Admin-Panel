@@ -89,3 +89,37 @@ CREATE TABLE IF NOT EXISTS licenses (
 
 CREATE INDEX IF NOT EXISTS idx_licenses_key ON licenses(license_key);
 CREATE INDEX IF NOT EXISTS idx_licenses_hwid ON licenses(hwid);
+
+-- Admin-authored announcements shown as a banner in the desktop app. A row is displayed
+-- when is_active = 1 and now is within the optional [starts_at, expires_at] window.
+CREATE TABLE IF NOT EXISTS announcements (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  level TEXT NOT NULL DEFAULT 'info' CHECK (level IN ('info', 'warning', 'critical')),
+  is_active INTEGER NOT NULL DEFAULT 1,
+  starts_at TEXT,          -- null = show immediately
+  expires_at TEXT,         -- null = show until manually deactivated/deleted
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_announcements_active ON announcements(is_active, expires_at);
+
+-- In-app user feedback. Identity columns are best-effort (attached by the client) so the
+-- admin can follow up; contact is an optional user-provided Discord/email handle.
+CREATE TABLE IF NOT EXISTS feedback (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  message TEXT NOT NULL,
+  contact TEXT,
+  hwid TEXT,
+  install_id TEXT,
+  license_key TEXT,
+  machine_name TEXT,
+  app_version TEXT,
+  platform TEXT,
+  status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'read', 'archived')),
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_feedback_status ON feedback(status, created_at DESC);

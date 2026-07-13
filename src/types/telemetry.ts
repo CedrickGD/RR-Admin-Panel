@@ -10,7 +10,9 @@ export type PageKey =
   | "workers"
   | "errors"
   | "settings"
-  | "licenses";
+  | "licenses"
+  | "announcements"
+  | "feedback";
 
 export interface TelemetryEvent {
   id: string;

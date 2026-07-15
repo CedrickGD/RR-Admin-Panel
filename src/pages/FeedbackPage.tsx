@@ -147,7 +147,7 @@ export function FeedbackPage({ filterBar }: FeedbackPageProps) {
 
       <section className="panel">
         <div className="panel-head">
-          <div className="panel-head-left" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <div className="panel-head-left" style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             {STATUS_TABS.map((t) => (
               <button
                 key={t.key}

@@ -1,7 +1,7 @@
 import { Megaphone, Plus, Trash2, Pencil } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Badge } from "../components/ds/Badge";
-import { Button } from "../components/ds/Button";
+import { Button, IconButton } from "../components/ds/Button";
 import { EmptyState } from "../components/ds/EmptyState";
 import { Modal } from "../components/ds/Modal";
 import { PageHeader } from "../components/ds/PageHeader";
@@ -237,7 +237,7 @@ export function AnnouncementsPage({ filterBar }: AnnouncementsPageProps) {
         <div className="panel-head">
           <div className="panel-head-left">
             <h2 className="section-title">All Announcements</h2>
-            <p className="section-sub">Shown as a banner in the app while active and within their schedule window</p>
+            <p className="section-sub">Live in-app banners</p>
           </div>
           <div className="panel-head-right">
             <Badge tone="muted">{sorted.length}</Badge>
@@ -245,70 +245,54 @@ export function AnnouncementsPage({ filterBar }: AnnouncementsPageProps) {
         </div>
 
         {loading ? (
-          <div style={{ padding: "60px", textAlign: "center", color: "var(--text-muted)", display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>
+          <div className="panel-body" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "60px 16px", color: "var(--text-3)" }}>
             <div className="spinner spinner-md" />
-            <span>Loading announcements...</span>
+            <span>Loading announcements…</span>
           </div>
         ) : sorted.length === 0 ? (
           <EmptyState icon={<Megaphone />} title="No Announcements Yet">
             Create one to broadcast a message to everyone using the app.
           </EmptyState>
         ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table className="ds-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+          <div className="data-table-wrap" style={{ borderRadius: 0, border: "none" }}>
+            <table className="data-table">
               <thead>
-                <tr style={{ borderBottom: "1px solid var(--border)", textAlign: "left", color: "var(--text-muted)", background: "var(--bg-subtle)" }}>
-                  <th style={{ padding: "14px 20px", fontWeight: 500 }}>Announcement</th>
-                  <th style={{ padding: "14px 20px", fontWeight: 500 }}>Level</th>
-                  <th style={{ padding: "14px 20px", fontWeight: 500 }}>Status</th>
-                  <th style={{ padding: "14px 20px", fontWeight: 500 }}>Window</th>
-                  <th style={{ padding: "14px 20px", fontWeight: 500 }}>Actions</th>
+                <tr>
+                  <th>Announcement</th>
+                  <th>Level</th>
+                  <th>Status</th>
+                  <th>Window</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
                 {sorted.map((a) => {
                   const status = displayStatus(a);
                   return (
-                    <tr key={a.id} style={{ borderBottom: "1px solid var(--border)" }}>
-                      <td style={{ padding: "14px 20px", maxWidth: 380 }}>
-                        <div style={{ fontWeight: 600, color: "var(--text)", marginBottom: 2 }}>{a.title}</div>
-                        <div style={{ fontSize: "0.8125rem", color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 360 }} title={a.body}>
+                    <tr key={a.id}>
+                      <td style={{ maxWidth: 380 }}>
+                        <div style={{ fontWeight: 600, color: "var(--text-1)", marginBottom: 2 }}>{a.title}</div>
+                        <div style={{ fontSize: "var(--fs-small)", color: "var(--text-3)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 360 }} title={a.body}>
                           {a.body}
                         </div>
                       </td>
-                      <td style={{ padding: "14px 20px" }}>
+                      <td>
                         <Badge tone={LEVEL_TONE[a.level]}>{a.level.toUpperCase()}</Badge>
                       </td>
-                      <td style={{ padding: "14px 20px" }}>
+                      <td>
                         <Badge tone={status.tone}>{status.label}</Badge>
                       </td>
-                      <td style={{ padding: "14px 20px", fontSize: "0.8125rem", color: "var(--text-muted)" }}>
+                      <td className="muted" style={{ whiteSpace: "nowrap", fontSize: "var(--fs-small)" }}>
                         <div>From: {a.starts_at ? formatDate(a.starts_at) : "immediately"}</div>
                         <div>Until: {a.expires_at ? formatDate(a.expires_at) : "no end"}</div>
                       </td>
-                      <td style={{ padding: "14px 20px" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <Button size="xs" variant="ghost" onClick={() => toggleActive(a)}>
+                      <td>
+                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          <Button size="xs" variant="ghost" onClick={() => toggleActive(a)} style={{ minWidth: 62, justifyContent: "center" }}>
                             {a.is_active === 1 ? "Turn off" : "Turn on"}
                           </Button>
-                          <button
-                            onClick={() => openEdit(a)}
-                            title="Edit"
-                            style={{ background: "transparent", border: "1px solid transparent", color: "var(--text-muted)", cursor: "pointer", padding: "6px", borderRadius: "6px", display: "flex" }}
-                            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg-subtle)"; }}
-                            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-                          >
-                            <Pencil size={16} />
-                          </button>
-                          <button
-                            onClick={() => setDeleteCandidate(a)}
-                            title="Delete"
-                            style={{ background: "transparent", border: "1px solid transparent", color: "var(--danger)", cursor: "pointer", padding: "6px", borderRadius: "6px", display: "flex" }}
-                            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--danger-subtle)"; }}
-                            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-                          >
-                            <Trash2 size={16} />
-                          </button>
+                          <IconButton icon={<Pencil />} size={16} title="Edit" onClick={() => openEdit(a)} />
+                          <IconButton icon={<Trash2 />} size={16} title="Delete" style={{ color: "var(--danger)" }} onClick={() => setDeleteCandidate(a)} />
                         </div>
                       </td>
                     </tr>
@@ -354,14 +338,14 @@ export function AnnouncementsPage({ filterBar }: AnnouncementsPageProps) {
             />
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16 }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <label className="label-sm">Level</label>
               <select
                 className="glass-input"
                 value={form.level}
                 onChange={(e) => setForm({ ...form, level: e.target.value as AnnouncementLevel })}
-                style={{ cursor: "pointer", appearance: "none" }}
+                style={{ cursor: "pointer" }}
               >
                 <option value="info">Info</option>
                 <option value="warning">Warning</option>

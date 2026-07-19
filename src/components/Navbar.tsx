@@ -27,19 +27,28 @@ interface NavEntry {
   icon: ReactNode;
 }
 
-/** Canonical DS nav mapping — flat, no groups (design-system readme: ICONOGRAPHY). */
+/**
+ * Canonical DS nav mapping — flat, no group headers (design-system readme: ICONOGRAPHY),
+ * but sequenced by mental model so related pages sit together:
+ *   Analytics (aggregate history) → Live Ops (realtime) →
+ *   Users & Support (per-user surfaces) → System (broadcast + config, last).
+ */
 const NAV_ITEMS: NavEntry[] = [
+  // Analytics — aggregate, historical views
   { key: "overview", label: "Overview", icon: <BarChart3 size={16} /> },
   { key: "traffic",  label: "Traffic",  icon: <Clock3 size={16} /> },
   { key: "versions", label: "Versions", icon: <Layers size={16} /> },
   { key: "heatmap",  label: "Heatmap",  icon: <Map size={16} /> },
+  // Live Ops — realtime / recent
   { key: "live",     label: "Live",     icon: <Radio size={16} /> },
   { key: "workers",  label: "Sessions", icon: <History size={16} /> },
-  { key: "errors",   label: "Errors",   icon: <AlertTriangle size={16} /> },
-  { key: "settings", label: "Settings", icon: <Settings2 size={16} /> },
+  // Users & Support — per-user surfaces
   { key: "licenses", label: "Licenses", icon: <Key size={16} /> },
+  { key: "feedback", label: "Feedback", icon: <MessageSquare size={16} /> },
+  { key: "errors",   label: "Errors",   icon: <AlertTriangle size={16} /> },
+  // System — broadcast + configuration
   { key: "announcements", label: "Announcements", icon: <Megaphone size={16} /> },
-  { key: "feedback",  label: "Feedback", icon: <MessageSquare size={16} /> },
+  { key: "settings", label: "Settings", icon: <Settings2 size={16} /> },
 ];
 
 export interface NavbarProps {

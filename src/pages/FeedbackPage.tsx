@@ -1,11 +1,12 @@
-import { MessageSquare, Trash2, Check, Archive, Mail } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Archive, Check, Mail, MessageSquare, Trash2, User } from "lucide-react";
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { Badge } from "../components/ds/Badge";
-import { Button } from "../components/ds/Button";
+import { Button, IconButton } from "../components/ds/Button";
 import { EmptyState } from "../components/ds/EmptyState";
 import { Modal } from "../components/ds/Modal";
 import { PageHeader } from "../components/ds/PageHeader";
 import { SearchInput } from "../components/ds/SearchInput";
+import type { SummaryPayload } from "../types/telemetry";
 import { formatDate, timeAgo } from "../utils/format";
 import { apiUrl, fetchApi } from "../utils/api";
 
@@ -26,13 +27,19 @@ interface FeedbackRecord {
 }
 
 interface FeedbackPageProps {
+  summary?: SummaryPayload | null;
+  /** Jump to a live session (Live page) — used when the author is online right now. */
+  onOpenSession?: (sessionId: string) => void;
+  /** Jump to a user's sessions (Sessions page), keyed by hwid — same as Licenses. */
+  onOpenWorker?: (hwid: string) => void;
   filterBar?: ReactNode;
 }
 
-const STATUS_TONE: Record<FeedbackStatus, "info" | "muted" | "success"> = {
+/** Fixed status tones: new stands out (info), read/archived recede (muted — grey = done/off). */
+const STATUS_TONE: Record<FeedbackStatus, "info" | "muted"> = {
   new: "info",
   read: "muted",
-  archived: "success",
+  archived: "muted",
 };
 
 const STATUS_TABS: Array<{ key: "all" | FeedbackStatus; label: string }> = [
@@ -42,11 +49,24 @@ const STATUS_TABS: Array<{ key: "all" | FeedbackStatus; label: string }> = [
   { key: "archived", label: "Archived" },
 ];
 
-export function FeedbackPage({ filterBar }: FeedbackPageProps) {
+/** Long messages get clamped to keep card height — and the action buttons — stable. */
+const CLAMP_STYLE: CSSProperties = {
+  display: "-webkit-box",
+  WebkitLineClamp: 4,
+  WebkitBoxOrient: "vertical",
+  overflow: "hidden",
+};
+
+function isLongMessage(message: string): boolean {
+  return message.length > 240 || (message.match(/\n/g)?.length ?? 0) >= 4;
+}
+
+export function FeedbackPage({ summary, onOpenSession, onOpenWorker, filterBar }: FeedbackPageProps) {
   const [feedback, setFeedback] = useState<FeedbackRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [tab, setTab] = useState<"all" | FeedbackStatus>("all");
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [deleteCandidate, setDeleteCandidate] = useState<FeedbackRecord | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -114,6 +134,23 @@ export function FeedbackPage({ filterBar }: FeedbackPageProps) {
     }
   };
 
+  const toggleExpand = (id: number) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  /** Resolve a feedback row to its author account — a live session if online, else the Sessions view. */
+  const openAuthor = (f: FeedbackRecord) => {
+    if (!f.hwid) return;
+    const hwid = f.hwid;
+    const liveSession = summary?.activeSessions.find((s) => (s.hwid ?? "").toLowerCase() === hwid.toLowerCase());
+    if (liveSession && onOpenSession) onOpenSession(liveSession.id);
+    else if (onOpenWorker) onOpenWorker(hwid);
+  };
+
   const newCount = useMemo(() => feedback.filter((f) => f.status === "new").length, [feedback]);
 
   const filtered = useMemo(() => {
@@ -140,6 +177,18 @@ export function FeedbackPage({ filterBar }: FeedbackPageProps) {
         right={
           <>
             {filterBar}
+            <div className="seg-control" role="tablist" aria-label="Filter by status">
+              {STATUS_TABS.map((t) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  className={`seg-btn${tab === t.key ? " active" : ""}`}
+                  onClick={() => setTab(t.key)}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
             {newCount > 0 ? <Badge tone="info">{newCount} new</Badge> : null}
           </>
         }
@@ -147,96 +196,137 @@ export function FeedbackPage({ filterBar }: FeedbackPageProps) {
 
       <section className="panel">
         <div className="panel-head">
-          <div className="panel-head-left" style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            {STATUS_TABS.map((t) => (
-              <button
-                key={t.key}
-                onClick={() => setTab(t.key)}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: 6,
-                  fontSize: "0.75rem",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  border: "1px solid var(--border)",
-                  background: tab === t.key ? "var(--bg-subtle)" : "transparent",
-                  color: tab === t.key ? "var(--text)" : "var(--text-muted)",
-                }}
-              >
-                {t.label}
-              </button>
-            ))}
+          <div className="panel-head-left">
+            <h2 className="section-title">Messages</h2>
+            <p className="section-sub">Feedback submitted from the app, linked to its author</p>
           </div>
-          <div className="panel-head-right" style={{ minWidth: 220 }}>
-            <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search feedback, user, license..." />
+          <div className="panel-head-right">
+            <SearchInput
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Search message, user, license…"
+              style={{ width: "min(280px, 100%)" }}
+            />
           </div>
         </div>
 
         {loading ? (
-          <div style={{ padding: "60px", textAlign: "center", color: "var(--text-muted)", display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>
+          <div className="panel-body" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "60px 16px", color: "var(--text-3)" }}>
             <div className="spinner spinner-md" />
-            <span>Loading feedback...</span>
+            <span>Loading feedback…</span>
           </div>
         ) : filtered.length === 0 ? (
           <EmptyState icon={<MessageSquare />} title="No Feedback">
-            {searchQuery || tab !== "all" ? "Nothing matches the current filter." : "User feedback submitted from the app will show up here."}
+            {searchQuery || tab !== "all" ? "Nothing matches the current filter." : "Feedback submitted from the app will show up here."}
           </EmptyState>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "8px 0" }}>
-            {filtered.map((f) => (
-              <div
-                key={f.id}
-                style={{
-                  border: "1px solid var(--border)",
-                  borderRadius: 10,
-                  padding: "14px 16px",
-                  background: f.status === "new" ? "var(--bg-subtle)" : "transparent",
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 8 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                    <Badge tone={STATUS_TONE[f.status]}>{f.status.toUpperCase()}</Badge>
-                    <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }} title={formatDate(f.created_at)}>
-                      {timeAgo(f.created_at)}
-                    </span>
+          <div className="panel-body" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {filtered.map((f) => {
+              const isNew = f.status === "new";
+              const long = isLongMessage(f.message);
+              const isExpanded = expanded.has(f.id);
+              const liveSession =
+                f.hwid ? summary?.activeSessions.find((s) => (s.hwid ?? "").toLowerCase() === f.hwid!.toLowerCase()) : undefined;
+
+              return (
+                <div
+                  key={f.id}
+                  className="glass-inset"
+                  style={{ padding: "14px 16px", boxShadow: isNew ? "inset 2px 0 0 0 var(--accent)" : undefined }}
+                >
+                  {/* header: status + time · actions */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <Badge tone={STATUS_TONE[f.status]}>{f.status.toUpperCase()}</Badge>
+                      <span style={{ fontSize: "var(--fs-tiny)", color: "var(--text-3)", fontFamily: "var(--font-mono)" }} title={formatDate(f.created_at)}>
+                        {timeAgo(f.created_at)}
+                      </span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                      {f.status !== "read" ? (
+                        <IconButton icon={<Check />} size={16} title="Mark read" onClick={() => setStatus(f, "read")} />
+                      ) : null}
+                      {f.status !== "archived" ? (
+                        <IconButton icon={<Archive />} size={16} title="Archive" onClick={() => setStatus(f, "archived")} />
+                      ) : null}
+                      <IconButton icon={<Trash2 />} size={16} title="Delete" style={{ color: "var(--danger)" }} onClick={() => setDeleteCandidate(f)} />
+                    </div>
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    {f.status !== "read" ? (
-                      <button title="Mark read" onClick={() => setStatus(f, "read")} style={iconBtnStyle("var(--text-muted)")}>
-                        <Check size={16} />
-                      </button>
-                    ) : null}
-                    {f.status !== "archived" ? (
-                      <button title="Archive" onClick={() => setStatus(f, "archived")} style={iconBtnStyle("var(--text-muted)")}>
-                        <Archive size={16} />
-                      </button>
-                    ) : null}
-                    <button title="Delete" onClick={() => setDeleteCandidate(f)} style={iconBtnStyle("var(--danger)")}>
-                      <Trash2 size={16} />
+
+                  {/* message */}
+                  <p
+                    style={{
+                      margin: "0 0 8px",
+                      fontSize: "var(--fs-body)",
+                      color: "var(--text-1)",
+                      lineHeight: 1.55,
+                      whiteSpace: "pre-wrap",
+                      wordBreak: "break-word",
+                      ...(long && !isExpanded ? CLAMP_STYLE : {}),
+                    }}
+                  >
+                    {f.message}
+                  </p>
+                  {long ? (
+                    <button
+                      type="button"
+                      onClick={() => toggleExpand(f.id)}
+                      style={{ background: "transparent", border: "none", color: "var(--accent-text)", cursor: "pointer", padding: 0, fontSize: "var(--fs-small)", fontWeight: 600, marginBottom: 10 }}
+                    >
+                      {isExpanded ? "Show less" : "Show more"}
                     </button>
+                  ) : null}
+
+                  {/* meta: author link + context */}
+                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "6px 14px", fontSize: "var(--fs-small)", color: "var(--text-3)" }}>
+                    {f.hwid ? (
+                      <button
+                        type="button"
+                        onClick={() => openAuthor(f)}
+                        title={liveSession ? "View live session" : "View this user's sessions"}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 5,
+                          background: "transparent",
+                          border: "none",
+                          cursor: "pointer",
+                          padding: 0,
+                          color: "var(--accent-text)",
+                          fontSize: "var(--fs-small)",
+                          fontWeight: 600,
+                          textDecoration: "underline",
+                          textDecorationStyle: "dotted",
+                        }}
+                      >
+                        <User size={12} />
+                        {f.machine_name || "Unknown user"}
+                        {liveSession ? <span className="status-dot pulse" title="Online now" /> : null}
+                      </button>
+                    ) : f.machine_name ? (
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "var(--text-2)" }}>
+                        <User size={12} />
+                        {f.machine_name}
+                      </span>
+                    ) : null}
+                    {f.contact ? (
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "var(--text-2)" }} title="Contact for a reply">
+                        <Mail size={12} />
+                        {f.contact}
+                      </span>
+                    ) : null}
+                    {f.app_version ? <span>v{f.app_version}</span> : null}
+                    {f.platform ? <span>{f.platform}</span> : null}
+                    {f.license_key ? <span style={{ fontFamily: "var(--font-mono)" }}>{f.license_key}</span> : null}
+                    {f.hwid ? (
+                      <span style={{ fontFamily: "var(--font-mono)" }} title={f.hwid}>
+                        HWID {f.hwid.slice(0, 10)}…
+                      </span>
+                    ) : null}
                   </div>
                 </div>
-
-                <p style={{ color: "var(--text)", fontSize: "0.9rem", lineHeight: 1.6, whiteSpace: "pre-wrap", margin: "0 0 10px" }}>
-                  {f.message}
-                </p>
-
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 16px", fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                  {f.contact ? (
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--accent)" }}>
-                      <Mail size={12} /> {f.contact}
-                    </span>
-                  ) : null}
-                  {f.machine_name ? <span>User: {f.machine_name}</span> : null}
-                  {f.app_version ? <span>v{f.app_version}</span> : null}
-                  {f.platform ? <span>{f.platform}</span> : null}
-                  {f.license_key ? (
-                    <span style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>{f.license_key}</span>
-                  ) : null}
-                  {f.hwid ? <span title={f.hwid}>HWID: {f.hwid.slice(0, 12)}…</span> : null}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>
@@ -251,23 +341,10 @@ export function FeedbackPage({ filterBar }: FeedbackPageProps) {
         <div style={{ marginTop: 24, display: "flex", justifyContent: "flex-end", gap: 12 }}>
           <Button variant="ghost" onClick={() => setDeleteCandidate(null)}>Cancel</Button>
           <Button variant="danger" onClick={confirmDelete} disabled={isDeleting}>
-            {isDeleting ? "Processing..." : "Confirm"}
+            {isDeleting ? "Processing…" : "Confirm"}
           </Button>
         </div>
       </Modal>
     </div>
   );
-}
-
-function iconBtnStyle(color: string): React.CSSProperties {
-  return {
-    background: "transparent",
-    border: "1px solid transparent",
-    color,
-    cursor: "pointer",
-    padding: "6px",
-    borderRadius: "6px",
-    display: "flex",
-    alignItems: "center",
-  };
 }

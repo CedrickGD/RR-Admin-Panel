@@ -190,7 +190,7 @@ export default function App() {
             {page === "errors"    ? <ErrorsPage /> : null}
             {page === "licenses"  ? <LicensesPage  summary={summary} onOpenSession={handleOpenLiveSession} onOpenWorker={handleOpenWorker} filterBar={refreshButton} /> : null}
             {page === "announcements" ? <AnnouncementsPage filterBar={refreshButton} /> : null}
-            {page === "feedback"  ? <FeedbackPage  filterBar={refreshButton} /> : null}
+            {page === "feedback"  ? <FeedbackPage  summary={summary} onOpenSession={handleOpenLiveSession} onOpenWorker={handleOpenWorker} filterBar={refreshButton} /> : null}
             {page === "settings"  ? (
               <SettingsPage
                 user={user}

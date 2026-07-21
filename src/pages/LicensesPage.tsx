@@ -180,7 +180,7 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
       </div>
       
       {loading ? (
-        <div style={{ padding: "60px", textAlign: "center", color: "var(--text-muted)", display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>
+        <div style={{ padding: "60px", textAlign: "center", color: "var(--text-2)", display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>
            <div className="spinner spinner-md" />
            <span>Loading licenses...</span>
         </div>
@@ -192,7 +192,7 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
         <div style={{ overflowX: "auto" }}>
           <table className="ds-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
             <thead>
-              <tr style={{ borderBottom: "1px solid var(--border)", textAlign: "left", color: "var(--text-muted)", background: "var(--bg-subtle)" }}>
+              <tr style={{ borderBottom: "1px solid var(--line)", textAlign: "left", color: "var(--text-2)", background: "var(--surface-2)" }}>
                 <th style={{ padding: "14px 20px", fontWeight: 500 }}>License Key</th>
                 <th style={{ padding: "14px 20px", fontWeight: 500 }}>Duration</th>
                 <th style={{ padding: "14px 20px", fontWeight: 500 }}>Usage</th>
@@ -205,18 +205,18 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
               {lics.map(lic => {
                 const isMaster = lic.max_uses > 1 || lic.custom_options?.includes("master");
                 return (
-                <tr key={lic.id} style={{ borderBottom: "1px solid var(--border)", transition: "background 0.2s" }} onMouseEnter={e => e.currentTarget.style.background = "var(--bg-subtle)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                <tr key={lic.id} style={{ borderBottom: "1px solid var(--line)", transition: "background 0.2s" }} onMouseEnter={e => e.currentTarget.style.background = "var(--surface-2)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                   <td style={{ padding: "14px 20px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                       <Key size={14} style={{ color: isMaster ? "var(--warning)" : "var(--accent)" }} />
-                      <span style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace", fontWeight: 600, letterSpacing: "0.02em", color: isMaster ? "var(--warning)" : "var(--text)" }}>{lic.license_key}</span>
+                      <span style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace", fontWeight: 600, letterSpacing: "0.02em", color: isMaster ? "var(--warning)" : "var(--text-1)" }}>{lic.license_key}</span>
                       {isMaster && (
-                        <span style={{ fontSize: "0.65rem", padding: "2px 6px", borderRadius: "4px", background: "var(--warning-subtle)", color: "var(--warning)", fontWeight: 700, letterSpacing: "0.05em" }}>MASTER</span>
+                        <span style={{ fontSize: "0.65rem", padding: "2px 6px", borderRadius: "4px", background: "var(--warning-sub)", color: "var(--warning)", fontWeight: 700, letterSpacing: "0.05em" }}>MASTER</span>
                       )}
                     </div>
                   </td>
                   <td style={{ padding: "14px 20px" }}>
-                    <span style={{ color: "var(--text)", fontWeight: 500 }}>
+                    <span style={{ color: "var(--text-1)", fontWeight: 500 }}>
                       {lic.type === "lifetime" ? "Lifetime" : (
                         lic.duration_days && lic.duration_days < 1 / 24 ? `${Math.round(lic.duration_days * 1440)} Mins` :
                         lic.duration_days && lic.duration_days < 1 ? `${Math.round(lic.duration_days * 24)} Hours` :
@@ -229,12 +229,12 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
                   </td>
                   <td style={{ padding: "14px 20px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                      <div style={{ width: "60px", height: "6px", background: "var(--border)", borderRadius: "3px", overflow: "hidden" }}>
+                      <div style={{ width: "60px", height: "6px", background: "var(--line)", borderRadius: "3px", overflow: "hidden" }}>
                         <div style={{ height: "100%", width: `${lic.max_uses === -1 ? 100 : Math.min(100, (lic.usage_count / Math.max(1, lic.max_uses)) * 100)}%`, background: "var(--accent)", transition: "width 0.3s" }} />
                       </div>
                     </div>
                     <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
-                      <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{lic.usage_count} / {lic.max_uses === -1 ? "Infinite" : lic.max_uses}</span>
+                      <span style={{ fontSize: "0.75rem", color: "var(--text-2)" }}>{lic.usage_count} / {lic.max_uses === -1 ? "Infinite" : lic.max_uses}</span>
                     </div>
                   </td>
                   <td style={{ padding: "14px 20px" }}>
@@ -246,7 +246,7 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
                   <td style={{ padding: "14px 20px" }}>
                     {lic.hwid ? (
                       <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                        <User size={12} style={{ color: "var(--text-muted)" }} />
+                        <User size={12} style={{ color: "var(--text-2)" }} />
                         {lic.session_id || lic.hwid ? (() => {
                           const isLive = lic.session_id && summary?.activeSessions.some(s => s.id === lic.session_id);
                           return (
@@ -266,13 +266,13 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
                             </button>
                           );
                         })() : (
-                          <strong style={{ color: "var(--text)", fontSize: "0.8125rem", maxWidth: "120px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={lic.user_label || "Unknown User"}>
+                          <strong style={{ color: "var(--text-1)", fontSize: "0.8125rem", maxWidth: "120px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={lic.user_label || "Unknown User"}>
                             {lic.user_label || "Unknown User"}
                           </strong>
                         )}
                       </div>
                     ) : (
-                      <span style={{ color: "var(--text-muted)", fontStyle: "italic", fontSize: "0.8125rem" }}>Unbound</span>
+                      <span style={{ color: "var(--text-2)", fontStyle: "italic", fontSize: "0.8125rem" }}>Unbound</span>
                     )}
                   </td>
                   <td style={{ padding: "14px 20px" }}>
@@ -290,7 +290,7 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
                         borderRadius: "6px",
                         transition: "all 0.2s"
                       }}
-                      onMouseEnter={e => { e.currentTarget.style.background = "var(--danger-subtle)"; }}
+                      onMouseEnter={e => { e.currentTarget.style.background = "var(--danger-sub)"; }}
                       onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
                       title="Permanently Delete License"
                     >
@@ -331,16 +331,16 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
               <p className="section-sub">Create standard or custom master licenses</p>
             </div>
             <div className="panel-head-right">
-              <div style={{ display: "flex", alignItems: "center", gap: "4px", background: "var(--bg-card)", padding: "4px", borderRadius: "8px", border: "1px solid var(--border)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "4px", background: "var(--surface-2)", padding: "4px", borderRadius: "8px", border: "1px solid var(--line)" }}>
                 <button 
                   onClick={() => setIsMaster(false)} 
-                  style={{ padding: "6px 12px", borderRadius: "6px", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer", border: "none", background: !isMaster ? "var(--bg-subtle)" : "transparent", color: !isMaster ? "var(--text)" : "var(--text-muted)", boxShadow: !isMaster ? "0 1px 3px rgba(0,0,0,0.1)" : "none", transition: "all 0.2s" }}
+                  style={{ padding: "6px 12px", borderRadius: "6px", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer", border: "none", background: !isMaster ? "var(--surface-2)" : "transparent", color: !isMaster ? "var(--text-1)" : "var(--text-2)", boxShadow: !isMaster ? "0 1px 3px rgba(0,0,0,0.1)" : "none", transition: "all 0.2s" }}
                 >
                   Standard
                 </button>
                 <button 
                   onClick={() => setIsMaster(true)} 
-                  style={{ padding: "6px 12px", borderRadius: "6px", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer", border: "none", background: isMaster ? "var(--bg-subtle)" : "transparent", color: isMaster ? "var(--accent)" : "var(--text-muted)", boxShadow: isMaster ? "0 1px 3px rgba(0,0,0,0.1)" : "none", transition: "all 0.2s" }}
+                  style={{ padding: "6px 12px", borderRadius: "6px", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer", border: "none", background: isMaster ? "var(--surface-2)" : "transparent", color: isMaster ? "var(--accent)" : "var(--text-2)", boxShadow: isMaster ? "0 1px 3px rgba(0,0,0,0.1)" : "none", transition: "all 0.2s" }}
                 >
                   Master Key
                 </button>
@@ -366,7 +366,7 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
                   <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                       <label className="label-sm">Max Uses (Usability)</label>
-                      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.8rem", color: "var(--text)", cursor: "pointer" }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.8rem", color: "var(--text-1)", cursor: "pointer" }}>
                         <input type="checkbox" checked={isInfiniteUses} onChange={e => setIsInfiniteUses(e.target.checked)} />
                         Infinite
                       </label>
@@ -402,7 +402,7 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
                   className="glass-input" 
                   value={genType} 
                   onChange={e => setGenType(e.target.value)}
-                  style={{ cursor: "pointer", appearance: "none" }}
+                  style={{ cursor: "pointer" }}
                 >
                   <option value="lifetime">Lifetime</option>
                   <option value="years">Years</option>

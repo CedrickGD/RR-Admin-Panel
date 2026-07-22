@@ -1,5 +1,5 @@
 import { AlertTriangle, RefreshCw } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { FilterBar } from "./components/FilterBar";
 import { LoginForm } from "./components/LoginForm";
 import { Navbar } from "./components/Navbar";
@@ -7,7 +7,7 @@ import { useAdminStats, DEFAULT_STATS_FILTERS } from "./hooks/useAdminStats";
 import { useDashboard } from "./hooks/useDashboard";
 import { useAccent } from "./hooks/useAccent";
 import { ErrorsPage } from "./pages/ErrorsPage";
-import { HeatmapPage } from "./pages/HeatmapPage";
+import { HeatmapPage, type MapFocusTarget } from "./pages/HeatmapPage";
 import { LivePage } from "./pages/LivePage";
 import { OverviewPage } from "./pages/OverviewPage";
 import { VersionsPage } from "./pages/VersionsPage";
@@ -25,7 +25,9 @@ export default function App() {
   const { hue: accentHue } = useAccent();
   const [page, setPage] = useState<PageKey>("overview");
   const [focusedLiveSession, setFocusedLiveSession] = useState<FocusedSession>(null);
-  const [focusedHeatmapSession, setFocusedHeatmapSession] = useState<FocusedSession | null>(null);
+  // One-shot show-on-map command. The Heatmap page copies it into local state and
+  // reports back via onFocusConsumed, so nothing here can lock the map onto a user.
+  const [mapFocusTarget, setMapFocusTarget] = useState<MapFocusTarget | null>(null);
   const [focusedWorkerId, setFocusedWorkerId] = useState<string | null>(null);
   const [filters, setFilters] = useState<StatsFilters>(DEFAULT_STATS_FILTERS);
   const {
@@ -76,13 +78,19 @@ export default function App() {
     setPage("live");
   }
   function handleOpenHeatmapSession(sessionId: string) {
-    setFocusedHeatmapSession((c) => nextFocusedSession(c, sessionId));
+    setMapFocusTarget((c) => ({ kind: "session", id: sessionId, token: (c?.token ?? 0) + 1 }));
+    setPage("heatmap");
+  }
+  function handleOpenMapUser(identity: string) {
+    setMapFocusTarget((c) => ({ kind: "user", id: identity, token: (c?.token ?? 0) + 1 }));
     setPage("heatmap");
   }
   function handleOpenWorker(userId: string) {
     setFocusedWorkerId(userId);
     setPage("workers");
   }
+  const handleMapFocusConsumed = useCallback(() => setMapFocusTarget(null), []);
+  const handleLiveFocusConsumed = useCallback(() => setFocusedLiveSession(null), []);
 
   /* ─── Loading ─── */
   if (!ready) {
@@ -172,8 +180,8 @@ export default function App() {
                 users={users}
                 theme="dark"
                 onOpenSession={handleOpenLiveSession}
-                focusedSessionId={focusedHeatmapSession?.id ?? null}
-                focusedSessionToken={focusedHeatmapSession?.token ?? 0}
+                focusedTarget={mapFocusTarget}
+                onFocusConsumed={handleMapFocusConsumed}
                 filterBar={refreshButton}
               />
             ) : null}
@@ -182,11 +190,12 @@ export default function App() {
                 summary={summary}
                 focusedSessionId={focusedLiveSession?.id ?? null}
                 focusedSessionToken={focusedLiveSession?.token ?? 0}
+                onFocusConsumed={handleLiveFocusConsumed}
                 onOpenMapSession={handleOpenHeatmapSession}
                 filterBar={refreshButton}
               />
             ) : null}
-            {page === "workers"   ? <WorkersPage   summary={summary} stats={stats} users={users} focusedWorkerId={focusedWorkerId} onOpenMapSession={handleOpenHeatmapSession} filterBar={filterBar} /> : null}
+            {page === "workers"   ? <WorkersPage   summary={summary} stats={stats} users={users} focusedWorkerId={focusedWorkerId} onOpenMapSession={handleOpenHeatmapSession} onOpenMapUser={handleOpenMapUser} filterBar={filterBar} /> : null}
             {page === "errors"    ? <ErrorsPage /> : null}
             {page === "licenses"  ? <LicensesPage  summary={summary} onOpenSession={handleOpenLiveSession} onOpenWorker={handleOpenWorker} filterBar={refreshButton} /> : null}
             {page === "announcements" ? <AnnouncementsPage filterBar={refreshButton} /> : null}

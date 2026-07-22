@@ -14,8 +14,11 @@ interface WorldHeatmapProps {
   sessionPoints: HeatmapSessionPoint[];
   theme: ThemeMode;
   onOpenSession: (sessionId: string) => void;
-  focusedSessionId?: string | null;
-  focusedSessionToken?: number;
+  /** Dot key to select + fly to (session id on Live, user identity on All time). */
+  focusedKey?: string | null;
+  focusedToken?: number;
+  /** Fires on every selection change so the page can drop its pinned target on deselect. */
+  onActiveKeyChange?: (key: string | null) => void;
 }
 
 interface SessionMapPoint extends HeatmapSessionPoint {
@@ -279,15 +282,21 @@ function buildPopupMarkup(point: SessionMapPoint): string {
       ? `<div class="map-node-popup-location">${escapeHtml(`${formatGeoSource(point.geoSource, point.geoSignalSource)}${point.accuracyMeters !== null ? ` · ±${formatAccuracy(point.accuracyMeters)}` : ""}`)}</div>`
       : "";
   const hint = `<div class="map-node-popup-hint">Open the selected session from the side panel.</div>`;
+  const offline = point.active === false;
+  const kicker = offline ? "OFFLINE · LAST KNOWN" : "ACTIVE NOW";
+  const meta = offline
+    ? escapeHtml(point.region)
+    : `${formatNumber(point.marketValue)} live sessions · ${escapeHtml(point.region)}`;
 
   return `
     <div class="map-node-popup-card">
-      <div class="map-node-popup-kicker">ACTIVE NOW</div>
+      <button type="button" class="map-node-popup-close" aria-label="Clear selection">&#215;</button>
+      <div class="map-node-popup-kicker">${kicker}</div>
       <div class="map-node-popup-title">${flag}${escapeHtml(point.label)}</div>
       ${location}
       ${session}
       ${geoDetails}
-      <div class="map-node-popup-meta">${formatNumber(point.marketValue)} live sessions · ${escapeHtml(point.region)}</div>
+      <div class="map-node-popup-meta">${meta}</div>
       ${hint}
     </div>
   `;
@@ -813,14 +822,17 @@ export function WorldHeatmap({
   sessionPoints,
   theme,
   onOpenSession,
-  focusedSessionId = null,
-  focusedSessionToken = 0,
+  focusedKey = null,
+  focusedToken = 0,
+  onActiveKeyChange,
 }: WorldHeatmapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const popupRef = useRef<Popup | null>(null);
   const autoFitRef = useRef(false);
-  const handledFocusTokenRef = useRef(0);
+  // Keyed on "key#token" so a fresh focus for a DIFFERENT dot is never swallowed
+  // by a token collision, and a remount cannot replay an already-handled focus.
+  const handledFocusRef = useRef<string | null>(null);
   const themeRef = useRef(theme);
   const activeKeyRef = useRef<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
@@ -837,7 +849,17 @@ export function WorldHeatmap({
   const sessionDots = useMemo(() => buildSessionDotsCollection(sessionMarkerPoints), [sessionMarkerPoints]);
   const sessionDotsRef = useRef(sessionDots);
   const onOpenSessionRef = useRef(onOpenSession);
+  const onActiveKeyChangeRef = useRef(onActiveKeyChange);
   const activePoint = sessionMarkerPoints.find((point) => point.key === activeKey) ?? null;
+
+  // Single entry point for selection changes so the parent page always hears
+  // about them (it drops its pinned focus target on deselect / reselect).
+  function updateActiveKey(key: string | null) {
+    setActiveKey(key);
+    onActiveKeyChangeRef.current?.(key);
+  }
+  const updateActiveKeyRef = useRef(updateActiveKey);
+  updateActiveKeyRef.current = updateActiveKey;
 
   useEffect(() => {
     themeRef.current = theme;
@@ -860,19 +882,29 @@ export function WorldHeatmap({
   }, [onOpenSession]);
 
   useEffect(() => {
+    onActiveKeyChangeRef.current = onActiveKeyChange;
+  }, [onActiveKeyChange]);
+
+  useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     requestAnimationFrame(() => map.resize());
   }, [fullscreen]);
 
+  // Escape clears the dot selection first; a second press exits fullscreen.
   useEffect(() => {
-    if (!fullscreen) return;
+    if (!fullscreen && !activeKey) return;
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") setFullscreen(false);
+      if (e.key !== "Escape") return;
+      if (activeKeyRef.current) {
+        updateActiveKeyRef.current(null);
+        return;
+      }
+      setFullscreen(false);
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [fullscreen]);
+  }, [fullscreen, activeKey]);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) {
@@ -938,10 +970,16 @@ export function WorldHeatmap({
       ensureSessionDots(map, sessionDotsRef.current, activeKeyRef.current);
     });
     map.on("click", (event) => {
-      const dotLayers = [SESSIONS_CORE_LAYER_ID, SESSIONS_GLOW_LAYER_ID]
-        .filter((layerId) => Boolean(map.getLayer(layerId)));
-      const features = dotLayers.length > 0
-        ? map.queryRenderedFeatures(event.point, { layers: dotLayers })
+      // Hit-test only the small core circles (with a light tolerance box), not the
+      // huge blurred glow layer — clicks on visually empty space must DESELECT
+      // instead of silently re-selecting the nearest dot's halo.
+      const tolerance = 5;
+      const bbox: [maplibregl.PointLike, maplibregl.PointLike] = [
+        [event.point.x - tolerance, event.point.y - tolerance],
+        [event.point.x + tolerance, event.point.y + tolerance],
+      ];
+      const features = map.getLayer(SESSIONS_CORE_LAYER_ID)
+        ? map.queryRenderedFeatures(bbox, { layers: [SESSIONS_CORE_LAYER_ID] })
         : [];
       const rawKey: unknown = features[0]?.properties?.key;
       const key = typeof rawKey === "string" ? rawKey : null;
@@ -949,7 +987,7 @@ export function WorldHeatmap({
       if (key) {
         // First click selects (popup + ring); a second click on the same dot drills in.
         const shouldOpenSession = activeKeyRef.current === key;
-        setActiveKey(key);
+        updateActiveKeyRef.current(key);
 
         if (shouldOpenSession) {
           onOpenSessionRef.current(key);
@@ -958,7 +996,7 @@ export function WorldHeatmap({
         return;
       }
 
-      setActiveKey(null);
+      updateActiveKeyRef.current(null);
     });
     map.on("mouseenter", SESSIONS_CORE_LAYER_ID, () => {
       map.getCanvas().style.cursor = "pointer";
@@ -1057,7 +1095,7 @@ export function WorldHeatmap({
 
     if (sessionMarkerPoints.length === 0) {
       autoFitRef.current = false;
-      setActiveKey(null);
+      if (activeKeyRef.current !== null) updateActiveKeyRef.current(null);
       popupRef.current?.remove();
       return;
     }
@@ -1067,8 +1105,8 @@ export function WorldHeatmap({
       autoFitRef.current = true;
     }
 
-    if (!sessionMarkerPoints.some((point) => point.key === activeKeyRef.current)) {
-      setActiveKey(null);
+    if (activeKeyRef.current && !sessionMarkerPoints.some((point) => point.key === activeKeyRef.current)) {
+      updateActiveKeyRef.current(null);
     }
   }, [mapReady, sessionDots, sessionMarkerPoints]);
 
@@ -1093,17 +1131,24 @@ export function WorldHeatmap({
       .setLngLat(activePoint.coordinates)
       .setHTML(buildPopupMarkup(activePoint))
       .addTo(map);
+
+    // setHTML replaces the DOM each time, so the close button is re-wired per render.
+    popup
+      .getElement()
+      ?.querySelector<HTMLButtonElement>(".map-node-popup-close")
+      ?.addEventListener("click", () => updateActiveKeyRef.current(null));
   }, [activeKey, activePoint, mapReady]);
 
   useEffect(() => {
-    if (!focusedSessionId || focusedSessionToken <= 0) {
+    if (!focusedKey || focusedToken <= 0) {
       return;
     }
 
     // Each show-on-map click bumps the token. Handle it exactly once: data polls
     // refresh sessionPoints (new identity) and must NOT re-fly to / reopen the
-    // focused session after the owner has dismissed it and panned away.
-    if (handledFocusTokenRef.current === focusedSessionToken) {
+    // focused dot after the owner has dismissed it and panned away.
+    const focusStamp = `${focusedKey}#${focusedToken}`;
+    if (handledFocusRef.current === focusStamp) {
       return;
     }
 
@@ -1113,21 +1158,21 @@ export function WorldHeatmap({
       return;
     }
 
-    const point = sessionMarkerPoints.find((entry) => entry.key === focusedSessionId);
+    const point = sessionMarkerPoints.find((entry) => entry.key === focusedKey);
 
     if (!point) {
-      // Leave the token unhandled so the focus completes once the dot arrives.
+      // Leave the stamp unhandled so the focus completes once the dot arrives.
       return;
     }
 
-    handledFocusTokenRef.current = focusedSessionToken;
+    handledFocusRef.current = focusStamp;
     setActiveKey(point.key);
     map.easeTo({
       center: point.coordinates,
       zoom: Math.max(map.getZoom(), point.precise ? 9.6 : PRIMARY_MARKET_ZOOM),
       duration: 900,
     });
-  }, [focusedSessionId, focusedSessionToken, mapReady, sessionMarkerPoints]);
+  }, [focusedKey, focusedToken, mapReady, sessionMarkerPoints]);
 
   function focusLiveMarkets() {
     const map = mapRef.current;
@@ -1236,12 +1281,24 @@ export function WorldHeatmap({
                 <button type="button" className="btn-primary" onClick={openActiveSession}>
                   Open live session
                 </button>
-                <button type="button" className="btn-ghost" onClick={() => setActiveKey(null)}>
+                <button type="button" className="btn-ghost" onClick={() => updateActiveKey(null)}>
                   Clear
                 </button>
               </div>
             ) : null}
           </div>
+        ) : null}
+
+        {activePoint ? (
+          <button
+            type="button"
+            className="world-heatmap-clear-chip"
+            onClick={() => updateActiveKey(null)}
+            title="Deselect (Esc)"
+          >
+            <X className="h-3.5 w-3.5" />
+            Clear selection
+          </button>
         ) : null}
 
         <div className="world-heatmap-hovbar">

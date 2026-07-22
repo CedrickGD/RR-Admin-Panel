@@ -27,6 +27,7 @@ import { SearchInput } from "../components/ds/SearchInput";
 import { Tag } from "../components/ds/Tag";
 import type { AppSessionRecord, StatsPayload, SummaryPayload, TelemetryEvent, UserRollupRecord } from "../types/telemetry";
 import { formatAccuracy, formatDate, formatDuration, formatEventName, formatGeoSource, formatNumber, timeAgo } from "../utils/format";
+import { resolveCountry } from "../utils/geography";
 
 interface WorkersPageProps {
   summary: SummaryPayload;
@@ -34,6 +35,8 @@ interface WorkersPageProps {
   users: UserRollupRecord[] | null;
   focusedWorkerId?: string | null;
   onOpenMapSession: (sessionId: string) => void;
+  /** Focuses a rollup user on the map's All-time view — works for OFFLINE users too. */
+  onOpenMapUser: (identity: string) => void;
   filterBar?: ReactNode;
 }
 
@@ -313,7 +316,7 @@ function SkeletonRows() {
 
 /* ── page ───────────────────────────────────────────────────── */
 
-export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapSession, filterBar }: WorkersPageProps) {
+export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapSession, onOpenMapUser, filterBar }: WorkersPageProps) {
   const [tab, setTab] = useState<TabKey>("users");
 
   // Users tab state
@@ -379,22 +382,6 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
   function toggleUserExpanded(identity: string) {
     setExpandedUsers((curr) => curr.includes(identity) ? curr.filter((id) => id !== identity) : [...curr, identity]);
   }
-
-  // The rollup doesn't carry a session id, so lift each user's most recent one from
-  // the summary window (same identity key the rollup uses: hwid, else installId).
-  // Lets a rollup row deep-link to the map exactly like LivePage / the Sessions tab.
-  const lastSessionByIdentity = useMemo(() => {
-    const map = new Map<string, { id: string; lastSeenTs: number }>();
-    for (const session of [...summary.activeSessions, ...summary.recentSessions]) {
-      if (session.id.startsWith("install:")) continue;
-      const identity = (session.hwid ?? session.installId).trim().toLowerCase();
-      const ts = parseTimestamp(session.lastSeenAt);
-      const lastSeenTs = Number.isFinite(ts) ? ts : 0;
-      const existing = map.get(identity);
-      if (!existing || lastSeenTs > existing.lastSeenTs) map.set(identity, { id: session.id, lastSeenTs });
-    }
-    return map;
-  }, [summary.activeSessions, summary.recentSessions]);
 
   /* ── header KPI values (stats/rollup driven, summary fallback) ── */
 
@@ -613,7 +600,11 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
                         const isExpanded = expandedUsers.includes(user.identity);
                         const features = Object.entries(user.features ?? {}).sort((a, b) => b[1] - a[1]);
                         const recentErrors = user.recentErrors ?? [];
-                        const lastSessionId = lastSessionByIdentity.get(user.identity.trim().toLowerCase())?.id ?? null;
+                        // Mappable when the rollup has coordinates or at least a known
+                        // country (centroid fallback) — online OR offline.
+                        const canMap =
+                          resolveCountry(user.country) !== null ||
+                          (Number.isFinite(user.latitude ?? Number.NaN) && Number.isFinite(user.longitude ?? Number.NaN));
 
                         return (
                           <Fragment key={user.identity}>
@@ -666,15 +657,16 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
                               <td className="muted" style={{ whiteSpace: "nowrap" }}>{formatDateOnly(user.firstSeen)}</td>
                               <td>
                                 <div style={{ display: "flex", gap: 4 }}>
-                                  {lastSessionId ? (
-                                    <IconButton
-                                      icon={<Globe2 />}
-                                      style={{ padding: 4 }}
-                                      title="Show on map"
-                                      aria-label="Show on map"
-                                      onClick={(e) => { e.stopPropagation(); onOpenMapSession(lastSessionId); }}
-                                    />
-                                  ) : null}
+                                  <IconButton
+                                    icon={<Globe2 />}
+                                    style={{ padding: 4 }}
+                                    disabled={!canMap}
+                                    title={canMap
+                                      ? user.isActive ? "Show on map" : "Show last known location"
+                                      : "No location data"}
+                                    aria-label="Show on map"
+                                    onClick={(e) => { e.stopPropagation(); if (canMap) onOpenMapUser(user.identity); }}
+                                  />
                                   <IconButton
                                     icon={isExpanded ? <ChevronUp /> : <ChevronDown />}
                                     style={{ padding: 4 }}

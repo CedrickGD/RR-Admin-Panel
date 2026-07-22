@@ -57,6 +57,8 @@ export interface HeatmapSessionPoint {
   geoSignalSource: string | null;
   accuracyMeters: number | null;
   precise: boolean;
+  /** false = offline dot (last known location); popup copy switches on this. */
+  active?: boolean | null;
 }
 
 export interface TimezoneActivityPoint {
@@ -465,7 +467,7 @@ function offsetCoordinates(
   };
 }
 
-function buildSessionSpreadPoint(
+export function buildSessionSpreadPoint(
   latitude: number,
   longitude: number,
   seed: string,
@@ -579,6 +581,7 @@ export function buildHeatmapSessionPoints(summary: SummaryPayload): HeatmapSessi
         geoSignalSource,
         accuracyMeters,
         precise: preciseCoordinates,
+        active: session.isActive,
       });
     }
   }

@@ -20,6 +20,7 @@
   border: 1px solid transparent;
 }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-icon:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .btn-primary {
   background: var(--accent);

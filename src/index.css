@@ -1668,6 +1668,34 @@ h1, h2, h3, h4, h5, h6 {
 .world-heatmap-floating-session { margin-top: 6px; font-family: "JetBrains Mono", monospace; font-size: 11px; color: var(--accent); }
 .world-heatmap-floating-actions { margin-top: 12px; gap: 6px; }
 
+/* Always-visible deselect affordance while a dot is locked (Esc works too). */
+.world-heatmap-clear-chip {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 999px;
+  background: rgba(8,12,22,0.88);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  color: rgba(255,255,255,0.8);
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+.world-heatmap-clear-chip:hover {
+  background: rgba(8,12,22,0.95);
+  border-color: rgba(255,255,255,0.2);
+  color: var(--text-1);
+}
+
 .world-heatmap-hovbar {
   position: absolute;
   top: 14px;
@@ -1844,7 +1872,19 @@ h1, h2, h3, h4, h5, h6 {
   overflow: hidden;
 }
 .map-node-popup-shell .maplibregl-popup-tip { display: none; }
-.map-node-popup-card { min-width: 180px; padding: 10px 12px; }
+.map-node-popup-card { position: relative; min-width: 180px; padding: 10px 12px; }
+.map-node-popup-close {
+  position: absolute; top: 6px; right: 6px;
+  display: flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px;
+  border: none; border-radius: 6px;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 14px; line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.map-node-popup-close:hover { background: rgba(255,255,255,0.08); color: var(--text-1); }
 .map-node-popup-kicker {
   font-size: 9px; font-weight: 600;
   text-transform: uppercase; letter-spacing: 0.14em;

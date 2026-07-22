@@ -15,6 +15,8 @@ interface LivePageProps {
   summary: SummaryPayload;
   focusedSessionId?: string | null;
   focusedSessionToken?: number;
+  /** One-shot handshake: after the scroll+highlight lands, App clears the focus state. */
+  onFocusConsumed?: () => void;
   onOpenMapSession: (sessionId: string) => void;
   filterBar?: ReactNode;
 }
@@ -109,9 +111,12 @@ function buildLiveSessionTimeline(session: AppSessionRecord, recentEvents: Telem
   return { trackedEventCount: relevantEvents.length, hiddenErrorCount: Math.max(0, session.errorCount - markers.length), markers };
 }
 
-export function LivePage({ summary, focusedSessionId = null, focusedSessionToken = 0, onOpenMapSession, filterBar }: LivePageProps) {
+export function LivePage({ summary, focusedSessionId = null, focusedSessionToken = 0, onFocusConsumed, onOpenMapSession, filterBar }: LivePageProps) {
   const [now, setNow] = useState(() => Date.now());
   const [expandedSessionIds, setExpandedSessionIds] = useState<string[]>([]);
+  // Local highlight copy — lives only while this page is mounted, so revisiting
+  // the page later never re-scrolls / re-highlights a long-dismissed session.
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const rowRefs = useRef(new Map<string, HTMLTableRowElement>());
 
   useEffect(() => {
@@ -155,6 +160,8 @@ export function LivePage({ summary, focusedSessionId = null, focusedSessionToken
 
   useEffect(() => {
     if (!focusedSessionId || focusedSessionToken <= 0) return;
+    setHighlightedId(focusedSessionId);
+    onFocusConsumed?.();
     const row = rowRefs.current.get(focusedSessionId);
     if (!row) return;
     const frameId = window.requestAnimationFrame(() => {
@@ -162,7 +169,7 @@ export function LivePage({ summary, focusedSessionId = null, focusedSessionToken
       row.focus({ preventScroll: true });
     });
     return () => window.cancelAnimationFrame(frameId);
-  }, [focusedSessionId, focusedSessionToken]);
+  }, [focusedSessionId, focusedSessionToken, onFocusConsumed]);
 
   function toggleExpanded(sessionId: string) {
     setExpandedSessionIds((curr) => curr.includes(sessionId) ? curr.filter((id) => id !== sessionId) : [...curr, sessionId]);
@@ -224,7 +231,7 @@ export function LivePage({ summary, focusedSessionId = null, focusedSessionToken
                 <tbody>
                   {activeSessions.map((session) => {
                     const isExpanded = expandedSessionIds.includes(session.id);
-                    const isFocused  = session.id === focusedSessionId;
+                    const isFocused  = session.id === highlightedId;
                     const timeline   = sessionTimelines.get(session.id);
                     const canMap     = resolveCountry(session.clientCountry) !== null;
 

@@ -1,5 +1,5 @@
 import { Activity, AlertTriangle, Earth, Map as MapIcon, MapPin, MapPinOff, Users } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { WorldHeatmap } from "../components/charts/WorldHeatmap";
 import { EmptyState } from "../components/ds/EmptyState";
 import { MetaRow, PageHeader } from "../components/ds/PageHeader";
@@ -21,6 +21,7 @@ import {
 import {
   buildHeatmapPoints,
   buildHeatmapSessionPoints,
+  buildSessionSpreadPoint,
   type HeatmapPoint,
   type HeatmapSessionPoint,
 } from "../utils/dashboardInsights";
@@ -38,13 +39,21 @@ const REGION_SHORT: Record<string, string> = {
   Oceania: "OC",
 };
 
+export interface MapFocusTarget {
+  /** "session" flies the Live view to a session dot; "user" flies the All-time view to a rollup dot. */
+  kind: "session" | "user";
+  id: string;
+  token: number;
+}
+
 interface HeatmapPageProps {
   summary: SummaryPayload;
   users: UserRollupRecord[] | null;
   theme: ThemeMode;
   onOpenSession: (sessionId: string) => void;
-  focusedSessionId?: string | null;
-  focusedSessionToken?: number;
+  focusedTarget?: MapFocusTarget | null;
+  /** One-shot handshake: the page copies the target into local state, then tells App to clear it. */
+  onFocusConsumed?: () => void;
   filterBar?: ReactNode;
 }
 
@@ -63,6 +72,8 @@ interface MappedUser {
   region: string;
   latitude: number;
   longitude: number;
+  /** True when the rollup carries real coordinates (not a country-centroid fallback). */
+  precise: boolean;
 }
 
 function getSessionIdentity(session: AppSessionRecord): string {
@@ -106,13 +117,27 @@ export function HeatmapPage({
   users,
   theme,
   onOpenSession,
-  focusedSessionId = null,
-  focusedSessionToken = 0,
+  focusedTarget = null,
+  onFocusConsumed,
   filterBar,
 }: HeatmapPageProps) {
   const [view, setView] = useState<MapView>("live");
   const [regionFilter, setRegionFilter] = useState<string | null>(null);
   const [countryCode, setCountryCode] = useState<string | null>(null);
+  // Local copy of the show-on-map target. Lives only while this page is mounted,
+  // so leaving the page naturally releases the "follow" instead of locking forever.
+  const [pinned, setPinned] = useState<MapFocusTarget | null>(null);
+
+  useEffect(() => {
+    if (!focusedTarget) return;
+    setPinned(focusedTarget);
+    // Session dots live on the Live view, rollup dots on All time.
+    setView(focusedTarget.kind === "user" ? "alltime" : "live");
+    // Geo filters could hide the target dot — reset them so the flight lands.
+    setRegionFilter(null);
+    setCountryCode(null);
+    onFocusConsumed?.();
+  }, [focusedTarget, onFocusConsumed]);
 
   const filtersActive = regionFilter !== null || countryCode !== null;
 
@@ -143,23 +168,30 @@ export function HeatmapPage({
   const liveMarkets = useMemo(() => buildHeatmapPoints(liveSummary), [liveSummary]);
   const livePoints = useMemo(() => buildHeatmapSessionPoints(liveSummary), [liveSummary]);
 
-  /* ── All-time pipeline: one dot per rollup user with coordinates ── */
+  /* ── All-time pipeline: one dot per rollup user. Users without stored
+     coordinates fall back to a deterministic spread around their country's
+     centroid (same trick as the live pipeline), so OFFLINE users are mappable
+     too — only users with neither coordinates nor a known country stay off. ── */
   const mappedUsers = useMemo<MappedUser[]>(() => {
     const byIdentity = new Map<string, MappedUser>();
     for (const user of users ?? []) {
-      if (
-        !Number.isFinite(user.latitude ?? Number.NaN) ||
-        !Number.isFinite(user.longitude ?? Number.NaN)
-      ) {
+      const country = resolveCountry(user.country);
+      const hasExact =
+        Number.isFinite(user.latitude ?? Number.NaN) &&
+        Number.isFinite(user.longitude ?? Number.NaN);
+      if (!hasExact && !country) {
         continue;
       }
-      const country = resolveCountry(user.country);
+      const fallback = country
+        ? buildSessionSpreadPoint(country.latitude, country.longitude, user.identity, 0, 2)
+        : null;
       const next: MappedUser = {
         user,
         country,
         region: country ? getMacroRegion(country) : "Unknown",
-        latitude: Number(user.latitude),
-        longitude: Number(user.longitude),
+        latitude: hasExact ? Number(user.latitude) : Number(fallback?.latitude),
+        longitude: hasExact ? Number(user.longitude) : Number(fallback?.longitude),
+        precise: hasExact,
       };
       const previous = byIdentity.get(user.identity);
       if (!previous || Date.parse(user.lastSeen) >= Date.parse(previous.user.lastSeen)) {
@@ -246,11 +278,12 @@ export function HeatmapPage({
           // Zero intensity + spread styling = the smallest, dimmest marker variant.
           intensity: 0,
           locationLabel: city ? `${city}, ${countryLabel}` : countryLabel,
-          userLabel: `Last seen ${timeAgo(entry.user.lastSeen)}${version ? ` · ${version}` : ""}`,
+          userLabel: `${entry.user.isActive ? "Active now" : `Last seen ${timeAgo(entry.user.lastSeen)}`}${version ? ` · ${version}` : ""}`,
           geoSource: null,
           geoSignalSource: null,
           accuracyMeters: null,
-          precise: false,
+          precise: entry.precise,
+          active: entry.user.isActive,
         };
       })
       .sort(
@@ -265,15 +298,16 @@ export function HeatmapPage({
   const markets = view === "live" ? liveMarkets : alltimeMarkets;
   const dots = view === "live" ? livePoints : alltimePoints;
 
-  /* ── Offline session focus: synthesize a dot when the focused session is not rendered ── */
+  /* ── Offline session focus: synthesize a dot when the pinned session is not rendered ── */
+  const pinnedSessionId = pinned?.kind === "session" ? pinned.id : null;
   const focusPoint = useMemo<HeatmapSessionPoint | null>(() => {
-    if (!focusedSessionId) return null;
+    if (!pinnedSessionId) return null;
     const baseDots = view === "live" ? livePoints : alltimePoints;
-    if (baseDots.some((point) => point.key === focusedSessionId)) return null;
+    if (baseDots.some((point) => point.key === pinnedSessionId)) return null;
 
     const session =
-      summary.activeSessions.find((entry) => entry.id === focusedSessionId) ??
-      summary.recentSessions.find((entry) => entry.id === focusedSessionId);
+      summary.activeSessions.find((entry) => entry.id === pinnedSessionId) ??
+      summary.recentSessions.find((entry) => entry.id === pinnedSessionId);
     if (!session) return null;
 
     const country = resolveCountry(session.clientCountry);
@@ -312,8 +346,9 @@ export function HeatmapPage({
         ? Number(session.clientAccuracyMeters)
         : null,
       precise: hasExact,
+      active: session.isActive,
     };
-  }, [focusedSessionId, view, livePoints, alltimePoints, summary]);
+  }, [pinnedSessionId, view, livePoints, alltimePoints, summary]);
 
   const mapDots = useMemo(
     () => (focusPoint ? [...dots, focusPoint] : dots),
@@ -482,8 +517,13 @@ export function HeatmapPage({
               sessionPoints={mapDots}
               theme={theme}
               onOpenSession={onOpenSession}
-              focusedSessionId={focusedSessionId}
-              focusedSessionToken={focusedSessionToken}
+              focusedKey={pinned?.id ?? null}
+              focusedToken={pinned?.token ?? 0}
+              onActiveKeyChange={(key) => {
+                // Deselecting (or selecting a different dot) releases the pin, which
+                // also retires any synthesized offline dot on the next render.
+                setPinned((current) => (key === null || (current && key !== current.id) ? null : current));
+              }}
             />
           </div>
         </section>

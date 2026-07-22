@@ -1,4 +1,5 @@
 import { nowIso } from "./http";
+import { ensureAccessSchema, isSuspensionActive, type SuspensionRow } from "./access";
 import { ensureTelemetrySchema, normalizeDisplayVersion } from "./storage";
 import type { RuntimeEnv, StatsFilters, StatsPayload, UserErrorRecord, UserRollupRecord, TelemetryStatus } from "./types";
 
@@ -384,10 +385,11 @@ export async function loadUsersRollup(env: RuntimeEnv, filters: StatsFilters): P
   }
 
   await ensureTelemetrySchema(db);
+  await ensureAccessSchema(env);
 
   const dim = buildDimensionClause(filters);
 
-  const [rollups, featureRows, errorEvents, premiumHwidsRow] = await Promise.all([
+  const [rollups, featureRows, errorEvents, licenseRows, suspensionRows] = await Promise.all([
     db
       .prepare(
         `WITH base AS (
@@ -436,11 +438,37 @@ export async function loadUsersRollup(env: RuntimeEnv, filters: StatsFilters): P
       )
       .all<{ ts: string; message: string | null; metrics_json: string | null }>(),
     db
-      .prepare(`SELECT hwid FROM licenses WHERE hwid IS NOT NULL AND status = 'active'`)
-      .all<{ hwid: string }>(),
+      .prepare(`SELECT license_key, hwid FROM licenses WHERE hwid IS NOT NULL AND status = 'active'`)
+      .all<{ license_key: string; hwid: string }>(),
+    db
+      .prepare(`SELECT * FROM access_suspensions WHERE is_active = 1`)
+      .all<SuspensionRow>(),
   ]);
 
-  const premiumHwids = new Set(premiumHwidsRow.results.map((r) => r.hwid));
+  // Paid-license keys per individual hwid. `licenses.hwid` is a comma-separated list for
+  // multi-seat/master keys, so split it — a single-hwid lookup must match an element of the CSV,
+  // not the whole string (which is why multi-seat keys used to read as "free").
+  const paidKeysByHwid = new Map<string, string[]>();
+  for (const lic of licenseRows.results) {
+    for (const part of lic.hwid.split(",")) {
+      const key = part.trim();
+      if (!key) continue;
+      const list = paidKeysByHwid.get(key) ?? [];
+      list.push(lic.license_key);
+      paidKeysByHwid.set(key, list);
+    }
+  }
+
+  // Active suspensions, indexed by every identifier they carry so a user rollup (keyed by
+  // hwid ?? install_id) resolves whichever way it was suspended.
+  const now = nowIso();
+  const suspensionByKey = new Map<string, SuspensionRow>();
+  for (const row of suspensionRows.results) {
+    if (!isSuspensionActive(row, now)) continue;
+    for (const key of [row.identity, row.hwid, row.install_id]) {
+      if (key) suspensionByKey.set(key, row);
+    }
+  }
 
   const featuresByIdentity = new Map<string, Record<string, number>>();
   for (const row of featureRows.results) {
@@ -494,7 +522,11 @@ export async function loadUsersRollup(env: RuntimeEnv, filters: StatsFilters): P
     errorsByIdentity.set(identity, list);
   }
 
-  return rollups.results.map((row) => ({
+  return rollups.results.map((row) => {
+    const paidLicenseKeys = collectPaidKeys(paidKeysByHwid, row.identity, row.hwid);
+    const suspensionRow =
+      suspensionByKey.get(row.identity) ?? (row.hwid ? suspensionByKey.get(row.hwid) : undefined) ?? null;
+    return {
     identity: row.identity,
     userLabel: row.user_label ?? null,
     firstSeen: row.first_seen,
@@ -503,7 +535,17 @@ export async function loadUsersRollup(env: RuntimeEnv, filters: StatsFilters): P
     totalDurationSeconds: toNumber(row.total_duration_seconds),
     errors: toNumber(row.errors),
     isActive: toNumber(row.is_active) === 1,
-    licenseTier: premiumHwids.has(row.identity) || (row.hwid && premiumHwids.has(row.hwid)) ? "premium" : "free",
+    licenseTier: (paidLicenseKeys.length > 0 ? "premium" : "free") as "premium" | "free",
+    paidLicenseKeys,
+    suspension: suspensionRow
+      ? {
+          mode: suspensionRow.mode,
+          reason: suspensionRow.reason,
+          bannedUntil: suspensionRow.banned_until,
+          hadPaidLicense: suspensionRow.had_paid_license === 1,
+          createdAt: suspensionRow.created_at,
+        }
+      : null,
     hwid: row.hwid ?? null,
     appVersion: row.app_version ?? null,
     displayVersion: row.display_version ?? normalizeDisplayVersion(row.app_version ?? null),
@@ -521,7 +563,18 @@ export async function loadUsersRollup(env: RuntimeEnv, filters: StatsFilters): P
     lastEvent: row.last_event ?? null,
     features: featuresByIdentity.get(row.identity) ?? {},
     recentErrors: errorsByIdentity.get(row.identity) ?? [],
-  }));
+    };
+  });
+}
+
+/** Union of the paid license keys bound to a user's identity key and its resolved hwid. */
+function collectPaidKeys(paidKeysByHwid: Map<string, string[]>, identity: string, hwid: string | null): string[] {
+  const keys = new Set<string>();
+  for (const k of paidKeysByHwid.get(identity) ?? []) keys.add(k);
+  if (hwid) {
+    for (const k of paidKeysByHwid.get(hwid) ?? []) keys.add(k);
+  }
+  return [...keys];
 }
 
 function toNullableFloat(value: number | string | null): number | null {

@@ -15,6 +15,7 @@ import { SettingsPage } from "./pages/SettingsPage";
 import { TrafficPage } from "./pages/TrafficPage";
 import { WorkersPage } from "./pages/WorkersPage";
 import { LicensesPage } from "./pages/LicensesPage";
+import { AccessPage } from "./pages/AccessPage";
 import { AnnouncementsPage } from "./pages/AnnouncementsPage";
 import { FeedbackPage } from "./pages/FeedbackPage";
 import type { PageKey, StatsFilters } from "./types/telemetry";
@@ -189,6 +190,7 @@ export default function App() {
             {page === "workers"   ? <WorkersPage   summary={summary} stats={stats} users={users} focusedWorkerId={focusedWorkerId} onOpenMapSession={handleOpenHeatmapSession} filterBar={filterBar} /> : null}
             {page === "errors"    ? <ErrorsPage /> : null}
             {page === "licenses"  ? <LicensesPage  summary={summary} onOpenSession={handleOpenLiveSession} onOpenWorker={handleOpenWorker} filterBar={refreshButton} /> : null}
+            {page === "access"    ? <AccessPage    users={users ?? []} onOpenWorker={handleOpenWorker} filterBar={filterBar} /> : null}
             {page === "announcements" ? <AnnouncementsPage filterBar={refreshButton} /> : null}
             {page === "feedback"  ? <FeedbackPage  summary={summary} onOpenSession={handleOpenLiveSession} onOpenWorker={handleOpenWorker} filterBar={refreshButton} /> : null}
             {page === "settings"  ? (

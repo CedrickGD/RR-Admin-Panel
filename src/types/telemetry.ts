@@ -11,6 +11,7 @@ export type PageKey =
   | "errors"
   | "settings"
   | "licenses"
+  | "access"
   | "announcements"
   | "feedback";
 
@@ -134,6 +135,35 @@ export interface StatsPayload {
   };
 }
 
+export type SuspensionMode = "ban" | "suspend";
+
+export interface UserSuspensionSummary {
+  mode: SuspensionMode;
+  reason: string | null;
+  bannedUntil: string | null;
+  hadPaidLicense: boolean;
+  createdAt: string;
+}
+
+/** Full suspension record from /api/admin/access (the "Suspensions" table). */
+export interface SuspensionRecord {
+  id: number;
+  identity: string;
+  hwid: string | null;
+  install_id: string | null;
+  user_label: string | null;
+  mode: SuspensionMode;
+  reason: string | null;
+  banned_until: string | null;
+  is_active: number;
+  had_paid_license: number;
+  paid_license_keys: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  lifted_at: string | null;
+}
+
 export interface UserRollupRecord {
   identity: string;
   userLabel: string | null;
@@ -144,6 +174,8 @@ export interface UserRollupRecord {
   errors: number;
   isActive: boolean;
   licenseTier?: "premium" | "free";
+  paidLicenseKeys?: string[];
+  suspension?: UserSuspensionSummary | null;
   hwid: string | null;
   appVersion: string | null;
   displayVersion: string | null;

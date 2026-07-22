@@ -5,6 +5,7 @@ import type {
   SessionPayload,
   StatsFilters,
   StatsPayload,
+  SuspensionRecord,
   UserRollupRecord,
 } from "../types/telemetry";
 
@@ -204,6 +205,70 @@ export async function fetchAdminErrors(range: string): Promise<{
   });
   const body = await parseJson<{ ok?: boolean; errors?: ErrorsPayload }>(res);
   return { ok: res.ok && Boolean(body?.errors), errors: body?.errors, status: res.status };
+}
+
+export async function fetchAdminSuspensions(): Promise<{
+  ok: boolean;
+  suspensions?: SuspensionRecord[];
+  status: number;
+}> {
+  const url = new URL(apiUrl("/api/admin/access"), window.location.origin);
+  url.searchParams.set("_ts", String(Date.now()));
+  const res = await fetchApi(url.toString(), {
+    method: "GET",
+    cache: "no-store",
+    credentials: "include",
+  });
+  const body = await parseJson<{ ok?: boolean; suspensions?: SuspensionRecord[] }>(res);
+  return { ok: res.ok && Array.isArray(body?.suspensions), suspensions: body?.suspensions, status: res.status };
+}
+
+export interface SuspendInput {
+  identity: string;
+  hwid?: string | null;
+  install_id?: string | null;
+  user_label?: string | null;
+  mode: "ban" | "suspend";
+  reason?: string | null;
+  banned_until?: string | null;
+}
+
+export interface SuspendResult {
+  ok: boolean;
+  error?: string;
+  had_paid_license?: boolean;
+  paid_license_keys?: string[];
+}
+
+export async function postSuspend(input: SuspendInput): Promise<{ ok: boolean; data?: SuspendResult; status: number }> {
+  // No retry: suspending is a deliberate, non-idempotent-feeling admin action.
+  const res = await fetchApi(
+    apiUrl("/api/admin/access/suspend"),
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(input),
+      credentials: "include",
+    },
+    { retry: false },
+  );
+  const body = await parseJson<SuspendResult>(res);
+  return { ok: res.ok && Boolean(body?.ok), data: body, status: res.status };
+}
+
+export async function postLiftSuspension(identity: string): Promise<{ ok: boolean; status: number }> {
+  const res = await fetchApi(
+    apiUrl("/api/admin/access/lift"),
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ identity }),
+      credentials: "include",
+    },
+    { retry: false },
+  );
+  const body = await parseJson<{ ok?: boolean }>(res);
+  return { ok: res.ok && Boolean(body?.ok), status: res.status };
 }
 
 export async function postAuth(

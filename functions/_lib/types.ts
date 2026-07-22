@@ -58,6 +58,14 @@ export interface RuntimeEnv {
   ACCESS_ADMIN_EMAIL?: string;
   BUILD_SHA?: string;
   STORE_SECRET_KEY?: string;
+  // Discord verification / paid-community gating.
+  VERIFY_SHARED_SECRET?: string; // shared secret the bot presents to /api/discord/verify|status
+  DISCORD_CLIENT_ID?: string; // OAuth app id (single-use-invite flow, stage 2)
+  DISCORD_CLIENT_SECRET?: string; // OAuth app secret
+  DISCORD_BOT_TOKEN?: string; // bot token for guild role/invite REST calls
+  DISCORD_GUILD_ID?: string; // target community guild
+  DISCORD_VERIFIED_ROLE_ID?: string; // "Verified" role granted after a valid license link
+  DISCORD_REDIRECT_URI?: string; // OAuth callback (…/api/discord/callback)
   DB?: D1Database;
   KV?: KVNamespace;
   CF_PAGES?: string;
@@ -192,6 +200,14 @@ export interface StatsPayload {
   };
 }
 
+export interface UserSuspensionSummary {
+  mode: "ban" | "suspend";
+  reason: string | null;
+  bannedUntil: string | null;
+  hadPaidLicense: boolean;
+  createdAt: string;
+}
+
 export interface UserRollupRecord {
   identity: string;
   userLabel: string | null;
@@ -201,6 +217,9 @@ export interface UserRollupRecord {
   totalDurationSeconds: number;
   errors: number;
   isActive: boolean;
+  licenseTier: "premium" | "free";
+  paidLicenseKeys: string[];
+  suspension: UserSuspensionSummary | null;
   hwid: string | null;
   appVersion: string | null;
   displayVersion: string | null;

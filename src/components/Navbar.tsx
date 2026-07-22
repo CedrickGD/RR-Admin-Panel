@@ -12,6 +12,7 @@ import {
   Settings2,
   X,
   Key,
+  Ban,
   Megaphone,
   MessageSquare,
 } from "lucide-react";
@@ -44,6 +45,7 @@ const NAV_ITEMS: NavEntry[] = [
   { key: "workers",  label: "Sessions", icon: <History size={16} /> },
   // Users & Support — per-user surfaces
   { key: "licenses", label: "Licenses", icon: <Key size={16} /> },
+  { key: "access",   label: "Access",   icon: <Ban size={16} /> },
   { key: "feedback", label: "Feedback", icon: <MessageSquare size={16} /> },
   { key: "errors",   label: "Errors",   icon: <AlertTriangle size={16} /> },
   // System — broadcast + configuration

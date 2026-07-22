@@ -1903,6 +1903,62 @@ h1, h2, h3, h4, h5, h6 {
 .map-node-popup-hint { margin-top: 6px; font-size: 10px; color: var(--text-3); }
 .map-node-popup-flag { display: inline-flex; font-size: 15px; }
 
+/* ── Per-user behaviour analytics (Workers page, expanded row) ── */
+.user-activity { margin-bottom: 16px; }
+.user-activity-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; flex-wrap: wrap; margin-bottom: 10px;
+}
+.user-activity-loading { display: grid; gap: 8px; }
+.user-activity-note { font-size: 0.75rem; color: var(--text-3); }
+.user-activity-stats {
+  display: flex; flex-wrap: wrap; gap: 6px 22px;
+  margin-bottom: 10px;
+}
+.user-activity-stat { display: flex; flex-direction: column; gap: 1px; }
+.user-activity-stat-label {
+  font-size: 9px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.12em;
+  color: var(--text-3);
+}
+.user-activity-stat-value {
+  font-family: var(--font-mono, "JetBrains Mono", monospace);
+  font-size: 0.75rem; color: var(--text-1);
+}
+.user-activity-chart { min-width: 0; }
+.user-activity-tz {
+  margin-left: 6px; text-transform: none; letter-spacing: normal;
+  font-weight: 400; color: var(--text-3);
+}
+.user-activity-tooltip {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 6px 9px; border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(8,12,22,0.95);
+  font-size: 11px;
+}
+.user-activity-tooltip-label { color: var(--text-3); }
+.user-activity-tooltip-value { color: var(--text-1); font-family: var(--font-mono, monospace); }
+.user-activity-punchcard {
+  display: grid;
+  grid-template-columns: 34px repeat(24, minmax(8px, 1fr));
+  gap: 2px;
+  align-items: center;
+}
+.user-activity-punchcard-hour {
+  font-size: 8.5px; color: var(--text-3);
+  text-align: left; line-height: 1;
+}
+.user-activity-punchcard-day {
+  font-size: 9px; font-weight: 600; color: var(--text-3);
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+.user-activity-punchcard-cell {
+  height: 13px; border-radius: 3px;
+  transition: transform 0.1s;
+}
+.user-activity-punchcard-cell:hover { transform: scale(1.25); }
+
 @keyframes heatPulse {
   0% { transform: translate(-50%, -50%) scale(0.75); opacity: 0.42; }
   70% { opacity: 0.08; }

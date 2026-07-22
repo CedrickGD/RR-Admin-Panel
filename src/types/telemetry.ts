@@ -169,6 +169,32 @@ export interface UserErrorRecord {
   type: string | null;
 }
 
+export interface UserActivityDay {
+  /** Local calendar date (user's timezone), YYYY-MM-DD. */
+  date: string;
+  seconds: number;
+  sessions: number;
+}
+
+/** Per-user behaviour analytics from GET /api/admin/user-activity. */
+export interface UserActivityPayload {
+  identity: string;
+  timezone: string;
+  rangeDays: number | null;
+  totalSeconds: number;
+  sessionCount: number;
+  averageSessionSeconds: number;
+  firstSeen: string | null;
+  lastSeen: string | null;
+  /** Only legacy install-scoped sessions exist — no per-run history available. */
+  legacyOnly: boolean;
+  days: UserActivityDay[];
+  /** Seconds online per weekday x hour (local time); [0][*] = Monday. */
+  hourOfWeek: number[][];
+  hourOfDay: number[];
+  weekdayTotals: number[];
+}
+
 export type ErrorsRangeKey = "1h" | "6h" | "12h" | "24h" | "3d" | "7d" | "30d" | "all";
 
 export interface ErrorEventDetail {

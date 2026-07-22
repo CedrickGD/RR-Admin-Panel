@@ -5,6 +5,7 @@ import type {
   SessionPayload,
   StatsFilters,
   StatsPayload,
+  UserActivityPayload,
   UserRollupRecord,
 } from "../types/telemetry";
 
@@ -187,6 +188,24 @@ export async function fetchAdminUsers(filters: StatsFilters): Promise<{
   });
   const body = await parseJson<{ ok?: boolean; users?: UserRollupRecord[] }>(res);
   return { ok: res.ok && Array.isArray(body?.users), users: body?.users, status: res.status };
+}
+
+export async function fetchUserActivity(identity: string, range: string): Promise<{
+  ok: boolean;
+  activity?: UserActivityPayload;
+  status: number;
+}> {
+  const url = new URL(apiUrl("/api/admin/user-activity"), window.location.origin);
+  url.searchParams.set("identity", identity);
+  url.searchParams.set("range", range);
+  url.searchParams.set("_ts", String(Date.now()));
+  const res = await fetchApi(url.toString(), {
+    method: "GET",
+    cache: "no-store",
+    credentials: "include",
+  });
+  const body = await parseJson<{ ok?: boolean; activity?: UserActivityPayload }>(res);
+  return { ok: res.ok && Boolean(body?.activity), activity: body?.activity, status: res.status };
 }
 
 export async function fetchAdminErrors(range: string): Promise<{

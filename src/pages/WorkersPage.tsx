@@ -16,6 +16,7 @@ import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
 import * as XLSX from "xlsx";
 import { CollapsiblePanel } from "../components/CollapsiblePanel";
 import { type KpiDrilldown, KpiStatCard } from "../components/KpiStatCard";
+import { UserActivityPanel } from "../components/UserActivityPanel";
 import { type SessionPresence, StatusBadge } from "../components/StatusBadge";
 import { Badge } from "../components/ds/Badge";
 import { Button, IconButton } from "../components/ds/Button";
@@ -698,6 +699,8 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
                                         ]}
                                       />
                                     </div>
+
+                                    <UserActivityPanel identity={user.identity} />
 
                                     <p className="label-sm" style={{ marginBottom: 8 }}>Recent Errors</p>
                                     {recentErrors.length > 0 ? (

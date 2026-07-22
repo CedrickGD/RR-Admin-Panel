@@ -104,7 +104,9 @@ function dedupeSessionsByUser(sessions: AppSessionRecord[]): AppSessionRecord[] 
 function formatVersionTag(raw: string | null): string | null {
   const trimmed = raw?.trim();
   if (!trimmed) return null;
-  return `v${trimmed.replace(/^v/i, "")}`;
+  const cleaned = trimmed.replace(/^v/i, "");
+  // Non-numeric tags ("legacy", "unknown") read wrong with a v-prefix.
+  return /^\d/.test(cleaned) ? `v${cleaned}` : cleaned;
 }
 
 function renderCountryOption(code: string): string {

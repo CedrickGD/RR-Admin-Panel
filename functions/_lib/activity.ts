@@ -175,9 +175,11 @@ export async function loadUserActivity(
 
   let totalSeconds = 0;
   let sessionCount = 0;
+  let rawSessionSeconds = 0;
   let firstSeenMs = Number.POSITIVE_INFINITY;
   let lastSeenMs = Number.NEGATIVE_INFINITY;
 
+  const intervals: Array<[number, number]> = [];
   for (const row of rows) {
     const startMs = parseTimestamp(row.started_at);
     let endMs = parseTimestamp(row.ended_at ?? row.last_seen_at);
@@ -198,14 +200,35 @@ export async function loadUserActivity(
     const effectiveStart = Math.max(startMs, cutoffMs);
 
     sessionCount += 1;
+    rawSessionSeconds += (endMs - effectiveStart) / 1000;
     const startParts = toLocal(effectiveStart);
     sessionsByDate.set(startParts.date, (sessionsByDate.get(startParts.date) ?? 0) + 1);
 
+    if (endMs > effectiveStart) {
+      intervals.push([effectiveStart, endMs]);
+    }
+  }
+
+  // Merge overlapping intervals first: a client relaunch while the previous
+  // session row is still open (or a crash later revived by heartbeats) would
+  // otherwise double-count the same wall-clock time — days showing "28h online".
+  intervals.sort((a, b) => a[0] - b[0]);
+  const merged: Array<[number, number]> = [];
+  for (const interval of intervals) {
+    const last = merged[merged.length - 1];
+    if (last && interval[0] <= last[1]) {
+      last[1] = Math.max(last[1], interval[1]);
+    } else {
+      merged.push([interval[0], interval[1]]);
+    }
+  }
+
+  for (const [intervalStart, intervalEnd] of merged) {
     // Distribute the interval across hour-aligned slices in the user's timezone.
-    let cursor = effectiveStart;
-    while (cursor < endMs) {
+    let cursor = intervalStart;
+    while (cursor < intervalEnd) {
       const nextHourBoundary = (Math.floor(cursor / 3_600_000) + 1) * 3_600_000;
-      const sliceEnd = Math.min(endMs, nextHourBoundary);
+      const sliceEnd = Math.min(intervalEnd, nextHourBoundary);
       const sliceSeconds = (sliceEnd - cursor) / 1000;
       const local = toLocal(cursor);
 
@@ -264,7 +287,9 @@ export async function loadUserActivity(
     rangeDays,
     totalSeconds: Math.round(totalSeconds),
     sessionCount,
-    averageSessionSeconds: sessionCount > 0 ? Math.round(totalSeconds / sessionCount) : 0,
+    // Average uses raw (unmerged) session lengths — "how long does a session
+    // last", while totalSeconds is deduplicated wall-clock online time.
+    averageSessionSeconds: sessionCount > 0 ? Math.round(rawSessionSeconds / sessionCount) : 0,
     firstSeen: Number.isFinite(firstSeenMs) ? new Date(firstSeenMs).toISOString() : null,
     lastSeen: Number.isFinite(lastSeenMs) ? new Date(lastSeenMs).toISOString() : null,
     legacyOnly: rows.length === 0 && legacyRows > 0,

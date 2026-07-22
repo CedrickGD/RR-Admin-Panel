@@ -33,11 +33,21 @@ const KNOWN_COUNTER_SERVICES = new Set([
   "crosshair_overlay"
 ]);
 
+// Hosted media proxy: read-only Nextcloud public share, fronted by the CF edge
+// cache. The token belongs to a share that only ever contains deliberately
+// public app media (spot previews, videos), so it is config, not a secret.
+const MEDIA_DAV_BASE = "https://nx79849.your-storageshare.de/public.php/dav/files";
+const MEDIA_SHARE_TOKEN = "Yfcpe7AR3cDJJmr";
+const MEDIA_MAX_PATH_LENGTH = 512;
+// Browsers/clients revalidate hourly; the edge keeps a day. New media should
+// ship under a new filename anyway (clients cache by URL on disk).
+const MEDIA_CACHE_CONTROL = "public, max-age=3600, s-maxage=86400";
+
 // Schema is idempotent but expensive (~20 statements); run it once per isolate, not per request.
 let schemaReady = false;
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     if (request.method === "OPTIONS") {
       return withCors(new Response(null, { status: 204 }), request);
     }
@@ -46,6 +56,10 @@ export default {
     const path = url.pathname;
 
     try {
+      if ((request.method === "GET" || request.method === "HEAD") && path.startsWith("/media/")) {
+        return await handleMedia(request, env, ctx);
+      }
+
       if (request.method === "GET" && path === "/health") {
         return json(
           {
@@ -104,6 +118,91 @@ export default {
     }
   }
 };
+
+async function handleMedia(request, env, ctx) {
+  const url = new URL(request.url);
+
+  let mediaPath;
+  try {
+    mediaPath = decodeURIComponent(url.pathname.slice("/media/".length));
+  } catch {
+    return json({ ok: false, error: "Invalid media path encoding." }, 400, request);
+  }
+
+  if (
+    !mediaPath ||
+    mediaPath.length > MEDIA_MAX_PATH_LENGTH ||
+    mediaPath.includes("..") ||
+    mediaPath.includes("\\") ||
+    mediaPath.startsWith("/") ||
+    mediaPath.endsWith("/")
+  ) {
+    return json({ ok: false, error: "Invalid media path." }, 400, request);
+  }
+
+  const davBase = (env?.NEXTCLOUD_PUBLIC_DAV_BASE || MEDIA_DAV_BASE).replace(/\/+$/, "");
+  const shareToken = env?.NEXTCLOUD_SHARE_TOKEN || MEDIA_SHARE_TOKEN;
+  const rangeHeader = request.headers.get("Range");
+
+  // Serve whole files from the edge cache; Range requests (video seeks) go
+  // straight upstream because the Cache API stores full bodies only.
+  const cache = caches.default;
+  const cacheKey = new Request(url.toString(), { method: "GET" });
+
+  if (!rangeHeader) {
+    const cached = await cache.match(cacheKey);
+    if (cached) {
+      const headers = new Headers(cached.headers);
+      headers.set("X-Media-Cache", "hit");
+      return request.method === "HEAD"
+        ? new Response(null, { status: cached.status, headers })
+        : new Response(cached.body, { status: cached.status, headers });
+    }
+  }
+
+  const upstreamUrl =
+    `${davBase}/${encodeURIComponent(shareToken)}/` +
+    mediaPath.split("/").map(encodeURIComponent).join("/");
+  const upstream = await fetch(upstreamUrl, {
+    method: "GET",
+    headers: rangeHeader ? { Range: rangeHeader } : undefined
+  });
+
+  if (!(upstream.status === 200 || upstream.status === 206)) {
+    const notFound = upstream.status === 404;
+    return json(
+      { ok: false, error: notFound ? "File not found." : `Upstream fetch failed (${upstream.status}).` },
+      notFound ? 404 : 502,
+      request
+    );
+  }
+
+  const headers = new Headers();
+  for (const name of ["content-type", "content-length", "content-range", "etag", "last-modified", "accept-ranges"]) {
+    const value = upstream.headers.get(name);
+    if (value) {
+      headers.set(name, value);
+    }
+  }
+  if (!headers.has("content-type")) {
+    headers.set("content-type", "application/octet-stream");
+  }
+  headers.set("Cache-Control", MEDIA_CACHE_CONTROL);
+  headers.set("Access-Control-Allow-Origin", "*");
+  headers.set("X-Media-Cache", "miss");
+
+  const response = new Response(upstream.body, { status: upstream.status, headers });
+
+  if (!rangeHeader && upstream.status === 200) {
+    ctx?.waitUntil?.(cache.put(cacheKey, response.clone()));
+  }
+
+  if (request.method === "HEAD") {
+    return new Response(null, { status: response.status, headers });
+  }
+
+  return response;
+}
 
 function disabledStandaloneRoute(request) {
   return json(

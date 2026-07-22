@@ -123,3 +123,45 @@ CREATE TABLE IF NOT EXISTS feedback (
 );
 
 CREATE INDEX IF NOT EXISTS idx_feedback_status ON feedback(status, created_at DESC);
+
+-- Access control: an admin can suspend (timed) or ban (permanent) a user's access to the desktop
+-- app. Keyed by `identity` = the telemetry rollup key (hwid ?? install_id), so it reaches FREE
+-- users too — not just license holders (a license revoke only cuts off paying users). The app
+-- polls /api/access/status by hwid+install_id and hard-blocks when a row here is in force.
+-- had_paid_license snapshots the paid-license warning the admin acted against.
+CREATE TABLE IF NOT EXISTS access_suspensions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  identity TEXT NOT NULL UNIQUE,
+  hwid TEXT,
+  install_id TEXT,
+  user_label TEXT,
+  mode TEXT NOT NULL DEFAULT 'ban' CHECK (mode IN ('ban', 'suspend')),
+  reason TEXT,
+  banned_until TEXT,                 -- null = permanent ban; set = timed suspension window end
+  is_active INTEGER NOT NULL DEFAULT 1,
+  had_paid_license INTEGER NOT NULL DEFAULT 0,
+  paid_license_keys TEXT,            -- comma-separated snapshot of the keys bound at suspend time
+  created_by TEXT,                   -- admin email
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  lifted_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_access_suspensions_active ON access_suspensions(is_active, identity);
+CREATE INDEX IF NOT EXISTS idx_access_suspensions_hwid ON access_suspensions(hwid);
+
+-- Discord paid-community gate: a verified link between a Discord account and a license. Created by
+-- the bot's /verify command or the OAuth web flow. The bot grants a "Verified" role while the row
+-- is active and the underlying license still validates (not revoked/expired/suspended).
+CREATE TABLE IF NOT EXISTS discord_links (
+  discord_id TEXT PRIMARY KEY,
+  discord_tag TEXT,
+  license_key TEXT NOT NULL,
+  hwid TEXT,
+  verified_at TEXT NOT NULL,
+  revoked_at TEXT,
+  is_active INTEGER NOT NULL DEFAULT 1,
+  source TEXT                        -- 'slash' | 'oauth'
+);
+
+CREATE INDEX IF NOT EXISTS idx_discord_links_license ON discord_links(license_key);

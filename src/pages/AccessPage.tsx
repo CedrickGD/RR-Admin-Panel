@@ -6,7 +6,7 @@ import { EmptyState } from "../components/ds/EmptyState";
 import { Modal } from "../components/ds/Modal";
 import { PageHeader } from "../components/ds/PageHeader";
 import { SearchInput } from "../components/ds/SearchInput";
-import { StatusBadge } from "../components/StatusBadge";
+import { GlassDropdown } from "../components/GlassDropdown";
 import { fetchAdminSuspensions, postSuspend, postLiftSuspension } from "../utils/api";
 import { timeAgo, formatDate } from "../utils/format";
 import type { SuspensionRecord, UserRollupRecord } from "../types/telemetry";
@@ -16,6 +16,14 @@ interface AccessPageProps {
   onOpenWorker?: (identity: string) => void;
   filterBar?: ReactNode;
 }
+
+type SortMode = "last_seen" | "first_seen" | "active";
+
+const SORT_LABELS: Record<SortMode, string> = {
+  last_seen: "Last seen",
+  first_seen: "First seen",
+  active: "Active first",
+};
 
 /** A suspension counts as in force when active and either permanent or still inside its window. */
 function isEffective(row: SuspensionRecord, nowMs: number): boolean {
@@ -34,7 +42,7 @@ export function AccessPage({ users = [], onOpenWorker, filterBar }: AccessPagePr
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [tierFilter, setTierFilter] = useState<"all" | "paid" | "suspended">("all");
-  const [page, setPage] = useState(1);
+  const [sortMode, setSortMode] = useState<SortMode>("last_seen");
 
   const [suspendTarget, setSuspendTarget] = useState<UserRollupRecord | null>(null);
   const [mode, setMode] = useState<"ban" | "suspend">("ban");
@@ -84,40 +92,29 @@ export function AccessPage({ users = [], onOpenWorker, filterBar }: AccessPagePr
 
   const filteredUsers = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return [...users]
-      .filter((u) => {
-        if (tierFilter === "paid" && paidKeysOf(u).length === 0) return false;
-        if (tierFilter === "suspended" && !(activeByKey.get(u.identity) ?? (u.hwid ? activeByKey.get(u.hwid) : undefined))) return false;
-        if (!q) return true;
-        return (
-          u.userLabel?.toLowerCase().includes(q) ||
-          u.identity.toLowerCase().includes(q) ||
-          u.hwid?.toLowerCase().includes(q) ||
-          u.discordUser?.toLowerCase().includes(q)
-        );
-      })
-      .sort((a, b) => new Date(b.lastSeen).getTime() - new Date(a.lastSeen).getTime());
-  }, [users, query, tierFilter, activeByKey]);
+    const list = users.filter((u) => {
+      if (tierFilter === "paid" && paidKeysOf(u).length === 0) return false;
+      if (tierFilter === "suspended" && !(activeByKey.get(u.identity) ?? (u.hwid ? activeByKey.get(u.hwid) : undefined))) return false;
+      if (!q) return true;
+      return (
+        u.userLabel?.toLowerCase().includes(q) ||
+        u.identity.toLowerCase().includes(q) ||
+        u.hwid?.toLowerCase().includes(q) ||
+        u.discordUser?.toLowerCase().includes(q)
+      );
+    });
 
-  // 525 users in one endless table was unusable — page it. Search/filter reset to page 1 so a
-  // narrowed result set is never stuck on an out-of-range page.
-  const PAGE_SIZE = 25;
-  const pageCount = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE));
-  const safePage = Math.min(page, pageCount);
-  const pagedUsers = useMemo(
-    () => filteredUsers.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
-    [filteredUsers, safePage],
-  );
-
-  function setQueryAndReset(next: string) {
-    setQuery(next);
-    setPage(1);
-  }
-
-  function setTierFilterAndReset(next: "all" | "paid" | "suspended") {
-    setTierFilter(next);
-    setPage(1);
-  }
+    return list.sort((a, b) => {
+      if (sortMode === "active") {
+        if (a.isActive !== b.isActive) return a.isActive ? -1 : 1;
+        return new Date(b.lastSeen).getTime() - new Date(a.lastSeen).getTime();
+      }
+      if (sortMode === "first_seen") {
+        return new Date(b.firstSeen).getTime() - new Date(a.firstSeen).getTime();
+      }
+      return new Date(b.lastSeen).getTime() - new Date(a.lastSeen).getTime();
+    });
+  }, [users, query, tierFilter, activeByKey, sortMode]);
 
   const activeSuspensions = useMemo(
     () => suspensions.filter((r) => isEffective(r, nowMs)),
@@ -206,14 +203,21 @@ export function AccessPage({ users = [], onOpenWorker, filterBar }: AccessPagePr
                 <button
                   key={key}
                   type="button"
-                  onClick={() => setTierFilterAndReset(key)}
+                  onClick={() => setTierFilter(key)}
                   style={{ padding: "5px 12px", borderRadius: 6, fontSize: "0.75rem", fontWeight: 600, cursor: "pointer", border: "none", background: tierFilter === key ? "var(--surface-1, rgba(255,255,255,0.06))" : "transparent", color: tierFilter === key ? "var(--text-1)" : "var(--text-2)" }}
                 >
                   {label}
                 </button>
               ))}
             </div>
-            <SearchInput value={query} onChange={setQueryAndReset} placeholder="Search user, HWID, Discord…" style={{ maxWidth: 240 }} />
+            <GlassDropdown
+              placeholder="Last seen"
+              options={["last_seen", "first_seen", "active"]}
+              value={sortMode === "last_seen" ? null : sortMode}
+              onChange={(next) => setSortMode((next as SortMode) ?? "last_seen")}
+              renderOption={(o) => SORT_LABELS[o as SortMode]}
+            />
+            <SearchInput value={query} onChange={setQuery} placeholder="Search user, HWID, Discord…" style={{ maxWidth: 240 }} />
             <Badge tone="muted">{filteredUsers.length}</Badge>
           </div>
         </div>
@@ -223,93 +227,60 @@ export function AccessPage({ users = [], onOpenWorker, filterBar }: AccessPagePr
             {query ? "No users match your search." : "No users have reported in the selected range yet."}
           </EmptyState>
         ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table className="ds-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
-              <thead>
-                <tr style={{ borderBottom: "1px solid var(--line)", textAlign: "left", color: "var(--text-2)", background: "var(--surface-2)" }}>
-                  <th style={{ padding: "14px 20px", fontWeight: 500 }}>User</th>
-                  <th style={{ padding: "14px 20px", fontWeight: 500 }}>HWID</th>
-                  <th style={{ padding: "14px 20px", fontWeight: 500 }}>Tier</th>
-                  <th style={{ padding: "14px 20px", fontWeight: 500 }}>Last seen</th>
-                  <th style={{ padding: "14px 20px", fontWeight: 500 }}>Status</th>
-                  <th style={{ padding: "14px 20px", fontWeight: 500 }}>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pagedUsers.map((u) => {
-                  const susp = suspensionForUser(u);
-                  const paid = paidKeysOf(u).length > 0;
-                  return (
-                    <tr key={u.identity} style={{ borderBottom: "1px solid var(--line)" }}>
-                      <td style={{ padding: "12px 20px" }}>
-                        {/* Same dotted-underline accent link the Licenses page uses for its
-                            "Linked Session" — clicking jumps to the user's detail view (Sessions). */}
+          <table className="ds-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+            <thead>
+              <tr style={{ borderBottom: "1px solid var(--line)", textAlign: "left", color: "var(--text-2)", background: "var(--surface-2)" }}>
+                <th style={{ padding: "12px 20px", fontWeight: 500 }}>User</th>
+                <th style={{ padding: "12px 20px", fontWeight: 500 }}>{sortMode === "first_seen" ? "First seen" : "Last seen"}</th>
+                <th style={{ padding: "12px 20px", fontWeight: 500, textAlign: "right" }}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredUsers.map((u) => {
+                const susp = suspensionForUser(u);
+                const paid = paidKeysOf(u).length > 0;
+                return (
+                  <tr key={u.identity} style={{ borderBottom: "1px solid var(--line)" }}>
+                    <td style={{ padding: "10px 20px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        {/* Plain-text name; hover reveals the link affordance. Click opens the
+                            user's detail view (Sessions). */}
                         <button
                           type="button"
                           onClick={() => onOpenWorker?.(u.identity)}
-                          style={{ background: "transparent", border: "none", cursor: onOpenWorker ? "pointer" : "default", color: "var(--accent)", padding: 0, fontSize: "0.8125rem", fontWeight: 600, textAlign: "left", textDecoration: "underline", textDecorationStyle: "dotted" }}
+                          onMouseEnter={(e) => { e.currentTarget.style.textDecoration = "underline"; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.textDecoration = "none"; }}
+                          style={{ background: "transparent", border: "none", cursor: onOpenWorker ? "pointer" : "default", color: "var(--text-1)", padding: 0, fontSize: "0.8125rem", fontWeight: 600, textAlign: "left" }}
                           title="View user details"
                         >
                           {u.userLabel || "Unknown user"}
                         </button>
-                        {u.discordUser ? (
-                          <div style={{ fontSize: "0.72rem", color: "var(--text-3)" }}>{u.discordUser}</div>
-                        ) : null}
-                      </td>
-                      <td style={{ padding: "12px 20px" }}>
-                        <span style={{ fontFamily: "ui-monospace, Menlo, Consolas, monospace", fontSize: "0.75rem", color: "var(--text-2)" }} title={u.hwid ?? u.identity}>
-                          {(u.hwid ?? u.identity).slice(0, 12)}…
-                        </span>
-                      </td>
-                      <td style={{ padding: "12px 20px" }}>
-                        {paid ? <Badge tone="warning">Paid</Badge> : <Badge tone="muted">Free</Badge>}
-                      </td>
-                      <td style={{ padding: "12px 20px", color: "var(--text-2)" }}>{timeAgo(u.lastSeen)}</td>
-                      <td style={{ padding: "12px 20px" }}>
-                        {susp ? (
-                          <StatusBadge
-                            presence="unreachable"
-                            label={susp.mode === "ban" ? "Banned" : `Until ${formatDate(susp.banned_until ?? "")}`}
-                          />
-                        ) : (
-                          <StatusBadge presence="online" label="Active" />
-                        )}
-                      </td>
-                      <td style={{ padding: "12px 20px" }}>
-                        {susp ? (
-                          <Button size="sm" variant="ghost" icon={<RotateCcw size={14} />} onClick={() => setLiftTarget({ identity: susp.identity, label: u.userLabel || susp.identity })}>
-                            Lift
-                          </Button>
-                        ) : (
-                          <Button size="sm" variant="danger" icon={<Ban size={14} />} onClick={() => openSuspend(u)}>
-                            Suspend
-                          </Button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-
-            {/* Pagination — 25 per page; range label + prev/next. */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 20px", borderTop: "1px solid var(--line)" }}>
-              <span style={{ fontSize: "0.75rem", color: "var(--text-2)" }}>
-                {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filteredUsers.length)} of {filteredUsers.length}
-              </span>
-              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                <Button size="sm" variant="ghost" disabled={safePage <= 1} onClick={() => setPage(safePage - 1)}>
-                  Prev
-                </Button>
-                <span style={{ fontSize: "0.75rem", color: "var(--text-2)", minWidth: 56, textAlign: "center" }}>
-                  {safePage} / {pageCount}
-                </span>
-                <Button size="sm" variant="ghost" disabled={safePage >= pageCount} onClick={() => setPage(safePage + 1)}>
-                  Next
-                </Button>
-              </div>
-            </div>
-          </div>
+                        {paid ? <Badge tone="warning">Paid</Badge> : null}
+                        {susp ? <Badge tone="danger">{susp.mode === "ban" ? "Banned" : "Suspended"}</Badge> : null}
+                      </div>
+                      {u.discordUser ? (
+                        <div style={{ fontSize: "0.72rem", color: "var(--text-3)" }}>{u.discordUser}</div>
+                      ) : null}
+                    </td>
+                    <td style={{ padding: "10px 20px", color: "var(--text-2)", whiteSpace: "nowrap" }}>
+                      {timeAgo(sortMode === "first_seen" ? u.firstSeen : u.lastSeen)}
+                    </td>
+                    <td style={{ padding: "10px 20px", textAlign: "right" }}>
+                      {susp ? (
+                        <Button size="sm" variant="ghost" icon={<RotateCcw size={14} />} onClick={() => setLiftTarget({ identity: susp.identity, label: u.userLabel || susp.identity })}>
+                          Lift
+                        </Button>
+                      ) : (
+                        <Button size="sm" variant="ghost" icon={<Ban size={14} />} onClick={() => openSuspend(u)}>
+                          Suspend
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         )}
       </section>
 
@@ -350,7 +321,9 @@ export function AccessPage({ users = [], onOpenWorker, filterBar }: AccessPagePr
                         <button
                           type="button"
                           onClick={() => onOpenWorker?.(row.identity)}
-                          style={{ background: "transparent", border: "none", cursor: onOpenWorker ? "pointer" : "default", color: "var(--accent)", padding: 0, fontSize: "0.8125rem", fontWeight: 600, textAlign: "left", textDecoration: "underline", textDecorationStyle: "dotted" }}
+                          onMouseEnter={(e) => { e.currentTarget.style.textDecoration = "underline"; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.textDecoration = "none"; }}
+                          style={{ background: "transparent", border: "none", cursor: onOpenWorker ? "pointer" : "default", color: "var(--text-1)", padding: 0, fontSize: "0.8125rem", fontWeight: 600, textAlign: "left" }}
                           title="View user details"
                         >
                           {row.user_label || "Unknown user"}

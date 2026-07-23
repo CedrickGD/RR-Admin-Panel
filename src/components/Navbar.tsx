@@ -22,6 +22,13 @@ import { timeAgo } from "../utils/format";
 
 const brandLogo = new URL("../img/logo.ico", import.meta.url).href;
 
+/** Set the sidebar width var and flip the icon-only collapsed class in one place. */
+function applySidebarWidth(width: number) {
+  const root = document.documentElement;
+  root.style.setProperty("--sb-w", `${width}px`);
+  root.classList.toggle("sb-collapsed", width < 150);
+}
+
 interface NavEntry {
   key: PageKey;
   label: string;
@@ -86,12 +93,12 @@ export function Navbar({
   const apiOk = health?.api === "alive";
   const ingestLabel = timeAgo(summary?.stats.lastIngestAt ?? health?.lastIngestAt ?? null);
 
-  // Restore the persisted sidebar width once on mount.
+  // Restore the persisted sidebar width once on mount (64px = icon-only collapsed mode).
   useEffect(() => {
     try {
       const stored = Number(localStorage.getItem("rr-sb-w"));
-      if (Number.isFinite(stored) && stored >= 188 && stored <= 330) {
-        document.documentElement.style.setProperty("--sb-w", `${stored}px`);
+      if (Number.isFinite(stored) && stored >= 64 && stored <= 330) {
+        applySidebarWidth(stored);
       }
     } catch { /* ignore */ }
   }, []);
@@ -101,7 +108,10 @@ export function Navbar({
     setDrawerOpen(false);
   }
 
-  /* Drag the sidebar's right edge to resize (persisted); double-click resets. */
+  /* Drag the sidebar's right edge to resize (persisted); double-click resets.
+     Below the snap threshold the sidebar collapses to an icon-only rail (logo +
+     page icons). The content column follows --sb-w live, and a resize event is
+     dispatched so charts/maps re-measure their containers mid-drag. */
   function startResize(event: React.PointerEvent<HTMLDivElement>) {
     event.preventDefault();
     const root = document.documentElement;
@@ -109,8 +119,11 @@ export function Navbar({
     const startWidth = parseInt(getComputedStyle(root).getPropertyValue("--sb-w"), 10) || 236;
 
     function onMove(move: PointerEvent) {
-      const width = Math.max(188, Math.min(330, startWidth + (move.clientX - startX)));
-      root.style.setProperty("--sb-w", `${width}px`);
+      const raw = startWidth + (move.clientX - startX);
+      // Snap: anything dragged below the readable minimum collapses to the icon rail.
+      const width = raw < 150 ? 64 : Math.min(330, Math.max(188, raw));
+      applySidebarWidth(width);
+      window.dispatchEvent(new Event("resize"));
     }
     function onUp() {
       window.removeEventListener("pointermove", onMove);
@@ -119,14 +132,16 @@ export function Navbar({
       if (Number.isFinite(final)) {
         try { localStorage.setItem("rr-sb-w", String(final)); } catch { /* ignore */ }
       }
+      window.dispatchEvent(new Event("resize"));
     }
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
   }
 
   function resetResize() {
-    document.documentElement.style.setProperty("--sb-w", "236px");
+    applySidebarWidth(236);
     try { localStorage.removeItem("rr-sb-w"); } catch { /* ignore */ }
+    window.dispatchEvent(new Event("resize"));
   }
 
   const refreshButton = (

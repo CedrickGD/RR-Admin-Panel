@@ -656,7 +656,10 @@ svg * {
   flex-direction: column;
   gap: 14px;
   padding: 18px 12px 16px;
-  background: hsl(240 38% 8% / 0.88);
+  /* Translucent, not opaque — the liquid background flows through so the rail
+     reads as part of the page instead of a separate slab. (No backdrop blur:
+     it is globally banned for perf, translucent fill only.) */
+  background: hsl(240 38% 8% / 0.38);
   border-right: 1px solid var(--line);
 }
 
@@ -779,6 +782,26 @@ svg * {
     color: var(--text-1);
   }
   .mobilebar-logo { width: 24px; height: 24px; }
+}
+
+/* ── Icon-only collapsed rail ─────────────────────────────────────
+   Dragging the sidebar edge below the snap threshold sets --sb-w to
+   64px and puts .sb-collapsed on <html>: only the logo and the page
+   icons remain, centered. Double-click on the resize edge restores
+   the full rail (Navbar.resetResize). Desktop only — the mobile
+   drawer keeps its full layout. */
+@media (min-width: 901px) {
+  html.sb-collapsed .sidebar { padding: 18px 8px 14px; gap: 10px; }
+  html.sb-collapsed .sb-brand { justify-content: center; padding: 2px 0 13px; gap: 0; }
+  html.sb-collapsed .sb-brand-img { width: 30px; height: 30px; }
+  html.sb-collapsed .sb-brand-text { display: none; }
+  html.sb-collapsed .sb-item { justify-content: center; padding: 10px 0; gap: 0; }
+  html.sb-collapsed .sb-item span { display: none; }
+  html.sb-collapsed .sb-foot { padding: 12px 0 0; align-items: center; }
+  html.sb-collapsed .sb-meta { display: none; }
+  /* Live pill shrinks to just its dot */
+  html.sb-collapsed .tn-live { font-size: 0; gap: 0; }
+  html.sb-collapsed .tn-live .tn-live-dot { width: 8px; height: 8px; }
 }
 
 /* Phones: the 24px desktop floor wastes ~12% of a 400px screen in gutters,

@@ -33,21 +33,11 @@ const KNOWN_COUNTER_SERVICES = new Set([
   "crosshair_overlay"
 ]);
 
-// Hosted media proxy: read-only Nextcloud public share, fronted by the CF edge
-// cache. The token belongs to a share that only ever contains deliberately
-// public app media (spot previews, videos), so it is config, not a secret.
-const MEDIA_DAV_BASE = "https://nx79849.your-storageshare.de/public.php/dav/files";
-const MEDIA_SHARE_TOKEN = "Yfcpe7AR3cDJJmr";
-const MEDIA_MAX_PATH_LENGTH = 512;
-// Browsers/clients revalidate hourly; the edge keeps a day. New media should
-// ship under a new filename anyway (clients cache by URL on disk).
-const MEDIA_CACHE_CONTROL = "public, max-age=3600, s-maxage=86400";
-
 // Schema is idempotent but expensive (~20 statements); run it once per isolate, not per request.
 let schemaReady = false;
 
 export default {
-  async fetch(request, env, ctx) {
+  async fetch(request, env) {
     if (request.method === "OPTIONS") {
       return withCors(new Response(null, { status: 204 }), request);
     }
@@ -56,10 +46,6 @@ export default {
     const path = url.pathname;
 
     try {
-      if ((request.method === "GET" || request.method === "HEAD") && path.startsWith("/media/")) {
-        return await handleMedia(request, env, ctx);
-      }
-
       if (request.method === "GET" && path === "/health") {
         return json(
           {
@@ -97,6 +83,14 @@ export default {
         return await handleIngest(request, env);
       }
 
+      if (request.method === "GET" && path === "/update/update.xml") {
+        return await handleUpdateManifest(request, env);
+      }
+
+      if (request.method === "GET" && (path === "/update/download" || path === "/update/download/latest")) {
+        return await handleUpdateDownload(request, env);
+      }
+
       return json(
         {
           ok: false,
@@ -119,89 +113,115 @@ export default {
   }
 };
 
-async function handleMedia(request, env, ctx) {
-  const url = new URL(request.url);
+// ── Update proxy ────────────────────────────────────────────────────────────
+// Serves the desktop auto-updater's manifest + installer so the app never talks to
+// GitHub directly — which is what lets the source repo go PRIVATE. The GitHub token
+// is OPTIONAL: while the repo is public these work unauthenticated (handy for testing
+// and the migration window); create a fine-grained PAT (Contents: read-only on the
+// repo) and set GITHUB_TOKEN before flipping the repo to private.
+const GH_API = "https://api.github.com";
 
-  let mediaPath;
+function ghConfig(env) {
+  return {
+    token: (env.GITHUB_TOKEN ?? "").trim(),
+    repo: (env.GITHUB_REPO ?? "CedrickGD/RazorReaper").trim(),
+    branch: (env.GITHUB_BRANCH ?? "master").trim(),
+    asset: (env.UPDATE_ASSET_NAME ?? "RazorReaper-Setup.exe").trim()
+  };
+}
+
+function ghHeaders(cfg, accept) {
+  const headers = {
+    Accept: accept,
+    "User-Agent": "RazorReaper-Updater",
+    "X-GitHub-Api-Version": "2022-11-28"
+  };
+  if (cfg.token) {
+    headers.Authorization = `Bearer ${cfg.token}`;
+  }
+  return headers;
+}
+
+async function handleUpdateManifest(request, env) {
+  const cfg = ghConfig(env);
+  const apiUrl = `${GH_API}/repos/${cfg.repo}/contents/update.xml?ref=${encodeURIComponent(cfg.branch)}`;
+
+  let res;
   try {
-    mediaPath = decodeURIComponent(url.pathname.slice("/media/".length));
+    res = await fetch(apiUrl, { headers: ghHeaders(cfg, "application/vnd.github.raw+json") });
   } catch {
-    return json({ ok: false, error: "Invalid media path encoding." }, 400, request);
+    return new Response("Update manifest unavailable.", { status: 502 });
+  }
+  if (!res.ok) {
+    return new Response(`Update manifest fetch failed (${res.status}).`, { status: 502 });
   }
 
-  if (
-    !mediaPath ||
-    mediaPath.length > MEDIA_MAX_PATH_LENGTH ||
-    mediaPath.includes("..") ||
-    mediaPath.includes("\\") ||
-    mediaPath.startsWith("/") ||
-    mediaPath.endsWith("/")
-  ) {
-    return json({ ok: false, error: "Invalid media path." }, 400, request);
-  }
+  let xml = await res.text();
+  // Point the installer <url> at the worker so a private repo still serves the download.
+  // The manifest's version always matches the latest release, so /update/download (= latest)
+  // is the exact asset the manifest describes.
+  const origin = new URL(request.url).origin;
+  xml = xml.replace(/<url>[\s\S]*?<\/url>/i, `<url>${origin}/update/download</url>`);
 
-  const davBase = (env?.NEXTCLOUD_PUBLIC_DAV_BASE || MEDIA_DAV_BASE).replace(/\/+$/, "");
-  const shareToken = env?.NEXTCLOUD_SHARE_TOKEN || MEDIA_SHARE_TOKEN;
-  const rangeHeader = request.headers.get("Range");
-
-  // Serve whole files from the edge cache; Range requests (video seeks) go
-  // straight upstream because the Cache API stores full bodies only.
-  const cache = caches.default;
-  const cacheKey = new Request(url.toString(), { method: "GET" });
-
-  if (!rangeHeader) {
-    const cached = await cache.match(cacheKey);
-    if (cached) {
-      const headers = new Headers(cached.headers);
-      headers.set("X-Media-Cache", "hit");
-      return request.method === "HEAD"
-        ? new Response(null, { status: cached.status, headers })
-        : new Response(cached.body, { status: cached.status, headers });
+  return new Response(xml, {
+    status: 200,
+    headers: {
+      "content-type": "application/xml; charset=utf-8",
+      "cache-control": "public, max-age=120"
     }
-  }
-
-  const upstreamUrl =
-    `${davBase}/${encodeURIComponent(shareToken)}/` +
-    mediaPath.split("/").map(encodeURIComponent).join("/");
-  const upstream = await fetch(upstreamUrl, {
-    method: "GET",
-    headers: rangeHeader ? { Range: rangeHeader } : undefined
   });
+}
 
-  if (!(upstream.status === 200 || upstream.status === 206)) {
-    const notFound = upstream.status === 404;
-    return json(
-      { ok: false, error: notFound ? "File not found." : `Upstream fetch failed (${upstream.status}).` },
-      notFound ? 404 : 502,
-      request
-    );
+async function handleUpdateDownload(request, env) {
+  const cfg = ghConfig(env);
+
+  let relRes;
+  try {
+    relRes = await fetch(`${GH_API}/repos/${cfg.repo}/releases/latest`, {
+      headers: ghHeaders(cfg, "application/vnd.github+json")
+    });
+  } catch {
+    return new Response("Release lookup unavailable.", { status: 502 });
+  }
+  if (!relRes.ok) {
+    return new Response(`Release lookup failed (${relRes.status}).`, { status: 502 });
   }
 
-  const headers = new Headers();
-  for (const name of ["content-type", "content-length", "content-range", "etag", "last-modified", "accept-ranges"]) {
-    const value = upstream.headers.get(name);
-    if (value) {
-      headers.set(name, value);
-    }
-  }
-  if (!headers.has("content-type")) {
-    headers.set("content-type", "application/octet-stream");
-  }
-  headers.set("Cache-Control", MEDIA_CACHE_CONTROL);
-  headers.set("Access-Control-Allow-Origin", "*");
-  headers.set("X-Media-Cache", "miss");
-
-  const response = new Response(upstream.body, { status: upstream.status, headers });
-
-  if (!rangeHeader && upstream.status === 200) {
-    ctx?.waitUntil?.(cache.put(cacheKey, response.clone()));
+  const rel = await relRes.json();
+  const asset = Array.isArray(rel?.assets) ? rel.assets.find((a) => a.name === cfg.asset) : null;
+  if (!asset) {
+    return new Response(`Installer '${cfg.asset}' not found in the latest release.`, { status: 404 });
   }
 
-  if (request.method === "HEAD") {
-    return new Response(null, { status: response.status, headers });
+  // The asset API 302-redirects to a short-lived, pre-signed URL that needs no auth — hand that
+  // straight to the client so the ~750 MB installer never streams through the worker.
+  let assetRes;
+  try {
+    assetRes = await fetch(asset.url, {
+      headers: ghHeaders(cfg, "application/octet-stream"),
+      redirect: "manual"
+    });
+  } catch {
+    return new Response("Installer download unavailable.", { status: 502 });
   }
 
-  return response;
+  const location = assetRes.headers.get("location");
+  if ((assetRes.status === 301 || assetRes.status === 302 || assetRes.status === 307) && location) {
+    return Response.redirect(location, 302);
+  }
+
+  // Fallback: stream the bytes straight through (no auth header leaks to the client).
+  if (assetRes.ok && assetRes.body) {
+    return new Response(assetRes.body, {
+      status: 200,
+      headers: {
+        "content-type": "application/octet-stream",
+        "content-disposition": `attachment; filename="${cfg.asset}"`
+      }
+    });
+  }
+
+  return new Response(`Installer download failed (${assetRes.status}).`, { status: 502 });
 }
 
 function disabledStandaloneRoute(request) {

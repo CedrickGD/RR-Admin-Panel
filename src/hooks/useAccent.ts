@@ -27,6 +27,60 @@ function applyHue(hue: number) {
   document.documentElement.style.setProperty("--ah", String(hue));
 }
 
+/* ── Background position ─────────────────────────────────────────
+   The liquid-aurora layers (app-glue.css html::before/after) leave a
+   dark corner wherever the blobs happen not to reach. These offsets
+   shift the whole painted background so the user can slide the color
+   under the corner they care about. Applied inside the keyframes via
+   calc(... + var(--bg-ox/--bg-oy)), persisted per browser and applied
+   at module load so the choice holds from boot. */
+const BG_OFFSET_KEY = "rr-bg-offset";
+export const BG_OFFSET_RANGE = 18; // % — stays inside the layers' -18% overdraw
+
+interface BgOffset {
+  x: number;
+  y: number;
+}
+
+function readBgOffset(): BgOffset {
+  try {
+    const raw = localStorage.getItem(BG_OFFSET_KEY);
+    if (!raw) return { x: 0, y: 0 };
+    const parsed = JSON.parse(raw) as Partial<BgOffset>;
+    const clamp = (v: unknown) =>
+      typeof v === "number" && Number.isFinite(v) ? Math.max(-BG_OFFSET_RANGE, Math.min(BG_OFFSET_RANGE, v)) : 0;
+    return { x: clamp(parsed.x), y: clamp(parsed.y) };
+  } catch {
+    return { x: 0, y: 0 };
+  }
+}
+
+function applyBgOffset(offset: BgOffset) {
+  const root = document.documentElement.style;
+  root.setProperty("--bg-ox", `${offset.x}%`);
+  root.setProperty("--bg-oy", `${offset.y}%`);
+}
+
+applyBgOffset(readBgOffset());
+
+export function useBackgroundOffset() {
+  const [offset, setOffsetState] = useState<BgOffset>(readBgOffset);
+
+  useEffect(() => {
+    applyBgOffset(offset);
+  }, [offset]);
+
+  const setOffset = useCallback((next: Partial<BgOffset>) => {
+    setOffsetState((prev) => {
+      const merged = { ...prev, ...next };
+      try { localStorage.setItem(BG_OFFSET_KEY, JSON.stringify(merged)); } catch { /* ignore */ }
+      return merged;
+    });
+  }, []);
+
+  return { offset, setOffset } as const;
+}
+
 export function useAccent() {
   const [hue, setHueState] = useState<number>(() => {
     try {

@@ -599,15 +599,19 @@ html::after {
     radial-gradient(24% 22% at 17% 33%, hsl(calc(var(--ah) + 180) 80% 55% / calc(0.10 * var(--glow))), transparent 66%);
   animation: liquid-b 33s ease-in-out infinite alternate;
 }
+/* --bg-ox/--bg-oy (Settings → Background Position) shift the whole painted
+   background so the user can slide the color under a dark corner. Custom
+   properties resolve inside keyframes at runtime, so the offset rides along
+   with the drift animation. */
 @keyframes liquid-a {
-  0%   { transform: translate3d(-4%, -3%, 0) rotate(0deg)   scale(1); }
-  45%  { transform: translate3d(5%, 4%, 0)   rotate(11deg)  scale(1.13); }
-  100% { transform: translate3d(-3%, 5%, 0)  rotate(-8deg)  scale(1.04); }
+  0%   { transform: translate3d(calc(-4% + var(--bg-ox, 0%)), calc(-3% + var(--bg-oy, 0%)), 0) rotate(0deg)   scale(1); }
+  45%  { transform: translate3d(calc(5% + var(--bg-ox, 0%)),  calc(4% + var(--bg-oy, 0%)), 0)  rotate(11deg)  scale(1.13); }
+  100% { transform: translate3d(calc(-3% + var(--bg-ox, 0%)), calc(5% + var(--bg-oy, 0%)), 0)  rotate(-8deg)  scale(1.04); }
 }
 @keyframes liquid-b {
-  0%   { transform: translate3d(4%, 4%, 0)   rotate(0deg)   scale(1.06); }
-  50%  { transform: translate3d(-5%, -4%, 0) rotate(-12deg) scale(0.97); }
-  100% { transform: translate3d(4%, -5%, 0)  rotate(10deg)  scale(1.12); }
+  0%   { transform: translate3d(calc(4% + var(--bg-ox, 0%)),  calc(4% + var(--bg-oy, 0%)), 0)  rotate(0deg)   scale(1.06); }
+  50%  { transform: translate3d(calc(-5% + var(--bg-ox, 0%)), calc(-4% + var(--bg-oy, 0%)), 0) rotate(-12deg) scale(0.97); }
+  100% { transform: translate3d(calc(4% + var(--bg-ox, 0%)),  calc(-5% + var(--bg-oy, 0%)), 0) rotate(10deg)  scale(1.12); }
 }
 
 /* While the heatmap is panning/zooming (WorldHeatmap toggles .map-moving on
@@ -661,37 +665,61 @@ svg * {
      it is globally banned for perf, translucent fill only.) */
   background: hsl(240 38% 8% / 0.38);
   border-right: 1px solid var(--line);
+  container: sidebar / inline-size;
 }
 
-/* Brand lockup — generous, never squeezed */
+/* Group micro-labels between nav sections; vanish on the icon rail. */
+.sb-group-label {
+  padding: 10px 12px 3px;
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+}
+html.sb-collapsed .sb-group-label { visibility: hidden; padding: 4px 0 0; height: 8px; }
+
+/* Brand lockup — must NEVER overflow the rail: the text column clips with
+   ellipsis, and below ~210px the "Operations Console" sub-line disappears
+   entirely instead of jutting into the page. */
 .sb-brand {
   display: flex;
   align-items: center;
-  gap: 11px;
+  gap: 10px;
   padding: 2px 7px 15px;
   border-bottom: 1px solid var(--line);
+  overflow: hidden;
 }
-.sb-brand-img { width: 34px; height: 34px; object-fit: contain; flex: none; }
-.sb-brand-text { min-width: 0; }
+.sb-brand-img { width: 32px; height: 32px; object-fit: contain; flex: none; }
+.sb-brand-text { min-width: 0; overflow: hidden; }
 .sb-brand-name {
   display: block;
   font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 1.05rem;
+  font-weight: 600;
+  font-size: 0.95rem;
   letter-spacing: -0.01em;
   color: var(--text-1);
   line-height: 1.15;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .sb-brand-sub {
   display: block;
   font-size: var(--fs-micro);
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: var(--track-caps);
   text-transform: uppercase;
   color: var(--accent-text);
   margin-top: 2px;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@container sidebar (max-width: 210px) {
+  .sb-brand-sub { display: none; }
 }
 .sb-close { display: none; margin-left: auto; }
 

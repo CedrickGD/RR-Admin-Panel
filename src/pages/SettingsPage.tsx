@@ -4,7 +4,7 @@ import { Badge, LiveBadge } from "../components/ds/Badge";
 import { Button } from "../components/ds/Button";
 import { KvList } from "../components/ds/KvList";
 import { MetaRow, PageHeader } from "../components/ds/PageHeader";
-import { ACCENT_PRESETS, useAccent } from "../hooks/useAccent";
+import { ACCENT_PRESETS, BG_OFFSET_RANGE, useAccent, useBackgroundOffset } from "../hooks/useAccent";
 import { useChartColors } from "../hooks/useChartColors";
 import { useDonutColors } from "../hooks/useDonutColors";
 import type { AuthMode, AuthUser, HealthPayload, SummaryPayload } from "../types/telemetry";
@@ -43,6 +43,7 @@ applyGlow(readGlowEnabled());
 
 export function SettingsPage({ user, authMode, summary, health, onLogout, filterBar }: SettingsPageProps) {
   const { hue, setHue, activePreset } = useAccent();
+  const { offset: bgOffset, setOffset: setBgOffset } = useBackgroundOffset();
   const { setPreset: setChartPreset, activeLabel: chartActiveLabel, presets: chartPresets } = useChartColors();
   const { setPreset: setDonutPreset, activeLabel: donutActiveLabel, presets: donutPresets } = useDonutColors();
   const [copied, setCopied] = useState<string | null>(null);
@@ -216,6 +217,46 @@ export function SettingsPage({ user, authMode, summary, health, onLogout, filter
             <div className="hue-scale">
               <span>0°</span>
               <span>360°</span>
+            </div>
+          </div>
+          <div style={{ marginTop: 20 }}>
+            <p className="label-sm" style={{ marginBottom: 12 }}>
+              Background Position
+              <span className="label-sm-suffix">{bgOffset.x}% · {bgOffset.y}%</span>
+            </p>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "12px 24px", alignItems: "center" }}>
+              <div>
+                <p className="section-sub" style={{ marginBottom: 6 }}>Horizontal</p>
+                <input
+                  type="range"
+                  min={-BG_OFFSET_RANGE}
+                  max={BG_OFFSET_RANGE}
+                  step={1}
+                  value={bgOffset.x}
+                  onChange={(e) => setBgOffset({ x: Number(e.target.value) })}
+                  className="accent-hue-slider"
+                  aria-label="Background horizontal offset"
+                />
+              </div>
+              <div>
+                <p className="section-sub" style={{ marginBottom: 6 }}>Vertical</p>
+                <input
+                  type="range"
+                  min={-BG_OFFSET_RANGE}
+                  max={BG_OFFSET_RANGE}
+                  step={1}
+                  value={bgOffset.y}
+                  onChange={(e) => setBgOffset({ y: Number(e.target.value) })}
+                  className="accent-hue-slider"
+                  aria-label="Background vertical offset"
+                />
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8 }}>
+              <span className="section-sub">Slides the colored background — push the glow into a corner that reads too dark.</span>
+              {bgOffset.x !== 0 || bgOffset.y !== 0 ? (
+                <Button size="xs" onClick={() => setBgOffset({ x: 0, y: 0 })}>Reset</Button>
+              ) : null}
             </div>
           </div>
           <div style={{ marginTop: 20 }}>

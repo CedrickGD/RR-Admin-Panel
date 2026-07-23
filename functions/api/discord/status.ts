@@ -42,6 +42,12 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
       return json({ ok: true, linked: false, active: false });
     }
 
+    // Staff manual grants (source = "manual") carry no license — they are permanent by design, so
+    // report active without a license lookup. The reconcile sweep therefore never strips them.
+    if (link.source === "manual") {
+      return json({ ok: true, linked: true, active: true, license_key: link.license_key });
+    }
+
     // Re-validate the underlying license so a later revoke/expiry/suspension flips active → false.
     const result = await resolveLicenseForVerification(context.env, link.license_key);
     const active = result.ok;

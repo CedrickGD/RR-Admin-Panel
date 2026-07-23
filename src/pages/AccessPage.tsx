@@ -33,6 +33,8 @@ export function AccessPage({ users = [], onOpenWorker, filterBar }: AccessPagePr
   const [suspensions, setSuspensions] = useState<SuspensionRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
+  const [tierFilter, setTierFilter] = useState<"all" | "paid" | "suspended">("all");
+  const [page, setPage] = useState(1);
 
   const [suspendTarget, setSuspendTarget] = useState<UserRollupRecord | null>(null);
   const [mode, setMode] = useState<"ban" | "suspend">("ban");
@@ -84,6 +86,8 @@ export function AccessPage({ users = [], onOpenWorker, filterBar }: AccessPagePr
     const q = query.trim().toLowerCase();
     return [...users]
       .filter((u) => {
+        if (tierFilter === "paid" && paidKeysOf(u).length === 0) return false;
+        if (tierFilter === "suspended" && !(activeByKey.get(u.identity) ?? (u.hwid ? activeByKey.get(u.hwid) : undefined))) return false;
         if (!q) return true;
         return (
           u.userLabel?.toLowerCase().includes(q) ||
@@ -93,7 +97,27 @@ export function AccessPage({ users = [], onOpenWorker, filterBar }: AccessPagePr
         );
       })
       .sort((a, b) => new Date(b.lastSeen).getTime() - new Date(a.lastSeen).getTime());
-  }, [users, query]);
+  }, [users, query, tierFilter, activeByKey]);
+
+  // 525 users in one endless table was unusable — page it. Search/filter reset to page 1 so a
+  // narrowed result set is never stuck on an out-of-range page.
+  const PAGE_SIZE = 25;
+  const pageCount = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount);
+  const pagedUsers = useMemo(
+    () => filteredUsers.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [filteredUsers, safePage],
+  );
+
+  function setQueryAndReset(next: string) {
+    setQuery(next);
+    setPage(1);
+  }
+
+  function setTierFilterAndReset(next: "all" | "paid" | "suspended") {
+    setTierFilter(next);
+    setPage(1);
+  }
 
   const activeSuspensions = useMemo(
     () => suspensions.filter((r) => isEffective(r, nowMs)),
@@ -176,8 +200,20 @@ export function AccessPage({ users = [], onOpenWorker, filterBar }: AccessPagePr
             <h2 className="section-title">Users</h2>
             <p className="section-sub">Suspend or ban a user's access to the app — paid users are flagged before you do.</p>
           </div>
-          <div className="panel-head-right" style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <SearchInput value={query} onChange={setQuery} placeholder="Search user, HWID, Discord…" style={{ maxWidth: 260 }} />
+          <div className="panel-head-right" style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 4, background: "var(--surface-2)", padding: 4, borderRadius: 8, border: "1px solid var(--line)" }}>
+              {([["all", "All"], ["paid", "Paid"], ["suspended", "Suspended"]] as const).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setTierFilterAndReset(key)}
+                  style={{ padding: "5px 12px", borderRadius: 6, fontSize: "0.75rem", fontWeight: 600, cursor: "pointer", border: "none", background: tierFilter === key ? "var(--surface-1, rgba(255,255,255,0.06))" : "transparent", color: tierFilter === key ? "var(--text-1)" : "var(--text-2)" }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <SearchInput value={query} onChange={setQueryAndReset} placeholder="Search user, HWID, Discord…" style={{ maxWidth: 240 }} />
             <Badge tone="muted">{filteredUsers.length}</Badge>
           </div>
         </div>
@@ -200,17 +236,19 @@ export function AccessPage({ users = [], onOpenWorker, filterBar }: AccessPagePr
                 </tr>
               </thead>
               <tbody>
-                {filteredUsers.map((u) => {
+                {pagedUsers.map((u) => {
                   const susp = suspensionForUser(u);
                   const paid = paidKeysOf(u).length > 0;
                   return (
                     <tr key={u.identity} style={{ borderBottom: "1px solid var(--line)" }}>
-                      <td style={{ padding: "14px 20px" }}>
+                      <td style={{ padding: "12px 20px" }}>
+                        {/* Same dotted-underline accent link the Licenses page uses for its
+                            "Linked Session" — clicking jumps to the user's detail view (Sessions). */}
                         <button
                           type="button"
                           onClick={() => onOpenWorker?.(u.identity)}
-                          style={{ background: "transparent", border: "none", cursor: onOpenWorker ? "pointer" : "default", color: "var(--text-1)", padding: 0, fontWeight: 600, textAlign: "left" }}
-                          title={onOpenWorker ? "View user sessions" : undefined}
+                          style={{ background: "transparent", border: "none", cursor: onOpenWorker ? "pointer" : "default", color: "var(--accent)", padding: 0, fontSize: "0.8125rem", fontWeight: 600, textAlign: "left", textDecoration: "underline", textDecorationStyle: "dotted" }}
+                          title="View user details"
                         >
                           {u.userLabel || "Unknown user"}
                         </button>
@@ -218,16 +256,16 @@ export function AccessPage({ users = [], onOpenWorker, filterBar }: AccessPagePr
                           <div style={{ fontSize: "0.72rem", color: "var(--text-3)" }}>{u.discordUser}</div>
                         ) : null}
                       </td>
-                      <td style={{ padding: "14px 20px" }}>
+                      <td style={{ padding: "12px 20px" }}>
                         <span style={{ fontFamily: "ui-monospace, Menlo, Consolas, monospace", fontSize: "0.75rem", color: "var(--text-2)" }} title={u.hwid ?? u.identity}>
                           {(u.hwid ?? u.identity).slice(0, 12)}…
                         </span>
                       </td>
-                      <td style={{ padding: "14px 20px" }}>
+                      <td style={{ padding: "12px 20px" }}>
                         {paid ? <Badge tone="warning">Paid</Badge> : <Badge tone="muted">Free</Badge>}
                       </td>
-                      <td style={{ padding: "14px 20px", color: "var(--text-2)" }}>{timeAgo(u.lastSeen)}</td>
-                      <td style={{ padding: "14px 20px" }}>
+                      <td style={{ padding: "12px 20px", color: "var(--text-2)" }}>{timeAgo(u.lastSeen)}</td>
+                      <td style={{ padding: "12px 20px" }}>
                         {susp ? (
                           <StatusBadge
                             presence="unreachable"
@@ -237,7 +275,7 @@ export function AccessPage({ users = [], onOpenWorker, filterBar }: AccessPagePr
                           <StatusBadge presence="online" label="Active" />
                         )}
                       </td>
-                      <td style={{ padding: "14px 20px" }}>
+                      <td style={{ padding: "12px 20px" }}>
                         {susp ? (
                           <Button size="sm" variant="ghost" icon={<RotateCcw size={14} />} onClick={() => setLiftTarget({ identity: susp.identity, label: u.userLabel || susp.identity })}>
                             Lift
@@ -253,6 +291,24 @@ export function AccessPage({ users = [], onOpenWorker, filterBar }: AccessPagePr
                 })}
               </tbody>
             </table>
+
+            {/* Pagination — 25 per page; range label + prev/next. */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 20px", borderTop: "1px solid var(--line)" }}>
+              <span style={{ fontSize: "0.75rem", color: "var(--text-2)" }}>
+                {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filteredUsers.length)} of {filteredUsers.length}
+              </span>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <Button size="sm" variant="ghost" disabled={safePage <= 1} onClick={() => setPage(safePage - 1)}>
+                  Prev
+                </Button>
+                <span style={{ fontSize: "0.75rem", color: "var(--text-2)", minWidth: 56, textAlign: "center" }}>
+                  {safePage} / {pageCount}
+                </span>
+                <Button size="sm" variant="ghost" disabled={safePage >= pageCount} onClick={() => setPage(safePage + 1)}>
+                  Next
+                </Button>
+              </div>
+            </div>
           </div>
         )}
       </section>
@@ -291,7 +347,14 @@ export function AccessPage({ users = [], onOpenWorker, filterBar }: AccessPagePr
                   <tr key={row.id} style={{ borderBottom: "1px solid var(--line)" }}>
                     <td style={{ padding: "14px 20px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ color: "var(--text-1)", fontWeight: 600 }}>{row.user_label || "Unknown user"}</span>
+                        <button
+                          type="button"
+                          onClick={() => onOpenWorker?.(row.identity)}
+                          style={{ background: "transparent", border: "none", cursor: onOpenWorker ? "pointer" : "default", color: "var(--accent)", padding: 0, fontSize: "0.8125rem", fontWeight: 600, textAlign: "left", textDecoration: "underline", textDecorationStyle: "dotted" }}
+                          title="View user details"
+                        >
+                          {row.user_label || "Unknown user"}
+                        </button>
                         {row.had_paid_license === 1 ? <Badge tone="warning" title="Had an active paid license when suspended">Paid</Badge> : null}
                       </div>
                       <div style={{ fontFamily: "ui-monospace, Menlo, Consolas, monospace", fontSize: "0.72rem", color: "var(--text-3)" }} title={row.hwid ?? row.identity}>

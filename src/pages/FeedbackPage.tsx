@@ -9,6 +9,7 @@ import { SearchInput } from "../components/ds/SearchInput";
 import type { SummaryPayload } from "../types/telemetry";
 import { formatDate, timeAgo } from "../utils/format";
 import { apiUrl, fetchApi } from "../utils/api";
+import { useRefreshSignal } from "../utils/refreshBus";
 
 type FeedbackStatus = "new" | "read" | "archived";
 
@@ -70,9 +71,9 @@ export function FeedbackPage({ summary, onOpenSession, onOpenWorker, filterBar }
   const [deleteCandidate, setDeleteCandidate] = useState<FeedbackRecord | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const fetchFeedback = async () => {
+  const fetchFeedback = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const url = new URL(apiUrl("/api/admin/feedback"), window.location.origin);
       url.searchParams.set("_ts", String(Date.now()));
       const res = await fetchApi(url.toString(), { cache: "no-store", credentials: "include" });
@@ -81,13 +82,16 @@ export function FeedbackPage({ summary, onOpenSession, onOpenWorker, filterBar }
     } catch (e) {
       console.error(e);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchFeedback();
   }, []);
+
+  // Header refresh button: silent re-pull from the worker, no skeleton flash.
+  useRefreshSignal(() => void fetchFeedback(true));
 
   const setStatus = async (item: FeedbackRecord, status: FeedbackStatus) => {
     try {

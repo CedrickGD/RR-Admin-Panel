@@ -8,6 +8,7 @@ import type {
   SummaryPayload,
 } from "../types/telemetry";
 import { fetchAdminData, fetchSession, postAuth, postLogout } from "../utils/api";
+import { emitRefresh } from "../utils/refreshBus";
 
 const DEFAULT_REFRESH_MS = 15_000;
 const LIVE_REFRESH_MS = 5_000;
@@ -181,6 +182,10 @@ export function useDashboard(activePage: PageKey) {
     if (refreshing) return;
     setRefreshing(true);
     const startedAt = Date.now();
+    // Every mounted page-level data source (licenses, feedback, announcements,
+    // suspensions, stats…) re-pulls from the worker too — the one button
+    // refreshes the whole page in place, never via a browser reload.
+    emitRefresh();
     // Surface the full-page load error ONLY when there's nothing already on screen.
     // The click still gives feedback (spinner + a data update on success), but a
     // transient refresh blip must not throw a load-error banner over good data we're

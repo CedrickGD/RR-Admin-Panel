@@ -7,6 +7,7 @@ import { Modal } from "../components/ds/Modal";
 import { PageHeader } from "../components/ds/PageHeader";
 import { formatDate } from "../utils/format";
 import { apiUrl, fetchApi } from "../utils/api";
+import { useRefreshSignal } from "../utils/refreshBus";
 
 type AnnouncementLevel = "info" | "warning" | "critical";
 
@@ -91,9 +92,9 @@ export function AnnouncementsPage({ filterBar }: AnnouncementsPageProps) {
   const [deleteCandidate, setDeleteCandidate] = useState<AnnouncementRecord | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const fetchAnnouncements = async () => {
+  const fetchAnnouncements = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const url = new URL(apiUrl("/api/admin/announcements"), window.location.origin);
       url.searchParams.set("_ts", String(Date.now()));
       const res = await fetchApi(url.toString(), { cache: "no-store", credentials: "include" });
@@ -102,13 +103,16 @@ export function AnnouncementsPage({ filterBar }: AnnouncementsPageProps) {
     } catch (e) {
       console.error(e);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchAnnouncements();
   }, []);
+
+  // Header refresh button: silent re-pull from the worker, no skeleton flash.
+  useRefreshSignal(() => void fetchAnnouncements(true));
 
   const openCreate = () => {
     setEditingId(null);

@@ -1,5 +1,5 @@
 import { AlertTriangle, RefreshCw } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { FilterBar } from "./components/FilterBar";
 import { LoginForm } from "./components/LoginForm";
 import { Navbar } from "./components/Navbar";
@@ -22,9 +22,64 @@ import type { PageKey, StatsFilters } from "./types/telemetry";
 
 type FocusedSession = { id: string; token: number } | null;
 
+/* ── Page persistence ────────────────────────────────────────────
+   The page lives in the URL hash (#/live) and localStorage, so any full
+   reload — F5, the guarded Cloudflare Access re-auth reload, a phone tab
+   being restored — lands back on the page the admin was on, never on
+   Overview. Hash also gives shareable deep links and back/forward nav. */
+const PAGE_KEYS: readonly PageKey[] = [
+  "overview", "live", "workers", "traffic", "versions", "heatmap",
+  "errors", "licenses", "access", "feedback", "announcements", "settings",
+];
+const LAST_PAGE_STORAGE_KEY = "rr:last-page";
+
+function isPageKey(value: string | null | undefined): value is PageKey {
+  return typeof value === "string" && (PAGE_KEYS as readonly string[]).includes(value);
+}
+
+function pageFromHash(): PageKey | null {
+  const raw = window.location.hash.replace(/^#\/?/, "").trim();
+  return isPageKey(raw) ? raw : null;
+}
+
+function readInitialPage(): PageKey {
+  const fromHash = pageFromHash();
+  if (fromHash) return fromHash;
+  try {
+    const stored = localStorage.getItem(LAST_PAGE_STORAGE_KEY);
+    if (isPageKey(stored)) return stored;
+  } catch { /* ignore */ }
+  return "overview";
+}
+
 export default function App() {
   const { hue: accentHue } = useAccent();
-  const [page, setPage] = useState<PageKey>("overview");
+  const [page, setPage] = useState<PageKey>(readInitialPage);
+
+  // Keep URL hash + storage in sync with the active page. The very first
+  // normalization (no valid hash yet) replaces instead of pushing so the
+  // back button never steps to a hashless duplicate of the same page.
+  useEffect(() => {
+    const desired = `#/${page}`;
+    if (window.location.hash !== desired) {
+      if (pageFromHash() === null) {
+        window.history.replaceState(null, "", desired);
+      } else {
+        window.location.hash = desired;
+      }
+    }
+    try { localStorage.setItem(LAST_PAGE_STORAGE_KEY, page); } catch { /* ignore */ }
+  }, [page]);
+
+  // Browser back/forward (and hand-edited hashes) drive the page too.
+  useEffect(() => {
+    const onHashChange = () => {
+      const key = pageFromHash();
+      if (key) setPage(key);
+    };
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
   const [focusedLiveSession, setFocusedLiveSession] = useState<FocusedSession>(null);
   // One-shot show-on-map command. The Heatmap page copies it into local state and
   // reports back via onFocusConsumed, so nothing here can lock the map onto a user.

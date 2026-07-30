@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { StatsFilters, StatsPayload, UserRollupRecord } from "../types/telemetry";
 import { fetchAdminStats, fetchAdminUsers } from "../utils/api";
+import { useRefreshSignal } from "../utils/refreshBus";
 
 const STATS_REFRESH_MS = 60_000;
 
@@ -72,6 +73,11 @@ export function useAdminStats(enabled: boolean, filters: StatsFilters) {
     const id = window.setInterval(() => void load(true), STATS_REFRESH_MS);
     return () => window.clearInterval(id);
   }, [enabled, load]);
+
+  // Header refresh button: silent re-pull so visible data never blinks away.
+  useRefreshSignal(() => {
+    if (enabled) void load(true);
+  });
 
   return { stats, users, loading, error, refresh: () => void load(false) } as const;
 }

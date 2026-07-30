@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ErrorsPayload, ErrorsRangeKey } from "../types/telemetry";
 import { fetchAdminErrors } from "../utils/api";
+import { useRefreshSignal } from "../utils/refreshBus";
 
 const ERRORS_REFRESH_MS = 60_000;
 
@@ -65,6 +66,11 @@ export function useAdminErrors(enabled: boolean, range: ErrorsRangeKey) {
     const id = window.setInterval(() => void load(true), ERRORS_REFRESH_MS);
     return () => window.clearInterval(id);
   }, [enabled, load]);
+
+  // Header refresh button: silent re-pull so visible data never blinks away.
+  useRefreshSignal(() => {
+    if (enabled) void load(true);
+  });
 
   return { data, loading, error, refresh: () => void load(false) } as const;
 }

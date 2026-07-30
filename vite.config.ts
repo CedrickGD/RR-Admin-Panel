@@ -16,9 +16,9 @@ const projectRoot = fileURLToPath(new URL(".", import.meta.url));
 // hard reload — which bypasses the disk cache — pulls the current one. That is the
 // "stale on reload, fresh on hard-reload" bug. `no-store` forces every navigation
 // to re-fetch the tiny current index.html; content-hashed /assets/* stay immutable
-// so only ~1 KB of HTML is refetched, not the app. This SPA has no client-side
-// routing (pages are React state, URL stays "/"), so pinning "/" and "/index.html"
-// covers every HTML response without a "/*" catch-all that could shadow /assets/*.
+// so only ~1 KB of HTML is refetched, not the app. Client-side navigation lives in
+// the URL FRAGMENT (#/live) which never reaches the server, so "/" and "/index.html"
+// still cover every HTML response without a "/*" catch-all that could shadow /assets/*.
 function cloudflareHeaders(): Plugin {
   return {
     name: "emit-cf-headers",

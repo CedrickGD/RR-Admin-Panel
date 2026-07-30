@@ -772,11 +772,14 @@ html.sb-collapsed .sb-group-label { visibility: hidden; padding: 4px 0 0; height
 }
 @keyframes scrimIn { from { opacity: 0; } to { opacity: 1; } }
 
-/* Content sits right of the sidebar, centered with real side margins */
+/* Content sits right of the sidebar and owns the FULL remaining width.
+   No max-width cap: wide tables (Users / Sessions) need every pixel, and
+   the old centered 1660px column left them clipped on the right while the
+   screen sat there with empty side margins. */
 .v2-main { margin-left: var(--sb-w); }
 .page-content {
-  max-width: 1660px;
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
   padding: 22px var(--page-pad) 56px;
 }
 
@@ -1187,3 +1190,51 @@ html.sb-collapsed .sb-group-label { visibility: hidden; padding: 4px 0 0; height
   justify-content: space-between;
 }
 .filter-pop .btn { justify-content: center; }
+
+/* ═══════════════════════════════════════════════════════════════
+   LIST / TABLE SCALING — nothing gets silently cut off
+   Wide tables first get the full page width (cap removed above).
+   When columns still exceed the panel — laptops, phones — the wrap
+   scrolls horizontally with a VISIBLE styled scrollbar instead of
+   the invisible overlay one that made rows look chopped off.
+   ═══════════════════════════════════════════════════════════════ */
+.data-table-wrap {
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--ah) var(--as) var(--al) / 0.5) rgba(255, 255, 255, 0.05);
+  /* Tall lists scroll INSIDE the panel: the header row stays pinned and the
+     horizontal scrollbar sits at the panel's bottom edge — always on screen,
+     instead of hiding below a 50-row list where nobody ever saw it. Sized to
+     the viewport minus the typical chrome above (page header + KPI row +
+     panel head ≈ 310px) with a floor so it never gets uselessly short. Short
+     tables are unaffected (max-height only bites when content exceeds it). */
+  max-height: max(340px, calc(100vh - 310px));
+  max-height: max(340px, calc(100dvh - 310px));
+  overflow: auto;
+}
+.data-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  /* Near-opaque: scrolled rows must not read through the pinned header. */
+  background: hsl(238 34% 11% / 0.97);
+}
+.data-table-wrap::-webkit-scrollbar { height: 9px; }
+.data-table-wrap::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 999px;
+}
+.data-table-wrap::-webkit-scrollbar-thumb {
+  background: hsl(var(--ah) var(--as) var(--al) / 0.45);
+  border-radius: 999px;
+}
+.data-table-wrap::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--ah) var(--as) var(--al) / 0.7);
+}
+
+/* Phones: make sure the last column never hides under the panel edge. */
+@media (max-width: 640px) {
+  .data-table thead th:last-child,
+  .data-table tbody td:last-child { padding-right: 12px; }
+}

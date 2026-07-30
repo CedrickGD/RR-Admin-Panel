@@ -9,6 +9,7 @@ import { PageHeader } from "../components/ds/PageHeader";
 import { SearchInput } from "../components/ds/SearchInput";
 import { timeAgo, formatDate } from "../utils/format";
 import { apiUrl, fetchApi } from "../utils/api";
+import { useRefreshSignal } from "../utils/refreshBus";
 import type { SummaryPayload } from "../types/telemetry";
 
 interface LicenseRecord {
@@ -57,9 +58,9 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
   const [deleteCandidate, setDeleteCandidate] = useState<LicenseRecord | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const fetchLicenses = async () => {
+  const fetchLicenses = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const url = new URL(apiUrl("/api/admin/licenses"), window.location.origin);
       url.searchParams.set("_ts", String(Date.now()));
       const res = await fetchApi(url.toString(), { cache: "no-store", credentials: "include" });
@@ -70,13 +71,16 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
     } catch (e) {
       console.error(e);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchLicenses();
   }, []);
+
+  // Header refresh button: silent re-pull from the worker, no skeleton flash.
+  useRefreshSignal(() => void fetchLicenses(true));
 
   const handleGenerate = async () => {
     if (generating) return;

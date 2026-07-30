@@ -8,6 +8,7 @@ import { PageHeader } from "../components/ds/PageHeader";
 import { SearchInput } from "../components/ds/SearchInput";
 import { GlassDropdown } from "../components/GlassDropdown";
 import { fetchAdminSuspensions, postSuspend, postLiftSuspension } from "../utils/api";
+import { useRefreshSignal } from "../utils/refreshBus";
 import { timeAgo, formatDate } from "../utils/format";
 import type { SuspensionRecord, UserRollupRecord } from "../types/telemetry";
 
@@ -54,21 +55,24 @@ export function AccessPage({ users = [], onOpenWorker, filterBar }: AccessPagePr
   const [liftTarget, setLiftTarget] = useState<{ identity: string; label: string } | null>(null);
   const [lifting, setLifting] = useState(false);
 
-  const loadSuspensions = async () => {
+  const loadSuspensions = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const res = await fetchAdminSuspensions();
       if (res.ok && res.suspensions) setSuspensions(res.suspensions);
     } catch (e) {
       console.error(e);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     void loadSuspensions();
   }, []);
+
+  // Header refresh button: silent re-pull from the worker, no skeleton flash.
+  useRefreshSignal(() => void loadSuspensions(true));
 
   const nowMs = Date.now();
 

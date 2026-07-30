@@ -1,4 +1,4 @@
-import { Key, Plus, Trash2, Search, User } from "lucide-react";
+import { Key, Pencil, Plus, Trash2, Search, ShoppingCart, User } from "lucide-react";
 import { useEffect, useState, useMemo, type ReactNode } from "react";
 import { Badge } from "../components/ds/Badge";
 import { Button } from "../components/ds/Button";
@@ -31,7 +31,38 @@ interface LicenseRecord {
   session_id?: string | null;
   usage_count: number;
   max_uses: number;
+  // Order tracking — who purchased this key and under which order number.
+  order_id?: string | null;
+  customer_name?: string | null;
+  customer_email?: string | null;
+  customer_discord?: string | null;
+  order_source?: string | null;      // 'store' | 'admin'
+  order_note?: string | null;
+  order_meta?: string | null;        // sanitized storefront payload snapshot
+  purchased_at?: string | null;
+  verified_discord?: string | null;  // Discord tag verified against this key
 }
+
+/** Discord handles render as `@name` — strip a stored leading @ so it never doubles. */
+function discordHandle(value: string): string {
+  return `@${value.trim().replace(/^@/, "")}`;
+}
+
+interface OrderEditForm {
+  order_id: string;
+  customer_name: string;
+  customer_email: string;
+  customer_discord: string;
+  order_note: string;
+}
+
+const EMPTY_ORDER_FORM: OrderEditForm = {
+  order_id: "",
+  customer_name: "",
+  customer_email: "",
+  customer_discord: "",
+  order_note: "",
+};
 
 interface LicensesPageProps {
   summary?: SummaryPayload | null;
@@ -57,6 +88,18 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
   
   const [deleteCandidate, setDeleteCandidate] = useState<LicenseRecord | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Customer/order attribution editor (per-license pencil action)
+  const [editCandidate, setEditCandidate] = useState<LicenseRecord | null>(null);
+  const [editForm, setEditForm] = useState<OrderEditForm>(EMPTY_ORDER_FORM);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  // Optional buyer attribution stamped onto keys at generation time
+  const [genOrderId, setGenOrderId] = useState("");
+  const [genCustomerName, setGenCustomerName] = useState("");
+  const [genCustomerEmail, setGenCustomerEmail] = useState("");
+  const [genCustomerDiscord, setGenCustomerDiscord] = useState("");
 
   const fetchLicenses = async (silent = false) => {
     try {
@@ -100,7 +143,12 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
         count: isMaster ? 1 : genCount,
         duration_days: calculatedDays,
         custom_key: isMaster && customKey.trim() ? customKey.trim() : undefined,
-        max_uses: isMaster ? (isInfiniteUses ? -1 : maxUses) : 1
+        max_uses: isMaster ? (isInfiniteUses ? -1 : maxUses) : 1,
+        // Optional manual-sale attribution — stamped on every generated key.
+        order_id: genOrderId.trim() || undefined,
+        customer_name: genCustomerName.trim() || undefined,
+        customer_email: genCustomerEmail.trim() || undefined,
+        customer_discord: genCustomerDiscord.trim() || undefined,
       };
       // No retry: generating keys is not idempotent.
       const res = await fetchApi(url.toString(), {
@@ -113,6 +161,12 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
       if (data.ok) {
         await fetchLicenses();
         setIsGenerateModalOpen(false);
+        // Clear the one-shot buyer attribution so the next batch never
+        // accidentally inherits the previous customer.
+        setGenOrderId("");
+        setGenCustomerName("");
+        setGenCustomerEmail("");
+        setGenCustomerDiscord("");
       } else {
         alert("Error generating license: " + (data.error || JSON.stringify(data)));
       }
@@ -155,14 +209,58 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
     }
   };
 
+  const openEdit = (lic: LicenseRecord) => {
+    setEditForm({
+      order_id: lic.order_id ?? "",
+      customer_name: lic.customer_name ?? "",
+      customer_email: lic.customer_email ?? "",
+      customer_discord: lic.customer_discord ?? "",
+      order_note: lic.order_note ?? "",
+    });
+    setEditError(null);
+    setEditCandidate(lic);
+  };
+
+  const saveEdit = async () => {
+    if (!editCandidate || isSavingEdit) return;
+    setIsSavingEdit(true);
+    setEditError(null);
+    try {
+      const encodedKey = encodeURIComponent(editCandidate.license_key);
+      const url = new URL(apiUrl(`/api/admin/licenses/${encodedKey}`), window.location.origin);
+      // All five fields are sent every save: present-but-empty clears a value.
+      const res = await fetchApi(url.toString(), {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(editForm),
+        credentials: "include"
+      }, { retry: false });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || res.statusText || "Failed to save.");
+      }
+      await fetchLicenses(true);
+      setEditCandidate(null);
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : "Failed to save customer info.");
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
   const sortedLicenses = useMemo(() => {
     return [...licenses.filter(lic => {
       const lowerQuery = searchQuery.toLowerCase();
-      return !searchQuery.trim() || 
-             lic.license_key.toLowerCase().includes(lowerQuery) || 
-             lic.hwid?.toLowerCase().includes(lowerQuery) || 
-             lic.user_label?.toLowerCase().includes(lowerQuery) || 
-             lic.client_ip?.toLowerCase().includes(lowerQuery);
+      return !searchQuery.trim() ||
+             lic.license_key.toLowerCase().includes(lowerQuery) ||
+             lic.hwid?.toLowerCase().includes(lowerQuery) ||
+             lic.user_label?.toLowerCase().includes(lowerQuery) ||
+             lic.client_ip?.toLowerCase().includes(lowerQuery) ||
+             lic.order_id?.toLowerCase().includes(lowerQuery) ||
+             lic.customer_name?.toLowerCase().includes(lowerQuery) ||
+             lic.customer_email?.toLowerCase().includes(lowerQuery) ||
+             lic.customer_discord?.toLowerCase().includes(lowerQuery) ||
+             lic.verified_discord?.toLowerCase().includes(lowerQuery);
     })].sort((a, b) => {
       const aIsMaster = a.max_uses > 1 || a.custom_options?.includes("master");
       const bIsMaster = b.max_uses > 1 || b.custom_options?.includes("master");
@@ -193,16 +291,13 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
           {searchQuery ? "No licenses match your current search filter." : "No license keys generated yet."}
         </EmptyState>
       ) : (
-        <div style={{ overflowX: "auto" }}>
+        <div className="data-table-wrap" style={{ borderRadius: 0, border: "none" }}>
           <table className="ds-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
             <thead>
-              <tr style={{ borderBottom: "1px solid var(--line)", textAlign: "left", color: "var(--text-2)", background: "var(--surface-2)" }}>
-                <th style={{ padding: "14px 20px", fontWeight: 500 }}>License Key</th>
-                <th style={{ padding: "14px 20px", fontWeight: 500 }}>Duration</th>
-                <th style={{ padding: "14px 20px", fontWeight: 500 }}>Usage</th>
-                <th style={{ padding: "14px 20px", fontWeight: 500 }}>Status</th>
-                <th style={{ padding: "14px 20px", fontWeight: 500 }}>Linked Session</th>
-                <th style={{ padding: "14px 20px", fontWeight: 500 }}>Actions</th>
+              <tr style={{ borderBottom: "1px solid var(--line)", textAlign: "left", color: "var(--text-2)" }}>
+                {["License Key", "Customer", "Order", "Duration", "Usage", "Status", "Linked Session", "Actions"].map(label => (
+                  <th key={label} style={{ padding: "14px 20px", fontWeight: 500, position: "sticky", top: 0, zIndex: 5, background: "hsl(238 34% 11% / 0.97)", whiteSpace: "nowrap" }}>{label}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -218,6 +313,59 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
                         <span style={{ fontSize: "0.65rem", padding: "2px 6px", borderRadius: "4px", background: "var(--warning-sub)", color: "var(--warning)", fontWeight: 700, letterSpacing: "0.05em" }}>MASTER</span>
                       )}
                     </div>
+                  </td>
+                  <td style={{ padding: "14px 20px", maxWidth: 220 }}>
+                    {(lic.customer_name || lic.customer_email || lic.customer_discord || lic.verified_discord) ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+                        {lic.customer_name ? (
+                          <span style={{ color: "var(--text-1)", fontWeight: 600, fontSize: "0.8125rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={lic.customer_name}>
+                            {lic.customer_name}
+                          </span>
+                        ) : null}
+                        {lic.customer_email ? (
+                          <span style={{ color: "var(--text-2)", fontSize: "0.71875rem", fontFamily: "var(--font-mono)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={lic.customer_email}>
+                            {lic.customer_email}
+                          </span>
+                        ) : null}
+                        {lic.customer_discord ? (
+                          <span style={{ color: "var(--text-2)", fontSize: "0.71875rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={`Discord: ${lic.customer_discord}`}>
+                            {discordHandle(lic.customer_discord)}
+                          </span>
+                        ) : null}
+                        {lic.verified_discord ? (
+                          <span style={{ color: "var(--success-text)", fontSize: "0.71875rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title="This Discord account verified with this key">
+                            ✓ {discordHandle(lic.verified_discord)}
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <span style={{ color: "var(--text-3)", fontStyle: "italic", fontSize: "0.8125rem" }}>No customer yet</span>
+                    )}
+                  </td>
+                  <td style={{ padding: "14px 20px" }}>
+                    {(lic.order_id || lic.order_source) ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
+                        {lic.order_id ? (
+                          <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.78125rem", color: "var(--text-1)", fontWeight: 600, whiteSpace: "nowrap", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis" }} title={`Order ${lic.order_id}`}>
+                            {lic.order_id}
+                          </span>
+                        ) : null}
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                          {lic.order_source ? (
+                            <span style={{ fontSize: "0.625rem", padding: "1px 6px", borderRadius: 4, background: lic.order_source === "store" ? "var(--accent-subtle)" : "var(--surface-3)", color: lic.order_source === "store" ? "var(--accent-text)" : "var(--text-2)", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase" }} title={lic.order_source === "store" ? "Issued by the storefront delivery API" : "Attributed by an admin"}>
+                              {lic.order_source}
+                            </span>
+                          ) : null}
+                          {lic.purchased_at ? (
+                            <span style={{ fontSize: "0.6875rem", color: "var(--text-3)" }} title={formatDate(lic.purchased_at)}>
+                              {timeAgo(lic.purchased_at)}
+                            </span>
+                          ) : null}
+                        </span>
+                      </div>
+                    ) : (
+                      <span style={{ color: "var(--text-3)", fontSize: "0.8125rem" }}>—</span>
+                    )}
                   </td>
                   <td style={{ padding: "14px 20px" }}>
                     <span style={{ color: "var(--text-1)", fontWeight: 500 }}>
@@ -280,26 +428,48 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
                     )}
                   </td>
                   <td style={{ padding: "14px 20px" }}>
-                    <button 
-                      onClick={() => setDeleteCandidate(lic)} 
-                      style={{ 
-                        background: "transparent", 
-                        border: "1px solid transparent", 
-                        color: "var(--danger)", 
-                        cursor: "pointer", 
-                        display: "flex", 
-                        alignItems: "center", 
-                        justifyContent: "center",
-                        padding: "6px",
-                        borderRadius: "6px",
-                        transition: "all 0.2s"
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.background = "var(--danger-sub)"; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
-                      title="Permanently Delete License"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <button
+                        onClick={() => openEdit(lic)}
+                        style={{
+                          background: "transparent",
+                          border: "1px solid transparent",
+                          color: "var(--accent-text)",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          padding: "6px",
+                          borderRadius: "6px",
+                          transition: "all 0.2s"
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background = "var(--accent-subtle)"; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
+                        title="Edit customer / order info"
+                      >
+                        <Pencil size={15} />
+                      </button>
+                      <button
+                        onClick={() => setDeleteCandidate(lic)}
+                        style={{
+                          background: "transparent",
+                          border: "1px solid transparent",
+                          color: "var(--danger)",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          padding: "6px",
+                          borderRadius: "6px",
+                          transition: "all 0.2s"
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background = "var(--danger-sub)"; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
+                        title="Permanently Delete License"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
                 );
@@ -430,7 +600,33 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
                 </div>
               )}
             </div>
-            
+
+            {/* Optional buyer attribution for manual sales — stamped on every
+                generated key so the directory shows who it was sold to. */}
+            <div style={{ borderTop: "1px solid var(--line)", paddingTop: 14, marginBottom: 16 }}>
+              <p className="label-sm" style={{ marginBottom: 10, display: "inline-flex", alignItems: "center", gap: 6 }}>
+                <ShoppingCart size={12} /> Customer / Order (optional — for manual sales)
+              </p>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "16px" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                  <label className="label-sm">Order No.</label>
+                  <input type="text" className="glass-input" placeholder="e.g. ORD-1042" value={genOrderId} onChange={e => setGenOrderId(e.target.value)} style={{ fontFamily: "monospace" }} />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                  <label className="label-sm">Customer Name</label>
+                  <input type="text" className="glass-input" placeholder="Buyer name" value={genCustomerName} onChange={e => setGenCustomerName(e.target.value)} />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                  <label className="label-sm">Customer Email</label>
+                  <input type="email" className="glass-input" placeholder="buyer@mail.com" value={genCustomerEmail} onChange={e => setGenCustomerEmail(e.target.value)} />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                  <label className="label-sm">Discord</label>
+                  <input type="text" className="glass-input" placeholder="@buyer" value={genCustomerDiscord} onChange={e => setGenCustomerDiscord(e.target.value)} />
+                </div>
+              </div>
+            </div>
+
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
               <Button size="md" icon={<Plus size={16} />} onClick={handleGenerate} disabled={generating || (isMaster && !customKey.trim())} variant="primary">
                 {generating ? "Generating..." : isMaster ? "Create Master Key" : "Generate Standard Keys"}
@@ -477,6 +673,81 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
             {isDeleting ? "Processing..." : "Confirm"}
           </Button>
         </div>
+      </Modal>
+
+      {/* Customer / order attribution editor */}
+      <Modal
+        open={!!editCandidate}
+        onClose={() => (isSavingEdit ? null : setEditCandidate(null))}
+        kicker="Order Tracking"
+        title="Customer & Order"
+        sub={editCandidate ? `License ${editCandidate.license_key}` : undefined}
+      >
+        {editCandidate ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {/* Machine-owned facts about this key (read-only) */}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 16px", fontSize: "0.71875rem", color: "var(--text-3)" }}>
+              <span>Source: <strong style={{ color: "var(--text-2)", textTransform: "uppercase" }}>{editCandidate.order_source || "—"}</strong></span>
+              <span>Issued: <strong style={{ color: "var(--text-2)" }}>{editCandidate.purchased_at ? formatDate(editCandidate.purchased_at) : formatDate(editCandidate.created_at)}</strong></span>
+              {editCandidate.verified_discord ? (
+                <span>Verified Discord: <strong style={{ color: "var(--success-text)" }}>{discordHandle(editCandidate.verified_discord)}</strong></span>
+              ) : null}
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <label className="label-sm">Order No.</label>
+                <input type="text" className="glass-input" placeholder="e.g. ORD-1042 / invoice id" value={editForm.order_id} onChange={e => setEditForm(f => ({ ...f, order_id: e.target.value }))} style={{ fontFamily: "monospace" }} />
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <label className="label-sm">Customer Name</label>
+                <input type="text" className="glass-input" placeholder="Buyer name" value={editForm.customer_name} onChange={e => setEditForm(f => ({ ...f, customer_name: e.target.value }))} />
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <label className="label-sm">Customer Email</label>
+                <input type="email" className="glass-input" placeholder="buyer@mail.com" value={editForm.customer_email} onChange={e => setEditForm(f => ({ ...f, customer_email: e.target.value }))} />
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <label className="label-sm">Discord</label>
+                <input type="text" className="glass-input" placeholder="@buyer" value={editForm.customer_discord} onChange={e => setEditForm(f => ({ ...f, customer_discord: e.target.value }))} />
+              </div>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <label className="label-sm">Note</label>
+              <textarea
+                className="glass-input"
+                rows={3}
+                placeholder="Anything worth remembering about this sale…"
+                value={editForm.order_note}
+                onChange={e => setEditForm(f => ({ ...f, order_note: e.target.value }))}
+                style={{ resize: "vertical", minHeight: 64 }}
+              />
+            </div>
+
+            {editCandidate.order_meta ? (
+              <details>
+                <summary style={{ cursor: "pointer", fontSize: "0.75rem", color: "var(--text-2)" }}>
+                  Raw storefront payload (what the shop sent when this key was issued)
+                </summary>
+                <pre style={{ marginTop: 8, padding: "10px 12px", background: "rgba(3, 5, 12, 0.4)", border: "1px solid var(--line)", borderRadius: 10, fontSize: "0.6875rem", color: "var(--text-2)", whiteSpace: "pre-wrap", wordBreak: "break-all", maxHeight: 180, overflow: "auto" }}>
+                  {(() => { try { return JSON.stringify(JSON.parse(editCandidate.order_meta), null, 2); } catch { return editCandidate.order_meta; } })()}
+                </pre>
+              </details>
+            ) : null}
+
+            {editError ? (
+              <p style={{ margin: 0, fontSize: "0.8125rem", color: "var(--danger-text)" }} role="alert">{editError}</p>
+            ) : null}
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
+              <Button variant="ghost" onClick={() => setEditCandidate(null)} disabled={isSavingEdit}>Cancel</Button>
+              <Button variant="primary" onClick={saveEdit} disabled={isSavingEdit}>
+                {isSavingEdit ? "Saving..." : "Save"}
+              </Button>
+            </div>
+          </div>
+        ) : null}
       </Modal>
     </div>
   );

@@ -278,6 +278,39 @@ Important: cleaning the current files does not erase old commits. If you want th
 - `GET /api/admin/sessions-export`
   - Protected readable `.txt` session export
 
+### Store integration (order tracking)
+
+`GET|POST /api/store/generate-key` issues a license key for a storefront's
+Dynamic Serials / API delivery flow (SellHub, Sellix, SellAuth style).
+Authenticate with `?secret=<STORE_SECRET_KEY>` or `Authorization: Bearer`.
+The response is the bare key as `text/plain`.
+
+The endpoint also records **who purchased the key and under which order** so
+the Licenses page can show customer + order number per key. It reads these
+from the query string and from any JSON or form body the storefront sends
+(case-insensitive, nested webhook payloads under `data`/`order`/`customer`
+are searched too):
+
+- Order number: `order_id`, `order_number`, `invoice_id`, `invoice`,
+  `uniqid`, `transaction_id`, `reference`, `order`, …
+- Customer email: `customer_email`, `buyer_email`, `email`, …
+- Customer name: `customer_name`, `username`, `customer`, `name`, …
+- Discord: `discord`, `discord_username`, `discord_id`, …
+
+Most storefronts can template order variables into the delivery URL, e.g.:
+
+```text
+https://<your-domain>/api/store/generate-key?secret=...&order_id={{order.id}}&email={{customer.email}}&name={{customer.name}}
+```
+
+The raw (secret-stripped) payload is stored per key as an audit snapshot and
+shown in the license's "Customer & Order" dialog. Keys sold manually can be
+attributed in the panel: stamp customer/order at generation time in the
+License Generator, or edit any key later via its pencil action. The needed
+`licenses` columns self-apply at runtime; no manual migration required
+(`tools/migrations/2026-07-30-license-orders.sql` mirrors them for pristine
+databases).
+
 ### Standalone worker routes
 
 - `GET /health`

@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS telemetry_counters (
 CREATE TABLE IF NOT EXISTS licenses (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   license_key TEXT NOT NULL UNIQUE,
-  type TEXT NOT NULL DEFAULT 'lifetime', 
+  type TEXT NOT NULL DEFAULT 'lifetime',
   duration_days INTEGER,
   hwid TEXT,
   max_uses INTEGER NOT NULL DEFAULT 1,
@@ -84,11 +84,26 @@ CREATE TABLE IF NOT EXISTS licenses (
   custom_options TEXT NOT NULL DEFAULT '{}',
   created_at TEXT NOT NULL,
   activated_at TEXT,
-  expires_at TEXT
+  expires_at TEXT,
+  -- Order tracking: who purchased this key and under which storefront order.
+  -- Store-issued keys fill these automatically from the delivery call
+  -- (/api/store/generate-key); admin keys are stamped at generation or edited
+  -- from the Licenses page. order_meta keeps a sanitized snapshot of the raw
+  -- storefront payload for auditing; purchased_at is when the key was issued
+  -- to a buyer (vs created_at, which is just row creation).
+  order_id TEXT,
+  customer_name TEXT,
+  customer_email TEXT,
+  customer_discord TEXT,
+  order_source TEXT,                 -- 'store' | 'admin'
+  order_note TEXT,
+  order_meta TEXT,
+  purchased_at TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_licenses_key ON licenses(license_key);
 CREATE INDEX IF NOT EXISTS idx_licenses_hwid ON licenses(hwid);
+CREATE INDEX IF NOT EXISTS idx_licenses_order ON licenses(order_id);
 
 -- Admin-authored announcements shown as a banner in the desktop app. A row is displayed
 -- when is_active = 1 and now is within the optional [starts_at, expires_at] window.

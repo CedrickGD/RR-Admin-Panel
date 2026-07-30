@@ -846,7 +846,12 @@ html.sb-collapsed .sb-group-label { visibility: hidden; padding: 4px 0 0; height
   .meta-item { text-align: left; }
 }
 
-/* ── Page header: frosts in as you scroll (scroll-driven) ───────── */
+/* ── Page header: frosts in as you scroll (scroll-driven) ─────────
+   PERF: the frost lives on a ::before overlay whose OPACITY is scroll-
+   driven. Opacity animates on the compositor, so scrolling never repaints
+   the header — the previous version animated background + box-shadow on
+   the element itself, which forced a main-thread paint on every scroll
+   frame inside the range and read as scroll lag. */
 @supports (animation-timeline: scroll()) {
   .page-header {
     position: sticky;
@@ -854,21 +859,23 @@ html.sb-collapsed .sb-group-label { visibility: hidden; padding: 4px 0 0; height
     z-index: 60;
     padding: 12px 16px;
     margin: -12px -16px 2px;
+  }
+  .page-header::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
     border-radius: 0 0 16px 16px;
-    animation: hdr-frost linear both;
+    /* Near-opaque: content must NOT read through the stuck header */
+    background: hsl(240 36% 8% / 0.97);
+    box-shadow: inset 0 0 0 1px var(--line), 0 14px 36px -20px rgba(0, 0, 0, 0.8);
+    opacity: 0;
+    animation: hdr-frost-fade linear both;
     animation-timeline: scroll(root block);
     animation-range: 0px 140px;
   }
-  @keyframes hdr-frost {
-    from {
-      background: transparent;
-      box-shadow: none;
-    }
-    to {
-      /* Near-opaque: content must NOT read through the stuck header */
-      background: hsl(240 36% 8% / 0.97);
-      box-shadow: inset 0 0 0 1px var(--line), 0 14px 36px -20px rgba(0, 0, 0, 0.8);
-    }
+  @keyframes hdr-frost-fade {
+    to { opacity: 1; }
   }
 
   /* Phones already have the fixed mobilebar as chrome; a second sticky layer
@@ -879,9 +886,8 @@ html.sb-collapsed .sb-group-label { visibility: hidden; padding: 4px 0 0; height
       position: static;
       padding: 0;
       margin: 0;
-      border-radius: 0;
-      animation: none;
     }
+    .page-header::before { content: none; }
   }
 }
 
@@ -936,6 +942,28 @@ html.sb-collapsed .sb-group-label { visibility: hidden; padding: 4px 0 0; height
   border: none;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
   border-radius: var(--r-pill);
+}
+/* Pill inputs need real side padding — 12px sat the first/last glyphs on the
+   curve where they looked sliced off. Overflowing values ellipsize instead of
+   hard-clipping at the curved edge. */
+input.glass-input {
+  padding-left: 16px;
+  padding-right: 16px;
+  text-overflow: ellipsis;
+}
+.search-wrap input.glass-input { padding-left: 34px; }
+/* A PILL is wrong for multi-line and dropdown controls: a 999px-radius
+   textarea clips its own first/last lines at the corner curves, and a pill
+   select runs its value under the native arrow. Both get the control radius. */
+textarea.glass-input {
+  border-radius: var(--r-ctl);
+  padding: 10px 14px;
+}
+select.glass-input {
+  border-radius: var(--r-ctl);
+  padding-left: 14px;
+  padding-right: 30px;
+  text-overflow: ellipsis;
 }
 
 /* ── KPI cards: DENSE rows. Bare icon right, tight stack left
@@ -1237,6 +1265,15 @@ html.sb-collapsed .sb-group-label { visibility: hidden; padding: 4px 0 0; height
 @media (max-width: 640px) {
   .data-table thead th:last-child,
   .data-table tbody td:last-child { padding-right: 12px; }
+}
+
+/* Flush tables inside panels: square top (they sit under the panel head's
+   hairline) and a rounded BOTTOM matching the panel shell — without this the
+   last row poked square corners past the panel's rounded corners. Replaces
+   the per-call-site inline borderRadius/border overrides. */
+.panel .data-table-wrap {
+  border: none;
+  border-radius: 0 0 calc(var(--r) - 2px) calc(var(--r) - 2px);
 }
 
 /* ── FIT-FIRST TABLES ────────────────────────────────────────────

@@ -578,7 +578,7 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
         >
           <div className="panel-body-flush">
             {filteredUsers === null || filteredUsers.length > 0 ? (
-              <div className="data-table-wrap" style={{ borderRadius: 0, border: "none" }}>
+              <div className="data-table-wrap">
                 <table className="data-table">
                   <thead>
                     <tr>
@@ -773,7 +773,7 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
         >
           <div className="panel-body-flush">
             {sessions.length > 0 ? (
-              <div className="data-table-wrap" style={{ borderRadius: 0, border: "none" }}>
+              <div className="data-table-wrap">
                 <table className="data-table">
                   <thead>
                     <tr>

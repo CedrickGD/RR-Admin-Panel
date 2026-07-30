@@ -231,7 +231,7 @@ export function AccessPage({ users = [], onOpenWorker, filterBar }: AccessPagePr
             {query ? "No users match your search." : "No users have reported in the selected range yet."}
           </EmptyState>
         ) : (
-          <div className="data-table-wrap" style={{ borderRadius: 0, border: "none" }}>
+          <div className="data-table-wrap">
           {/* DS .data-table — one table anatomy console-wide. */}
           <table className="data-table">
             <thead>
@@ -309,7 +309,7 @@ export function AccessPage({ users = [], onOpenWorker, filterBar }: AccessPagePr
         ) : activeSuspensions.length === 0 ? (
           <EmptyState allClear title="No one is suspended">Every user currently has access.</EmptyState>
         ) : (
-          <div className="data-table-wrap" style={{ borderRadius: 0, border: "none" }}>
+          <div className="data-table-wrap">
             {/* DS .data-table — one table anatomy console-wide. */}
             <table className="data-table">
               <thead>

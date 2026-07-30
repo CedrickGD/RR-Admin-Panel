@@ -1,4 +1,4 @@
-import { Key, Pencil, Plus, Trash2, Search, ShoppingCart, User } from "lucide-react";
+import { Key, Pencil, Plus, Trash2, ShoppingCart, User } from "lucide-react";
 import { useEffect, useState, useMemo, type ReactNode } from "react";
 import { Badge } from "../components/ds/Badge";
 import { Button } from "../components/ds/Button";
@@ -277,10 +277,16 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
           <h2 className="section-title">{title}</h2>
         </div>
         <div className="panel-head-right">
+          <SearchInput
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Search key, user, customer, order…"
+            style={{ width: 280, maxWidth: "100%" }}
+          />
           <Badge tone="muted">{lics.length}</Badge>
         </div>
       </div>
-      
+
       {loading ? (
         <div style={{ padding: "60px", textAlign: "center", color: "var(--text-2)", display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>
            <div className="spinner spinner-md" />
@@ -291,7 +297,7 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
           {searchQuery ? "No licenses match your current search filter." : "No license keys generated yet."}
         </EmptyState>
       ) : (
-        <div className="data-table-wrap" style={{ borderRadius: 0, border: "none" }}>
+        <div className="data-table-wrap">
           {/* DS .data-table — same anatomy as every other directory table so the
               whole console reads as one system (uppercase hairline header,
               sticky head, hover rows, density ladder, column priority). */}
@@ -502,8 +508,10 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
         }
       />
 
-      <div className="two-col" style={{ alignItems: "flex-start", marginBottom: 24 }}>
-        <section className="panel" style={{ flex: "2 1 400px", height: "100%" }}>
+      {/* Generator spans the full row — the old two-col layout paired it with a
+          search panel that was 90% dead space; search now lives in the All
+          Licenses table head like every other directory page. */}
+      <section className="panel">
           <div className="panel-head">
             <div className="panel-head-left">
               <p className="kicker kicker-row">
@@ -641,28 +649,7 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
               </Button>
             </div>
           </div>
-        </section>
-
-        {/* Search Bar */}
-        <section className="panel" style={{ flex: "1 1 300px", height: "100%" }}>
-          <div className="panel-head">
-            <div className="panel-head-left">
-              <p className="kicker kicker-row">
-                <Search size={12} /> Directory
-              </p>
-              <h2 className="section-title">Search & Filter</h2>
-              <p className="section-sub">Find licenses by user or key</p>
-            </div>
-          </div>
-          <div className="panel-body">
-            <SearchInput
-              value={searchQuery}
-              onChange={setSearchQuery}
-              placeholder="Search by user, HWID, IP, or key..."
-            />
-          </div>
-        </section>
-      </div>
+      </section>
 
       {renderTable(sortedLicenses, "All Licenses")}
 

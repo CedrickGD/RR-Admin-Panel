@@ -120,7 +120,10 @@ export function LivePage({ summary, focusedSessionId = null, focusedSessionToken
   const rowRefs = useRef(new Map<string, HTMLTableRowElement>());
 
   useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), 1_000);
+    // 5s tick, not 1s: `now` only drives the 6-minute liveness cutoff and
+    // "Xm ago" labels, and a full table re-render every second caused visible
+    // scroll jank on longer session lists.
+    const id = window.setInterval(() => setNow(Date.now()), 5_000);
     return () => window.clearInterval(id);
   }, []);
 
@@ -214,7 +217,7 @@ export function LivePage({ summary, focusedSessionId = null, focusedSessionToken
         </>}
       >
         {activeSessions.length > 0 ? (
-          <div className="data-table-wrap" style={{ borderRadius: 0, border: "none" }}>
+          <div className="data-table-wrap">
             <table className="data-table">
                 <thead>
                   <tr>

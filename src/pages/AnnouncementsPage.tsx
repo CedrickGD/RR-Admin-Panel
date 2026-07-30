@@ -258,7 +258,7 @@ export function AnnouncementsPage({ filterBar }: AnnouncementsPageProps) {
             Create one to broadcast a message to everyone using the app.
           </EmptyState>
         ) : (
-          <div className="data-table-wrap" style={{ borderRadius: 0, border: "none" }}>
+          <div className="data-table-wrap">
             <table className="data-table">
               <thead>
                 <tr>

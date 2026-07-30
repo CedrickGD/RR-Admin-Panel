@@ -36,7 +36,9 @@ export function DataTable<T = unknown>({
   flush = false,
 }: DataTableProps<T>) {
   return (
-    <div className="data-table-wrap" style={flush ? { borderRadius: 0, border: "none" } : undefined}>
+    // flush styling (no border, panel-matched corners) comes from the
+    // `.panel .data-table-wrap` rule in app-glue — no inline overrides.
+    <div className="data-table-wrap">
       <table className="data-table">
         <thead>
           <tr>

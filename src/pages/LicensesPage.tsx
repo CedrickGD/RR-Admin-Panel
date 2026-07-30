@@ -295,8 +295,17 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
           <table className="ds-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
             <thead>
               <tr style={{ borderBottom: "1px solid var(--line)", textAlign: "left", color: "var(--text-2)" }}>
-                {["License Key", "Customer", "Order", "Duration", "Usage", "Status", "Linked Session", "Actions"].map(label => (
-                  <th key={label} style={{ padding: "14px 20px", fontWeight: 500, position: "sticky", top: 0, zIndex: 5, background: "hsl(238 34% 11% / 0.97)", whiteSpace: "nowrap" }}>{label}</th>
+                {([
+                  { label: "License Key" },
+                  { label: "Customer" },
+                  { label: "Order" },
+                  { label: "Duration" },
+                  { label: "Usage", className: "col-md" },
+                  { label: "Status" },
+                  { label: "Linked Session", className: "col-lg" },
+                  { label: "Actions" },
+                ] as Array<{ label: string; className?: string }>).map(col => (
+                  <th key={col.label} className={col.className} style={{ padding: "14px 20px", fontWeight: 500, position: "sticky", top: 0, zIndex: 5, background: "hsl(238 34% 11% / 0.97)", whiteSpace: "nowrap" }}>{col.label}</th>
                 ))}
               </tr>
             </thead>
@@ -379,7 +388,7 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
                       )}
                     </span>
                   </td>
-                  <td style={{ padding: "14px 20px" }}>
+                  <td className="col-md" style={{ padding: "14px 20px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                       <div style={{ width: "60px", height: "6px", background: "var(--line)", borderRadius: "3px", overflow: "hidden" }}>
                         <div style={{ height: "100%", width: `${lic.max_uses === -1 ? 100 : Math.min(100, (lic.usage_count / Math.max(1, lic.max_uses)) * 100)}%`, background: "var(--accent)", transition: "width 0.3s" }} />
@@ -395,7 +404,7 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
                       label={lic.status.toUpperCase()} 
                     />
                   </td>
-                  <td style={{ padding: "14px 20px" }}>
+                  <td className="col-lg" style={{ padding: "14px 20px" }}>
                     {lic.hwid ? (
                       <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                         <User size={12} style={{ color: "var(--text-2)" }} />

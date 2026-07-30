@@ -149,12 +149,15 @@ interface SortableThProps {
   activeKey: SortKey;
   dir: SortDir;
   onSort: (key: SortKey) => void;
+  /** Column-priority tag (col-xl / col-lg / col-md) — hides with its tds on narrow viewports. */
+  className?: string;
 }
 
-function SortableTh({ label, sortKey, activeKey, dir, onSort }: SortableThProps) {
+function SortableTh({ label, sortKey, activeKey, dir, onSort, className }: SortableThProps) {
   const isActive = activeKey === sortKey;
   return (
     <th
+      className={className}
       onClick={() => onSort(sortKey)}
       style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}
       title={`Sort by ${label.toLowerCase()}`}
@@ -535,13 +538,13 @@ export function ErrorsPage() {
                 <thead>
                   <tr>
                     <th>User</th>
-                    <th>Discord</th>
+                    <th className="col-lg">Discord</th>
                     <th>Version</th>
-                    <th>Platform</th>
-                    <th>Location</th>
+                    <th className="col-lg">Platform</th>
+                    <th className="col-md">Location</th>
                     <SortableTh label="Errors" sortKey="errors" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
                     <th>Top Type</th>
-                    <SortableTh label="First Error" sortKey="firstError" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
+                    <SortableTh label="First Error" sortKey="firstError" activeKey={sortKey} dir={sortDir} onSort={handleSort} className="col-xl" />
                     <SortableTh label="Last Error" sortKey="lastError" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
                     <th></th>
                   </tr>
@@ -585,7 +588,7 @@ export function ErrorsPage() {
                                 </span>
                               )}
                             </td>
-                            <td style={{ whiteSpace: "nowrap", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis" }}>
+                            <td className="col-lg" style={{ whiteSpace: "nowrap", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis" }}>
                               {user.discordUser?.trim() ? (
                                 <span style={{ fontSize: "0.71875rem", color: "var(--text-2)" }} title={`Discord: ${user.discordUser}`}>
                                   {discordHandle(user.discordUser)}
@@ -599,8 +602,8 @@ export function ErrorsPage() {
                                 {versionLabel(user.displayVersion ?? user.appVersion)}
                               </Badge>
                             </td>
-                            <td className="muted">{user.platform ?? "—"}</td>
-                            <td className="muted" style={{ whiteSpace: "nowrap" }}>{userLocation(user) || "—"}</td>
+                            <td className="muted col-lg">{user.platform ?? "—"}</td>
+                            <td className="muted col-md" style={{ whiteSpace: "nowrap", maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis" }} title={userLocation(user) || undefined}>{userLocation(user) || "—"}</td>
                             <td>
                               <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                                 <Badge tone="danger">{formatNumber(user.visibleCount)}</Badge>
@@ -621,7 +624,7 @@ export function ErrorsPage() {
                                 <span className="muted">—</span>
                               )}
                             </td>
-                            <td className="muted" style={{ whiteSpace: "nowrap" }} title={formatDate(user.firstAt)}>
+                            <td className="muted col-xl" style={{ whiteSpace: "nowrap" }} title={formatDate(user.firstAt)}>
                               {timeAgo(user.firstAt)}
                             </td>
                             <td className="muted" style={{ whiteSpace: "nowrap" }} title={formatDate(user.lastAt)}>

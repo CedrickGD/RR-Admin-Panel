@@ -1238,3 +1238,32 @@ html.sb-collapsed .sb-group-label { visibility: hidden; padding: 4px 0 0; height
   .data-table thead th:last-child,
   .data-table tbody td:last-child { padding-right: 12px; }
 }
+
+/* ── FIT-FIRST TABLES ────────────────────────────────────────────
+   Scrolling is the LAST resort — at real-world laptop widths the
+   wide directory tables must actually FIT. Windows display scaling
+   (125–150 %) turns "1080p/1440p" hardware into 1280–1536 CSS px,
+   where the 10–12 column tables overflowed even after the page cap
+   was removed. Two mechanisms close the gap:
+   1. a density ladder — cell padding and type tighten as the
+      viewport narrows (!important intentionally beats the inline
+      padding/font on the legacy ds-table pages);
+   2. column priority tiers — th/td pairs tagged .col-xl/.col-lg/
+      .col-md bow out when the viewport can no longer afford them.
+      Nothing is lost: every hidden field remains in the row's
+      expanded detail view. */
+@media (max-width: 1799px) {
+  .data-table-wrap table thead th { padding: 9px 11px !important; }
+  .data-table-wrap table tbody td { padding: 9px 11px !important; }
+}
+@media (max-width: 1599px) {
+  .data-table-wrap table { font-size: 0.775rem !important; }
+  .data-table-wrap table thead th { padding: 8px 9px !important; font-size: 0.625rem !important; }
+  .data-table-wrap table tbody td { padding: 8px 9px !important; }
+}
+/* Tier cutoffs sit ABOVE the common effective widths (1280 / 1366 / 1536 —
+   what Windows 125–150 % scaling makes of 1080p/1440p panels), so each of
+   those lands in a configuration that actually fits. */
+@media (max-width: 1799px) { .data-table-wrap .col-xl { display: none !important; } }
+@media (max-width: 1599px) { .data-table-wrap .col-lg { display: none !important; } }
+@media (max-width: 1299px) { .data-table-wrap .col-md { display: none !important; } }

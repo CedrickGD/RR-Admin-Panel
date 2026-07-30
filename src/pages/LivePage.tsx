@@ -221,9 +221,9 @@ export function LivePage({ summary, focusedSessionId = null, focusedSessionToken
                     <th>User</th>
                     <th>Location</th>
                     <th>Version</th>
-                    <th>Platform</th>
+                    <th className="col-lg">Platform</th>
                     <th>Duration</th>
-                    <th>Last Event</th>
+                    <th className="col-xl">Last Event</th>
                     <th>Status</th>
                     <th></th>
                   </tr>
@@ -257,11 +257,11 @@ export function LivePage({ summary, focusedSessionId = null, focusedSessionToken
                               ) : null}
                             </span>
                           </td>
-                          <td className="muted">{displayLocation(session)}</td>
+                          <td className="muted" style={{ maxWidth: 190, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={displayLocation(session)}>{displayLocation(session)}</td>
                           <td><Badge tone="muted">{session.displayVersion ?? session.appVersion ?? "—"}</Badge></td>
-                          <td className="muted">{session.platform ?? "—"}</td>
+                          <td className="muted col-lg">{session.platform ?? "—"}</td>
                           <td className="muted">{resolveSessionDuration(session)}</td>
-                          <td>
+                          <td className="col-xl">
                             <span style={{ fontSize: "0.75rem", color: "var(--text-2)" }}>
                               {session.lastEvent ? formatEventName(session.lastEvent) : "—"}
                             </span>

@@ -276,12 +276,15 @@ interface SortableThProps {
   activeKey: SortKey;
   dir: SortDir;
   onSort: (key: SortKey) => void;
+  /** Column-priority tag (col-xl / col-lg / col-md) — hides with its tds on narrow viewports. */
+  className?: string;
 }
 
-function SortableTh({ label, sortKey, activeKey, dir, onSort }: SortableThProps) {
+function SortableTh({ label, sortKey, activeKey, dir, onSort, className }: SortableThProps) {
   const isActive = activeKey === sortKey;
   return (
     <th
+      className={className}
       onClick={() => onSort(sortKey)}
       style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}
       title={`Sort by ${label.toLowerCase()}`}
@@ -580,16 +583,16 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
                   <thead>
                     <tr>
                       <th>User</th>
-                      <th>Discord</th>
+                      <th className="col-lg">Discord</th>
                       <th>Version</th>
-                      <th>Platform</th>
-                      <th>Location</th>
-                      <th>RPC</th>
+                      <th className="col-lg">Platform</th>
+                      <th className="col-md">Location</th>
+                      <th className="col-md">RPC</th>
                       <SortableTh label="Sessions"   sortKey="sessions"  activeKey={sortKey} dir={sortDir} onSort={handleSort} />
                       <SortableTh label="Total Time" sortKey="totalTime" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
                       <SortableTh label="Errors"     sortKey="errors"    activeKey={sortKey} dir={sortDir} onSort={handleSort} />
                       <SortableTh label="Last Seen"  sortKey="lastSeen"  activeKey={sortKey} dir={sortDir} onSort={handleSort} />
-                      <SortableTh label="First Seen" sortKey="firstSeen" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
+                      <SortableTh label="First Seen" sortKey="firstSeen" activeKey={sortKey} dir={sortDir} onSort={handleSort} className="col-xl" />
                       <th></th>
                     </tr>
                   </thead>
@@ -615,7 +618,7 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
                               style={{ cursor: "pointer" }}
                             >
                               <td style={{ whiteSpace: "nowrap" }}>
-                                <span style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: "0.8125rem", marginRight: 6 }}>{userDisplayName(user)}</span>
+                                <span style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: "0.8125rem", marginRight: 6, display: "inline-block", maxWidth: 190, overflow: "hidden", textOverflow: "ellipsis", verticalAlign: "bottom" }} title={userDisplayName(user)}>{userDisplayName(user)}</span>
                                 {user.licenseTier === "premium" ? (
                                   <span style={{ fontSize: "0.625rem", padding: "2px 6px", borderRadius: "4px", background: "var(--accent-subtle)", color: "var(--accent-text)", fontWeight: 700, letterSpacing: "0.05em", verticalAlign: "middle" }}>PREMIUM</span>
                                 ) : (
@@ -625,7 +628,7 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
                                   {user.identity.slice(0, 8)}
                                 </span>
                               </td>
-                              <td style={{ whiteSpace: "nowrap", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis" }}>
+                              <td className="col-lg" style={{ whiteSpace: "nowrap", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis" }}>
                                 {user.discordUser?.trim() ? (
                                   <span style={{ fontSize: "0.71875rem", color: "var(--text-2)" }} title={`Discord: ${user.discordUser}`}>
                                     {discordHandle(user.discordUser)}
@@ -639,9 +642,9 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
                                   {versionLabel(user.displayVersion ?? user.appVersion)}
                                 </Badge>
                               </td>
-                              <td className="muted">{user.platform ?? "—"}</td>
-                              <td className="muted" style={{ whiteSpace: "nowrap" }}>{userLocation(user) || "—"}</td>
-                              <td><RpcBadge rpcEnabled={user.rpcEnabled} /></td>
+                              <td className="muted col-lg">{user.platform ?? "—"}</td>
+                              <td className="muted col-md" style={{ whiteSpace: "nowrap", maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis" }} title={userLocation(user) || undefined}>{userLocation(user) || "—"}</td>
+                              <td className="col-md"><RpcBadge rpcEnabled={user.rpcEnabled} /></td>
                               <td className="muted">{formatNumber(user.sessions)}</td>
                               <td className="muted" style={{ whiteSpace: "nowrap" }}>{user.totalDurationSeconds > 0 ? formatDuration(user.totalDurationSeconds) : "—"}</td>
                               <td>
@@ -655,7 +658,7 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
                                   {timeAgo(user.lastSeen)}
                                 </span>
                               </td>
-                              <td className="muted" style={{ whiteSpace: "nowrap" }}>{formatDateOnly(user.firstSeen)}</td>
+                              <td className="muted col-xl" style={{ whiteSpace: "nowrap" }}>{formatDateOnly(user.firstSeen)}</td>
                               <td>
                                 <div style={{ display: "flex", gap: 4 }}>
                                   <IconButton
@@ -777,10 +780,10 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
                       <th>User</th>
                       <th>Location</th>
                       <th>Version</th>
-                      <th>Platform</th>
+                      <th className="col-lg">Platform</th>
                       <th>Duration</th>
                       <th>Last Seen</th>
-                      <th>Errors</th>
+                      <th className="col-md">Errors</th>
                       <th>Status</th>
                       <th></th>
                     </tr>
@@ -795,7 +798,7 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
                           <tr className={isExpanded ? "row-expanded" : ""}>
                             <td style={{ whiteSpace: "nowrap" }}>
                               <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                                <span style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: "0.8125rem" }}>{displaySessionUser(session)}</span>
+                                <span style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: "0.8125rem", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={displaySessionUser(session)}>{displaySessionUser(session)}</span>
                                 {session.discordUser?.trim() ? (
                                   <span style={{ fontSize: "0.6875rem", color: "var(--text-2)" }} title={`Discord: ${session.discordUser}`}>
                                     {discordHandle(session.discordUser)}
@@ -804,12 +807,12 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
                                 {session.rpcEnabled ? <Badge tone="accent" title="Discord Rich Presence on">RPC</Badge> : null}
                               </span>
                             </td>
-                            <td className="muted" style={{ whiteSpace: "nowrap" }}>{buildSessionLocationLabel(session) || "—"}</td>
+                            <td className="muted" style={{ whiteSpace: "nowrap", maxWidth: 170, overflow: "hidden", textOverflow: "ellipsis" }} title={buildSessionLocationLabel(session) || undefined}>{buildSessionLocationLabel(session) || "—"}</td>
                             <td><Badge tone="muted">{session.displayVersion ?? session.appVersion ?? "—"}</Badge></td>
-                            <td className="muted">{session.platform ?? "—"}</td>
+                            <td className="muted col-lg">{session.platform ?? "—"}</td>
                             <td className="muted">{resolveSessionDuration(session)}</td>
                             <td className="muted">{timeAgo(session.lastSeenAt)}</td>
-                            <td>
+                            <td className="col-md">
                               {session.errorCount > 0
                                 ? <Badge tone="warning">{session.errorCount}</Badge>
                                 : <Badge tone="success">0</Badge>

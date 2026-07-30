@@ -232,12 +232,13 @@ export function AccessPage({ users = [], onOpenWorker, filterBar }: AccessPagePr
           </EmptyState>
         ) : (
           <div className="data-table-wrap" style={{ borderRadius: 0, border: "none" }}>
-          <table className="ds-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+          {/* DS .data-table — one table anatomy console-wide. */}
+          <table className="data-table">
             <thead>
-              <tr style={{ borderBottom: "1px solid var(--line)", textAlign: "left", color: "var(--text-2)", background: "var(--surface-2)" }}>
-                <th style={{ padding: "12px 20px", fontWeight: 500 }}>User</th>
-                <th style={{ padding: "12px 20px", fontWeight: 500 }}>{sortMode === "first_seen" ? "First seen" : "Last seen"}</th>
-                <th style={{ padding: "12px 20px", fontWeight: 500, textAlign: "right" }}>Action</th>
+              <tr>
+                <th>User</th>
+                <th>{sortMode === "first_seen" ? "First seen" : "Last seen"}</th>
+                <th style={{ textAlign: "right" }}>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -245,8 +246,8 @@ export function AccessPage({ users = [], onOpenWorker, filterBar }: AccessPagePr
                 const susp = suspensionForUser(u);
                 const paid = paidKeysOf(u).length > 0;
                 return (
-                  <tr key={u.identity} style={{ borderBottom: "1px solid var(--line)" }}>
-                    <td style={{ padding: "10px 20px" }}>
+                  <tr key={u.identity}>
+                    <td>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         {/* Plain-text name; hover reveals the link affordance. Click opens the
                             user's detail view (Sessions). */}
@@ -267,10 +268,10 @@ export function AccessPage({ users = [], onOpenWorker, filterBar }: AccessPagePr
                         <div style={{ fontSize: "0.72rem", color: "var(--text-3)" }}>{u.discordUser}</div>
                       ) : null}
                     </td>
-                    <td style={{ padding: "10px 20px", color: "var(--text-2)", whiteSpace: "nowrap" }}>
+                    <td className="muted" style={{ whiteSpace: "nowrap" }}>
                       {timeAgo(sortMode === "first_seen" ? u.firstSeen : u.lastSeen)}
                     </td>
-                    <td style={{ padding: "10px 20px", textAlign: "right" }}>
+                    <td style={{ textAlign: "right" }}>
                       {susp ? (
                         <Button size="sm" variant="ghost" icon={<RotateCcw size={14} />} onClick={() => setLiftTarget({ identity: susp.identity, label: u.userLabel || susp.identity })}>
                           Lift
@@ -309,20 +310,21 @@ export function AccessPage({ users = [], onOpenWorker, filterBar }: AccessPagePr
           <EmptyState allClear title="No one is suspended">Every user currently has access.</EmptyState>
         ) : (
           <div className="data-table-wrap" style={{ borderRadius: 0, border: "none" }}>
-            <table className="ds-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+            {/* DS .data-table — one table anatomy console-wide. */}
+            <table className="data-table">
               <thead>
-                <tr style={{ borderBottom: "1px solid var(--line)", textAlign: "left", color: "var(--text-2)", background: "var(--surface-2)" }}>
-                  <th style={{ padding: "14px 20px", fontWeight: 500 }}>User</th>
-                  <th style={{ padding: "14px 20px", fontWeight: 500 }}>Type</th>
-                  <th style={{ padding: "14px 20px", fontWeight: 500 }}>Reason</th>
-                  <th style={{ padding: "14px 20px", fontWeight: 500 }}>By</th>
-                  <th style={{ padding: "14px 20px", fontWeight: 500 }}>Action</th>
+                <tr>
+                  <th>User</th>
+                  <th>Type</th>
+                  <th className="col-md">Reason</th>
+                  <th className="col-lg">By</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
                 {activeSuspensions.map((row) => (
-                  <tr key={row.id} style={{ borderBottom: "1px solid var(--line)" }}>
-                    <td style={{ padding: "14px 20px" }}>
+                  <tr key={row.id}>
+                    <td>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <button
                           type="button"
@@ -336,11 +338,11 @@ export function AccessPage({ users = [], onOpenWorker, filterBar }: AccessPagePr
                         </button>
                         {row.had_paid_license === 1 ? <Badge tone="warning" title="Had an active paid license when suspended">Paid</Badge> : null}
                       </div>
-                      <div style={{ fontFamily: "ui-monospace, Menlo, Consolas, monospace", fontSize: "0.72rem", color: "var(--text-3)" }} title={row.hwid ?? row.identity}>
+                      <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--text-3)" }} title={row.hwid ?? row.identity}>
                         {(row.hwid ?? row.identity).slice(0, 16)}…
                       </div>
                     </td>
-                    <td style={{ padding: "14px 20px" }}>
+                    <td style={{ whiteSpace: "nowrap" }}>
                       {row.mode === "ban" ? (
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--danger)" }}><Ban size={13} /> Permanent</span>
                       ) : (
@@ -349,9 +351,9 @@ export function AccessPage({ users = [], onOpenWorker, filterBar }: AccessPagePr
                         </span>
                       )}
                     </td>
-                    <td style={{ padding: "14px 20px", color: "var(--text-2)", maxWidth: 260 }}>{row.reason || <span style={{ color: "var(--text-3)", fontStyle: "italic" }}>—</span>}</td>
-                    <td style={{ padding: "14px 20px", color: "var(--text-2)", fontSize: "0.8rem" }}>{row.created_by || "—"}</td>
-                    <td style={{ padding: "14px 20px" }}>
+                    <td className="muted col-md" style={{ maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={row.reason ?? undefined}>{row.reason || <span style={{ color: "var(--text-3)", fontStyle: "italic" }}>—</span>}</td>
+                    <td className="muted col-lg" style={{ maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={row.created_by ?? undefined}>{row.created_by || "—"}</td>
+                    <td>
                       <Button size="sm" variant="ghost" icon={<RotateCcw size={14} />} onClick={() => setLiftTarget({ identity: row.identity, label: row.user_label || row.identity })}>
                         Lift
                       </Button>

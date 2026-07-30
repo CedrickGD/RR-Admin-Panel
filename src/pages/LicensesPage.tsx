@@ -292,38 +292,37 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
         </EmptyState>
       ) : (
         <div className="data-table-wrap" style={{ borderRadius: 0, border: "none" }}>
-          <table className="ds-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+          {/* DS .data-table — same anatomy as every other directory table so the
+              whole console reads as one system (uppercase hairline header,
+              sticky head, hover rows, density ladder, column priority). */}
+          <table className="data-table">
             <thead>
-              <tr style={{ borderBottom: "1px solid var(--line)", textAlign: "left", color: "var(--text-2)" }}>
-                {([
-                  { label: "License Key" },
-                  { label: "Customer" },
-                  { label: "Order" },
-                  { label: "Duration" },
-                  { label: "Usage", className: "col-md" },
-                  { label: "Status" },
-                  { label: "Linked Session", className: "col-lg" },
-                  { label: "Actions" },
-                ] as Array<{ label: string; className?: string }>).map(col => (
-                  <th key={col.label} className={col.className} style={{ padding: "14px 20px", fontWeight: 500, position: "sticky", top: 0, zIndex: 5, background: "hsl(238 34% 11% / 0.97)", whiteSpace: "nowrap" }}>{col.label}</th>
-                ))}
+              <tr>
+                <th>License Key</th>
+                <th>Customer</th>
+                <th>Order</th>
+                <th>Duration</th>
+                <th className="col-md">Usage</th>
+                <th>Status</th>
+                <th className="col-lg">Linked Session</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
               {lics.map(lic => {
                 const isMaster = lic.max_uses > 1 || lic.custom_options?.includes("master");
                 return (
-                <tr key={lic.id} style={{ borderBottom: "1px solid var(--line)", transition: "background 0.2s" }} onMouseEnter={e => e.currentTarget.style.background = "var(--surface-2)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                  <td style={{ padding: "14px 20px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                      <Key size={14} style={{ color: isMaster ? "var(--warning)" : "var(--accent)" }} />
-                      <span style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace", fontWeight: 600, letterSpacing: "0.02em", color: isMaster ? "var(--warning)" : "var(--text-1)" }}>{lic.license_key}</span>
+                <tr key={lic.id}>
+                  <td>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                      <Key size={14} style={{ color: isMaster ? "var(--warning)" : "var(--accent)", flex: "none" }} />
+                      <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.78125rem", fontWeight: 600, letterSpacing: "0.02em", color: isMaster ? "var(--warning)" : "var(--text-1)", whiteSpace: "nowrap", maxWidth: 210, overflow: "hidden", textOverflow: "ellipsis" }} title={lic.license_key}>{lic.license_key}</span>
                       {isMaster && (
                         <span style={{ fontSize: "0.65rem", padding: "2px 6px", borderRadius: "4px", background: "var(--warning-sub)", color: "var(--warning)", fontWeight: 700, letterSpacing: "0.05em" }}>MASTER</span>
                       )}
-                    </div>
+                    </span>
                   </td>
-                  <td style={{ padding: "14px 20px", maxWidth: 220 }}>
+                  <td style={{ maxWidth: 200 }}>
                     {(lic.customer_name || lic.customer_email || lic.customer_discord || lic.verified_discord) ? (
                       <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
                         {lic.customer_name ? (
@@ -351,7 +350,7 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
                       <span style={{ color: "var(--text-3)", fontStyle: "italic", fontSize: "0.8125rem" }}>No customer yet</span>
                     )}
                   </td>
-                  <td style={{ padding: "14px 20px" }}>
+                  <td>
                     {(lic.order_id || lic.order_source) ? (
                       <div style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
                         {lic.order_id ? (
@@ -376,7 +375,7 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
                       <span style={{ color: "var(--text-3)", fontSize: "0.8125rem" }}>—</span>
                     )}
                   </td>
-                  <td style={{ padding: "14px 20px" }}>
+                  <td style={{ whiteSpace: "nowrap" }}>
                     <span style={{ color: "var(--text-1)", fontWeight: 500 }}>
                       {lic.type === "lifetime" ? "Lifetime" : (
                         lic.duration_days && lic.duration_days < 1 / 24 ? `${Math.round(lic.duration_days * 1440)} Mins` :
@@ -388,7 +387,7 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
                       )}
                     </span>
                   </td>
-                  <td className="col-md" style={{ padding: "14px 20px" }}>
+                  <td className="col-md">
                     <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                       <div style={{ width: "60px", height: "6px", background: "var(--line)", borderRadius: "3px", overflow: "hidden" }}>
                         <div style={{ height: "100%", width: `${lic.max_uses === -1 ? 100 : Math.min(100, (lic.usage_count / Math.max(1, lic.max_uses)) * 100)}%`, background: "var(--accent)", transition: "width 0.3s" }} />
@@ -398,13 +397,13 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
                       <span style={{ fontSize: "0.75rem", color: "var(--text-2)" }}>{lic.usage_count} / {lic.max_uses === -1 ? "Infinite" : lic.max_uses}</span>
                     </div>
                   </td>
-                  <td style={{ padding: "14px 20px" }}>
-                    <StatusBadge 
+                  <td>
+                    <StatusBadge
                       presence={lic.status === "active" ? "online" : lic.status === "revoked" ? "unreachable" : "idle"} 
                       label={lic.status.toUpperCase()} 
                     />
                   </td>
-                  <td className="col-lg" style={{ padding: "14px 20px" }}>
+                  <td className="col-lg">
                     {lic.hwid ? (
                       <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                         <User size={12} style={{ color: "var(--text-2)" }} />
@@ -436,7 +435,7 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
                       <span style={{ color: "var(--text-2)", fontStyle: "italic", fontSize: "0.8125rem" }}>Unbound</span>
                     )}
                   </td>
-                  <td style={{ padding: "14px 20px" }}>
+                  <td>
                     <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                       <button
                         onClick={() => openEdit(lic)}

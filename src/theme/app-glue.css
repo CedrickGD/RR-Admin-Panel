@@ -1253,17 +1253,17 @@ html.sb-collapsed .sb-group-label { visibility: hidden; padding: 4px 0 0; height
       Nothing is lost: every hidden field remains in the row's
       expanded detail view. */
 @media (max-width: 1799px) {
-  .data-table-wrap table thead th { padding: 9px 11px !important; }
-  .data-table-wrap table tbody td { padding: 9px 11px !important; }
+  .data-table-wrap table thead th { padding: 9px 11px; }
+  .data-table-wrap table tbody td { padding: 9px 11px; }
 }
 @media (max-width: 1599px) {
-  .data-table-wrap table { font-size: 0.775rem !important; }
-  .data-table-wrap table thead th { padding: 8px 9px !important; font-size: 0.625rem !important; }
-  .data-table-wrap table tbody td { padding: 8px 9px !important; }
+  .data-table-wrap table { font-size: 0.775rem; }
+  .data-table-wrap table thead th { padding: 8px 9px; font-size: 0.625rem; }
+  .data-table-wrap table tbody td { padding: 8px 9px; }
 }
 /* Tier cutoffs sit ABOVE the common effective widths (1280 / 1366 / 1536 —
    what Windows 125–150 % scaling makes of 1080p/1440p panels), so each of
    those lands in a configuration that actually fits. */
-@media (max-width: 1799px) { .data-table-wrap .col-xl { display: none !important; } }
-@media (max-width: 1599px) { .data-table-wrap .col-lg { display: none !important; } }
-@media (max-width: 1299px) { .data-table-wrap .col-md { display: none !important; } }
+@media (max-width: 1799px) { .data-table-wrap .col-xl { display: none; } }
+@media (max-width: 1599px) { .data-table-wrap .col-lg { display: none; } }
+@media (max-width: 1299px) { .data-table-wrap .col-md { display: none; } }

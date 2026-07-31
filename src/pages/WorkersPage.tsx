@@ -15,6 +15,7 @@ import {
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
 import * as XLSX from "xlsx";
 import { CollapsiblePanel } from "../components/CollapsiblePanel";
+import { RowExpandClip } from "../components/RowExpandClip";
 import { type KpiDrilldown, KpiStatCard } from "../components/KpiStatCard";
 import { UserActivityPanel } from "../components/UserActivityPanel";
 import { type SessionPresence, StatusBadge } from "../components/StatusBadge";
@@ -328,18 +329,23 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
   const [sortKey, setSortKey] = useState<SortKey>("lastSeen");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [expandedUsers, setExpandedUsers] = useState<string[]>([]);
+  // "Has ever expanded" memory — rows never expanded keep costing nothing (no detail DOM).
+  const [expandedEverUsers, setExpandedEverUsers] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (focusedWorkerId) {
       setTab("users");
       setUserQuery(focusedWorkerId);
       setExpandedUsers([focusedWorkerId]);
+      setExpandedEverUsers((prev) => (prev.has(focusedWorkerId) ? prev : new Set(prev).add(focusedWorkerId)));
     }
   }, [focusedWorkerId]);
 
   // Sessions tab state
   const [sessionQuery, setSessionQuery] = useState("");
   const [expandedSessions, setExpandedSessions] = useState<string[]>([]);
+  // "Has ever expanded" memory — rows never expanded keep costing nothing (no detail DOM).
+  const [expandedEverSessions, setExpandedEverSessions] = useState<Set<string>>(new Set());
   const [exportError, setExportError] = useState<string | null>(null);
 
   /* ── users derivations (rollup-backed; never the 200-row window) ── */
@@ -385,6 +391,7 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
 
   function toggleUserExpanded(identity: string) {
     setExpandedUsers((curr) => curr.includes(identity) ? curr.filter((id) => id !== identity) : [...curr, identity]);
+    setExpandedEverUsers((prev) => (prev.has(identity) ? prev : new Set(prev).add(identity)));
   }
 
   /* ── header KPI values (stats/rollup driven, summary fallback) ── */
@@ -469,6 +476,7 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
 
   function toggleSessionExpanded(sessionId: string) {
     setExpandedSessions((curr) => curr.includes(sessionId) ? curr.filter((id) => id !== sessionId) : [...curr, sessionId]);
+    setExpandedEverSessions((prev) => (prev.has(sessionId) ? prev : new Set(prev).add(sessionId)));
   }
 
   function handleExport() {
@@ -521,7 +529,7 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
       />
 
       {/* Headline KPIs */}
-      <div className="stat-grid stat-grid-4 v2-stagger">
+      <div className="stat-grid stat-grid-4">
         <KpiStatCard
           label="Total Users"
           value={formatNumber(totalUsersValue)}
@@ -596,7 +604,7 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
                       <th></th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody key={filteredUsers === null ? "loading" : "loaded"} className={filteredUsers === null ? undefined : "dt-settle"}>
                     {filteredUsers === null ? (
                       <SkeletonRows />
                     ) : (
@@ -654,7 +662,7 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
                               </td>
                               <td className="muted" style={{ whiteSpace: "nowrap" }}>
                                 <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                                  {user.isActive ? <span className="status-dot pulse" /> : null}
+                                  {user.isActive ? <span className="status-dot" /> : null}
                                   {timeAgo(user.lastSeen)}
                                 </span>
                               </td>
@@ -681,10 +689,11 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
                               </td>
                             </tr>
 
-                            {isExpanded ? (
-                              <tr>
-                                <td colSpan={USER_COLUMN_COUNT} className="row-expand-panel">
-                                  <div className="row-expand-inner">
+                            {/* Detail stays mounted once opened; the grid-rows clip animates the fold smoothly. */}
+                            {expandedEverUsers.has(user.identity) ? (
+                              <tr className={isExpanded ? undefined : "row-expand-collapsed"}>
+                                <td colSpan={USER_COLUMN_COUNT} className="row-expand-panel row-expand-td">
+                                  <RowExpandClip open={isExpanded}>
                                     <div style={{ marginBottom: 14 }}>
                                       <DetailGrid
                                         items={[
@@ -734,7 +743,7 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
                                     ) : (
                                       <p style={{ fontSize: "0.75rem", color: "var(--text-3)" }}>No feature usage reported yet.</p>
                                     )}
-                                  </div>
+                                  </RowExpandClip>
                                 </td>
                               </tr>
                             ) : null}
@@ -832,10 +841,11 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
                             </td>
                           </tr>
 
-                          {isExpanded && timeline ? (
-                            <tr>
-                              <td colSpan={9} className="row-expand-panel">
-                                <div className="row-expand-inner">
+                          {/* Detail stays mounted once opened; the grid-rows clip animates the fold smoothly. */}
+                          {expandedEverSessions.has(session.id) && timeline ? (
+                            <tr className={isExpanded ? undefined : "row-expand-collapsed"}>
+                              <td colSpan={9} className="row-expand-panel row-expand-td">
+                                <RowExpandClip open={isExpanded}>
                                   {timeline.markers.length > 0 ? (
                                     <div style={{ marginBottom: 14 }}>
                                       <p className="label-sm" style={{ marginBottom: 8 }}>Error Timeline</p>
@@ -869,7 +879,7 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
                                       { k: "Last Event",  v: session.lastEvent ? formatEventName(session.lastEvent) : "—" },
                                     ]}
                                   />
-                                </div>
+                                </RowExpandClip>
                               </td>
                             </tr>
                           ) : null}

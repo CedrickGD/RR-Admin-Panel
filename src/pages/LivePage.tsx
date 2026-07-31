@@ -10,6 +10,7 @@ import { MetaRow, PageHeader } from "../components/ds/PageHeader";
 import type { AppSessionRecord, SummaryPayload, TelemetryEvent } from "../types/telemetry";
 import { formatAccuracy, formatDate, formatDuration, formatEventName, formatGeoSource, formatNumber, timeAgo } from "../utils/format";
 import { resolveCountry } from "../utils/geography";
+import { prefersReducedMotion } from "../utils/motion";
 
 interface LivePageProps {
   summary: SummaryPayload;
@@ -168,7 +169,7 @@ export function LivePage({ summary, focusedSessionId = null, focusedSessionToken
     const row = rowRefs.current.get(focusedSessionId);
     if (!row) return;
     const frameId = window.requestAnimationFrame(() => {
-      row.scrollIntoView({ behavior: "smooth", block: "center" });
+      row.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "center" });
       row.focus({ preventScroll: true });
     });
     return () => window.cancelAnimationFrame(frameId);
@@ -288,7 +289,7 @@ export function LivePage({ summary, focusedSessionId = null, focusedSessionToken
                         {isExpanded && timeline ? (
                           <tr>
                             <td colSpan={8} className="row-expand-panel">
-                              <div className="row-expand-inner">
+                              <div className="row-expand-content">
                                 {/* Timeline */}
                                 <div style={{ marginBottom: 14 }}>
                                   <p className="label-sm" style={{ marginBottom: 8 }}>Session Timeline</p>

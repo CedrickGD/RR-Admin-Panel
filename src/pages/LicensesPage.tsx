@@ -396,7 +396,7 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
                   <td className="col-md">
                     <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                       <div style={{ width: "60px", height: "6px", background: "var(--line)", borderRadius: "3px", overflow: "hidden" }}>
-                        <div style={{ height: "100%", width: `${lic.max_uses === -1 ? 100 : Math.min(100, (lic.usage_count / Math.max(1, lic.max_uses)) * 100)}%`, background: "var(--accent)", transition: "width 0.3s" }} />
+                        <div style={{ height: "100%", width: "100%", transformOrigin: "left", transform: `scaleX(${lic.max_uses === -1 ? 1 : Math.min(1, lic.usage_count / Math.max(1, lic.max_uses))})`, background: "var(--accent)", transition: "transform var(--t-fill) var(--ease-out)" }} />
                       </div>
                     </div>
                     <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
@@ -455,7 +455,7 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
                           justifyContent: "center",
                           padding: "6px",
                           borderRadius: "6px",
-                          transition: "all 0.2s"
+                          transition: "background var(--t-med) var(--ease-smooth), color var(--t-med) var(--ease-smooth)"
                         }}
                         onMouseEnter={e => { e.currentTarget.style.background = "var(--accent-subtle)"; }}
                         onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
@@ -475,7 +475,7 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
                           justifyContent: "center",
                           padding: "6px",
                           borderRadius: "6px",
-                          transition: "all 0.2s"
+                          transition: "background var(--t-med) var(--ease-smooth), color var(--t-med) var(--ease-smooth)"
                         }}
                         onMouseEnter={e => { e.currentTarget.style.background = "var(--danger-sub)"; }}
                         onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
@@ -496,7 +496,7 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
   );
 
   return (
-    <div className="page-content page-stack-lg v2-rise">
+    <div className="page-content page-stack-lg">
       <PageHeader 
         kicker="Access" 
         title="Licenses" 
@@ -524,13 +524,13 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
               <div style={{ display: "flex", alignItems: "center", gap: "4px", background: "var(--surface-2)", padding: "4px", borderRadius: "8px", border: "1px solid var(--line)" }}>
                 <button 
                   onClick={() => setIsMaster(false)} 
-                  style={{ padding: "6px 12px", borderRadius: "6px", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer", border: "none", background: !isMaster ? "var(--surface-2)" : "transparent", color: !isMaster ? "var(--text-1)" : "var(--text-2)", boxShadow: !isMaster ? "0 1px 3px rgba(0,0,0,0.1)" : "none", transition: "all 0.2s" }}
+                  style={{ padding: "6px 12px", borderRadius: "6px", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer", border: "none", background: !isMaster ? "var(--surface-2)" : "transparent", color: !isMaster ? "var(--text-1)" : "var(--text-2)", boxShadow: !isMaster ? "0 1px 3px rgba(0,0,0,0.1)" : "none", transition: "background var(--t-med) var(--ease-smooth), color var(--t-med) var(--ease-smooth), box-shadow var(--t-med) var(--ease-smooth)" }}
                 >
                   Standard
                 </button>
                 <button 
                   onClick={() => setIsMaster(true)} 
-                  style={{ padding: "6px 12px", borderRadius: "6px", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer", border: "none", background: isMaster ? "var(--surface-2)" : "transparent", color: isMaster ? "var(--accent)" : "var(--text-2)", boxShadow: isMaster ? "0 1px 3px rgba(0,0,0,0.1)" : "none", transition: "all 0.2s" }}
+                  style={{ padding: "6px 12px", borderRadius: "6px", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer", border: "none", background: isMaster ? "var(--surface-2)" : "transparent", color: isMaster ? "var(--accent)" : "var(--text-2)", boxShadow: isMaster ? "0 1px 3px rgba(0,0,0,0.1)" : "none", transition: "background var(--t-med) var(--ease-smooth), color var(--t-med) var(--ease-smooth), box-shadow var(--t-med) var(--ease-smooth)" }}
                 >
                   Master Key
                 </button>

@@ -9,6 +9,7 @@ import type { FeatureCollection, LineString, Point } from "geojson";
 import type { ThemeMode } from "../../types/telemetry";
 import type { HeatmapSessionPoint } from "../../utils/dashboardInsights";
 import { formatAccuracy, formatGeoSource, formatNumber } from "../../utils/format";
+import { motionDuration } from "../../utils/motion";
 
 interface WorldHeatmapProps {
   sessionPoints: HeatmapSessionPoint[];
@@ -308,7 +309,7 @@ function fitToPoints(
   forceClose = false,
 ) {
   if (points.length === 0) {
-    map.easeTo({ center: INITIAL_CENTER, zoom: INITIAL_ZOOM, duration: 700 });
+    map.easeTo({ center: INITIAL_CENTER, zoom: INITIAL_ZOOM, duration: motionDuration(700) });
     return;
   }
 
@@ -316,12 +317,12 @@ function fitToPoints(
   if (!forceClose) {
     const bounds = new LngLatBounds(points[0].coordinates, points[0].coordinates);
     for (const point of points.slice(1)) bounds.extend(point.coordinates);
-    map.fitBounds(bounds, { padding: 90, maxZoom: 2.8, duration: 900 });
+    map.fitBounds(bounds, { padding: 90, maxZoom: 2.8, duration: motionDuration(900) });
     return;
   }
 
   if (points.length === 1) {
-    map.easeTo({ center: points[0].coordinates, zoom: 4.9, duration: 800 });
+    map.easeTo({ center: points[0].coordinates, zoom: 4.9, duration: motionDuration(800) });
     return;
   }
 
@@ -334,7 +335,7 @@ function fitToPoints(
   map.fitBounds(bounds, {
     padding: 90,
     maxZoom: 6.2,
-    duration: 900,
+    duration: motionDuration(900),
   });
 }
 
@@ -1170,7 +1171,7 @@ export function WorldHeatmap({
     map.easeTo({
       center: point.coordinates,
       zoom: Math.max(map.getZoom(), point.precise ? 9.6 : PRIMARY_MARKET_ZOOM),
-      duration: 900,
+      duration: motionDuration(900),
     });
   }, [focusedKey, focusedToken, mapReady, sessionMarkerPoints]);
 
@@ -1194,7 +1195,7 @@ export function WorldHeatmap({
     map.easeTo({
       center: activePoint.coordinates,
       zoom: Math.max(map.getZoom(), PRIMARY_MARKET_ZOOM),
-      duration: 900,
+      duration: motionDuration(900),
     });
   }
 
@@ -1307,10 +1308,10 @@ export function WorldHeatmap({
           </button>
           <div className="world-heatmap-hovbar-items">
             {/* Zoom */}
-            <button type="button" onClick={() => mapRef.current?.zoomIn({ duration: 300 })} aria-label="Zoom in">
+            <button type="button" onClick={() => mapRef.current?.zoomIn({ duration: motionDuration(300) })} aria-label="Zoom in">
               <Plus className="h-4 w-4" />
             </button>
-            <button type="button" onClick={() => mapRef.current?.zoomOut({ duration: 300 })} aria-label="Zoom out">
+            <button type="button" onClick={() => mapRef.current?.zoomOut({ duration: motionDuration(300) })} aria-label="Zoom out">
               <Minus className="h-4 w-4" />
             </button>
             <span className="world-heatmap-hovbar-sep" />

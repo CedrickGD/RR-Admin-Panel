@@ -174,7 +174,7 @@ export function FeedbackPage({ summary, onOpenSession, onOpenWorker, filterBar }
   }, [feedback, tab, searchQuery]);
 
   return (
-    <div className="page-content page-stack-lg v2-rise">
+    <div className="page-content page-stack-lg">
       <PageHeader
         kicker="Inbox"
         title="Feedback"
@@ -305,7 +305,7 @@ export function FeedbackPage({ summary, onOpenSession, onOpenWorker, filterBar }
                       >
                         <User size={12} />
                         {f.machine_name || "Unknown user"}
-                        {liveSession ? <span className="status-dot pulse" title="Online now" /> : null}
+                        {liveSession ? <span className="status-dot" title="Online now" /> : null}
                       </button>
                     ) : f.machine_name ? (
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "var(--text-2)" }}>

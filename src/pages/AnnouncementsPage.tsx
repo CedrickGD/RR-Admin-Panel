@@ -223,7 +223,7 @@ export function AnnouncementsPage({ filterBar }: AnnouncementsPageProps) {
   );
 
   return (
-    <div className="page-content page-stack-lg v2-rise">
+    <div className="page-content page-stack-lg">
       <PageHeader
         kicker="Broadcast"
         title="Announcements"

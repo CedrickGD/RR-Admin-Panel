@@ -19,9 +19,10 @@
   --ease-rise:   cubic-bezier(0.21, 0.9, 0.35, 1);   /* @kind other */ /* entrances */
   --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);       /* @kind other */ /* collapses, fills, gauges */
   --ease-pop:    cubic-bezier(0.34, 1.4, 0.6, 1);    /* @kind other */ /* value change pop */
-  --ease-lift:   cubic-bezier(0.34, 1.3, 0.6, 1);    /* @kind other */ /* hover lift */
   --t-fast: 0.13s;     /* @kind other */ /* hovers */
   --t-med:  0.18s;     /* @kind other */ /* controls */
-  --t-rise: 0.4s;      /* @kind other */ /* entrance rise */
+  --t-rise: 0.3s;      /* @kind other */ /* entrance rise */
   --t-collapse: 0.32s; /* @kind other */ /* panel collapse */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);        /* @kind other */ /* strong ease-out: entrances, fills */
+  --t-fill: 0.3s;      /* @kind other */ /* data fills: gauges, rank bars, progress */
 }

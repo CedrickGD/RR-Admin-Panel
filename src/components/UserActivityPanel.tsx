@@ -190,6 +190,7 @@ export function UserActivityPanel({ identity }: UserActivityPanelProps) {
                     tickFormatter={formatAxisSeconds}
                   />
                   <Tooltip
+                    isAnimationActive={false}
                     cursor={{ fill: "rgba(255,255,255,0.04)" }}
                     content={<DurationTooltip />}
                   />
@@ -225,6 +226,7 @@ export function UserActivityPanel({ identity }: UserActivityPanelProps) {
                     tickFormatter={formatAxisSeconds}
                   />
                   <Tooltip
+                    isAnimationActive={false}
                     cursor={{ stroke: "var(--chart-axis-soft)", strokeDasharray: "3 3" }}
                     content={<DurationTooltip />}
                   />

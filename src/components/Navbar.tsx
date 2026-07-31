@@ -141,21 +141,26 @@ export function Navbar({
     const root = document.documentElement;
     const startX = event.clientX;
     const startWidth = parseInt(getComputedStyle(root).getPropertyValue("--sb-w"), 10) || 236;
+    let frame = 0;
+    let nextWidth = startWidth;
 
+    function flush() {
+      frame = 0;
+      applySidebarWidth(nextWidth);
+      window.dispatchEvent(new Event("resize"));
+    }
     function onMove(move: PointerEvent) {
       const raw = startWidth + (move.clientX - startX);
       // Snap: anything dragged below the readable minimum collapses to the icon rail.
-      const width = raw < 150 ? 64 : Math.min(330, Math.max(188, raw));
-      applySidebarWidth(width);
-      window.dispatchEvent(new Event("resize"));
+      nextWidth = raw < 150 ? 64 : Math.min(330, Math.max(188, raw));
+      if (!frame) frame = requestAnimationFrame(flush);
     }
     function onUp() {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
-      const final = parseInt(getComputedStyle(root).getPropertyValue("--sb-w"), 10);
-      if (Number.isFinite(final)) {
-        try { localStorage.setItem("rr-sb-w", String(final)); } catch { /* ignore */ }
-      }
+      if (frame) cancelAnimationFrame(frame);
+      applySidebarWidth(nextWidth);
+      try { localStorage.setItem("rr-sb-w", String(nextWidth)); } catch { /* ignore */ }
       window.dispatchEvent(new Event("resize"));
     }
     window.addEventListener("pointermove", onMove);
@@ -200,7 +205,7 @@ export function Navbar({
         {refreshButton}
       </header>
 
-      {drawerOpen ? <div className="sb-scrim" onClick={() => setDrawerOpen(false)} aria-hidden /> : null}
+      <div className={`sb-scrim${drawerOpen ? " sb-scrim-open" : ""}`} onClick={() => setDrawerOpen(false)} aria-hidden />
 
       <aside className={`sidebar${drawerOpen ? " open" : ""}`} aria-label="Primary">
         <div className="sb-brand">

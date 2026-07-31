@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { Fragment, useMemo, useState } from "react";
 import { CollapsiblePanel } from "../components/CollapsiblePanel";
+import { RowExpandClip } from "../components/RowExpandClip";
 import { KpiStatCard } from "../components/KpiStatCard";
 import { Badge } from "../components/ds/Badge";
 import { Button, IconButton } from "../components/ds/Button";
@@ -242,6 +243,8 @@ export function ErrorsPage() {
   const [query, setQuery] = useState("");
   const [showBackground, setShowBackground] = useState(false);
   const [expandedUsers, setExpandedUsers] = useState<string[]>([]);
+  // "Has ever expanded" memory — rows never expanded keep costing nothing (no detail DOM).
+  const [expandedEverUsers, setExpandedEverUsers] = useState<Set<string>>(new Set());
   const [expandedFailures, setExpandedFailures] = useState<string[]>([]);
   const [showAllEvents, setShowAllEvents] = useState<Set<string>>(new Set());
   const [sortKey, setSortKey] = useState<SortKey>("lastError");
@@ -380,6 +383,7 @@ export function ErrorsPage() {
 
   function toggleUser(identity: string) {
     setExpandedUsers((curr) => (curr.includes(identity) ? curr.filter((id) => id !== identity) : [...curr, identity]));
+    setExpandedEverUsers((prev) => (prev.has(identity) ? prev : new Set(prev).add(identity)));
   }
 
   function toggleFailure(key: string) {
@@ -399,6 +403,7 @@ export function ErrorsPage() {
     setView("users");
     setQuery(identity);
     setExpandedUsers([identity]);
+    setExpandedEverUsers((prev) => (prev.has(identity) ? prev : new Set(prev).add(identity)));
   }
 
   /* ── render ───────────────────────────────────────────────── */
@@ -451,7 +456,7 @@ export function ErrorsPage() {
       />
 
       {/* KPIs */}
-      <div className="stat-grid stat-grid-3 v2-stagger">
+      <div className="stat-grid stat-grid-3">
         <KpiStatCard
           label="Errors in Range"
           value={kpis ? formatNumber(kpis.errorsInRange) : "—"}
@@ -549,7 +554,7 @@ export function ErrorsPage() {
                     <th></th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody key={rows === null ? "loading" : "loaded"} className={rows === null ? undefined : "dt-settle"}>
                   {rows === null ? (
                     <SkeletonRows />
                   ) : (
@@ -629,7 +634,7 @@ export function ErrorsPage() {
                             </td>
                             <td className="muted" style={{ whiteSpace: "nowrap" }} title={formatDate(user.lastAt)}>
                               <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                                {user.isActive ? <span className="status-dot pulse" title="User is online right now" /> : null}
+                                {user.isActive ? <span className="status-dot" title="User is online right now" /> : null}
                                 {timeAgo(user.lastAt)}
                               </span>
                             </td>
@@ -643,10 +648,11 @@ export function ErrorsPage() {
                             </td>
                           </tr>
 
-                          {isExpanded ? (
-                            <tr>
-                              <td colSpan={USER_COLUMN_COUNT} className="row-expand-panel">
-                                <div className="row-expand-inner">
+                          {/* Detail stays mounted once opened; the grid-rows clip animates the fold smoothly. */}
+                          {expandedEverUsers.has(user.identity) ? (
+                            <tr className={isExpanded ? undefined : "row-expand-collapsed"}>
+                              <td colSpan={USER_COLUMN_COUNT} className="row-expand-panel row-expand-td">
+                                <RowExpandClip open={isExpanded}>
                                   <div style={{ marginBottom: 14 }}>
                                     <DetailGrid
                                       items={[
@@ -688,7 +694,7 @@ export function ErrorsPage() {
                                       {formatNumber(hiddenBeyondCap)} older ones in this range are counted but not listed.
                                     </p>
                                   ) : null}
-                                </div>
+                                </RowExpandClip>
                               </td>
                             </tr>
                           ) : null}

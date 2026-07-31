@@ -3,7 +3,7 @@
  *
  * Donut gauge with the percentage centered — adoption rates, RPC share,
  * coverage. Accent stroke with a soft drop-shadow glow; the fill animates
- * (0.8s smooth ease) on mount/update. Track is --surface-3; the number is
+ * (var(--t-fill) ease-out) on mount/update. Track is --surface-3; the number is
  * Space Grotesk.
  */
 export interface RadialGaugeProps {

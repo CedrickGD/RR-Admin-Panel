@@ -102,6 +102,7 @@ export function TimezoneUsageChart({
               tickFormatter={(value: number) => formatNumber(value)}
             />
             <Tooltip
+              isAnimationActive={false}
               cursor={{ stroke: "rgba(255,255,255,0.12)", strokeWidth: 1 }}
               content={({ active, payload, label }) => (
                 <TelemetryChartTooltip

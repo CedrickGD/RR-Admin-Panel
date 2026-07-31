@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const STORAGE_KEY = "rr-accent-hue";
 const DEFAULT_HUE = 262; // DS default: violet (existing users keep their stored hue)
@@ -25,6 +25,15 @@ export const ACCENT_PRESETS: AccentPreset[] = [
 function applyHue(hue: number) {
   // The aurora (theme/css/base.css) owns the ground — only the accent hue moves.
   document.documentElement.style.setProperty("--ah", String(hue));
+}
+
+/* Slider-driven persistence: the var writes stay per-frame (React effects), but
+   localStorage only commits after 250ms of idle so a scrub is one write, not
+   hundreds. Skipping the flush on unmount is fine — next boot re-reads the
+   last persisted value. */
+function debouncePersist(fn: () => void, ref: { t: number }) {
+  window.clearTimeout(ref.t);
+  ref.t = window.setTimeout(fn, 250);
 }
 
 /* ── Background position ─────────────────────────────────────────
@@ -65,6 +74,7 @@ applyBgOffset(readBgOffset());
 
 export function useBackgroundOffset() {
   const [offset, setOffsetState] = useState<BgOffset>(readBgOffset);
+  const persistTimer = useRef({ t: 0 });
 
   useEffect(() => {
     applyBgOffset(offset);
@@ -73,7 +83,9 @@ export function useBackgroundOffset() {
   const setOffset = useCallback((next: Partial<BgOffset>) => {
     setOffsetState((prev) => {
       const merged = { ...prev, ...next };
-      try { localStorage.setItem(BG_OFFSET_KEY, JSON.stringify(merged)); } catch { /* ignore */ }
+      debouncePersist(() => {
+        try { localStorage.setItem(BG_OFFSET_KEY, JSON.stringify(merged)); } catch { /* ignore */ }
+      }, persistTimer.current);
       return merged;
     });
   }, []);
@@ -92,6 +104,8 @@ export function useAccent() {
     }
   });
 
+  const persistTimer = useRef({ t: 0 });
+
   // Apply on mount and whenever hue changes
   useEffect(() => {
     applyHue(hue);
@@ -100,7 +114,9 @@ export function useAccent() {
   const setHue = useCallback((newHue: number) => {
     const clamped = Math.max(0, Math.min(360, Math.round(newHue)));
     setHueState(clamped);
-    try { localStorage.setItem(STORAGE_KEY, String(clamped)); } catch { /* ignore */ }
+    debouncePersist(() => {
+      try { localStorage.setItem(STORAGE_KEY, String(clamped)); } catch { /* ignore */ }
+    }, persistTimer.current);
   }, []);
 
   const activePreset = ACCENT_PRESETS.find((p) => p.hue === hue) ?? null;

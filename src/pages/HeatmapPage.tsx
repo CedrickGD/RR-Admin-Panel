@@ -491,7 +491,7 @@ export function HeatmapPage({
       </div>
 
       {/* KPI row */}
-      <div className="stat-grid stat-grid-6 v2-stagger">
+      <div className="stat-grid stat-grid-6">
         {statCards.map((s) => (
           <KpiStatCard key={s.label} label={s.label} value={s.val} sub={s.sub} icon={s.icon} tone={s.tone} />
         ))}
@@ -554,7 +554,9 @@ export function HeatmapPage({
                       <span className="progress-val">{formatNumber(row.value)}</span>
                     </div>
                     <div className="progress-track">
-                      <div className="progress-fill" style={{ width: `${Math.round(row.share * 100)}%`, background: row.color }} />
+                      {/* Zero-traffic regions get scaleX(0) (no bar) — the 0.02 legibility floor
+                          only applies to regions that actually have data. */}
+                      <div className="progress-fill" style={{ transform: `scaleX(${row.share > 0 ? Math.min(1, Math.max(0.02, row.share)) : 0})`, background: row.color }} />
                     </div>
                   </div>
                 ))}

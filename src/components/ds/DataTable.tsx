@@ -66,7 +66,7 @@ export function DataTable<T = unknown>({
                 {expanded && renderExpanded ? (
                   <tr>
                     <td colSpan={columns.length} className="row-expand-panel">
-                      <div className="row-expand-inner">{renderExpanded(row, i)}</div>
+                      <div className="row-expand-content">{renderExpanded(row, i)}</div>
                     </td>
                   </tr>
                 ) : null}

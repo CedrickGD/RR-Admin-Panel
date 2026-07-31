@@ -206,32 +206,27 @@ h1, h2, h3, h4, h5, h6 {
 @media (max-width: 700px)  { .two-col, .three-col { grid-template-columns: minmax(0, 1fr); } }
 
 /* ── Motion: staggered entrances ──────────────────────────────── */
-.v2-rise { animation: v2rise var(--t-rise) var(--ease-rise) both; }
-.v2-stagger > * { animation: v2rise var(--t-rise) var(--ease-rise) both; }
-.v2-stagger > *:nth-child(1) { animation-delay: 0.00s; }
-.v2-stagger > *:nth-child(2) { animation-delay: 0.04s; }
-.v2-stagger > *:nth-child(3) { animation-delay: 0.08s; }
-.v2-stagger > *:nth-child(4) { animation-delay: 0.12s; }
-.v2-stagger > *:nth-child(5) { animation-delay: 0.16s; }
-.v2-stagger > *:nth-child(6) { animation-delay: 0.20s; }
-.v2-stagger > *:nth-child(7) { animation-delay: 0.24s; }
-.v2-stagger > *:nth-child(8) { animation-delay: 0.28s; }
+.v2-rise { animation: v2rise var(--t-rise) var(--ease-rise) backwards; }
 @keyframes v2rise {
   from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: none; }
 }
 
-/* Value change pop */
-.tile-value-pop { animation: v2pop 0.35s var(--ease-pop); }
+/* Value change pop — opacity-only cue; fires on every poll, so no movement */
+.tile-value-pop { animation: v2pop 0.18s var(--ease-out); }
 @keyframes v2pop {
-  0%   { opacity: 0.4; transform: translateY(5px); }
-  100% { opacity: 1; transform: none; }
+  0%   { opacity: 0.45; }
+  100% { opacity: 1; }
 }
 
 @keyframes v2pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
+@keyframes v2fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
 @media (prefers-reduced-motion: reduce) {
-  .v2-rise, .v2-stagger > *, .tile-value-pop { animation: none; }
+  .v2-rise { animation: v2fade 0.2s ease-out backwards; }
 }
 
 /* ── Misc utilities ───────────────────────────────────────────── */

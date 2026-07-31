@@ -113,29 +113,9 @@ body::after {
 /* Page subtitles were filler — the title row stays lean. */
 .page-subtitle { display: none; }
 
-/* Single fadeInUp page blob retired in favor of per-element rises. */
+/* index.css's legacy page-entrance animation is retired here; the single
+   pageIn rise (the app's one entrance layer) is defined later in this file. */
 .page-enter { animation: none; }
-
-/* ── (a) Transitional page-mount stagger ─────────────────────────
-   Carried over from theme-v2 so entrances stay alive until each
-   page adopts .v2-stagger explicitly (then delete this block). */
-.page-content > .stat-grid > * { animation: v2rise var(--t-rise) var(--ease-rise) both; }
-.page-content > .stat-grid > *:nth-child(1) { animation-delay: 0.02s; }
-.page-content > .stat-grid > *:nth-child(2) { animation-delay: 0.05s; }
-.page-content > .stat-grid > *:nth-child(3) { animation-delay: 0.08s; }
-.page-content > .stat-grid > *:nth-child(4) { animation-delay: 0.11s; }
-.page-content > .stat-grid > *:nth-child(5) { animation-delay: 0.14s; }
-.page-content > .stat-grid > *:nth-child(6) { animation-delay: 0.17s; }
-.page-content > .stat-grid > *:nth-child(7) { animation-delay: 0.20s; }
-.page-content > .panel,
-.page-content > .main-side,
-.page-content > section.panel { animation: v2rise 0.45s var(--ease-rise) 0.12s both; }
-@media (prefers-reduced-motion: reduce) {
-  .page-content > .stat-grid > *,
-  .page-content > .panel,
-  .page-content > .main-side,
-  .page-content > section.panel { animation: none; }
-}
 
 /* ── (a) Heatmap: map fills the viewport instead of stopping at
    520px. Scoped to >900px so the index.css mobile heights still
@@ -318,18 +298,15 @@ body::after {
 /* Kicker with a leading 12px lucide icon */
 .kicker-row { display: inline-flex; align-items: center; gap: 6px; }
 
-/* Entrance rise for the Settings two-col identity/backend row
-   (matches the transitional panel stagger) */
-.page-content > .two-col { animation: v2rise 0.45s var(--ease-rise) 0.08s both; }
-@media (prefers-reduced-motion: reduce) {
-  .page-content > .two-col { animation: none; }
-}
-
 /* Copyable kv values (backend build info) — button reset only;
    typography stays on .kv-val so machine values keep their mono */
 .kv-val-copy { background: none; border: none; padding: 0; cursor: copy; }
 .kv-val-copy:hover { color: var(--accent-text); }
-.kv-copied { display: inline-flex; align-items: center; gap: 4px; color: var(--success-text); }
+.kv-copied { display: inline-flex; align-items: center; gap: 4px; color: var(--success-text); animation: kv-pop 0.13s var(--ease-pop); }
+@keyframes kv-pop {
+  from { opacity: 0; transform: scale(0.9); }
+  to   { opacity: 1; transform: none; }
+}
 
 /* Current-accent chip in the Appearance panel head — follows the
    live accent vars and the --glow multiplier */
@@ -477,6 +454,7 @@ body::after {
   background: var(--danger-sub);
   color: var(--danger-text);
   font-size: var(--fs-small);
+  animation: v2rise var(--t-med) var(--ease-rise) backwards;
 }
 
 .auth-form { display: flex; flex-direction: column; gap: 13px; }
@@ -612,6 +590,10 @@ html::after {
   0%   { transform: translate3d(calc(4% + var(--bg-ox, 0%)),  calc(4% + var(--bg-oy, 0%)), 0)  rotate(0deg)   scale(1.06); }
   50%  { transform: translate3d(calc(-5% + var(--bg-ox, 0%)), calc(-4% + var(--bg-oy, 0%)), 0) rotate(-12deg) scale(0.97); }
   100% { transform: translate3d(calc(4% + var(--bg-ox, 0%)),  calc(-5% + var(--bg-oy, 0%)), 0) rotate(10deg)  scale(1.12); }
+}
+@media (prefers-reduced-motion: reduce) {
+  html::before,
+  html::after { animation: none; }
 }
 
 /* While the heatmap is panning/zooming (WorldHeatmap toggles .map-moving on
@@ -768,9 +750,12 @@ html.sb-collapsed .sb-group-label { visibility: hidden; padding: 4px 0 0; height
   inset: 0;
   z-index: 110;
   background: rgba(2, 3, 9, 0.55);
-  animation: scrimIn 0.2s ease both;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.28s var(--ease-smooth);
 }
-@keyframes scrimIn { from { opacity: 0; } to { opacity: 1; } }
+.sb-scrim-open { opacity: 1; pointer-events: auto; }
+@media (min-width: 901px) { .sb-scrim { display: none; } }
 
 /* Content sits right of the sidebar and owns the FULL remaining width.
    No max-width cap: wide tables (Users / Sessions) need every pixel, and
@@ -902,7 +887,11 @@ html.sb-collapsed .sb-group-label { visibility: hidden; padding: 4px 0 0; height
 }
 .btn-icon { border-radius: 50%; }
 .btn:hover:not(:disabled),
-.btn-icon:hover:not(:disabled) { background: rgba(255, 255, 255, 0.12); color: var(--text-1); transform: translateY(-1px); }
+.btn-icon:hover:not(:disabled) { background: rgba(255, 255, 255, 0.12); color: var(--text-1); }
+@media (hover: hover) and (pointer: fine) {
+  .btn:hover:not(:disabled),
+  .btn-icon:hover:not(:disabled) { transform: translateY(-1px); }
+}
 .btn:active:not(:disabled),
 .btn-icon:active:not(:disabled) { transform: translateY(0) scale(0.97); }
 
@@ -1065,9 +1054,6 @@ select.glass-input {
 /* Hard guarantee: while the map is fullscreen, the wrapper must never be
    animating transform at all (covers clicks landing mid-entrance). */
 .page-enter:has(.world-heatmap-fullscreen) { animation: none; }
-@media (prefers-reduced-motion: reduce) {
-  .page-enter { animation: none; }
-}
 
 /* ── Primary actions: accent gradient, soft glow (no white slabs) ── */
 .btn-primary {
@@ -1081,8 +1067,11 @@ select.glass-input {
   background: linear-gradient(135deg, hsl(var(--ah) var(--as) calc(var(--al) + 6%)), hsl(calc(var(--ah) + 32) var(--as) var(--al)));
   border-color: transparent;
   color: #fff;
-  transform: translateY(-1px);
 }
+@media (hover: hover) and (pointer: fine) {
+  .btn-primary:hover:not(:disabled) { transform: translateY(-1px); }
+}
+.btn-primary:active:not(:disabled) { transform: translateY(0) scale(0.97); }
 .btn-primary .spinner { border-color: rgba(255, 255, 255, 0.35); border-top-color: #fff; }
 
 /* ── Radial gauges: clean ring, no filter (the drop-shadow filter
@@ -1117,27 +1106,45 @@ select.glass-input {
 @media (max-width: 1280px) { .stat-grid-5 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 900px) { .stat-grid-5 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
-/* KPI drill-down modal — ONE clean entrance (overrides the duplicate
-   legacy entrance rules in index.css/components.css by source order). */
+/* KPI drill-down modal — ONE clean enter/exit (overrides the duplicate
+   legacy entrance rules in index.css/components.css by source order).
+   Transitions keyed off data-state, not keyframes: rapid open/close must
+   retarget from the current opacity instead of restarting (AUDIT §4 — a
+   keyframe swap mid-entrance snapped the half-faded overlay to full opacity
+   before fading out). @starting-style supplies the entrance's from-frame;
+   Modal.tsx unmounts on the overlay's opacity transitionend. */
 @keyframes kpi-overlay-fade {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
-@keyframes kpi-modal-in {
-  from { opacity: 0; transform: scale(0.97); }
+@keyframes popover-in {
+  from { opacity: 0; transform: scale(0.96) translateY(-4px); }
   to   { opacity: 1; transform: none; }
 }
-.kpi-overlay { animation: kpi-overlay-fade 0.15s ease-out; }
-.kpi-modal { animation: kpi-modal-in 0.18s ease-out; }
-/* Belt-and-braces: never let a stagger-grid nth-child delay replay the
-   overlay entrance (the old visible->blank->fade double blink). */
-.v2-stagger > .kpi-overlay {
-  animation-delay: 0s;
-  animation-fill-mode: none;
+.kpi-overlay {
+  animation: none; /* keep suppressing the legacy components.css entrance */
+  opacity: 1;
+  transition: opacity 0.15s var(--ease-out);
 }
+.kpi-modal {
+  opacity: 1;
+  transform: none;
+  transition: opacity 0.18s var(--ease-out), transform 0.18s var(--ease-out);
+}
+@starting-style {
+  .kpi-overlay { opacity: 0; }
+  .kpi-modal { opacity: 0; transform: scale(0.97); }
+}
+.kpi-overlay[data-state="closed"] { opacity: 0; pointer-events: none; }
+.kpi-overlay[data-state="closed"] .kpi-modal { opacity: 0; transform: scale(0.97); }
 @media (prefers-reduced-motion: reduce) {
-  .kpi-overlay,
-  .kpi-modal { animation: none; }
+  /* Fade-only both ways: the scale movement goes, the opacity bridge stays
+     (transform isn't in the transition list, so it snaps to its final value). */
+  .kpi-modal,
+  .kpi-overlay[data-state="closed"] .kpi-modal {
+    transform: none;
+    transition: opacity 0.15s var(--ease-out);
+  }
 }
 
 /* ── FilterBar compact pill + popover ───────────────────────────── */
@@ -1201,7 +1208,8 @@ select.glass-input {
   border: 1px solid var(--line);
   border-radius: 14px;
   box-shadow: 0 16px 48px -12px rgba(0, 0, 0, 0.6);
-  animation: kpi-modal-in 0.16s ease-out;
+  transform-origin: top right;
+  animation: popover-in 0.16s var(--ease-out);
 }
 .filter-pop .seg-control {
   display: flex;
@@ -1304,3 +1312,18 @@ select.glass-input {
 @media (max-width: 1799px) { .data-table-wrap .col-xl { display: none; } }
 @media (max-width: 1599px) { .data-table-wrap .col-lg { display: none; } }
 @media (max-width: 1299px) { .data-table-wrap .col-md { display: none; } }
+
+/* ── Reduced motion: fewer and gentler, not zero — opacity cues stay,
+   position changes go. (.spinner/.animate-spin keep rotating: activity
+   indication on a tiny element is a deliberate keep.) ── */
+@media (prefers-reduced-motion: reduce) {
+  /* Popovers: keep the fade, drop the movement */
+  .gdrop-menu,
+  .filter-pop { animation: kpi-overlay-fade 0.12s ease-out; }
+  /* Drawer: instant (position change), scrim keeps its opacity transition */
+  .sidebar { transition-duration: 0.01s; }
+  /* Page switch: fade only */
+  .page-enter { animation: kpi-overlay-fade 0.2s ease-out; }
+  /* Auth error entrance: fade only */
+  .auth-card .inline-error { animation: v2fade var(--t-med) ease-out backwards; }
+}

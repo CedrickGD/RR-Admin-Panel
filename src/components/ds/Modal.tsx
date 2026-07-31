@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 export interface ModalProps {
@@ -17,43 +17,69 @@ export interface ModalProps {
  * Used by KPI tiles and any detail view. Escape / scrim click closes.
  */
 export function Modal({ open, onClose, kicker, title, sub, children }: ModalProps) {
+  const [exiting, setExiting] = useState(false);
+  const wasOpen = useRef(false);
+  // Snapshot of the last open render's content. Confirm-modal callers close by
+  // nulling the state their content derives from (open={!!target} with
+  // {target ? body : null}), which would blank the body/subtitle for the whole
+  // exit fade — the snapshot keeps the closing content visible instead.
+  const lastContent = useRef<Pick<ModalProps, "kicker" | "title" | "sub" | "children">>({});
+  if (open) lastContent.current = { kicker, title, sub, children };
+  const shown = open ? { kicker, title, sub, children } : lastContent.current;
+
   useEffect(() => {
-    if (!open) {
+    if (open) {
+      wasOpen.current = true;
+      setExiting(false);
       return;
     }
+    if (!wasOpen.current) return;
+    setExiting(true);
+    // Safety net if transitionend never fires (e.g. opacity never got a chance
+    // to change, or transition: none overrides)
+    const t = window.setTimeout(() => setExiting(false), 220);
+    return () => window.clearTimeout(t);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && onClose) {
-        onClose();
-      }
+      if (event.key === "Escape" && onClose) onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  if (!open) {
-    return null;
-  }
+  if (!open && !exiting) return null;
 
-  // Portal to <body>: callers render the modal inline next to their tile, which would
-  // make .kpi-overlay a direct child of .v2-stagger grids — the stagger's nth-child
-  // animation-delay then outranks the overlay's own entrance and the modal flashes
-  // visible → blank → fade-in (the "double blink"). On <body> only the dedicated
-  // .kpi-overlay/.kpi-modal entrance applies, and it runs once per open (mount-only;
-  // data polls update props without remounting, so it never replays).
+  // Portal to <body>: callers render the modal inline next to their tile, where
+  // ancestor grid entrance rules historically outranked the overlay's own
+  // entrance (the staggered grid's nth-child animation-delay made the modal
+  // flash visible → blank → fade-in — the "double blink"). On <body> only the
+  // dedicated .kpi-overlay/.kpi-modal entrance applies, and it runs once per
+  // open (insertion-only; data polls update props without remounting, so it
+  // never replays).
   return createPortal(
-    <div className="kpi-overlay" onClick={onClose}>
+    <div
+      className="kpi-overlay"
+      data-state={open ? "open" : "closed"}
+      onClick={open ? onClose : undefined}
+      onTransitionEnd={(event) => {
+        if (!open && event.target === event.currentTarget && event.propertyName === "opacity") setExiting(false);
+      }}
+    >
       <div className="kpi-modal" onClick={(event) => event.stopPropagation()}>
         <div className="kpi-modal-head">
           <div>
-            {kicker ? <p className="kicker">{kicker}</p> : null}
-            {title ? <h2 className="section-title">{title}</h2> : null}
-            {sub ? <p className="section-sub">{sub}</p> : null}
+            {shown.kicker ? <p className="kicker">{shown.kicker}</p> : null}
+            {shown.title ? <h2 className="section-title">{shown.title}</h2> : null}
+            {shown.sub ? <p className="section-sub">{shown.sub}</p> : null}
           </div>
           <button type="button" className="btn-icon" title="Close" onClick={onClose}>
             <X size={16} />
           </button>
         </div>
-        {children}
+        {shown.children}
       </div>
     </div>,
     document.body

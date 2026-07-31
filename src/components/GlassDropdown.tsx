@@ -76,7 +76,7 @@ export function GlassDropdown({ placeholder, options, value, onChange, renderOpt
       </button>
 
       {open ? (
-        <div className="gdrop-menu" role="listbox" style={align === "left" ? { right: "auto", left: 0 } : undefined}>
+        <div className="gdrop-menu" role="listbox" style={align === "left" ? { right: "auto", left: 0, transformOrigin: "top left" } : undefined}>
           {searchable ? (
             <div className="gdrop-search">
               <Search size={14} />

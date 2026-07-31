@@ -295,7 +295,7 @@ export function VersionsPage({ stats, theme, accentHue = 217, filterBar }: Versi
       <div className="page-content page-stack-lg">
         <PageHeader kicker="Distribution" title="Versions" right={filterBar} />
 
-        <div className="stat-grid stat-grid-4 v2-stagger">
+        <div className="stat-grid stat-grid-4">
           {[0, 1, 2, 3].map((i) => (
             <div className="stat-card" key={i}>
               <div className="skeleton" style={{ height: 12, width: "55%" }} />
@@ -354,7 +354,7 @@ export function VersionsPage({ stats, theme, accentHue = 217, filterBar }: Versi
       />
 
       {/* Adoption KPIs — version-specific only (lifetime totals live on Overview) */}
-      <div className="stat-grid stat-grid-4 v2-stagger">
+      <div className="stat-grid stat-grid-4">
         <KpiStatCard
           label="On Latest"
           value={formatNumber(onLatestUsers)}

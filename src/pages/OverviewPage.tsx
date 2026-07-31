@@ -193,7 +193,7 @@ export function OverviewPage({ summary, stats, filterBar }: OverviewPageProps) {
       <div className="main-side main-side-stretch">
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {/* KPI grid */}
-          <div className="stat-grid stat-grid-6 v2-stagger">
+          <div className="stat-grid stat-grid-6">
             <KpiStatCard
               label="Active Users"
               value={formatNumber(activeUsersValue)}
@@ -324,6 +324,7 @@ export function OverviewPage({ summary, stats, filterBar }: OverviewPageProps) {
                     tickFormatter={(v: number) => formatNumber(Number(v))}
                   />
                   <Tooltip
+                    isAnimationActive={false}
                     cursor={{ stroke: "rgba(255,255,255,0.08)", strokeWidth: 1 }}
                     content={({ active, payload, label }) => (
                       <TelemetryChartTooltip
@@ -353,8 +354,6 @@ export function OverviewPage({ summary, stats, filterBar }: OverviewPageProps) {
                       fill: "var(--chart-users)",
                       style: { filter: "drop-shadow(0 0 4px var(--chart-users))" },
                     }}
-                    animationDuration={600}
-                    animationEasing="ease-out"
                   />
                   <Bar
                     isAnimationActive={false}
@@ -363,8 +362,6 @@ export function OverviewPage({ summary, stats, filterBar }: OverviewPageProps) {
                     fill="url(#startedFillOverview)"
                     radius={[6, 6, 0, 0]}
                     barSize={zoom.isZoomed ? 18 : 10}
-                    animationDuration={600}
-                    animationEasing="ease-out"
                   />
                   <Area
                     isAnimationActive={false}
@@ -382,8 +379,6 @@ export function OverviewPage({ summary, stats, filterBar }: OverviewPageProps) {
                       fill: "var(--chart-errors)",
                       style: { filter: "drop-shadow(0 0 4px var(--chart-errors))" },
                     }}
-                    animationDuration={600}
-                    animationEasing="ease-out"
                   />
                 </ComposedChart>
               </ResponsiveContainer>

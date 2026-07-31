@@ -4,13 +4,13 @@ export type SessionPresence = "online" | "idle" | "unreachable" | "ended";
 
 /**
  * Aligned to design-system/components/indicators/StatusBadge:
- * session presence badge with pulsing dot — Online / Idle / Unreachable / Ended.
- * Live presences pulse; "ended" is static and neutral (badge-muted + idle dot).
+ * session presence badge with static colored dot; liveness is carried by
+ * LiveBadge / the sidebar ingest dot — Online / Idle / Unreachable / Ended.
  */
 const PRESENCE_STYLES: Record<SessionPresence, { className: string; label: string; dotClass: string }> = {
-  online:      { className: "badge badge-success",  label: "Online",       dotClass: "status-dot pulse" },
-  idle:        { className: "badge badge-warning",  label: "Idle",         dotClass: "status-dot warn pulse-warn" },
-  unreachable: { className: "badge badge-danger",   label: "Unreachable",  dotClass: "status-dot err pulse-err" },
+  online:      { className: "badge badge-success",  label: "Online",       dotClass: "status-dot" },
+  idle:        { className: "badge badge-warning",  label: "Idle",         dotClass: "status-dot warn" },
+  unreachable: { className: "badge badge-danger",   label: "Unreachable",  dotClass: "status-dot err" },
   ended:       { className: "badge badge-muted",    label: "Ended",        dotClass: "status-dot idle" },
 };
 

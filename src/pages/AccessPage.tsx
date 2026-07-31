@@ -191,7 +191,7 @@ export function AccessPage({ users = [], onOpenWorker, filterBar }: AccessPagePr
   const targetPaidKeys = suspendTarget ? paidKeysOf(suspendTarget) : [];
 
   return (
-    <div className="page-content page-stack-lg v2-rise">
+    <div className="page-content page-stack-lg">
       <PageHeader kicker="Access" title="Access Control" right={filterBar} />
 
       {/* ── Users ── */}

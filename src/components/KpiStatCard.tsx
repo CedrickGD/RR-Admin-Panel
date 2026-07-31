@@ -134,6 +134,7 @@ export function KpiStatCard({ label, value, sub, icon, tone = "primary", delta, 
                   />
                   <YAxis allowDecimals={false} tickLine={false} axisLine={false} tick={{ fill: "var(--chart-axis-soft)", fontSize: 10 }} />
                   <Tooltip
+                    isAnimationActive={false}
                     cursor={{ stroke: "var(--chart-axis-soft)", strokeDasharray: "3 3" }}
                     content={({ active, payload, label: tipLabel }) => (
                       <TelemetryChartTooltip

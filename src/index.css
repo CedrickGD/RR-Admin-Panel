@@ -766,12 +766,13 @@ h1, h2, h3, h4, h5, h6 {
 .data-table tbody tr:hover { background: rgba(255,255,255,0.03); }
 .data-table tbody tr.row-expanded { background: rgba(255,255,255,0.04); }
 
-/* Master (multi-seat) keys — rare, high-value, and easy to lose in a long
-   directory, so the whole row carries the warning tint plus a leading bar
-   instead of relying on one coloured word. */
-.data-table tbody tr.row-master { background: var(--warning-sub); }
-.data-table tbody tr.row-master:hover { background: hsl(37 91% 55% / 0.22); }
-.data-table tbody tr.row-master > td:first-child { box-shadow: inset 3px 0 0 var(--warning); }
+/* Master (multi-seat) keys — marked at the leading edge only: a hairline bar
+   and a tint that fades out inside the first cell. Enough to scan for, without
+   tinting the whole row or fighting the hover state. */
+.data-table tbody tr.row-master > td:first-child {
+  box-shadow: inset 2px 0 0 var(--warning);
+  background: linear-gradient(90deg, hsl(37 91% 55% / 0.10), transparent);
+}
 
 .data-table tbody td {
   padding: 11px 14px;

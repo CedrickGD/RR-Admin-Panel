@@ -1,5 +1,5 @@
 import { Key, Pencil, Plus, Trash2, ShoppingCart, User } from "lucide-react";
-import { useEffect, useRef, useState, useMemo, type ReactNode } from "react";
+import { useEffect, useState, useMemo, type ReactNode } from "react";
 import { Badge } from "../components/ds/Badge";
 import { Button } from "../components/ds/Button";
 import { EmptyState } from "../components/ds/EmptyState";
@@ -104,10 +104,6 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  // The header's "Generate Key(s)" button used to flip an isGenerateModalOpen
-  // flag that no modal was ever bound to, so it did nothing. It now jumps to the
-  // generator panel — which matters once the licenses table runs long.
-  const generatorRef = useRef<HTMLElement | null>(null);
 
   const [genType, setGenType] = useState("lifetime");
   const [genDuration, setGenDuration] = useState(30);
@@ -537,23 +533,13 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
       <PageHeader 
         kicker="Access" 
         title="Licenses" 
-        right={
-          <>
-            {filterBar}
-            <Button
-              size="sm"
-              onClick={() => generatorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
-            >
-              Generate Key(s)
-            </Button>
-          </>
-        }
+        right={filterBar}
       />
 
       {/* Generator spans the full row — the old two-col layout paired it with a
           search panel that was 90% dead space; search now lives in the All
           Licenses table head like every other directory page. */}
-      <section className="panel" ref={generatorRef}>
+      <section className="panel">
           <div className="panel-head">
             <div className="panel-head-left">
               <p className="kicker kicker-row">

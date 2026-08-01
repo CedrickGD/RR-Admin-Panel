@@ -1,4 +1,4 @@
-import { Key, Pencil, Plus, Trash2, ShoppingCart, User } from "lucide-react";
+import { Copy, Crown, Key, Pencil, Plus, Trash2, ShoppingCart, User } from "lucide-react";
 import { useEffect, useState, useMemo, type ReactNode } from "react";
 import { Badge } from "../components/ds/Badge";
 import { Button } from "../components/ds/Button";
@@ -48,6 +48,45 @@ function discordHandle(value: string): string {
   return `@${value.trim().replace(/^@/, "")}`;
 }
 
+/**
+ * Is this a master (multi-seat) key?
+ *
+ * Seat count alone is not enough: an infinite master stores max_uses = -1, and a
+ * master issued with a single seat stores 1 — both read as "standard" under a
+ * `max_uses > 1` test, which is why self-issued master keys were showing up
+ * unhighlighted. The generator now stamps custom_options with {"master":true},
+ * so that flag is the primary signal and the seat count is the fallback for keys
+ * created before it existed.
+ */
+function isMasterLicense(lic: { max_uses: number; custom_options?: string | null }): boolean {
+  if (hasMasterFlag(lic.custom_options)) return true;
+  return lic.max_uses === -1 || lic.max_uses > 1;
+}
+
+function hasMasterFlag(customOptions?: string | null): boolean {
+  if (!customOptions) return false;
+  try {
+    const parsed: unknown = JSON.parse(customOptions);
+    if (parsed && typeof parsed === "object" && "master" in parsed) {
+      return Boolean((parsed as { master?: unknown }).master);
+    }
+  } catch {
+    // Legacy rows stored free-form text here — fall through to the substring test.
+  }
+  return customOptions.toLowerCase().includes("master");
+}
+
+/** The generator's first decision — everything below it depends on this. */
+const KEY_TYPE_OPTIONS = [
+  { master: false, label: "Standard", hint: "One machine per key. Issue as many as you need." },
+  { master: true, label: "Master", hint: "One key, several machines. Highlighted in the list." },
+] as const;
+
+/** The quantity input can be emptied to "" (→ 0/NaN); keep it in the API's 1–50 range. */
+function clampCount(value: number): number {
+  return Math.min(50, Math.max(1, Number.isFinite(value) ? Math.floor(value) : 1));
+}
+
 interface OrderEditForm {
   order_id: string;
   customer_name: string;
@@ -83,8 +122,15 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
   const [genCount, setGenCount] = useState(1);
   const [isMaster, setIsMaster] = useState(false);
   const [customKey, setCustomKey] = useState("");
-  const [maxUses, setMaxUses] = useState(1);
+  // A master key exists to cover several machines, so it opens on a multi-seat
+  // default rather than 1 (which would just be a standard key).
+  const [maxUses, setMaxUses] = useState(5);
   const [isInfiniteUses, setIsInfiniteUses] = useState(false);
+
+  // Keys from the last successful run — the modal switches to a result view so
+  // the batch is readable/copyable instead of vanishing into the table.
+  const [generatedKeys, setGeneratedKeys] = useState<string[]>([]);
+  const [copiedKeys, setCopiedKeys] = useState(false);
   
   const [deleteCandidate, setDeleteCandidate] = useState<LicenseRecord | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -140,10 +186,16 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
 
       const payload = {
         type: genType === 'lifetime' ? 'lifetime' : 'trial',
-        count: isMaster ? 1 : genCount,
+        count: isMaster ? 1 : clampCount(genCount),
         duration_days: calculatedDays,
+        // Optional for master keys: blank means "give it a random key like a
+        // standard one", which is the common case.
         custom_key: isMaster && customKey.trim() ? customKey.trim() : undefined,
         max_uses: isMaster ? (isInfiniteUses ? -1 : maxUses) : 1,
+        // Persist what the admin actually picked. The directory can't infer it
+        // from the seat count — infinite masters store -1 and single-seat
+        // masters store 1, so both used to read as standard keys.
+        custom_options: isMaster ? { master: true } : undefined,
         // Optional manual-sale attribution — stamped on every generated key.
         order_id: genOrderId.trim() || undefined,
         customer_name: genCustomerName.trim() || undefined,
@@ -159,8 +211,12 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
       }, { retry: false });
       const data = await res.json();
       if (data.ok) {
-        await fetchLicenses();
-        setIsGenerateModalOpen(false);
+        // Stay open on the result view — the keys are the whole point of the
+        // action and used to disappear straight into the table.
+        setGeneratedKeys(Array.isArray(data.generated_keys) ? data.generated_keys : []);
+        setCopiedKeys(false);
+        setCustomKey("");
+        await fetchLicenses(true);
         // Clear the one-shot buyer attribution so the next batch never
         // accidentally inherits the previous customer.
         setGenOrderId("");
@@ -175,6 +231,29 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
       alert("Exception: " + e.message);
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const openGenerator = () => {
+    setGeneratedKeys([]);
+    setCopiedKeys(false);
+    setIsGenerateModalOpen(true);
+  };
+
+  const closeGenerator = () => {
+    if (generating) return;
+    setIsGenerateModalOpen(false);
+    setGeneratedKeys([]);
+  };
+
+  const copyGeneratedKeys = async () => {
+    if (generatedKeys.length === 0) return;
+    try {
+      await navigator.clipboard.writeText(generatedKeys.join("\n"));
+      setCopiedKeys(true);
+      window.setTimeout(() => setCopiedKeys(false), 1600);
+    } catch {
+      setCopiedKeys(false);
     }
   };
 
@@ -262,8 +341,8 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
              lic.customer_discord?.toLowerCase().includes(lowerQuery) ||
              lic.verified_discord?.toLowerCase().includes(lowerQuery);
     })].sort((a, b) => {
-      const aIsMaster = a.max_uses > 1 || a.custom_options?.includes("master");
-      const bIsMaster = b.max_uses > 1 || b.custom_options?.includes("master");
+      const aIsMaster = isMasterLicense(a);
+      const bIsMaster = isMasterLicense(b);
       if (aIsMaster && !bIsMaster) return -1;
       if (!aIsMaster && bIsMaster) return 1;
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
@@ -316,9 +395,9 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
             </thead>
             <tbody>
               {lics.map(lic => {
-                const isMaster = lic.max_uses > 1 || lic.custom_options?.includes("master");
+                const isMaster = isMasterLicense(lic);
                 return (
-                <tr key={lic.id}>
+                <tr key={lic.id} className={isMaster ? "row-master" : undefined}>
                   <td>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                       <Key size={14} style={{ color: isMaster ? "var(--warning)" : "var(--accent)", flex: "none" }} />
@@ -503,67 +582,110 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
         right={
           <>
             {filterBar}
-            <Button size="sm" onClick={() => setIsGenerateModalOpen(true)}>Generate Key(s)</Button>
+            <Button size="sm" variant="primary" icon={<Plus />} onClick={openGenerator}>Generate Key(s)</Button>
           </>
         }
       />
 
-      {/* Generator spans the full row — the old two-col layout paired it with a
-          search panel that was 90% dead space; search now lives in the All
-          Licenses table head like every other directory page. */}
-      <section className="panel">
-          <div className="panel-head">
-            <div className="panel-head-left">
-              <p className="kicker kicker-row">
-                <Plus size={12} /> Generator
-              </p>
-              <h2 className="section-title">License Generator</h2>
-              <p className="section-sub">Create standard or custom master licenses</p>
+      {renderTable(sortedLicenses, "All Licenses")}
+
+      {/* License generator. The header's "Generate Key(s)" button used to flip a
+          state flag whose modal was never rendered, so the button did nothing at
+          all. This is that modal. Key type comes first because it changes what
+          every field under it means. */}
+      <Modal
+        open={isGenerateModalOpen}
+        onClose={closeGenerator}
+        kicker="Generator"
+        title={generatedKeys.length > 0 ? "Keys Generated" : "Generate Key(s)"}
+        sub={
+          generatedKeys.length > 0
+            ? `${generatedKeys.length} key${generatedKeys.length === 1 ? "" : "s"} created — active immediately.`
+            : "Standard keys bind to one machine each. A master key covers several on one key."
+        }
+      >
+        {generatedKeys.length > 0 ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ maxHeight: 220, overflowY: "auto", border: "1px solid var(--glass-border)", borderRadius: 10, background: "rgba(3, 5, 12, 0.4)" }}>
+              {generatedKeys.map(key => (
+                <div
+                  key={key}
+                  style={{ padding: "9px 12px", fontFamily: "var(--font-mono)", fontSize: "0.78125rem", color: "var(--text-1)", borderBottom: "1px solid rgba(255,255,255,0.04)", wordBreak: "break-all" }}
+                >
+                  {key}
+                </div>
+              ))}
             </div>
-            <div className="panel-head-right">
-              <div style={{ display: "flex", alignItems: "center", gap: "4px", background: "var(--surface-2)", padding: "4px", borderRadius: "8px", border: "1px solid var(--line)" }}>
-                <button 
-                  onClick={() => setIsMaster(false)} 
-                  style={{ padding: "6px 12px", borderRadius: "6px", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer", border: "none", background: !isMaster ? "var(--surface-2)" : "transparent", color: !isMaster ? "var(--text-1)" : "var(--text-2)", boxShadow: !isMaster ? "0 1px 3px rgba(0,0,0,0.1)" : "none", transition: "background var(--t-med) var(--ease-smooth), color var(--t-med) var(--ease-smooth), box-shadow var(--t-med) var(--ease-smooth)" }}
-                >
-                  Standard
-                </button>
-                <button 
-                  onClick={() => setIsMaster(true)} 
-                  style={{ padding: "6px 12px", borderRadius: "6px", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer", border: "none", background: isMaster ? "var(--surface-2)" : "transparent", color: isMaster ? "var(--accent)" : "var(--text-2)", boxShadow: isMaster ? "0 1px 3px rgba(0,0,0,0.1)" : "none", transition: "background var(--t-med) var(--ease-smooth), color var(--t-med) var(--ease-smooth), box-shadow var(--t-med) var(--ease-smooth)" }}
-                >
-                  Master Key
-                </button>
-              </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
+              <Button variant="ghost" icon={<Copy />} onClick={copyGeneratedKeys}>
+                {copiedKeys ? "Copied" : "Copy all"}
+              </Button>
+              <Button variant="ghost" onClick={() => setGeneratedKeys([])}>Generate more</Button>
+              <Button variant="primary" onClick={closeGenerator}>Done</Button>
             </div>
           </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {KEY_TYPE_OPTIONS.map(option => {
+                const selected = isMaster === option.master;
+                return (
+                  <button
+                    key={option.label}
+                    type="button"
+                    onClick={() => setIsMaster(option.master)}
+                    aria-pressed={selected}
+                    style={{
+                      textAlign: "left",
+                      cursor: "pointer",
+                      padding: "10px 12px",
+                      borderRadius: 10,
+                      border: `1px solid ${selected ? "var(--accent)" : "var(--glass-border)"}`,
+                      background: selected ? "var(--accent-subtle)" : "var(--glass-1)",
+                      transition: "background var(--t-med) var(--ease-smooth), border-color var(--t-med) var(--ease-smooth)"
+                    }}
+                  >
+                    <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.8125rem", fontWeight: 600, color: selected ? "var(--accent-text)" : "var(--text-1)" }}>
+                      {option.master ? <Crown size={13} /> : <Key size={13} />}
+                      {option.label}
+                    </span>
+                    <span style={{ display: "block", marginTop: 3, fontSize: "0.71875rem", lineHeight: 1.45, color: "var(--text-2)" }}>
+                      {option.hint}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
 
-          <div className="panel-body">
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "16px", marginBottom: "16px" }}>
+            {/* 190px min keeps this at two columns inside the 560px modal — at
+                150px it packed three, wrapping the labels to different heights
+                and knocking the inputs off a shared baseline. alignItems:end
+                pins them to one line regardless. */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 16, alignItems: "end" }}>
               {isMaster ? (
                 <>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                     <label className="label-sm">Custom Key String</label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       className="glass-input"
-                      placeholder="e.g. RR-ADMIN-VIP" 
+                      placeholder="Blank = random key"
                       value={customKey}
                       onChange={e => setCustomKey(e.target.value)}
-                      style={{ fontFamily: "monospace" }}
+                      style={{ fontFamily: "var(--font-mono)" }}
                     />
                   </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <label className="label-sm">Max Uses (Usability)</label>
-                      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.8rem", color: "var(--text-1)", cursor: "pointer" }}>
+                      <label className="label-sm">Seats</label>
+                      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.75rem", color: "var(--text-1)", cursor: "pointer" }}>
                         <input type="checkbox" checked={isInfiniteUses} onChange={e => setIsInfiniteUses(e.target.checked)} />
                         Infinite
                       </label>
                     </div>
                     {!isInfiniteUses && (
-                      <input 
-                        type="number" 
+                      <input
+                        type="number"
                         className="glass-input"
                         min={1}
                         value={maxUses}
@@ -573,27 +695,22 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
                   </div>
                 </>
               ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  <label className="label-sm">Quantity to Gen</label>
-                  <input 
-                    type="number" 
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <label className="label-sm">How many keys</label>
+                  <input
+                    type="number"
                     className="glass-input"
-                    value={genCount} 
-                    min={1} 
-                    max={50} 
+                    value={genCount}
+                    min={1}
+                    max={50}
                     onChange={e => setGenCount(Number(e.target.value))}
                   />
                 </div>
               )}
 
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <label className="label-sm">Duration Type</label>
-                <select 
-                  className="glass-input" 
-                  value={genType} 
-                  onChange={e => setGenType(e.target.value)}
-                  style={{ cursor: "pointer" }}
-                >
+                <select className="glass-input" value={genType} onChange={e => setGenType(e.target.value)} style={{ cursor: "pointer" }}>
                   <option value="lifetime">Lifetime</option>
                   <option value="years">Years</option>
                   <option value="months">Months</option>
@@ -605,53 +722,58 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
               </div>
 
               {genType !== "lifetime" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   <label className="label-sm">Duration Value</label>
-                  <input 
-                    type="number" 
+                  <input
+                    type="number"
                     className="glass-input"
-                    value={genDuration} 
+                    value={genDuration}
                     onChange={e => setGenDuration(Number(e.target.value))}
                   />
                 </div>
               )}
             </div>
 
-            {/* Optional buyer attribution for manual sales — stamped on every
-                generated key so the directory shows who it was sold to. */}
-            <div style={{ borderTop: "1px solid var(--line)", paddingTop: 14, marginBottom: 16 }}>
+            {/* Buyer attribution for manual sales — kept visible rather than in a
+                <details>, whose disclosure marker the reset strips (leaving a
+                header that doesn't look clickable). The modal scrolls. */}
+            <div style={{ borderTop: "1px solid var(--line)", paddingTop: 14 }}>
               <p className="label-sm" style={{ marginBottom: 10, display: "inline-flex", alignItems: "center", gap: 6 }}>
                 <ShoppingCart size={12} /> Customer / Order (optional — for manual sales)
               </p>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "16px" }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 12 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   <label className="label-sm">Order No.</label>
-                  <input type="text" className="glass-input" placeholder="e.g. ORD-1042" value={genOrderId} onChange={e => setGenOrderId(e.target.value)} style={{ fontFamily: "monospace" }} />
+                  <input type="text" className="glass-input" placeholder="e.g. ORD-1042" value={genOrderId} onChange={e => setGenOrderId(e.target.value)} style={{ fontFamily: "var(--font-mono)" }} />
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   <label className="label-sm">Customer Name</label>
                   <input type="text" className="glass-input" placeholder="Buyer name" value={genCustomerName} onChange={e => setGenCustomerName(e.target.value)} />
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   <label className="label-sm">Customer Email</label>
                   <input type="email" className="glass-input" placeholder="buyer@mail.com" value={genCustomerEmail} onChange={e => setGenCustomerEmail(e.target.value)} />
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   <label className="label-sm">Discord</label>
                   <input type="text" className="glass-input" placeholder="@buyer" value={genCustomerDiscord} onChange={e => setGenCustomerDiscord(e.target.value)} />
                 </div>
               </div>
             </div>
 
-            <div style={{ display: "flex", justifyContent: "flex-end" }}>
-              <Button size="md" icon={<Plus size={16} />} onClick={handleGenerate} disabled={generating || (isMaster && !customKey.trim())} variant="primary">
-                {generating ? "Generating..." : isMaster ? "Create Master Key" : "Generate Standard Keys"}
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
+              <Button variant="ghost" onClick={closeGenerator} disabled={generating}>Cancel</Button>
+              <Button variant="primary" icon={<Plus />} onClick={handleGenerate} disabled={generating}>
+                {generating
+                  ? "Generating…"
+                  : isMaster
+                    ? "Create Master Key"
+                    : `Generate ${clampCount(genCount)} Key${clampCount(genCount) === 1 ? "" : "s"}`}
               </Button>
             </div>
           </div>
-      </section>
-
-      {renderTable(sortedLicenses, "All Licenses")}
+        )}
+      </Modal>
 
       <Modal 
         open={!!deleteCandidate} 

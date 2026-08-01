@@ -766,6 +766,13 @@ h1, h2, h3, h4, h5, h6 {
 .data-table tbody tr:hover { background: rgba(255,255,255,0.03); }
 .data-table tbody tr.row-expanded { background: rgba(255,255,255,0.04); }
 
+/* Master (multi-seat) keys — rare, high-value, and easy to lose in a long
+   directory, so the whole row carries the warning tint plus a leading bar
+   instead of relying on one coloured word. */
+.data-table tbody tr.row-master { background: var(--warning-sub); }
+.data-table tbody tr.row-master:hover { background: hsl(37 91% 55% / 0.22); }
+.data-table tbody tr.row-master > td:first-child { box-shadow: inset 3px 0 0 var(--warning); }
+
 .data-table tbody td {
   padding: 11px 14px;
   color: var(--text-1);

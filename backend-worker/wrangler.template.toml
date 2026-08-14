@@ -6,3 +6,7 @@ compatibility_date = "2026-03-03"
 binding = "DB"
 database_name = "rr_admin_panel"
 database_id = "replace-with-d1-database-id"
+
+# Nightly license cleanup — see the scheduled() handler in index.js.
+[triggers]
+crons = ["30 3 * * *"]

@@ -47,6 +47,29 @@ const MEDIA_CACHE_CONTROL = "public, max-age=3600, s-maxage=86400";
 let schemaReady = false;
 
 export default {
+  // Nightly housekeeping (cron in wrangler.toml). Expired licenses disappear from the
+  // dashboard entirely: the product decision is that a run-out license is not history to
+  // curate but noise to delete. Runs here because Pages Functions cannot own a schedule,
+  // and this worker already binds the same D1 database.
+  async scheduled(event, env, ctx) {
+    try {
+      const nowIso = new Date().toISOString();
+      // Two shapes of "expired": rows validate/activate already flipped, and rows whose
+      // expiry passed without anyone calling in again (nothing flips those lazily).
+      const result = await env.DB.prepare(
+        `DELETE FROM licenses
+         WHERE status = 'expired'
+            OR (expires_at IS NOT NULL AND expires_at < ?)`
+      ).bind(nowIso).run();
+      const deleted = result?.meta?.changes ?? 0;
+      if (deleted > 0) {
+        console.log(`license cleanup: deleted ${deleted} expired license(s)`);
+      }
+    } catch (err) {
+      console.error("license cleanup failed", err);
+    }
+  },
+
   async fetch(request, env, ctx) {
     if (request.method === "OPTIONS") {
       return withCors(new Response(null, { status: 204 }), request);

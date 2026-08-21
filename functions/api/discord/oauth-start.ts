@@ -4,6 +4,7 @@ import {
   verifyHtmlPage,
   verifyReasonMessage,
 } from "../../_lib/discord";
+import { enforceRateLimit } from "../../_lib/ratelimit";
 import type { RuntimeEnv } from "../../_lib/types";
 
 type HandlerContext = {
@@ -18,6 +19,13 @@ type HandlerContext = {
  * Public (Access-bypassed) path.
  */
 export async function onRequestGet(context: HandlerContext): Promise<Response> {
+  const limited = enforceRateLimit(context.request, {
+    route: "discord/oauth-start",
+    limit: 10,
+    windowSeconds: 60,
+  });
+  if (limited) return limited;
+
   const env = context.env;
   if (!env.DISCORD_CLIENT_ID || !env.DISCORD_REDIRECT_URI || !env.VERIFY_SHARED_SECRET) {
     return verifyHtmlPage(

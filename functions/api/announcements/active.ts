@@ -1,5 +1,6 @@
 import { ensureAnnouncementsSchema, type AnnouncementRow } from "../../_lib/content";
 import { error, json, nowIso } from "../../_lib/http";
+import { enforceRateLimit } from "../../_lib/ratelimit";
 import type { RuntimeEnv } from "../../_lib/types";
 
 type HandlerContext = {
@@ -14,6 +15,13 @@ type HandlerContext = {
  * first, then most recent.
  */
 export async function onRequestGet(context: HandlerContext): Promise<Response> {
+  const limited = enforceRateLimit(context.request, {
+    route: "announcements/active",
+    limit: 60,
+    windowSeconds: 60,
+  });
+  if (limited) return limited;
+
   const db = context.env.DB;
   if (!db) return error(500, "Database not available");
 

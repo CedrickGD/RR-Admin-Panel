@@ -1,4 +1,5 @@
 import { error, json } from "../../_lib/http";
+import { enforceRateLimit } from "../../_lib/ratelimit";
 import type { RuntimeEnv } from "../../_lib/types";
 import { FREE_LIMITS, currentPeriod, ensureUsageSchema, isPremiumHwid } from "../../_lib/usage";
 
@@ -14,6 +15,13 @@ type HandlerContext = {
  * current month. Premium answers `unlimited` so the app can hide the chips entirely.
  */
 export async function onRequestGet(context: HandlerContext): Promise<Response> {
+  const limited = enforceRateLimit(context.request, {
+    route: "usage/status",
+    limit: 60,
+    windowSeconds: 60,
+  });
+  if (limited) return limited;
+
   try {
     const db = context.env.DB;
     if (!db) return error(500, "Database not available");

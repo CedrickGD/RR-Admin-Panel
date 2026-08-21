@@ -1,7 +1,15 @@
 import { json, error, readJsonBody } from "../../_lib/http";
+import { enforceRateLimit } from "../../_lib/ratelimit";
 import type { RuntimeEnv } from "../../_lib/types";
 
 export async function onRequestPost(context: { request: Request; env: RuntimeEnv }) {
+  const limited = enforceRateLimit(context.request, {
+    route: "license/validate",
+    limit: 30,
+    windowSeconds: 60,
+  });
+  if (limited) return limited;
+
   const db = context.env.DB;
   if (!db) return error(500, "Database not available");
 

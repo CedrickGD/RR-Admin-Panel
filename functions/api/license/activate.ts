@@ -1,7 +1,15 @@
 import { json, error, readJsonBody, nowIso } from "../../_lib/http";
+import { enforceRateLimit } from "../../_lib/ratelimit";
 import type { RuntimeEnv } from "../../_lib/types";
 
 export async function onRequestPost(context: { request: Request; env: RuntimeEnv }) {
+  const limited = enforceRateLimit(context.request, {
+    route: "license/activate",
+    limit: 10,
+    windowSeconds: 60,
+  });
+  if (limited) return limited;
+
   const db = context.env.DB;
   if (!db) return error(500, "Database not available");
 
@@ -13,6 +21,15 @@ export async function onRequestPost(context: { request: Request; env: RuntimeEnv
 
     const key = body.license_key.trim();
     const hwid = body.hwid.trim();
+
+    // A second, per-key budget: one license may not be activated from many IPs in a loop.
+    const keyLimited = enforceRateLimit(context.request, {
+      route: "license/activate:key",
+      key,
+      limit: 20,
+      windowSeconds: 3600,
+    });
+    if (keyLimited) return keyLimited;
 
     // Find license
     const license = await db

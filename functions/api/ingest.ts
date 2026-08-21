@@ -7,6 +7,7 @@ import {
   validatePayload,
 } from "../../shared/telemetry-contract";
 import { error, getBearerToken, json, nowIso, timingSafeEqualText } from "../_lib/http";
+import { enforceRateLimit } from "../_lib/ratelimit";
 import { storeTelemetry } from "../_lib/storage";
 import type { RuntimeEnv, TelemetryEvent } from "../_lib/types";
 
@@ -19,6 +20,13 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
   if (context.request.method !== "POST") {
     return error(405, "Method not allowed. Use POST.");
   }
+
+  const limited = enforceRateLimit(context.request, {
+    route: "ingest",
+    limit: 60,
+    windowSeconds: 60,
+  });
+  if (limited) return limited;
 
   const authorizationFailure = validateIngestAuthorization(context.request, context.env);
   if (authorizationFailure) {

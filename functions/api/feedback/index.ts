@@ -1,5 +1,6 @@
 import { ensureFeedbackSchema } from "../../_lib/content";
 import { error, json, nowIso, readJsonBody } from "../../_lib/http";
+import { enforceRateLimit } from "../../_lib/ratelimit";
 import type { RuntimeEnv } from "../../_lib/types";
 
 type HandlerContext = {
@@ -20,9 +21,17 @@ function trimField(value: unknown): string | null {
 /**
  * Public, unauthenticated endpoint the desktop app POSTs user feedback to — same access model as
  * /api/license/*. Identity fields are best-effort context supplied by the client so the admin can
- * follow up; only `message` is required. readJsonBody's byte cap is the basic abuse guard.
+ * follow up; only `message` is required. The per-IP rate limit and readJsonBody's byte cap are
+ * the basic abuse guards.
  */
 export async function onRequestPost(context: HandlerContext): Promise<Response> {
+  const limited = enforceRateLimit(context.request, {
+    route: "feedback",
+    limit: 5,
+    windowSeconds: 60,
+  });
+  if (limited) return limited;
+
   const db = context.env.DB;
   if (!db) return error(500, "Database not available");
 

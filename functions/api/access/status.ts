@@ -1,5 +1,6 @@
 import { ensureAccessSchema, findActiveSuspension, isSuspensionActive } from "../../_lib/access";
 import { error, json, readJsonBody, nowIso } from "../../_lib/http";
+import { enforceRateLimit } from "../../_lib/ratelimit";
 import type { RuntimeEnv } from "../../_lib/types";
 
 type HandlerContext = {
@@ -24,6 +25,13 @@ export async function onRequestGet(context: HandlerContext): Promise<Response> {
 }
 
 async function handle(context: HandlerContext): Promise<Response> {
+  const limited = enforceRateLimit(context.request, {
+    route: "access/status",
+    limit: 30,
+    windowSeconds: 60,
+  });
+  if (limited) return limited;
+
   const db = context.env.DB;
   if (!db) return error(500, "Database not available");
 

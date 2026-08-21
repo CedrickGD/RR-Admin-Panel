@@ -57,6 +57,10 @@ export interface RuntimeEnv {
   ACCESS_ENFORCEMENT?: string;
   ACCESS_ALLOWED_EMAIL?: string;
   ACCESS_ADMIN_EMAIL?: string;
+  // Cloudflare Access JWT verification (AUTH_MODE=access): team domain without scheme, and the
+  // comma-separated AUD tags of every Access application that fronts this project.
+  ACCESS_TEAM_DOMAIN?: string;
+  ACCESS_AUD?: string;
   BUILD_SHA?: string;
   STORE_SECRET_KEY?: string;
   // Discord verification / paid-community gating.

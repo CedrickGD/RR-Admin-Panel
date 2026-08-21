@@ -1,5 +1,6 @@
 import { getSessionTokenFromCookie, verifyAppSessionToken } from "../../_lib/auth";
-import { error, getAccessIdentity, isAllowedAccessIdentity, json } from "../../_lib/http";
+import { resolveAccessIdentity } from "../../_lib/access-jwt";
+import { enforceAccessAllowList, error, json } from "../../_lib/http";
 import type { AppUserRole, RuntimeEnv } from "../../_lib/types";
 import { countUsers, ensureAuthSchema, findUserByEmail } from "../../_lib/users";
 
@@ -16,18 +17,22 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
   const authMode = resolveAuthMode(context.env);
 
   if (authMode === "access") {
-    const accessIdentity = getAccessIdentity(context.request, context.env);
-    if (!accessIdentity) {
+    const identity = await resolveAccessIdentity(context.request, context.env);
+    if (!identity.ok) {
+      if (identity.status === 500) {
+        return error(500, identity.message);
+      }
       return json({
         ok: true,
         authenticated: false,
         hasUsers: true,
-        authMode
+        authMode,
       });
     }
 
-    if (!isAllowedAccessIdentity(accessIdentity, context.env)) {
-      return error(403, "Access identity is not allowed.");
+    const denied = enforceAccessAllowList(identity.email, context.env);
+    if (denied) {
+      return denied;
     }
 
     return json({
@@ -36,9 +41,9 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
       hasUsers: true,
       authMode,
       user: {
-        email: accessIdentity,
-        role: resolveAccessRole(accessIdentity, context.env)
-      }
+        email: identity.email,
+        role: resolveAccessRole(identity.email, context.env),
+      },
     });
   }
 
@@ -57,7 +62,7 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
         ok: true,
         authenticated: false,
         hasUsers,
-        authMode
+        authMode,
       });
     }
 
@@ -67,7 +72,7 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
         ok: true,
         authenticated: false,
         hasUsers,
-        authMode
+        authMode,
       });
     }
 
@@ -78,11 +83,15 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
       authMode,
       user: {
         email: user.email,
-        role: user.role
-      }
+        role: user.role,
+      },
     });
   } catch (sessionError) {
-    return error(500, "Failed to resolve auth session.", sessionError instanceof Error ? sessionError.message : null);
+    return error(
+      500,
+      "Failed to resolve auth session.",
+      sessionError instanceof Error ? sessionError.message : null,
+    );
   }
 }
 

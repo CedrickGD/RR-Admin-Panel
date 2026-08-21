@@ -8,8 +8,8 @@ export function json(data: unknown, status = 200, headers?: HeadersInit): Respon
     headers: {
       "content-type": "application/json; charset=utf-8",
       "cache-control": "no-store",
-      ...(headers ?? {})
-    }
+      ...(headers ?? {}),
+    },
   });
 }
 
@@ -103,6 +103,11 @@ export function decodeKeyParam(raw: string | undefined | null): string {
   }
 }
 
+/**
+ * Unverified identity taken from the Access headers. Only the app-auth mode
+ * (`ACCESS_ENFORCEMENT`) may use this as a best-effort signal; `AUTH_MODE=access` must go
+ * through `resolveAccessIdentity` (verified JWT) instead.
+ */
 export function getAccessIdentity(request: Request, env: RuntimeEnv): string | null {
   const emailHeader = request.headers.get("cf-access-authenticated-user-email");
   const jwtHeader = request.headers.get("cf-access-jwt-assertion");
@@ -119,20 +124,35 @@ export function getAccessIdentity(request: Request, env: RuntimeEnv): string | n
   return null;
 }
 
-export function isAllowedAccessIdentity(identity: string, env: RuntimeEnv): boolean {
+export function parseAccessAllowList(env: RuntimeEnv): string[] {
   const rawAllowed = env.ACCESS_ALLOWED_EMAIL?.trim();
   if (!rawAllowed) {
-    return true;
+    return [];
   }
 
-  const allowedIdentities = rawAllowed
+  return rawAllowed
     .split(",")
     .map((part) => part.trim().toLowerCase())
     .filter((part) => part.length > 0);
+}
 
+/** Fails closed: an empty allow-list allows nobody. */
+export function isAllowedAccessIdentity(identity: string, env: RuntimeEnv): boolean {
+  const allowedIdentities = parseAccessAllowList(env);
   if (allowedIdentities.length === 0) {
-    return true;
+    return false;
   }
 
-  return allowedIdentities.includes(identity.toLowerCase());
+  return allowedIdentities.includes(identity.trim().toLowerCase());
+}
+
+/** 403 response when `identity` may not use the dashboard, `null` when it may. */
+export function enforceAccessAllowList(identity: string, env: RuntimeEnv): Response | null {
+  if (parseAccessAllowList(env).length === 0) {
+    return error(403, "Access allow-list is empty.");
+  }
+  if (!isAllowedAccessIdentity(identity, env)) {
+    return error(403, "Access identity is not allowed.");
+  }
+  return null;
 }

@@ -171,8 +171,10 @@ Core variables:
 - `AUTH_MODE`: `access` or `app`
 - `STORAGE_BACKEND`: usually `d1`
 - `ACCESS_ENFORCEMENT`: `strict` or `off`
-- `ACCESS_ALLOWED_EMAIL`: optional comma-separated allowlist
+- `ACCESS_ALLOWED_EMAIL`: comma-separated allow-list of Access e-mails; an empty list denies everyone
 - `ACCESS_ADMIN_EMAIL`: optional comma-separated admin list for Access mode
+- `ACCESS_TEAM_DOMAIN`: Access team domain without scheme (e.g. `rr-adminpanel.cloudflareaccess.com`), required for `AUTH_MODE=access`
+- `ACCESS_AUD`: comma-separated AUD tags of the Access applications in front of this project (production + preview), required for `AUTH_MODE=access`
 - `AUTH_SESSION_COOKIE`: optional app-auth cookie name, default `rr_session`
 - `BUILD_SHA`: optional build marker for Settings/Health output
 
@@ -241,9 +243,11 @@ Important: cleaning the current files does not erase old commits. If you want th
 
 ### `AUTH_MODE=access`
 
-- The Pages dashboard is expected to sit behind Cloudflare Access / Zero Trust
-- Dashboard requests use the Access identity headers
-- This is the normal operator-facing deployment mode
+- The Pages dashboard sits behind Cloudflare Access / Zero Trust; this is the normal operator-facing deployment mode
+- Every dashboard request must carry the `cf-access-jwt-assertion` token that Access adds. The Functions verify it in code against `https://<ACCESS_TEAM_DOMAIN>/cdn-cgi/access/certs` (RS256 signature, issuer, `ACCESS_AUD`, validity window). The `cf-access-authenticated-user-email` header is never trusted on its own
+- The verified e-mail must be on `ACCESS_ALLOWED_EMAIL`; an empty allow-list denies every request (fail closed), so set it before switching on the dashboard
+- Mutations (`POST`/`PUT`/`PATCH`/`DELETE`) must be same-origin (`Sec-Fetch-Site` / `Origin`) and carry `Content-Type: application/json`; cross-site requests get `403`, non-JSON bodies `415`
+- Find the AUD tag in Zero Trust → Access → Applications → your application → Overview ("Application Audience (AUD) Tag"); list one tag per application, e.g. production and preview
 
 ### `AUTH_MODE=app`
 

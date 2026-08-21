@@ -8,6 +8,10 @@ AUTH_MODE = "access"
 ACCESS_ENFORCEMENT = "strict"
 ACCESS_ALLOWED_EMAIL = ""
 ACCESS_ADMIN_EMAIL = ""
+# Cloudflare Access JWT verification (AUTH_MODE=access): team domain without scheme, and the
+# comma-separated AUD tags of every Access application that fronts this project (prod + preview).
+ACCESS_TEAM_DOMAIN = "rr-adminpanel.cloudflareaccess.com"
+ACCESS_AUD = "<prod-aud>,<preview-aud>"
 
 [[d1_databases]]
 binding = "DB"

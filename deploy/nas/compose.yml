@@ -1,0 +1,58 @@
+# docker compose for the RazorReaper backend on the UGREEN NAS. See README.md.
+name: razorreaper
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+    depends_on: [caddy, bot]
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${MEDIA_DIR}:/srv/media:ro
+    # no ports: reachable only through the tunnel (and the docker network)
+
+  bot:
+    build:
+      context: ${BOT_SRC}
+    restart: unless-stopped
+    environment:
+      - PORT=8080
+      - TOKEN=${TOKEN}
+      - NOTIFIER_TOKEN=${NOTIFIER_TOKEN}
+      - NOTIFIER_CHANNELS=${NOTIFIER_CHANNELS}
+      - NOTIFIER_MESSAGE_CONTENT=${NOTIFIER_MESSAGE_CONTENT}
+      - VERIFY_API_BASE=${VERIFY_API_BASE}
+      - VERIFY_SHARED_SECRET=${VERIFY_SHARED_SECRET}
+      - VERIFIED_ROLE_ID=${VERIFIED_ROLE_ID}
+      - VERIFY_CHANNEL_ID=${VERIFY_CHANNEL_ID}
+    volumes:
+      - ${DATA_DIR}/bot:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # rr-api: added in W3.5 (Node 22 service running the Pages Functions + worker code on SQLite)
+  # rr-api:
+  #   build: ./rr-api
+  #   restart: unless-stopped
+  #   env_file: ./rr-api/.env
+  #   volumes:
+  #     - ${DATA_DIR}/db:/data/db
+  #   healthcheck: { test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8787/health"], interval: 30s, timeout: 5s, retries: 3 }
+
+  backup:
+    image: alpine:3.20
+    restart: unless-stopped
+    volumes:
+      - ${DATA_DIR}/db:/data/db:ro
+      - ${BACKUP_DIR}:/backups
+      - ./backup/backup.sh:/backup.sh:ro
+    command: sh -c "apk add --no-cache sqlite >/dev/null && echo '15 3 * * * sh /backup.sh' > /etc/crontabs/root && crond -f -l 2"

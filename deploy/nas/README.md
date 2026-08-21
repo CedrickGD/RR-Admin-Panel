@@ -5,7 +5,7 @@ Target: Cloudflare stays the edge (DNS, cache, WAF, Access); the NAS is the orig
 
 ```
 api.<domain>    -> rr-api          (Node 22; the Pages Functions + worker code on SQLite)   [W3.5]
-media.<domain>  -> caddy           (static files from /volume1/razorreaper/media)          [W3.3]
+media.<domain>  -> caddy           (static files from /volume1/docker/razorreaper/media)          [W3.3]
 bot.<domain>    -> razorreaper-bot (Discord bot + notifier SSE)                            [W3.4]
 ```
 
@@ -16,7 +16,7 @@ proxies for legacy clients. The UGOS admin UI (9999/9443) is **never** mapped in
 
 1. Buy a domain (e.g. `razorreaper.de`) and add it to the Cloudflare account `1559784f…`
    (Cloudflare Registrar puts it on Cloudflare automatically).
-2. NAS: `ssh <nas-user>@192.168.2.201`; create `/volume1/razorreaper/{src,media,data/db,data/bot,backups}`;
+2. NAS: `ssh <nas-user>@192.168.2.201`; create `/volume1/docker/razorreaper/{src,media,data/db,data/bot,backups}`;
    confirm `docker compose version` (UGOS Pro Docker app) and auto-power-on after outage.
 3. Zero Trust -> Networks -> Tunnels -> **Create tunnel** `rr-nas` (cloudflared) -> copy the token into
    `.env` as `TUNNEL_TOKEN`. Public hostnames: `media.<domain>` -> `http://caddy:8080`,
@@ -30,7 +30,7 @@ proxies for legacy clients. The UGOS admin UI (9999/9443) is **never** mapped in
 
 ```bash
 ssh <nas-user>@192.168.2.201
-cd /volume1/razorreaper/src
+cd /volume1/docker/razorreaper/src
 git clone https://github.com/CedrickGD/RR-Admin-Panel.git
 git clone https://github.com/CedrickGD/razorreaper-bot.git
 cd RR-Admin-Panel/deploy/nas && cp .env.example .env && nano .env      # fill secrets
@@ -38,19 +38,19 @@ docker compose up -d --build
 docker compose logs -f cloudflared     # expect "Registered tunnel connection"
 ```
 
-Update: `git -C /volume1/razorreaper/src/RR-Admin-Panel pull && git -C /volume1/razorreaper/src/razorreaper-bot pull && docker compose up -d --build`.
+Update: `git -C /volume1/docker/razorreaper/src/RR-Admin-Panel pull && git -C /volume1/docker/razorreaper/src/razorreaper-bot pull && docker compose up -d --build`.
 
 ## Media migration (W3.3)
 
 Copy the 75 files (689 MB) from the local master
 `Desktop\!!! Main\7. Selling\RazorReaper\Current Files\APP HOSTED FILES DNT` to
-`/volume1/razorreaper/media` (scp/rsync or the UGOS file manager), then
+`/volume1/docker/razorreaper/media` (scp/rsync or the UGOS file manager), then
 `curl -sI https://media.<domain>/images/presets/default.png` -> 200, compare sha256 of all 75
 files, then set the worker's `MEDIA_ORIGIN=https://media.<domain>/` and redeploy the worker.
 
 ## Backups
 
-`backup` runs nightly at 03:15: `sqlite3 .backup` of the rr-api DB into `/volume1/razorreaper/backups`
+`backup` runs nightly at 03:15: `sqlite3 .backup` of the rr-api DB into `/volume1/docker/razorreaper/backups`
 (30-day retention). Media is static — copy it once to the HDD pool; optional weekly offsite with rclone -> R2.
 
 ## rr-api (W3.5)
@@ -98,11 +98,11 @@ Import the D1 export once (the export already contains the `CREATE TABLE` statem
 ```bash
 # on the workstation
 npx wrangler d1 export rr-admin-panel --remote --output d1-export.sql
-scp d1-export.sql <nas-user>@192.168.2.201:/volume1/razorreaper/
+scp d1-export.sql <nas-user>@192.168.2.201:/volume1/docker/razorreaper/
 # on the NAS (container stopped; the volume dir must be writable by uid 1000 = `node`)
-sudo chown -R 1000:1000 /volume1/razorreaper/data/db
-sqlite3 /volume1/razorreaper/data/db/rr.sqlite < /volume1/razorreaper/d1-export.sql
-sqlite3 /volume1/razorreaper/data/db/rr.sqlite "PRAGMA journal_mode=WAL;"
+sudo chown -R 1000:1000 /volume1/docker/razorreaper/data/db
+sqlite3 /volume1/docker/razorreaper/data/db/rr.sqlite < /volume1/docker/razorreaper/d1-export.sql
+sqlite3 /volume1/docker/razorreaper/data/db/rr.sqlite "PRAGMA journal_mode=WAL;"
 ```
 
 A fresh install without history: set `DB_BOOTSTRAP_SCHEMA=true` for the first start instead. The
@@ -115,7 +115,7 @@ container already does this nightly).
 ### Build, run, verify
 
 ```bash
-cd /volume1/razorreaper/src/RR-Admin-Panel/deploy/nas
+cd /volume1/docker/razorreaper/src/RR-Admin-Panel/deploy/nas
 cp rr-api/.env.example rr-api/.env && nano rr-api/.env
 docker compose up -d --build rr-api
 docker compose logs -f rr-api          # expect: [rr-api] listening {"port":8787,"pagesRoutes":47,...}

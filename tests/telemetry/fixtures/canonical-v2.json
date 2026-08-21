@@ -1,0 +1,23 @@
+{
+  "source": "razorreaper-app",
+  "service": "session_active",
+  "timestamp": "2026-08-21T12:00:00.000Z",
+  "status": "ok",
+  "metrics": {
+    "install_id": "6f1d2c9a-9b2e-4a5d-8d77-2f4e1c0a9b13",
+    "session_id": "0b7c4e1a-3d2f-4c8e-9a1b-5e6f7a8b9c0d",
+    "hwid": "A1B2C3D4E5F60718293A4B5C6D7E8F90A1B2C3D4E5F60718293A4B5C6D7E8F90",
+    "app_version": "1.4.8.0",
+    "display_version": "1.4.8",
+    "platform": "windows",
+    "os_version": "10.0.26200",
+    "device_model": "Desktop",
+    "rpc_enabled": true,
+    "discord_user": "reaper#0001",
+    "machine_name": "GAMING-PC",
+    "features": ["desync_hud", "gamma_hotkeys"],
+    "uptime_seconds": 1830,
+    "event_id": "3c9d0e2f-7a6b-4c1d-8e5f-2a3b4c5d6e7f"
+  },
+  "message": "heartbeat"
+}

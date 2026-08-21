@@ -2,6 +2,7 @@ import type {
   AdminDataPayload,
   AuthActionPayload,
   ErrorsPayload,
+  InstallRecord,
   SessionPayload,
   StatsFilters,
   StatsPayload,
@@ -288,6 +289,40 @@ export async function postLiftSuspension(identity: string): Promise<{ ok: boolea
   );
   const body = await parseJson<{ ok?: boolean }>(res);
   return { ok: res.ok && Boolean(body?.ok), status: res.status };
+}
+
+export async function fetchInstalls(hwid: string): Promise<{
+  ok: boolean;
+  installs?: InstallRecord[];
+  status: number;
+}> {
+  const url = new URL(apiUrl("/api/admin/installs"), window.location.origin);
+  url.searchParams.set("hwid", hwid);
+  url.searchParams.set("_ts", String(Date.now()));
+  const res = await fetchApi(url.toString(), {
+    method: "GET",
+    cache: "no-store",
+    credentials: "include",
+  });
+  const body = await parseJson<{ ok?: boolean; installs?: InstallRecord[] }>(res);
+  return { ok: res.ok && Array.isArray(body?.installs), installs: body?.installs, status: res.status };
+}
+
+export async function revokeInstall(installId: string, reason: string | null): Promise<{ ok: boolean; status: number; error?: string }> {
+  // No retry: revoking a signing key is a deliberate admin action (the server is idempotent,
+  // but an automatic repeat would hide a failed first attempt).
+  const res = await fetchApi(
+    apiUrl(`/api/admin/installs/${encodeURIComponent(installId)}/revoke`),
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ reason }),
+      credentials: "include",
+    },
+    { retry: false },
+  );
+  const body = await parseJson<{ ok?: boolean; error?: string }>(res);
+  return { ok: res.ok && Boolean(body?.ok), status: res.status, error: body?.error };
 }
 
 export async function postAuth(

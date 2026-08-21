@@ -164,6 +164,18 @@ export interface SuspensionRecord {
   lifted_at: string | null;
 }
 
+/** One registered install (rr.install.v1) of a device, from GET /api/admin/installs?hwid=. */
+export interface InstallRecord {
+  installId: string;
+  hwid: string | null;
+  appVersion: string | null;
+  createdAt: string;
+  lastSeenAt: string | null;
+  revokedAt: string | null;
+  revokeReason: string | null;
+  licenseId: number | null;
+}
+
 export interface UserRollupRecord {
   identity: string;
   userLabel: string | null;

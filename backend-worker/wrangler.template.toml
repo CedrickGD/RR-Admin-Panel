@@ -18,6 +18,11 @@ crons = ["30 3 * * *"]
 # "true" keeps accepting the shared legacy ingest key (rows tagged ingest_auth_mode='legacy_key');
 # flip to "false" once every client signs its requests (rr.install.v1).
 LEGACY_INGEST_KEY_ENABLED = "true"
+# Proxy mode (docs/superpowers/specs/2026-08-21-proxy-shells.md): with ORIGIN_BASE set AND the
+# ORIGIN_KEY secret present (`npx wrangler secret put ORIGIN_KEY`, same value as rr-api), every
+# /api/* and /v1/* request except health is forwarded to rr-api on the NAS; /media/*, /update/*
+# and health stay local. Leave unset to keep serving from D1.
+# ORIGIN_BASE = "https://origin.razorreaper.app"
 
 # Per-IP rate limits (Workers rate-limit bindings). Missing bindings fail open.
 [[unsafe.bindings]]

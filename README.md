@@ -33,6 +33,8 @@ There are two server-side entry points in this repo:
    - Supports ingest and health routes
    - Dashboard routes are intentionally disabled there and return `410`
 
+Both entry points have a **proxy mode** (see [`docs/superpowers/specs/2026-08-21-proxy-shells.md`](./docs/superpowers/specs/2026-08-21-proxy-shells.md)): once `ORIGIN_BASE` and `ORIGIN_KEY` are set, every `/api/*` and `/v1/*` request (except health; on the worker also `/media/*` and `/update/*`, which stay local) is forwarded unchanged to rr-api on the NAS ([`deploy/nas/README.md`](./deploy/nas/README.md)) and its response is returned. The URLs baked into shipped app builds keep working while the data logic lives in one place. Without those variables the code runs exactly as before.
+
 The frontend uses same-origin API routes by default. Leave `VITE_API_BASE_URL` unset for the normal Pages deployment. Do not point the dashboard at the standalone `backend-worker` unless you also add the protected dashboard routes there.
 
 ## Session and Ingest Model
@@ -183,6 +185,12 @@ Core variables:
 - `AUTH_SESSION_COOKIE`: optional app-auth cookie name, default `rr_session`
 - `BUILD_SHA`: optional build marker for Settings/Health output
 
+Proxy mode (Pages app **and** standalone worker; see [`docs/superpowers/specs/2026-08-21-proxy-shells.md`](./docs/superpowers/specs/2026-08-21-proxy-shells.md)):
+
+- `ORIGIN_BASE`: rr-api base URL over the tunnel, e.g. `https://origin.razorreaper.app` (no trailing slash). Proxy mode is ON only when `ORIGIN_BASE` **and** `ORIGIN_KEY` are both non-empty; unset = today's local handlers
+- `ORIGIN_KEY`: secret (`wrangler secret put ORIGIN_KEY` / `wrangler pages secret put ORIGIN_KEY`), random >= 32 chars, the same value rr-api gets as `ORIGIN_KEY`; sent as `X-RR-Origin-Key` together with the real client's `X-RR-Client-IP` / `X-RR-Client-CF`
+- `ORIGIN_HOST`: rr-api only (`deploy/nas/rr-api/.env`), e.g. `origin.razorreaper.app` — requests arriving on that hostname must carry a valid key (`401 {ok:false,error:"Unauthorized origin request."}` otherwise; `/health` exempt)
+
 ## Local Development
 
 Copy local variables:
@@ -264,6 +272,8 @@ Important: cleaning the current files does not erase old commits. If you want th
 
 ### Pages app routes
 
+In proxy mode ([`functions/api/_middleware.ts`](./functions/api/_middleware.ts), [`functions/v1/_middleware.ts`](./functions/v1/_middleware.ts)) every route below except `GET /api/health` is answered by rr-api; `cf-access-jwt-assertion` and cookies travel with the request and rr-api verifies the Access JWT itself.
+
 - `GET /api/health`
   - Public health payload with storage/build info
 - `GET /api/summary`
@@ -336,7 +346,14 @@ databases).
 - `GET /media/*`, `GET /update/update.xml`, `GET /update/download`
   - Media CDN proxy and updater proxy (unchanged; media keeps `Access-Control-Allow-Origin: *`)
 
-These routes are intentionally disabled on the standalone worker:
+Proxy mode (`ORIGIN_BASE` + `ORIGIN_KEY` set): `/media/*`, `/update/*`, `/health`, `/api/health` and
+`/healthz` stay local; every other `/api/*` and `/v1/*` path (ingest, telemetry, register, and the
+routes listed as disabled below) is forwarded to rr-api and its response returned. The per-IP rate
+limits and the declared-body cap for ingest/register still answer locally (`429` / `413`) before
+anything is forwarded, nothing touches D1, and an unreachable origin answers
+`503 {ok:false,error:"Backend temporarily unavailable."}`.
+
+These routes are intentionally disabled on the standalone worker (proxy mode OFF):
 
 - `GET /api/summary`
 - `GET /api/auth/session`

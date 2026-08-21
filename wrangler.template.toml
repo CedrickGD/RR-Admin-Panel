@@ -18,6 +18,11 @@ ACCESS_AUD = "<prod-aud>,<preview-aud>"
 # legacy clients are still around).
 LEGACY_INGEST_KEY_ENABLED = "true"
 REQUIRE_INSTALL_SIGNATURE = "false"
+# Proxy mode (docs/superpowers/specs/2026-08-21-proxy-shells.md): with ORIGIN_BASE set AND the
+# ORIGIN_KEY secret present (`npx wrangler pages secret put ORIGIN_KEY`, same value as rr-api),
+# functions/api/_middleware.ts + functions/v1/_middleware.ts forward every /api/* (except
+# /api/health) and /v1/* request to rr-api on the NAS. Leave unset to keep serving from D1.
+# ORIGIN_BASE = "https://origin.razorreaper.app"
 
 [[d1_databases]]
 binding = "DB"

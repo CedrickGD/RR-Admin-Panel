@@ -54,3 +54,6 @@ chat-session-*.md
 
 # Claude Code local (per-machine) settings
 .claude/settings.local.json
+
+# local-only files (backups, scratch)
+.local/

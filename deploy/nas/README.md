@@ -189,3 +189,12 @@ switch is configuration only, and every step is reversible by unsetting `ORIGIN_
 5. **Fallback window.** Keep the D1 database read-only for 30 days (no writer points at it any
    more); to roll back, unset `ORIGIN_BASE` on worker + Pages and redeploy. After 30 days delete
    the D1 database and the KV namespace.
+
+### What actually happened at the cut-over (2026-08-21, for the record)
+
+T0 export 19:14Z -> `sqlite3` transactional import (5.7 s) -> rr-api up -> Pages `ORIGIN_BASE`
+secret + redeploy -> worker `ORIGIN_BASE` var + deploy (19:17:35Z) -> T1 export 19:22Z ->
+`python tools/d1-delta-import.py T0.sql T1.sql delta.sql` (line diff; 82 statements) -> applied.
+Proof of routing: a probe install registered via the worker and a probe feedback posted via
+pages.dev both landed only in the NAS database. D1 is kept read-only as a fallback; delete after
+30 days (2026-09-20).

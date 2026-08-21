@@ -52,3 +52,82 @@ files, then set the worker's `MEDIA_ORIGIN=https://media.<domain>/` and redeploy
 
 `backup` runs nightly at 03:15: `sqlite3 .backup` of the rr-api DB into `/volume1/razorreaper/backups`
 (30-day retention). Media is static — copy it once to the HDD pool; optional weekly offsite with rclone -> R2.
+
+## rr-api (W3.5)
+
+`deploy/nas/rr-api/` is a Node 22 service that runs the repo's **unchanged** Pages Functions
+(`functions/api/**`, `functions/v1/**`) and the standalone worker (`backend-worker/index.js`) on a
+single SQLite file instead of D1/Pages/Workers:
+
+- `src/d1-adapter.ts` — D1 API (`prepare().bind().run()/first()/all()`, `batch()` = one transaction)
+  on better-sqlite3; WAL, `busy_timeout=5000`, `foreign_keys=ON`.
+- `scripts/generate-routes.mjs` — build-time Pages file-routing table (`src/routes.generated.ts`,
+  committed; `npm run routes` regenerates it, a test fails when it is stale).
+- `src/app.ts` — Hono: `GET /health` -> `{ ok: true, service: "rr-api" }`; `/api/ingest`,
+  `/v1/telemetry/event`, `/api/install/register`, `/api/health`, `/healthz`, `/media/*`, `/update/*`
+  go to the worker (`worker.fetch`), everything else through the Pages route table; unknown -> 404.
+- `src/cf-request.ts` — rebuilds `request.cf` (country/city/region/lat/lon/timezone/continent/ray)
+  from the `cf-*` headers the tunnel forwards; `cf-connecting-ip` is read from the header as before.
+- `src/server.ts` — opens `DB_PATH`, listens on `PORT`, runs `worker.scheduled` (expired-license
+  cleanup) via node-cron (`CRON_LICENSE_CLEANUP`, default `30 3 * * *`), graceful SIGTERM/SIGINT.
+
+### Environment
+
+Copy `rr-api/.env.example` to `rr-api/.env` (git-ignored) and fill it. Every variable from the
+repo README's env table is passed through 1:1; rr-api adds:
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `PORT` | `8787` | listen port inside the container |
+| `DB_PATH` | `/data/db/rr.sqlite` | SQLite file (volume `${DATA_DIR}/db`) |
+| `DB_BOOTSTRAP_SCHEMA` | `false` | `true` = run `schema.sql` once when the DB has no tables |
+| `SCHEMA_PATH` | `/app/schema.sql` | where `schema.sql` lives in the image |
+| `CRON_LICENSE_CLEANUP` | `30 3 * * *` | cron for the nightly license cleanup |
+| `RL_INGEST_PER_MINUTE` / `RL_REGISTER_PER_MINUTE` | `60` / `5` | in-process rate limiters that replace the `RL_*` bindings |
+| `APP_SHARED_KEY` | – | legacy ingest key for the worker routes (falls back to `INGEST_TOKEN`) |
+| `NEXTCLOUD_PUBLIC_DAV_BASE` / `NEXTCLOUD_SHARE_TOKEN` | worker defaults | `/media/*` upstream |
+| `GITHUB_TOKEN` / `GITHUB_REPO` / `GITHUB_BRANCH` / `UPDATE_ASSET_NAME` | worker defaults | `/update/*` proxy |
+
+`STORAGE_BACKEND` is forced to `d1` (SQLite is authoritative; there is no KV).
+
+### Database
+
+Import the D1 export once (the export already contains the `CREATE TABLE` statements, so leave
+`DB_BOOTSTRAP_SCHEMA=false`):
+
+```bash
+# on the workstation
+npx wrangler d1 export rr-admin-panel --remote --output d1-export.sql
+scp d1-export.sql <nas-user>@192.168.2.201:/volume1/razorreaper/
+# on the NAS (container stopped; the volume dir must be writable by uid 1000 = `node`)
+sudo chown -R 1000:1000 /volume1/razorreaper/data/db
+sqlite3 /volume1/razorreaper/data/db/rr.sqlite < /volume1/razorreaper/d1-export.sql
+sqlite3 /volume1/razorreaper/data/db/rr.sqlite "PRAGMA journal_mode=WAL;"
+```
+
+A fresh install without history: set `DB_BOOTSTRAP_SCHEMA=true` for the first start instead. The
+handlers' `ensure*` helpers still add newer columns idempotently on first use either way.
+
+rr-api opens the file in WAL mode (`rr.sqlite-wal` / `rr.sqlite-shm` appear next to it — back up
+with `sqlite3 .backup`, never by copying the three files while the service runs; the `backup`
+container already does this nightly).
+
+### Build, run, verify
+
+```bash
+cd /volume1/razorreaper/src/RR-Admin-Panel/deploy/nas
+cp rr-api/.env.example rr-api/.env && nano rr-api/.env
+docker compose up -d --build rr-api
+docker compose logs -f rr-api          # expect: [rr-api] listening {"port":8787,"pagesRoutes":47,...}
+docker compose exec rr-api wget -qO- http://127.0.0.1:8787/health
+```
+
+Then add the tunnel public hostname `api.<domain>` -> `http://rr-api:8787`, put a Cloudflare
+Access policy in front of `api.<domain>/api/admin/*` (same `ACCESS_TEAM_DOMAIN` / `ACCESS_AUD`
+values go into `.env`), and keep the "Add visitor location headers" transform on so geo
+telemetry keeps flowing. The old `backend.*.workers.dev` and `*.pages.dev` URLs become thin
+proxies to `api.<domain>` for legacy clients (W3.6).
+
+Local development: `cd deploy/nas/rr-api && npm ci && npm run build && DB_PATH=./rr.sqlite DB_BOOTSTRAP_SCHEMA=true npm start`
+(the repo root's `npm test` / `npm run typecheck` cover `tests/rr-api/**` and `deploy/nas/rr-api/src/**`;
+run `npm ci` inside `deploy/nas/rr-api` once so better-sqlite3 is available to vitest).

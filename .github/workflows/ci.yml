@@ -19,7 +19,13 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --ignore-scripts
+      # rr-api (deploy/nas/rr-api) has its own lockfile; its native better-sqlite3 dependency is
+      # what tests/rr-api/** run against, so install it with scripts enabled (prebuilt binary).
+      - run: npm ci --no-audit --no-fund
+        working-directory: deploy/nas/rr-api
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - run: npm run build
+        working-directory: deploy/nas/rr-api
       - run: node --check backend-worker/index.js

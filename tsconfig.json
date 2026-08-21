@@ -28,6 +28,7 @@
     "vite.config.ts",
     "tests/**/*.ts",
     "shared/**/*.ts",
-    "vitest.config.ts"
+    "vitest.config.ts",
+    "deploy/nas/rr-api/src/**/*.ts"
   ]
 }

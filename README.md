@@ -322,14 +322,19 @@ databases).
 
 ### Standalone worker routes
 
-- `GET /health`
-  - Simple worker health check
-- `GET /api/health`
-  - Health payload from worker storage path
+- `GET /health`, `GET /api/health`, `GET /healthz`
+  - `{ ok: true, service: "backend" }` — no database access, no counters (hardened 2026-08-21)
+- `POST /api/install/register`
+  - Per-install key registration (`rr.install.v1`, see `docs/superpowers/specs/2026-08-21-install-signing-contract.md`);
+    rate-limited 5/min per IP (`RL_REGISTER`), max 3 new installs per HWID per day
 - `POST /api/ingest`
-  - Ingest endpoint
+  - Ingest endpoint: install-signed (`X-RR-Install` / `X-RR-Timestamp` / `X-RR-Signature`) or, while
+    `LEGACY_INGEST_KEY_ENABLED=true`, the shared bearer/app key; 60/min per IP (`RL_INGEST`), 16 KB body cap,
+    session rows are bound to the registering install (403 on foreign writes), no CORS
 - `POST /v1/telemetry/event`
-  - Legacy ingest endpoint
+  - Legacy ingest endpoint (same handler)
+- `GET /media/*`, `GET /update/update.xml`, `GET /update/download`
+  - Media CDN proxy and updater proxy (unchanged; media keeps `Access-Control-Allow-Origin: *`)
 
 These routes are intentionally disabled on the standalone worker:
 

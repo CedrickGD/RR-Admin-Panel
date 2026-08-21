@@ -1,0 +1,28 @@
+{
+  "name": "rr-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "RazorReaper backend on the NAS: runs the Pages Functions + standalone worker code on SQLite.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "routes": "node scripts/generate-routes.mjs",
+    "build": "npm run routes && esbuild src/server.ts --bundle --platform=node --format=esm --target=node22 --external:better-sqlite3 --outfile=dist/server.mjs --log-level=info",
+    "start": "node dist/server.mjs",
+    "typecheck": "cd ../../.. && npx tsc --noEmit"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.0",
+    "better-sqlite3": "^12.2.0",
+    "hono": "^4.9.0",
+    "node-cron": "^4.2.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.15.18",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7.3"
+  }
+}

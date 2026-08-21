@@ -1,0 +1,25 @@
+# BuildKit picks this file up for `docker build -f deploy/nas/rr-api/Dockerfile .` (context = repo root);
+# the identical root .dockerignore covers the legacy builder. Keep both in sync.
+.git
+.github
+.claude
+.wrangler
+**/node_modules
+**/dist
+**/coverage
+**/.env
+**/.env.*
+!**/.env.example
+**/.dev.vars
+**/*.sqlite
+**/*.sqlite-shm
+**/*.sqlite-wal
+**/*.log
+docs
+plans
+public
+src
+tests
+tools
+README.md
+*.md

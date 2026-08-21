@@ -7,7 +7,7 @@ services:
     command: tunnel --no-autoupdate run
     environment:
       - TUNNEL_TOKEN=${TUNNEL_TOKEN}
-    depends_on: [caddy, bot]
+    depends_on: [caddy, bot, rr-api]
 
   caddy:
     image: caddy:2-alpine
@@ -39,14 +39,22 @@ services:
       timeout: 5s
       retries: 3
 
-  # rr-api: added in W3.5 (Node 22 service running the Pages Functions + worker code on SQLite)
-  # rr-api:
-  #   build: ./rr-api
-  #   restart: unless-stopped
-  #   env_file: ./rr-api/.env
-  #   volumes:
-  #     - ${DATA_DIR}/db:/data/db
-  #   healthcheck: { test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8787/health"], interval: 30s, timeout: 5s, retries: 3 }
+  # rr-api (W3.5): Node 22 service running the Pages Functions + worker code on SQLite.
+  # Tunnel hostname api.<domain> -> http://rr-api:8787 (no host port; reachable only via the tunnel).
+  rr-api:
+    build:
+      context: ../..
+      dockerfile: deploy/nas/rr-api/Dockerfile
+    restart: unless-stopped
+    env_file: ./rr-api/.env
+    volumes:
+      - ${DATA_DIR}/db:/data/db
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8787/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   backup:
     image: alpine:3.20

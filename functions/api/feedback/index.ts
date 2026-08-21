@@ -50,7 +50,7 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
       .prepare(
         `INSERT INTO feedback
           (message, contact, hwid, install_id, license_key, machine_name, app_version, platform, status, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', ?)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', ?)`,
       )
       .bind(
         message.slice(0, MAX_MESSAGE_LENGTH),
@@ -61,7 +61,7 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
         trimField(body.machine_name),
         trimField(body.app_version),
         trimField(body.platform),
-        nowIso()
+        nowIso(),
       )
       .run();
 

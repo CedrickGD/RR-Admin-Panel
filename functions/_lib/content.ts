@@ -48,7 +48,7 @@ const ANNOUNCEMENTS_SCHEMA_STATEMENTS = [
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   )`,
-  `CREATE INDEX IF NOT EXISTS idx_announcements_active ON announcements(is_active, expires_at)`
+  `CREATE INDEX IF NOT EXISTS idx_announcements_active ON announcements(is_active, expires_at)`,
 ];
 
 const FEEDBACK_SCHEMA_STATEMENTS = [
@@ -65,7 +65,7 @@ const FEEDBACK_SCHEMA_STATEMENTS = [
     status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'read', 'archived')),
     created_at TEXT NOT NULL
   )`,
-  `CREATE INDEX IF NOT EXISTS idx_feedback_status ON feedback(status, created_at DESC)`
+  `CREATE INDEX IF NOT EXISTS idx_feedback_status ON feedback(status, created_at DESC)`,
 ];
 
 export async function ensureAnnouncementsSchema(env: RuntimeEnv): Promise<void> {

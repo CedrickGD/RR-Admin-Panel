@@ -3,7 +3,7 @@ import {
   ensureAnnouncementsSchema,
   toIsoOrNull,
   type AnnouncementLevel,
-  type AnnouncementRow
+  type AnnouncementRow,
 } from "../../../_lib/content";
 import { error, json, nowIso, readJsonBody } from "../../../_lib/http";
 import type { RuntimeEnv } from "../../../_lib/types";
@@ -66,8 +66,10 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
     const text = body.body?.trim() ?? "";
     if (!title) return error(400, "Title is required.");
     if (!text) return error(400, "Body is required.");
-    if (title.length > MAX_TITLE_LENGTH) return error(400, `Title must be <= ${MAX_TITLE_LENGTH} characters.`);
-    if (text.length > MAX_BODY_LENGTH) return error(400, `Body must be <= ${MAX_BODY_LENGTH} characters.`);
+    if (title.length > MAX_TITLE_LENGTH)
+      return error(400, `Title must be <= ${MAX_TITLE_LENGTH} characters.`);
+    if (text.length > MAX_BODY_LENGTH)
+      return error(400, `Body must be <= ${MAX_BODY_LENGTH} characters.`);
 
     const level = normalizeLevel(body.level);
     const isActive = body.is_active === false || body.is_active === 0 ? 0 : 1;
@@ -78,7 +80,7 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
     const result = await db
       .prepare(
         `INSERT INTO announcements (title, body, level, is_active, starts_at, expires_at, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(title, text, level, isActive, startsAt, expiresAt, now, now)
       .run();

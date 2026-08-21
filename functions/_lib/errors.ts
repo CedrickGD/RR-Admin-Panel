@@ -143,7 +143,10 @@ interface WorkingGroup {
  * table so an event that only carried an install_id still lands on the same
  * user as its hwid-bearing siblings.
  */
-export async function loadErrorsByUser(env: RuntimeEnv, range: ErrorsRange): Promise<ErrorsPayload> {
+export async function loadErrorsByUser(
+  env: RuntimeEnv,
+  range: ErrorsRange,
+): Promise<ErrorsPayload> {
   const db = env.DB;
   if (!db) {
     throw new Error("The errors rollup requires the D1 storage backend.");
@@ -159,7 +162,7 @@ export async function loadErrorsByUser(env: RuntimeEnv, range: ErrorsRange): Pro
            FROM telemetry_events
            WHERE service = ? AND ts >= ? AND ts <= ?
            ORDER BY ts DESC
-           LIMIT ?`
+           LIMIT ?`,
         )
         .bind(APP_ERROR, range.cutoffIso, futureBoundIso, EVENT_SCAN_LIMIT + 1)
     : db
@@ -168,7 +171,7 @@ export async function loadErrorsByUser(env: RuntimeEnv, range: ErrorsRange): Pro
            FROM telemetry_events
            WHERE service = ? AND ts <= ?
            ORDER BY ts DESC
-           LIMIT ?`
+           LIMIT ?`,
         )
         .bind(APP_ERROR, futureBoundIso, EVENT_SCAN_LIMIT + 1);
 
@@ -183,7 +186,7 @@ export async function loadErrorsByUser(env: RuntimeEnv, range: ErrorsRange): Pro
            platform, os_version, device_model, app_version, display_version, last_seen_at, is_active
          FROM app_sessions
          ORDER BY updated_at DESC
-         LIMIT 5000`
+         LIMIT 5000`,
       )
       .all<EnrichSessionRow>(),
     // License tier is enrichment only — a database without the licenses table
@@ -246,7 +249,13 @@ export async function loadErrorsByUser(env: RuntimeEnv, range: ErrorsRange): Pro
     const kind = metricText(metrics, "error_kind");
     const isBackground = kind === BACKGROUND_KIND;
 
-    const identity = resolveIdentity(hwid, installId, sessionId, installToIdentity, sessionToIdentity);
+    const identity = resolveIdentity(
+      hwid,
+      installId,
+      sessionId,
+      installToIdentity,
+      sessionToIdentity,
+    );
 
     let group = working.get(identity);
     if (!group) {
@@ -302,7 +311,7 @@ export async function loadErrorsByUser(env: RuntimeEnv, range: ErrorsRange): Pro
       const context = byIdentity.get(group.identity) ?? null;
       const row = context?.row ?? null;
       const merged = [...group.real, ...group.background].sort(
-        (left, right) => Date.parse(right.timestamp) - Date.parse(left.timestamp)
+        (left, right) => Date.parse(right.timestamp) - Date.parse(left.timestamp),
       );
       const hwid = row?.hwid?.trim() || group.metricHwid;
 
@@ -330,7 +339,8 @@ export async function loadErrorsByUser(env: RuntimeEnv, range: ErrorsRange): Pro
         firstErrorAt: group.firstRealAt ?? group.firstAnyAt,
         lastErrorAt: group.lastRealAt ?? group.lastAnyAt,
         events: merged,
-        truncated: group.errorCount > group.real.length || group.backgroundCount > group.background.length,
+        truncated:
+          group.errorCount > group.real.length || group.backgroundCount > group.background.length,
       };
     })
     .sort((left, right) => Date.parse(right.lastErrorAt) - Date.parse(left.lastErrorAt));
@@ -375,7 +385,7 @@ function resolveIdentity(
   installId: string | null,
   sessionId: string | null,
   installToIdentity: Map<string, { identity: string; lastSeenTs: number }>,
-  sessionToIdentity: Map<string, string>
+  sessionToIdentity: Map<string, string>,
 ): string {
   if (hwid) {
     return hwid;
@@ -392,7 +402,10 @@ function resolveIdentity(
   return UNATTRIBUTED_IDENTITY;
 }
 
-function buildExtras(metrics: Record<string, unknown>, message: string | null): Record<string, string> {
+function buildExtras(
+  metrics: Record<string, unknown>,
+  message: string | null,
+): Record<string, string> {
   const extras: Record<string, string> = {};
   let count = 0;
 
@@ -408,12 +421,20 @@ function buildExtras(metrics: Record<string, unknown>, message: string | null): 
     if (count >= MAX_EXTRA_KEYS) {
       break;
     }
-    const text = typeof value === "string" ? value : typeof value === "object" ? JSON.stringify(value) : String(value);
+    const text =
+      typeof value === "string"
+        ? value
+        : typeof value === "object"
+          ? JSON.stringify(value)
+          : String(value);
     const trimmed = text.trim();
     if (!trimmed) {
       continue;
     }
-    extras[key] = trimmed.length > MAX_EXTRA_VALUE_LENGTH ? `${trimmed.slice(0, MAX_EXTRA_VALUE_LENGTH)}…` : trimmed;
+    extras[key] =
+      trimmed.length > MAX_EXTRA_VALUE_LENGTH
+        ? `${trimmed.slice(0, MAX_EXTRA_VALUE_LENGTH)}…`
+        : trimmed;
     count += 1;
   }
 

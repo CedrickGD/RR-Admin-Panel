@@ -29,7 +29,9 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
 
     const now = nowIso();
     const result = await db
-      .prepare(`UPDATE access_suspensions SET is_active = 0, lifted_at = ?, updated_at = ? WHERE identity = ?`)
+      .prepare(
+        `UPDATE access_suspensions SET is_active = 0, lifted_at = ?, updated_at = ? WHERE identity = ?`,
+      )
       .bind(now, now, identity)
       .run();
 

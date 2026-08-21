@@ -1,6 +1,10 @@
 import { requireDashboardAccess } from "../../../../_lib/admin";
 import { decodeKeyParam, error, json, readJsonBody } from "../../../../_lib/http";
-import { EDITABLE_ORDER_FIELDS, ensureLicenseOrderColumns, normalizeOrderField } from "../../../../_lib/licenses";
+import {
+  EDITABLE_ORDER_FIELDS,
+  ensureLicenseOrderColumns,
+  normalizeOrderField,
+} from "../../../../_lib/licenses";
 import type { RuntimeEnv } from "../../../../_lib/types";
 
 type HandlerContext = {
@@ -41,14 +45,18 @@ export async function onRequestPatch(context: HandlerContext): Promise<Response>
       return error(400, "No editable fields provided.");
     }
 
-    const result = await db.prepare(
-      `UPDATE licenses SET ${assignments.join(", ")} WHERE license_key = ?`
-    ).bind(...values, key).run();
+    const result = await db
+      .prepare(`UPDATE licenses SET ${assignments.join(", ")} WHERE license_key = ?`)
+      .bind(...values, key)
+      .run();
     if (!result.meta?.changes) {
       return error(404, "License not found — nothing was updated.");
     }
 
-    const updated = await db.prepare("SELECT * FROM licenses WHERE license_key = ?").bind(key).first();
+    const updated = await db
+      .prepare("SELECT * FROM licenses WHERE license_key = ?")
+      .bind(key)
+      .first();
     return json({ ok: true, license: updated });
   } catch (err) {
     return error(500, "Failed to update license.", err instanceof Error ? err.message : null);

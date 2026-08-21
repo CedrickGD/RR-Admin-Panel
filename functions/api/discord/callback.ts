@@ -26,34 +26,58 @@ type HandlerContext = {
 export async function onRequestGet(context: HandlerContext): Promise<Response> {
   const env = context.env;
   if (!env.VERIFY_SHARED_SECRET || !env.DISCORD_BOT_TOKEN || !env.DISCORD_GUILD_ID) {
-    return verifyHtmlPage(false, "Not configured", "Discord verification is not fully set up on the server yet.");
+    return verifyHtmlPage(
+      false,
+      "Not configured",
+      "Discord verification is not fully set up on the server yet.",
+    );
   }
 
   const url = new URL(context.request.url);
   const denied = url.searchParams.get("error");
   if (denied) {
-    return verifyHtmlPage(false, "Authorization cancelled", "You declined the Discord authorization. Nothing was changed.");
+    return verifyHtmlPage(
+      false,
+      "Authorization cancelled",
+      "You declined the Discord authorization. Nothing was changed.",
+    );
   }
 
   const code = (url.searchParams.get("code") ?? "").trim();
   const state = (url.searchParams.get("state") ?? "").trim();
   if (!code || !state) {
-    return verifyHtmlPage(false, "Invalid request", "Missing authorization code. Start again from your verification link.");
+    return verifyHtmlPage(
+      false,
+      "Invalid request",
+      "Missing authorization code. Start again from your verification link.",
+    );
   }
 
   const stateData = await verifyState(env.VERIFY_SHARED_SECRET, state);
   if (!stateData) {
-    return verifyHtmlPage(false, "Link expired", "This verification link has expired. Please start again.");
+    return verifyHtmlPage(
+      false,
+      "Link expired",
+      "This verification link has expired. Please start again.",
+    );
   }
 
   const token = await discordExchangeCode(env, code);
   if (!token) {
-    return verifyHtmlPage(false, "Discord error", "Could not complete Discord authorization. Please try again.");
+    return verifyHtmlPage(
+      false,
+      "Discord error",
+      "Could not complete Discord authorization. Please try again.",
+    );
   }
 
   const user = await discordGetUser(token.access_token);
   if (!user) {
-    return verifyHtmlPage(false, "Discord error", "Could not read your Discord account. Please try again.");
+    return verifyHtmlPage(
+      false,
+      "Discord error",
+      "Could not read your Discord account. Please try again.",
+    );
   }
 
   // Re-validate WITH the resolved Discord id: catches a revoke/suspension that happened between
@@ -81,5 +105,9 @@ export async function onRequestGet(context: HandlerContext): Promise<Response> {
     );
   }
 
-  return verifyHtmlPage(true, "You're verified!", "Your Discord account is now verified and you've been granted access to the community.");
+  return verifyHtmlPage(
+    true,
+    "You're verified!",
+    "Your Discord account is now verified and you've been granted access to the community.",
+  );
 }

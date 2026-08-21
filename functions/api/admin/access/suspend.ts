@@ -52,13 +52,16 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
       return error(400, "banned_until must be in the future.");
     }
 
-    const reason = typeof body.reason === "string" ? body.reason.trim().slice(0, 500) || null : null;
-    const userLabel = typeof body.user_label === "string" ? body.user_label.trim().slice(0, 120) || null : null;
+    const reason =
+      typeof body.reason === "string" ? body.reason.trim().slice(0, 500) || null : null;
+    const userLabel =
+      typeof body.user_label === "string" ? body.user_label.trim().slice(0, 120) || null : null;
 
     // Snapshot the paid-license state at suspend time (this is the warning the admin acted against).
     const paidLicenses = await findPaidLicensesForHwid(context.env, hwid ?? identity);
     const hadPaid = paidLicenses.length > 0 ? 1 : 0;
-    const paidKeys = paidLicenses.length > 0 ? paidLicenses.map((l) => l.license_key).join(",") : null;
+    const paidKeys =
+      paidLicenses.length > 0 ? paidLicenses.map((l) => l.license_key).join(",") : null;
 
     const now = nowIso();
     await db

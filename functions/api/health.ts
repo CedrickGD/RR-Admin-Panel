@@ -16,6 +16,10 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
     const health = await loadHealth(context.env);
     return json(health);
   } catch (healthError) {
-    return error(500, "Health check failed.", healthError instanceof Error ? healthError.message : null);
+    return error(
+      500,
+      "Health check failed.",
+      healthError instanceof Error ? healthError.message : null,
+    );
   }
 }

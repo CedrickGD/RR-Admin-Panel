@@ -1,7 +1,18 @@
-import { createAppSessionToken, createSessionCookie, isValidEmail, normalizeEmail, verifyPassword } from "../../_lib/auth";
+import {
+  createAppSessionToken,
+  createSessionCookie,
+  isValidEmail,
+  normalizeEmail,
+  verifyPassword,
+} from "../../_lib/auth";
 import { error, json, readJsonBody } from "../../_lib/http";
 import type { RuntimeEnv } from "../../_lib/types";
-import { countUsers, ensureAuthSchema, findUserByEmail, touchUserLastLogin } from "../../_lib/users";
+import {
+  countUsers,
+  ensureAuthSchema,
+  findUserByEmail,
+  touchUserLastLogin,
+} from "../../_lib/users";
 
 type HandlerContext = {
   request: Request;
@@ -51,23 +62,31 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
     }
 
     await touchUserLastLogin(context.env, user.id);
-    const { token, expiresAt } = await createAppSessionToken(context.env.JWT_SECRET, user.email, user.role);
+    const { token, expiresAt } = await createAppSessionToken(
+      context.env.JWT_SECRET,
+      user.email,
+      user.role,
+    );
 
     return json(
       {
         ok: true,
         user: {
           email: user.email,
-          role: user.role
+          role: user.role,
         },
-        expiresAt
+        expiresAt,
       },
       200,
       {
-        "set-cookie": createSessionCookie(token, context.request, context.env.AUTH_SESSION_COOKIE)
-      }
+        "set-cookie": createSessionCookie(token, context.request, context.env.AUTH_SESSION_COOKIE),
+      },
     );
   } catch (loginError) {
-    return error(500, "Failed to authenticate user.", loginError instanceof Error ? loginError.message : null);
+    return error(
+      500,
+      "Failed to authenticate user.",
+      loginError instanceof Error ? loginError.message : null,
+    );
   }
 }

@@ -24,6 +24,10 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
 
     return json({ ok: true, generatedAt: new Date().toISOString(), users });
   } catch (usersError) {
-    return error(500, "Failed to load user rollups.", usersError instanceof Error ? usersError.message : null);
+    return error(
+      500,
+      "Failed to load user rollups.",
+      usersError instanceof Error ? usersError.message : null,
+    );
   }
 }

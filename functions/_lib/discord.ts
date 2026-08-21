@@ -1,4 +1,9 @@
-import { countActiveLinksForLicense, ensureAccessSchema, findActiveSuspension, isSuspensionActive } from "./access";
+import {
+  countActiveLinksForLicense,
+  ensureAccessSchema,
+  findActiveSuspension,
+  isSuspensionActive,
+} from "./access";
 import { nowIso } from "./http";
 import type { RuntimeEnv } from "./types";
 
@@ -47,9 +52,18 @@ export async function resolveLicenseForVerification(
   if (!key) return { ok: false, reason: "missing_key" };
 
   const license = await db
-    .prepare("SELECT license_key, hwid, status, expires_at, type, max_uses FROM licenses WHERE license_key = ?")
+    .prepare(
+      "SELECT license_key, hwid, status, expires_at, type, max_uses FROM licenses WHERE license_key = ?",
+    )
     .bind(key)
-    .first<{ license_key: string; hwid: string | null; status: string; expires_at: string | null; type: string; max_uses: number }>();
+    .first<{
+      license_key: string;
+      hwid: string | null;
+      status: string;
+      expires_at: string | null;
+      type: string;
+      max_uses: number;
+    }>();
 
   if (!license) return { ok: false, reason: "invalid_key" };
   if (license.status === "revoked") return { ok: false, reason: "revoked" };
@@ -61,7 +75,10 @@ export async function resolveLicenseForVerification(
   // just the first, or a ban on seat 2 would never be seen.
   if (license.hwid) {
     await ensureAccessSchema(env);
-    const seats = license.hwid.split(",").map((h) => h.trim()).filter((h) => h.length > 0);
+    const seats = license.hwid
+      .split(",")
+      .map((h) => h.trim())
+      .filter((h) => h.length > 0);
     for (const seat of seats) {
       const suspension = await findActiveSuspension(env, { hwid: seat, identity: seat });
       if (isSuspensionActive(suspension)) return { ok: false, reason: "suspended" };
@@ -89,7 +106,8 @@ function botHeaders(env: RuntimeEnv): HeadersInit {
 
 /** Grant the Verified role to a guild member. Returns true on success (204) or if already held. */
 export async function discordAddVerifiedRole(env: RuntimeEnv, userId: string): Promise<boolean> {
-  if (!env.DISCORD_BOT_TOKEN || !env.DISCORD_GUILD_ID || !env.DISCORD_VERIFIED_ROLE_ID) return false;
+  if (!env.DISCORD_BOT_TOKEN || !env.DISCORD_GUILD_ID || !env.DISCORD_VERIFIED_ROLE_ID)
+    return false;
   const res = await fetch(
     `${DISCORD_API}/guilds/${env.DISCORD_GUILD_ID}/members/${userId}/roles/${env.DISCORD_VERIFIED_ROLE_ID}`,
     { method: "PUT", headers: botHeaders(env) },
@@ -99,7 +117,8 @@ export async function discordAddVerifiedRole(env: RuntimeEnv, userId: string): P
 
 /** Remove the Verified role (used when a link is revoked or the license is suspended). */
 export async function discordRemoveVerifiedRole(env: RuntimeEnv, userId: string): Promise<boolean> {
-  if (!env.DISCORD_BOT_TOKEN || !env.DISCORD_GUILD_ID || !env.DISCORD_VERIFIED_ROLE_ID) return false;
+  if (!env.DISCORD_BOT_TOKEN || !env.DISCORD_GUILD_ID || !env.DISCORD_VERIFIED_ROLE_ID)
+    return false;
   const res = await fetch(
     `${DISCORD_API}/guilds/${env.DISCORD_GUILD_ID}/members/${userId}/roles/${env.DISCORD_VERIFIED_ROLE_ID}`,
     { method: "DELETE", headers: botHeaders(env) },
@@ -113,7 +132,11 @@ export async function discordRemoveVerifiedRole(env: RuntimeEnv, userId: string)
  * invite: the join is bound to the exact account that OAuth'd with a valid license, so there is no
  * shareable invite link to leak. 201 = added, 204 = already a member (then role is added separately).
  */
-export async function discordJoinGuildWithRole(env: RuntimeEnv, userId: string, accessToken: string): Promise<boolean> {
+export async function discordJoinGuildWithRole(
+  env: RuntimeEnv,
+  userId: string,
+  accessToken: string,
+): Promise<boolean> {
   if (!env.DISCORD_BOT_TOKEN || !env.DISCORD_GUILD_ID) return false;
   const body: Record<string, unknown> = { access_token: accessToken };
   if (env.DISCORD_VERIFIED_ROLE_ID) body.roles = [env.DISCORD_VERIFIED_ROLE_ID];
@@ -139,8 +162,12 @@ export interface DiscordTokenResponse {
 }
 
 /** Exchange an OAuth authorization code for an access token. */
-export async function discordExchangeCode(env: RuntimeEnv, code: string): Promise<DiscordTokenResponse | null> {
-  if (!env.DISCORD_CLIENT_ID || !env.DISCORD_CLIENT_SECRET || !env.DISCORD_REDIRECT_URI) return null;
+export async function discordExchangeCode(
+  env: RuntimeEnv,
+  code: string,
+): Promise<DiscordTokenResponse | null> {
+  if (!env.DISCORD_CLIENT_ID || !env.DISCORD_CLIENT_SECRET || !env.DISCORD_REDIRECT_URI)
+    return null;
   const params = new URLSearchParams({
     client_id: env.DISCORD_CLIENT_ID,
     client_secret: env.DISCORD_CLIENT_SECRET,
@@ -175,14 +202,21 @@ export async function discordGetUser(accessToken: string): Promise<DiscordUser |
 
 export function discordDisplayTag(user: DiscordUser): string {
   if (user.global_name) return user.global_name;
-  if (user.discriminator && user.discriminator !== "0") return `${user.username}#${user.discriminator}`;
+  if (user.discriminator && user.discriminator !== "0")
+    return `${user.username}#${user.discriminator}`;
   return user.username;
 }
 
 /** Persist (or refresh) a verified Discord ↔ license link. */
 export async function upsertDiscordLink(
   env: RuntimeEnv,
-  args: { discordId: string; discordTag: string | null; licenseKey: string; hwid: string | null; source: string },
+  args: {
+    discordId: string;
+    discordTag: string | null;
+    licenseKey: string;
+    hwid: string | null;
+    source: string;
+  },
 ): Promise<void> {
   const db = env.DB;
   if (!db) throw new Error("D1 binding DB is required.");
@@ -221,18 +255,35 @@ function b64urlDecode(value: string): string {
 }
 
 async function hmacKey(secret: string): Promise<CryptoKey> {
-  return crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]);
+  return crypto.subtle.importKey(
+    "raw",
+    enc.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign", "verify"],
+  );
 }
 
-export async function signState(secret: string, licenseKey: string, ttlSeconds = 600): Promise<string> {
-  const payload = JSON.stringify({ k: licenseKey, e: Date.now() + ttlSeconds * 1000, n: crypto.randomUUID() });
+export async function signState(
+  secret: string,
+  licenseKey: string,
+  ttlSeconds = 600,
+): Promise<string> {
+  const payload = JSON.stringify({
+    k: licenseKey,
+    e: Date.now() + ttlSeconds * 1000,
+    n: crypto.randomUUID(),
+  });
   const data = b64url(enc.encode(payload));
   const key = await hmacKey(secret);
   const sig = await crypto.subtle.sign("HMAC", key, enc.encode(data));
   return `${data}.${b64url(sig)}`;
 }
 
-export async function verifyState(secret: string, token: string): Promise<{ licenseKey: string } | null> {
+export async function verifyState(
+  secret: string,
+  token: string,
+): Promise<{ licenseKey: string } | null> {
   // Any malformed token (bad base64 in either segment, bad JSON, wrong HMAC, expired) must degrade
   // to null — the callback renders a friendly "link expired" page off that. atob throws on
   // out-of-alphabet characters, so the decode belongs inside the try like everything else.
@@ -289,7 +340,10 @@ export function verifyHtmlPage(ok: boolean, heading: string, message: string): R
 }
 
 function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+  return value.replace(
+    /[&<>"']/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!,
+  );
 }
 
 /** Map an internal verify reason code to a short human message for the bot / web page. */

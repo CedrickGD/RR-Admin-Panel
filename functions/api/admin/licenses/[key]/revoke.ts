@@ -21,7 +21,10 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
     const key = decodeKeyParam(context.params.key);
     if (!key) return error(400, "License key is required.");
 
-    const license = await db.prepare("SELECT hwid FROM licenses WHERE license_key = ?").bind(key).first();
+    const license = await db
+      .prepare("SELECT hwid FROM licenses WHERE license_key = ?")
+      .bind(key)
+      .first();
     if (!license) return error(404, "License not found.");
 
     if (!license.hwid) {
@@ -30,9 +33,10 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
       return json({ ok: true, message: "Unbound license deleted successfully.", deleted: true });
     }
 
-    const result = await db.prepare(
-      "UPDATE licenses SET status = 'revoked' WHERE license_key = ?"
-    ).bind(key).run();
+    const result = await db
+      .prepare("UPDATE licenses SET status = 'revoked' WHERE license_key = ?")
+      .bind(key)
+      .run();
 
     return json({ ok: true, message: "License revoked successfully." });
   } catch (err) {

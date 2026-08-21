@@ -3,7 +3,7 @@ import {
   ensureAnnouncementsSchema,
   toIsoOrNull,
   type AnnouncementLevel,
-  type AnnouncementRow
+  type AnnouncementRow,
 } from "../../../../_lib/content";
 import { decodeKeyParam, error, json, nowIso, readJsonBody } from "../../../../_lib/http";
 import type { RuntimeEnv } from "../../../../_lib/types";
@@ -59,8 +59,10 @@ export async function onRequestPut(context: HandlerContext): Promise<Response> {
     const text = body.body !== undefined ? body.body.trim() : existing.body;
     if (!title) return error(400, "Title is required.");
     if (!text) return error(400, "Body is required.");
-    if (title.length > MAX_TITLE_LENGTH) return error(400, `Title must be <= ${MAX_TITLE_LENGTH} characters.`);
-    if (text.length > MAX_BODY_LENGTH) return error(400, `Body must be <= ${MAX_BODY_LENGTH} characters.`);
+    if (title.length > MAX_TITLE_LENGTH)
+      return error(400, `Title must be <= ${MAX_TITLE_LENGTH} characters.`);
+    if (text.length > MAX_BODY_LENGTH)
+      return error(400, `Body must be <= ${MAX_BODY_LENGTH} characters.`);
 
     const level =
       body.level !== undefined && LEVELS.includes(body.level as AnnouncementLevel)
@@ -72,14 +74,16 @@ export async function onRequestPut(context: HandlerContext): Promise<Response> {
           ? 0
           : 1
         : existing.is_active;
-    const startsAt = body.starts_at !== undefined ? toIsoOrNull(body.starts_at) : existing.starts_at;
-    const expiresAt = body.expires_at !== undefined ? toIsoOrNull(body.expires_at) : existing.expires_at;
+    const startsAt =
+      body.starts_at !== undefined ? toIsoOrNull(body.starts_at) : existing.starts_at;
+    const expiresAt =
+      body.expires_at !== undefined ? toIsoOrNull(body.expires_at) : existing.expires_at;
 
     await db
       .prepare(
         `UPDATE announcements
          SET title = ?, body = ?, level = ?, is_active = ?, starts_at = ?, expires_at = ?, updated_at = ?
-         WHERE id = ?`
+         WHERE id = ?`,
       )
       .bind(title, text, level, isActive, startsAt, expiresAt, nowIso(), id)
       .run();

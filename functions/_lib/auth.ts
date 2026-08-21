@@ -29,7 +29,10 @@ export function validatePasswordComplexity(password: string): string | null {
   return null;
 }
 
-export async function hashPassword(password: string, iterations = MAX_PBKDF2_ITERATIONS): Promise<string> {
+export async function hashPassword(
+  password: string,
+  iterations = MAX_PBKDF2_ITERATIONS,
+): Promise<string> {
   const complexityError = validatePasswordComplexity(password);
   if (complexityError) {
     throw new Error(complexityError);
@@ -41,7 +44,10 @@ export async function hashPassword(password: string, iterations = MAX_PBKDF2_ITE
   return `pbkdf2$sha256$${boundedIterations}$${base64UrlEncodeBytes(salt)}$${base64UrlEncodeBytes(digest)}`;
 }
 
-export async function verifyPassword(password: string, storedHash: string | undefined): Promise<boolean> {
+export async function verifyPassword(
+  password: string,
+  storedHash: string | undefined,
+): Promise<boolean> {
   if (!storedHash || !password) {
     return false;
   }
@@ -62,7 +68,7 @@ export async function verifyPassword(password: string, storedHash: string | unde
 export async function createAppSessionToken(
   secret: string | undefined,
   email: string,
-  role: AppUserRole
+  role: AppUserRole,
 ): Promise<{ token: string; expiresAt: string }> {
   if (!secret) {
     throw new Error("JWT_SECRET is missing.");
@@ -75,7 +81,7 @@ export async function createAppSessionToken(
     iat: issuedAt,
     exp: issuedAt + SESSION_TTL_SECONDS,
     email,
-    role
+    role,
   };
 
   const headerEncoded = base64UrlEncode(JSON.stringify({ alg: "HS256", typ: "JWT" }));
@@ -85,11 +91,14 @@ export async function createAppSessionToken(
   const token = `${signed}.${base64UrlEncodeBytes(signature)}`;
   return {
     token,
-    expiresAt: new Date(claims.exp * 1000).toISOString()
+    expiresAt: new Date(claims.exp * 1000).toISOString(),
   };
 }
 
-export async function verifyAppSessionToken(token: string | null, env: RuntimeEnv): Promise<AppSessionClaims | null> {
+export async function verifyAppSessionToken(
+  token: string | null,
+  env: RuntimeEnv,
+): Promise<AppSessionClaims | null> {
   if (!token || !env.JWT_SECRET) {
     return null;
   }
@@ -164,15 +173,24 @@ export function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-export async function verifyAdminKey(adminKey: string, storedHash: string | undefined): Promise<boolean> {
+export async function verifyAdminKey(
+  adminKey: string,
+  storedHash: string | undefined,
+): Promise<boolean> {
   return verifyPassword(adminKey, storedHash);
 }
 
-export async function createAdminSessionToken(secret: string | undefined, email: string | null): Promise<{ token: string; expiresAt: string }> {
+export async function createAdminSessionToken(
+  secret: string | undefined,
+  email: string | null,
+): Promise<{ token: string; expiresAt: string }> {
   return createAppSessionToken(secret, email ?? "admin@example.invalid", "admin");
 }
 
-export async function verifyAdminSessionToken(token: string | null, env: RuntimeEnv): Promise<SessionClaims | null> {
+export async function verifyAdminSessionToken(
+  token: string | null,
+  env: RuntimeEnv,
+): Promise<SessionClaims | null> {
   const claims = await verifyAppSessionToken(token, env);
   if (!claims || claims.role !== "admin") {
     return null;
@@ -183,7 +201,7 @@ export async function verifyAdminSessionToken(token: string | null, env: Runtime
     scope: "admin",
     iat: claims.iat,
     exp: claims.exp,
-    email: claims.email
+    email: claims.email,
   };
 }
 
@@ -231,7 +249,11 @@ function parseHash(raw: string): ParsedHash | null {
   }
 
   const iterations = Number.parseInt(parts[2], 10);
-  if (!Number.isFinite(iterations) || iterations < MIN_PBKDF2_ITERATIONS || iterations > MAX_PBKDF2_ITERATIONS) {
+  if (
+    !Number.isFinite(iterations) ||
+    iterations < MIN_PBKDF2_ITERATIONS ||
+    iterations > MAX_PBKDF2_ITERATIONS
+  ) {
     return null;
   }
 
@@ -248,17 +270,27 @@ function parseHash(raw: string): ParsedHash | null {
   return { iterations, salt, digest };
 }
 
-async function derivePbkdf2(value: string, salt: Uint8Array, iterations: number): Promise<Uint8Array> {
-  const keyMaterial = await crypto.subtle.importKey("raw", encoder.encode(value), { name: "PBKDF2" }, false, ["deriveBits"]);
+async function derivePbkdf2(
+  value: string,
+  salt: Uint8Array,
+  iterations: number,
+): Promise<Uint8Array> {
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(value),
+    { name: "PBKDF2" },
+    false,
+    ["deriveBits"],
+  );
   const bits = await crypto.subtle.deriveBits(
     {
       name: "PBKDF2",
       hash: "SHA-256",
       salt: salt as unknown as BufferSource,
-      iterations
+      iterations,
     },
     keyMaterial,
-    256
+    256,
   );
   return new Uint8Array(bits);
 }
@@ -269,10 +301,10 @@ async function signHs256(message: string, secret: string): Promise<Uint8Array> {
     encoder.encode(secret),
     {
       name: "HMAC",
-      hash: "SHA-256"
+      hash: "SHA-256",
     },
     false,
-    ["sign"]
+    ["sign"],
   );
 
   const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(message));

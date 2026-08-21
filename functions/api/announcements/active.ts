@@ -30,10 +30,15 @@ export async function onRequestGet(context: HandlerContext): Promise<Response> {
            AND (expires_at IS NULL OR expires_at > ?)
          ORDER BY
            CASE level WHEN 'critical' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END,
-           created_at DESC`
+           created_at DESC`,
       )
       .bind(now, now)
-      .all<Pick<AnnouncementRow, "id" | "title" | "body" | "level" | "starts_at" | "expires_at" | "created_at">>();
+      .all<
+        Pick<
+          AnnouncementRow,
+          "id" | "title" | "body" | "level" | "starts_at" | "expires_at" | "created_at"
+        >
+      >();
 
     return json({ ok: true, announcements: results });
   } catch (err) {

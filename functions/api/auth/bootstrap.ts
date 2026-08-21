@@ -1,4 +1,11 @@
-import { createAppSessionToken, createSessionCookie, hashPassword, isValidEmail, normalizeEmail, validatePasswordComplexity } from "../../_lib/auth";
+import {
+  createAppSessionToken,
+  createSessionCookie,
+  hashPassword,
+  isValidEmail,
+  normalizeEmail,
+  validatePasswordComplexity,
+} from "../../_lib/auth";
 import { error, json, readJsonBody } from "../../_lib/http";
 import type { RuntimeEnv } from "../../_lib/types";
 import { countUsers, createUser, ensureAuthSchema } from "../../_lib/users";
@@ -51,23 +58,31 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
 
     const passwordHash = await hashPassword(password);
     const user = await createUser(context.env, email, "admin", passwordHash);
-    const { token, expiresAt } = await createAppSessionToken(context.env.JWT_SECRET, user.email, user.role);
+    const { token, expiresAt } = await createAppSessionToken(
+      context.env.JWT_SECRET,
+      user.email,
+      user.role,
+    );
 
     return json(
       {
         ok: true,
         user: {
           email: user.email,
-          role: user.role
+          role: user.role,
         },
-        expiresAt
+        expiresAt,
       },
       200,
       {
-        "set-cookie": createSessionCookie(token, context.request, context.env.AUTH_SESSION_COOKIE)
-      }
+        "set-cookie": createSessionCookie(token, context.request, context.env.AUTH_SESSION_COOKIE),
+      },
     );
   } catch (bootstrapError) {
-    return error(500, "Failed to bootstrap admin user.", bootstrapError instanceof Error ? bootstrapError.message : null);
+    return error(
+      500,
+      "Failed to bootstrap admin user.",
+      bootstrapError instanceof Error ? bootstrapError.message : null,
+    );
   }
 }

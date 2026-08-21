@@ -15,7 +15,10 @@ export async function onRequestPost(context: { request: Request; env: RuntimeEnv
     const hwid = body.hwid.trim();
 
     // Find license
-    const license = await db.prepare("SELECT * FROM licenses WHERE license_key = ?").bind(key).first<{
+    const license = await db
+      .prepare("SELECT * FROM licenses WHERE license_key = ?")
+      .bind(key)
+      .first<{
         id: number;
         status: string;
         hwid: string | null;
@@ -23,23 +26,26 @@ export async function onRequestPost(context: { request: Request; env: RuntimeEnv
         expires_at: string | null;
         type: string;
         max_uses: number;
-    }>();
-    
+      }>();
+
     if (!license) return error(404, "Invalid license key.");
     if (license.status === "revoked") return error(403, "License is revoked.");
     if (license.status === "expired") return error(403, "License is expired.");
 
     // Check expiration if already bound and has expiry
     if (license.hwid && license.expires_at && new Date(license.expires_at) < new Date()) {
-       await db.prepare("UPDATE licenses SET status = 'expired' WHERE id = ?").bind(license.id).run();
-       return error(403, "License has expired.");
+      await db
+        .prepare("UPDATE licenses SET status = 'expired' WHERE id = ?")
+        .bind(license.id)
+        .run();
+      return error(403, "License has expired.");
     }
 
     const now = nowIso();
 
     // Check if HWID is already bound
-    const boundHwids = license.hwid ? license.hwid.split(',').map(h => h.trim()) : [];
-    
+    const boundHwids = license.hwid ? license.hwid.split(",").map((h) => h.trim()) : [];
+
     if (!boundHwids.includes(hwid)) {
       // It's a new HWID, check limits
       if (license.max_uses !== -1 && boundHwids.length >= license.max_uses) {
@@ -48,25 +54,38 @@ export async function onRequestPost(context: { request: Request; env: RuntimeEnv
 
       // Bind the new HWID
       boundHwids.push(hwid);
-      const newHwidsStr = boundHwids.join(',');
+      const newHwidsStr = boundHwids.join(",");
       const newUsageCount = boundHwids.length;
 
       let expiresAt = license.expires_at;
       // If this is the FIRST binding, set expiration date if applicable
       if (boundHwids.length === 1 && license.duration_days) {
-         const date = new Date();
-         date.setTime(date.getTime() + license.duration_days * 24 * 60 * 60 * 1000);
-         expiresAt = date.toISOString();
+        const date = new Date();
+        date.setTime(date.getTime() + license.duration_days * 24 * 60 * 60 * 1000);
+        expiresAt = date.toISOString();
       }
-      
-      await db.prepare(
-        "UPDATE licenses SET hwid = ?, usage_count = ?, activated_at = COALESCE(activated_at, ?), expires_at = ?, status = 'active' WHERE id = ?"
-      ).bind(newHwidsStr, newUsageCount, now, expiresAt, license.id).run();
-      
-      return json({ ok: true, message: "License activated.", expires_at: expiresAt, type: license.type });
+
+      await db
+        .prepare(
+          "UPDATE licenses SET hwid = ?, usage_count = ?, activated_at = COALESCE(activated_at, ?), expires_at = ?, status = 'active' WHERE id = ?",
+        )
+        .bind(newHwidsStr, newUsageCount, now, expiresAt, license.id)
+        .run();
+
+      return json({
+        ok: true,
+        message: "License activated.",
+        expires_at: expiresAt,
+        type: license.type,
+      });
     }
 
-    return json({ ok: true, message: "License is active.", expires_at: license.expires_at, type: license.type });
+    return json({
+      ok: true,
+      message: "License is active.",
+      expires_at: license.expires_at,
+      type: license.type,
+    });
   } catch (err) {
     return error(500, "Failed to activate license.", err instanceof Error ? err.message : null);
   }

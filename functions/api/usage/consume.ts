@@ -22,7 +22,10 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
     const db = context.env.DB;
     if (!db) return error(500, "Database not available");
 
-    const body = (await context.request.json().catch(() => null)) as { hwid?: string; feature?: string } | null;
+    const body = (await context.request.json().catch(() => null)) as {
+      hwid?: string;
+      feature?: string;
+    } | null;
     const hwid = typeof body?.hwid === "string" ? body.hwid.trim() : "";
     const feature = typeof body?.feature === "string" ? body.feature.trim().toLowerCase() : "";
     if (!hwid || !feature) return error(400, "hwid and feature are required.");

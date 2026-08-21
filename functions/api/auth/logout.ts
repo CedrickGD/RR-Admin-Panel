@@ -15,11 +15,11 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
   return json(
     {
       ok: true,
-      loggedOut: true
+      loggedOut: true,
     },
     200,
     {
-      "set-cookie": clearSessionCookie(context.request, context.env.AUTH_SESSION_COOKIE)
-    }
+      "set-cookie": clearSessionCookie(context.request, context.env.AUTH_SESSION_COOKIE),
+    },
   );
 }

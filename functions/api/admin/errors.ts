@@ -24,6 +24,10 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
 
     return json({ ok: true, errors });
   } catch (errorsError) {
-    return error(500, "Failed to load the errors rollup.", errorsError instanceof Error ? errorsError.message : null);
+    return error(
+      500,
+      "Failed to load the errors rollup.",
+      errorsError instanceof Error ? errorsError.message : null,
+    );
   }
 }

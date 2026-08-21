@@ -32,9 +32,9 @@ async function handle(context: HandlerContext): Promise<Response> {
     let installId = "";
 
     if (context.request.method === "POST") {
-      const body = await readJsonBody<{ hwid?: string; install_id?: string }>(context.request).catch(
-        () => ({}) as { hwid?: string; install_id?: string },
-      );
+      const body = await readJsonBody<{ hwid?: string; install_id?: string }>(
+        context.request,
+      ).catch(() => ({}) as { hwid?: string; install_id?: string });
       hwid = (body.hwid ?? "").trim();
       installId = (body.install_id ?? "").trim();
     } else {
@@ -64,6 +64,10 @@ async function handle(context: HandlerContext): Promise<Response> {
       banned_until: suspension!.banned_until,
     });
   } catch (err) {
-    return error(500, "Failed to resolve access status.", err instanceof Error ? err.message : null);
+    return error(
+      500,
+      "Failed to resolve access status.",
+      err instanceof Error ? err.message : null,
+    );
   }
 }

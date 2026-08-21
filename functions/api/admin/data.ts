@@ -19,7 +19,10 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
       return access.response;
     }
 
-    const [summary, health] = await Promise.all([loadSummary(context.env), loadHealth(context.env)]);
+    const [summary, health] = await Promise.all([
+      loadSummary(context.env),
+      loadHealth(context.env),
+    ]);
 
     return json({
       ok: true,
@@ -28,9 +31,13 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
       user: access.access.user,
       accessIdentity: access.access.accessIdentity,
       authMode: access.access.authMode,
-      sessionExpiresAt: access.access.sessionExpiresAt
+      sessionExpiresAt: access.access.sessionExpiresAt,
     });
   } catch (dataError) {
-    return error(500, "Failed to load protected admin data.", dataError instanceof Error ? dataError.message : null);
+    return error(
+      500,
+      "Failed to load protected admin data.",
+      dataError instanceof Error ? dataError.message : null,
+    );
   }
 }

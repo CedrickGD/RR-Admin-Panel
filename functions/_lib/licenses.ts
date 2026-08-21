@@ -81,24 +81,51 @@ export function normalizeOrderField(field: OrderField, value: unknown): string |
    order below. */
 
 const ORDER_ID_KEYS = [
-  "order_id", "orderid", "order_number", "ordernumber", "invoice_id",
-  "invoiceid", "invoice", "uniqid", "order_uniqid", "transaction_id",
-  "transactionid", "txn_id", "payment_id", "reference", "order",
+  "order_id",
+  "orderid",
+  "order_number",
+  "ordernumber",
+  "invoice_id",
+  "invoiceid",
+  "invoice",
+  "uniqid",
+  "order_uniqid",
+  "transaction_id",
+  "transactionid",
+  "txn_id",
+  "payment_id",
+  "reference",
+  "order",
 ];
-const EMAIL_KEYS = [
-  "customer_email", "customeremail", "buyer_email", "user_email", "email",
-];
+const EMAIL_KEYS = ["customer_email", "customeremail", "buyer_email", "user_email", "email"];
 const NAME_KEYS = [
-  "customer_name", "customername", "buyer_name", "full_name", "username",
-  "customer", "name", "buyer",
+  "customer_name",
+  "customername",
+  "buyer_name",
+  "full_name",
+  "username",
+  "customer",
+  "name",
+  "buyer",
 ];
 const DISCORD_KEYS = [
-  "customer_discord", "discord_username", "discord_user", "discord_tag",
-  "discord_id", "discord",
+  "customer_discord",
+  "discord_username",
+  "discord_user",
+  "discord_tag",
+  "discord_id",
+  "discord",
 ];
 
 // Never persist call credentials in order_meta.
-const SECRET_PARAM_NAMES = new Set(["secret", "token", "key", "api_key", "apikey", "authorization"]);
+const SECRET_PARAM_NAMES = new Set([
+  "secret",
+  "token",
+  "key",
+  "api_key",
+  "apikey",
+  "authorization",
+]);
 
 function findKeyDeep(node: unknown, wanted: string, depth: number): string | null {
   if (!isObject(node) || depth > 3) return null;
@@ -169,7 +196,13 @@ export function extractOrderInfo(url: URL, body: unknown): ExtractedOrderInfo {
 
     return info;
   } catch {
-    return { order_id: null, customer_name: null, customer_email: null, customer_discord: null, order_meta: null };
+    return {
+      order_id: null,
+      customer_name: null,
+      customer_email: null,
+      customer_discord: null,
+      order_meta: null,
+    };
   }
 }
 

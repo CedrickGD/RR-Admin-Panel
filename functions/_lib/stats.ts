@@ -1,7 +1,14 @@
 import { nowIso } from "./http";
 import { ensureAccessSchema, isSuspensionActive, type SuspensionRow } from "./access";
 import { ensureTelemetrySchema, normalizeDisplayVersion } from "./storage";
-import type { RuntimeEnv, StatsFilters, StatsPayload, UserErrorRecord, UserRollupRecord, TelemetryStatus } from "./types";
+import type {
+  RuntimeEnv,
+  StatsFilters,
+  StatsPayload,
+  UserErrorRecord,
+  UserRollupRecord,
+  TelemetryStatus,
+} from "./types";
 
 // Sessions longer than 2 days are artifacts (legacy install-scoped rows, crashed
 // clients revived by heartbeats) and would wreck duration averages.
@@ -25,7 +32,12 @@ export function parseStatsFilters(url: URL): StatsFilters {
         : Number.parseInt(rangeRaw.replace(/d$/, ""), 10);
 
   return {
-    rangeDays: rangeDays !== null && Number.isFinite(rangeDays) && rangeDays > 0 ? Math.min(rangeDays, 3650) : rangeDays === null ? null : 30,
+    rangeDays:
+      rangeDays !== null && Number.isFinite(rangeDays) && rangeDays > 0
+        ? Math.min(rangeDays, 3650)
+        : rangeDays === null
+          ? null
+          : 30,
     version: readFilterParam(url, "version"),
     platform: readFilterParam(url, "platform"),
     country: readFilterParam(url, "country"),
@@ -80,47 +92,63 @@ export async function loadStats(env: RuntimeEnv, filters: StatsFilters): Promise
   const cutoff = rangeCutoffIso(filters);
   const and = dim.sql ? " AND " : " WHERE ";
 
-  const [totals, rangeTotals, errorTotals, rpc, sessionsPerDay, newUsersPerDay, errorsPerDay, versionsAllTime, versionsCurrent, platforms, countries, featureRows, counters, versionOptions, platformOptions, countryOptions] =
-    await Promise.all([
-      db
-        .prepare(
-          `SELECT
+  const [
+    totals,
+    rangeTotals,
+    errorTotals,
+    rpc,
+    sessionsPerDay,
+    newUsersPerDay,
+    errorsPerDay,
+    versionsAllTime,
+    versionsCurrent,
+    platforms,
+    countries,
+    featureRows,
+    counters,
+    versionOptions,
+    platformOptions,
+    countryOptions,
+  ] = await Promise.all([
+    db
+      .prepare(
+        `SELECT
              COUNT(*) AS lifetimeSessions,
              COUNT(DISTINCT ${IDENTITY_SQL}) AS lifetimeUsers,
              SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) AS activeNow,
              SUM(CASE WHEN is_active = 1 AND rpc_enabled = 1 THEN 1 ELSE 0 END) AS rpcLiveNow
-           FROM app_sessions ${dim.sql}`
-        )
-        .bind(...dim.bindings)
-        .first<Record<string, number | string | null>>(),
-      db
-        .prepare(
-          `SELECT
+           FROM app_sessions ${dim.sql}`,
+      )
+      .bind(...dim.bindings)
+      .first<Record<string, number | string | null>>(),
+    db
+      .prepare(
+        `SELECT
              SUM(CASE WHEN started_at >= ? THEN 1 ELSE 0 END) AS sessionsInRange,
              COUNT(DISTINCT CASE WHEN last_seen_at >= ? THEN ${IDENTITY_SQL} END) AS usersInRange,
              AVG(CASE WHEN started_at >= ? AND duration_seconds BETWEEN 1 AND ${MAX_PLAUSIBLE_DURATION_SECONDS}
                       AND session_id NOT LIKE 'install:%' THEN duration_seconds END) AS averageSessionDurationSeconds
-           FROM app_sessions ${dim.sql}`
-        )
-        // The three cutoff placeholders live in the SELECT clause, BEFORE the dimension
-        // filters in WHERE — bind order must match the SQL text order.
-        .bind(cutoff, cutoff, cutoff, ...dim.bindings)
-        .first<Record<string, number | string | null>>(),
-      // Errors come from the events table (90-day retention), not from summing session
-      // error_count — that would re-count a long-lived session's lifetime errors in
-      // every range it is merely seen in. Background errors are excluded like elsewhere.
-      db
-        .prepare(
-          `SELECT COUNT(*) AS errorsInRange
+           FROM app_sessions ${dim.sql}`,
+      )
+      // The three cutoff placeholders live in the SELECT clause, BEFORE the dimension
+      // filters in WHERE — bind order must match the SQL text order.
+      .bind(cutoff, cutoff, cutoff, ...dim.bindings)
+      .first<Record<string, number | string | null>>(),
+    // Errors come from the events table (90-day retention), not from summing session
+    // error_count — that would re-count a long-lived session's lifetime errors in
+    // every range it is merely seen in. Background errors are excluded like elsewhere.
+    db
+      .prepare(
+        `SELECT COUNT(*) AS errorsInRange
            FROM telemetry_events
            WHERE service = 'app_error' AND ts >= ?
-             AND COALESCE(json_extract(metrics_json, '$.error_kind'), '') != 'background'`
-        )
-        .bind(cutoff)
-        .first<{ errorsInRange: number | string | null }>(),
-      db
-        .prepare(
-          `WITH ranked AS (
+             AND COALESCE(json_extract(metrics_json, '$.error_kind'), '') != 'background'`,
+      )
+      .bind(cutoff)
+      .first<{ errorsInRange: number | string | null }>(),
+    db
+      .prepare(
+        `WITH ranked AS (
              SELECT ${IDENTITY_SQL} AS identity, rpc_enabled,
                ROW_NUMBER() OVER (PARTITION BY ${IDENTITY_SQL} ORDER BY last_seen_at DESC) AS rn
              FROM app_sessions ${dim.sql}
@@ -128,108 +156,125 @@ export async function loadStats(env: RuntimeEnv, filters: StatsFilters): Promise
            SELECT
              SUM(CASE WHEN rpc_enabled = 1 THEN 1 ELSE 0 END) AS rpcEnabledUsers,
              SUM(CASE WHEN rpc_enabled IS NOT NULL THEN 1 ELSE 0 END) AS rpcKnownUsers
-           FROM ranked WHERE rn = 1`
-        )
-        .bind(...dim.bindings)
-        .first<Record<string, number | string | null>>(),
-      db
-        .prepare(
-          `SELECT substr(started_at, 1, 10) AS day, COUNT(*) AS sessions, COUNT(DISTINCT ${IDENTITY_SQL}) AS users
+           FROM ranked WHERE rn = 1`,
+      )
+      .bind(...dim.bindings)
+      .first<Record<string, number | string | null>>(),
+    db
+      .prepare(
+        `SELECT substr(started_at, 1, 10) AS day, COUNT(*) AS sessions, COUNT(DISTINCT ${IDENTITY_SQL}) AS users
            FROM app_sessions ${dim.sql}${and}started_at >= ?
-           GROUP BY day ORDER BY day`
-        )
-        .bind(...dim.bindings, cutoff)
-        .all<{ day: string; sessions: number; users: number }>(),
-      db
-        .prepare(
-          `SELECT day, COUNT(*) AS users FROM (
+           GROUP BY day ORDER BY day`,
+      )
+      .bind(...dim.bindings, cutoff)
+      .all<{ day: string; sessions: number; users: number }>(),
+    db
+      .prepare(
+        `SELECT day, COUNT(*) AS users FROM (
              SELECT ${IDENTITY_SQL} AS identity, substr(MIN(started_at), 1, 10) AS day
              FROM app_sessions ${dim.sql}
              GROUP BY identity
            ) WHERE day >= substr(?, 1, 10)
-           GROUP BY day ORDER BY day`
-        )
-        .bind(...dim.bindings, cutoff)
-        .all<{ day: string; users: number }>(),
-      db
-        .prepare(
-          `SELECT substr(ts, 1, 10) AS day, COUNT(*) AS errors
+           GROUP BY day ORDER BY day`,
+      )
+      .bind(...dim.bindings, cutoff)
+      .all<{ day: string; users: number }>(),
+    db
+      .prepare(
+        `SELECT substr(ts, 1, 10) AS day, COUNT(*) AS errors
            FROM telemetry_events
            WHERE service = 'app_error' AND ts >= ?
              AND COALESCE(json_extract(metrics_json, '$.error_kind'), '') != 'background'
-           GROUP BY day ORDER BY day`
-        )
-        .bind(cutoff)
-        .all<{ day: string; errors: number }>(),
-      db
-        .prepare(
-          `SELECT ${VERSION_SQL} AS version,
+           GROUP BY day ORDER BY day`,
+      )
+      .bind(cutoff)
+      .all<{ day: string; errors: number }>(),
+    db
+      .prepare(
+        `SELECT ${VERSION_SQL} AS version,
              COUNT(DISTINCT ${IDENTITY_SQL}) AS users,
              COUNT(*) AS sessions,
              substr(MIN(started_at), 1, 10) AS firstSeen,
              substr(MAX(last_seen_at), 1, 10) AS lastSeen
            FROM app_sessions ${dim.sql}
-           GROUP BY version ORDER BY firstSeen`
-        )
-        .bind(...dim.bindings)
-        .all<{ version: string; users: number; sessions: number; firstSeen: string | null; lastSeen: string | null }>(),
-      db
-        .prepare(
-          `WITH ranked AS (
+           GROUP BY version ORDER BY firstSeen`,
+      )
+      .bind(...dim.bindings)
+      .all<{
+        version: string;
+        users: number;
+        sessions: number;
+        firstSeen: string | null;
+        lastSeen: string | null;
+      }>(),
+    db
+      .prepare(
+        `WITH ranked AS (
              SELECT ${IDENTITY_SQL} AS identity, ${VERSION_SQL} AS version, is_active,
                ROW_NUMBER() OVER (PARTITION BY ${IDENTITY_SQL} ORDER BY last_seen_at DESC) AS rn
              FROM app_sessions ${dim.sql}
            )
            SELECT version, COUNT(*) AS users, SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) AS activeUsers
            FROM ranked WHERE rn = 1
-           GROUP BY version ORDER BY users DESC`
-        )
-        .bind(...dim.bindings)
-        .all<{ version: string; users: number; activeUsers: number }>(),
-      db
-        .prepare(
-          `SELECT COALESCE(platform, 'unknown') AS key, COUNT(DISTINCT ${IDENTITY_SQL}) AS users, COUNT(*) AS sessions
+           GROUP BY version ORDER BY users DESC`,
+      )
+      .bind(...dim.bindings)
+      .all<{ version: string; users: number; activeUsers: number }>(),
+    db
+      .prepare(
+        `SELECT COALESCE(platform, 'unknown') AS key, COUNT(DISTINCT ${IDENTITY_SQL}) AS users, COUNT(*) AS sessions
            FROM app_sessions ${dim.sql}
-           GROUP BY key ORDER BY users DESC`
-        )
-        .bind(...dim.bindings)
-        .all<{ key: string; users: number; sessions: number }>(),
-      db
-        .prepare(
-          `SELECT COALESCE(client_country, 'unknown') AS key, COUNT(DISTINCT ${IDENTITY_SQL}) AS users, COUNT(*) AS sessions
+           GROUP BY key ORDER BY users DESC`,
+      )
+      .bind(...dim.bindings)
+      .all<{ key: string; users: number; sessions: number }>(),
+    db
+      .prepare(
+        `SELECT COALESCE(client_country, 'unknown') AS key, COUNT(DISTINCT ${IDENTITY_SQL}) AS users, COUNT(*) AS sessions
            FROM app_sessions ${dim.sql}
-           GROUP BY key ORDER BY users DESC`
-        )
-        .bind(...dim.bindings)
-        .all<{ key: string; users: number; sessions: number }>(),
-      db
-        .prepare(
-          `SELECT ${IDENTITY_SQL} AS identity, features_json
+           GROUP BY key ORDER BY users DESC`,
+      )
+      .bind(...dim.bindings)
+      .all<{ key: string; users: number; sessions: number }>(),
+    db
+      .prepare(
+        `SELECT ${IDENTITY_SQL} AS identity, features_json
            FROM app_sessions
-           ${dim.sql}${and}features_json IS NOT NULL`
-        )
-        .bind(...dim.bindings)
-        .all<{ identity: string; features_json: string }>(),
-      db
-        .prepare(`SELECT counter_key, counter_value FROM telemetry_counters ORDER BY counter_value DESC`)
-        .all<{ counter_key: string; counter_value: number | string }>(),
-      // Filter-dropdown options are deliberately UNFILTERED so picking one value never
-      // hides its alternatives.
-      db
-        .prepare(`SELECT DISTINCT ${VERSION_SQL} AS value FROM app_sessions ORDER BY value`)
-        .all<{ value: string }>(),
-      db
-        .prepare(`SELECT DISTINCT platform AS value FROM app_sessions WHERE platform IS NOT NULL ORDER BY value`)
-        .all<{ value: string }>(),
-      db
-        .prepare(`SELECT DISTINCT client_country AS value FROM app_sessions WHERE client_country IS NOT NULL ORDER BY value`)
-        .all<{ value: string }>(),
-    ]);
+           ${dim.sql}${and}features_json IS NOT NULL`,
+      )
+      .bind(...dim.bindings)
+      .all<{ identity: string; features_json: string }>(),
+    db
+      .prepare(
+        `SELECT counter_key, counter_value FROM telemetry_counters ORDER BY counter_value DESC`,
+      )
+      .all<{ counter_key: string; counter_value: number | string }>(),
+    // Filter-dropdown options are deliberately UNFILTERED so picking one value never
+    // hides its alternatives.
+    db
+      .prepare(`SELECT DISTINCT ${VERSION_SQL} AS value FROM app_sessions ORDER BY value`)
+      .all<{ value: string }>(),
+    db
+      .prepare(
+        `SELECT DISTINCT platform AS value FROM app_sessions WHERE platform IS NOT NULL ORDER BY value`,
+      )
+      .all<{ value: string }>(),
+    db
+      .prepare(
+        `SELECT DISTINCT client_country AS value FROM app_sessions WHERE client_country IS NOT NULL ORDER BY value`,
+      )
+      .all<{ value: string }>(),
+  ]);
 
   const eventsLifetime = counters.results
     .filter((row) => row.counter_key.startsWith("events:"))
-    .map((row) => ({ service: row.counter_key.slice("events:".length), count: toNumber(row.counter_value) }));
-  const lifetimeEvents = toNumber(counters.results.find((row) => row.counter_key === "events_total")?.counter_value);
+    .map((row) => ({
+      service: row.counter_key.slice("events:".length),
+      count: toNumber(row.counter_value),
+    }));
+  const lifetimeEvents = toNumber(
+    counters.results.find((row) => row.counter_key === "events_total")?.counter_value,
+  );
 
   return {
     generatedAt: nowIso(),
@@ -245,24 +290,30 @@ export async function loadStats(env: RuntimeEnv, filters: StatsFilters): Promise
       rpcLiveNow: toNumber(totals?.rpcLiveNow),
       rpcEnabledUsers: toNumber(rpc?.rpcEnabledUsers),
       rpcKnownUsers: toNumber(rpc?.rpcKnownUsers),
-      averageSessionDurationSeconds: Math.round(toNumber(rangeTotals?.averageSessionDurationSeconds)),
+      averageSessionDurationSeconds: Math.round(
+        toNumber(rangeTotals?.averageSessionDurationSeconds),
+      ),
       errorsInRange: toNumber(errorTotals?.errorsInRange),
     },
     series: {
       sessionsPerDay: zeroFillDays(
-        sessionsPerDay.results.map((row) => ({ day: row.day, sessions: toNumber(row.sessions), users: toNumber(row.users) })),
+        sessionsPerDay.results.map((row) => ({
+          day: row.day,
+          sessions: toNumber(row.sessions),
+          users: toNumber(row.users),
+        })),
         cutoff,
-        { sessions: 0, users: 0 }
+        { sessions: 0, users: 0 },
       ),
       newUsersPerDay: zeroFillDays(
         newUsersPerDay.results.map((row) => ({ day: row.day, users: toNumber(row.users) })),
         cutoff,
-        { users: 0 }
+        { users: 0 },
       ),
       errorsPerDay: zeroFillDays(
         errorsPerDay.results.map((row) => ({ day: row.day, errors: toNumber(row.errors) })),
         cutoff,
-        { errors: 0 }
+        { errors: 0 },
       ),
     },
     breakdowns: {
@@ -278,8 +329,16 @@ export async function loadStats(env: RuntimeEnv, filters: StatsFilters): Promise
         users: toNumber(row.users),
         activeUsers: toNumber(row.activeUsers),
       })),
-      platforms: platforms.results.map((row) => ({ key: row.key, users: toNumber(row.users), sessions: toNumber(row.sessions) })),
-      countries: countries.results.map((row) => ({ key: row.key, users: toNumber(row.users), sessions: toNumber(row.sessions) })),
+      platforms: platforms.results.map((row) => ({
+        key: row.key,
+        users: toNumber(row.users),
+        sessions: toNumber(row.sessions),
+      })),
+      countries: countries.results.map((row) => ({
+        key: row.key,
+        users: toNumber(row.users),
+        sessions: toNumber(row.sessions),
+      })),
       features: aggregateFeatures(featureRows.results),
       eventsLifetime,
     },
@@ -296,7 +355,11 @@ export async function loadStats(env: RuntimeEnv, filters: StatsFilters): Promise
  * later of the range cutoff and the first data day (so "all" doesn't render months of
  * empty lead-in), and always extends to today (UTC).
  */
-function zeroFillDays<T extends { day: string }>(rows: T[], cutoffIso: string, zero: Omit<T, "day">): T[] {
+function zeroFillDays<T extends { day: string }>(
+  rows: T[],
+  cutoffIso: string,
+  zero: Omit<T, "day">,
+): T[] {
   if (rows.length === 0) {
     return rows;
   }
@@ -321,7 +384,9 @@ function zeroFillDays<T extends { day: string }>(rows: T[], cutoffIso: string, z
   return filled;
 }
 
-function aggregateFeatures(rows: Array<{ identity: string; features_json: string }>): Array<{ feature: string; count: number; users: number }> {
+function aggregateFeatures(
+  rows: Array<{ identity: string; features_json: string }>,
+): Array<{ feature: string; count: number; users: number }> {
   const counts = new Map<string, { count: number; users: Set<string> }>();
 
   for (const row of rows) {
@@ -378,7 +443,10 @@ interface UserRollupRow {
   hwid: string | null;
 }
 
-export async function loadUsersRollup(env: RuntimeEnv, filters: StatsFilters): Promise<UserRollupRecord[]> {
+export async function loadUsersRollup(
+  env: RuntimeEnv,
+  filters: StatsFilters,
+): Promise<UserRollupRecord[]> {
   const db = env.DB;
   if (!db) {
     throw new Error("User rollups require the D1 storage backend.");
@@ -414,7 +482,7 @@ export async function loadUsersRollup(env: RuntimeEnv, filters: StatsFilters): P
            r.user_label, r.app_version, r.display_version, r.platform, r.os_version, r.device_model, r.hwid,
            r.client_country, r.client_city, r.client_timezone, r.client_latitude, r.client_longitude, r.rpc_enabled, r.discord_user, r.last_status, r.last_event
          FROM agg JOIN ranked r ON r.identity = agg.identity AND r.rn = 1
-         ORDER BY agg.last_seen DESC`
+         ORDER BY agg.last_seen DESC`,
       )
       .bind(...dim.bindings)
       .all<UserRollupRow>(),
@@ -422,7 +490,7 @@ export async function loadUsersRollup(env: RuntimeEnv, filters: StatsFilters): P
       .prepare(
         `SELECT ${IDENTITY_SQL} AS identity, features_json
          FROM app_sessions
-         ${dim.sql}${dim.sql ? " AND " : " WHERE "}features_json IS NOT NULL`
+         ${dim.sql}${dim.sql ? " AND " : " WHERE "}features_json IS NOT NULL`,
       )
       .bind(...dim.bindings)
       .all<{ identity: string; features_json: string }>(),
@@ -434,15 +502,15 @@ export async function loadUsersRollup(env: RuntimeEnv, filters: StatsFilters): P
          WHERE service = 'app_error'
            AND COALESCE(json_extract(metrics_json, '$.error_kind'), '') != 'background'
          ORDER BY id DESC
-         LIMIT 400`
+         LIMIT 400`,
       )
       .all<{ ts: string; message: string | null; metrics_json: string | null }>(),
     db
-      .prepare(`SELECT license_key, hwid FROM licenses WHERE hwid IS NOT NULL AND status = 'active'`)
+      .prepare(
+        `SELECT license_key, hwid FROM licenses WHERE hwid IS NOT NULL AND status = 'active'`,
+      )
       .all<{ license_key: string; hwid: string }>(),
-    db
-      .prepare(`SELECT * FROM access_suspensions WHERE is_active = 1`)
-      .all<SuspensionRow>(),
+    db.prepare(`SELECT * FROM access_suspensions WHERE is_active = 1`).all<SuspensionRow>(),
   ]);
 
   // Paid-license keys per individual hwid. `licenses.hwid` is a comma-separated list for
@@ -525,50 +593,59 @@ export async function loadUsersRollup(env: RuntimeEnv, filters: StatsFilters): P
   return rollups.results.map((row) => {
     const paidLicenseKeys = collectPaidKeys(paidKeysByHwid, row.identity, row.hwid);
     const suspensionRow =
-      suspensionByKey.get(row.identity) ?? (row.hwid ? suspensionByKey.get(row.hwid) : undefined) ?? null;
+      suspensionByKey.get(row.identity) ??
+      (row.hwid ? suspensionByKey.get(row.hwid) : undefined) ??
+      null;
     return {
-    identity: row.identity,
-    userLabel: row.user_label ?? null,
-    firstSeen: row.first_seen,
-    lastSeen: row.last_seen,
-    sessions: toNumber(row.sessions),
-    totalDurationSeconds: toNumber(row.total_duration_seconds),
-    errors: toNumber(row.errors),
-    isActive: toNumber(row.is_active) === 1,
-    licenseTier: (paidLicenseKeys.length > 0 ? "premium" : "free") as "premium" | "free",
-    paidLicenseKeys,
-    suspension: suspensionRow
-      ? {
-          mode: suspensionRow.mode,
-          reason: suspensionRow.reason,
-          bannedUntil: suspensionRow.banned_until,
-          hadPaidLicense: suspensionRow.had_paid_license === 1,
-          createdAt: suspensionRow.created_at,
-        }
-      : null,
-    hwid: row.hwid ?? null,
-    appVersion: row.app_version ?? null,
-    displayVersion: row.display_version ?? normalizeDisplayVersion(row.app_version ?? null),
-    platform: row.platform ?? null,
-    osVersion: row.os_version ?? null,
-    deviceModel: row.device_model ?? null,
-    country: row.client_country ?? null,
-    city: row.client_city ?? null,
-    timezone: row.client_timezone ?? null,
-    rpcEnabled: row.rpc_enabled === null || row.rpc_enabled === undefined ? null : toNumber(row.rpc_enabled) === 1,
-    discordUser: row.discord_user ?? null,
-    latitude: toNullableFloat(row.client_latitude),
-    longitude: toNullableFloat(row.client_longitude),
-    lastStatus: row.last_status ?? null,
-    lastEvent: row.last_event ?? null,
-    features: featuresByIdentity.get(row.identity) ?? {},
-    recentErrors: errorsByIdentity.get(row.identity) ?? [],
+      identity: row.identity,
+      userLabel: row.user_label ?? null,
+      firstSeen: row.first_seen,
+      lastSeen: row.last_seen,
+      sessions: toNumber(row.sessions),
+      totalDurationSeconds: toNumber(row.total_duration_seconds),
+      errors: toNumber(row.errors),
+      isActive: toNumber(row.is_active) === 1,
+      licenseTier: (paidLicenseKeys.length > 0 ? "premium" : "free") as "premium" | "free",
+      paidLicenseKeys,
+      suspension: suspensionRow
+        ? {
+            mode: suspensionRow.mode,
+            reason: suspensionRow.reason,
+            bannedUntil: suspensionRow.banned_until,
+            hadPaidLicense: suspensionRow.had_paid_license === 1,
+            createdAt: suspensionRow.created_at,
+          }
+        : null,
+      hwid: row.hwid ?? null,
+      appVersion: row.app_version ?? null,
+      displayVersion: row.display_version ?? normalizeDisplayVersion(row.app_version ?? null),
+      platform: row.platform ?? null,
+      osVersion: row.os_version ?? null,
+      deviceModel: row.device_model ?? null,
+      country: row.client_country ?? null,
+      city: row.client_city ?? null,
+      timezone: row.client_timezone ?? null,
+      rpcEnabled:
+        row.rpc_enabled === null || row.rpc_enabled === undefined
+          ? null
+          : toNumber(row.rpc_enabled) === 1,
+      discordUser: row.discord_user ?? null,
+      latitude: toNullableFloat(row.client_latitude),
+      longitude: toNullableFloat(row.client_longitude),
+      lastStatus: row.last_status ?? null,
+      lastEvent: row.last_event ?? null,
+      features: featuresByIdentity.get(row.identity) ?? {},
+      recentErrors: errorsByIdentity.get(row.identity) ?? [],
     };
   });
 }
 
 /** Union of the paid license keys bound to a user's identity key and its resolved hwid. */
-function collectPaidKeys(paidKeysByHwid: Map<string, string[]>, identity: string, hwid: string | null): string[] {
+function collectPaidKeys(
+  paidKeysByHwid: Map<string, string[]>,
+  identity: string,
+  hwid: string | null,
+): string[] {
   const keys = new Set<string>();
   for (const k of paidKeysByHwid.get(identity) ?? []) keys.add(k);
   if (hwid) {

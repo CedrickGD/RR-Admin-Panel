@@ -24,6 +24,10 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
 
     return json({ ok: true, stats });
   } catch (statsError) {
-    return error(500, "Failed to load stats.", statsError instanceof Error ? statsError.message : null);
+    return error(
+      500,
+      "Failed to load stats.",
+      statsError instanceof Error ? statsError.message : null,
+    );
   }
 }

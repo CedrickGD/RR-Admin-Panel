@@ -15,36 +15,47 @@ export async function onRequestPost(context: { request: Request; env: RuntimeEnv
     const hwid = body.hwid.trim();
 
     // Find license
-    const license = await db.prepare("SELECT * FROM licenses WHERE license_key = ?").bind(key).first<{
+    const license = await db
+      .prepare("SELECT * FROM licenses WHERE license_key = ?")
+      .bind(key)
+      .first<{
         id: number;
         status: string;
         hwid: string | null;
         expires_at: string | null;
         type: string;
-    }>();
-    
+      }>();
+
     if (!license) return error(404, "Invalid license key.");
     if (license.status === "revoked") return error(403, "License is revoked.");
     if (license.status === "expired") return error(403, "License is expired.");
 
     // Check expiration if already bound and has expiry
     if (license.hwid && license.expires_at && new Date(license.expires_at) < new Date()) {
-       await db.prepare("UPDATE licenses SET status = 'expired' WHERE id = ?").bind(license.id).run();
-       return error(403, "License has expired.");
+      await db
+        .prepare("UPDATE licenses SET status = 'expired' WHERE id = ?")
+        .bind(license.id)
+        .run();
+      return error(403, "License has expired.");
     }
 
     // Must be activated first to use validate, or we can just say not activated.
     if (!license.hwid) {
-        return error(403, "License not activated yet.");
+      return error(403, "License not activated yet.");
     }
 
     // Verify HWID
-    const boundHwids = license.hwid ? license.hwid.split(',').map(h => h.trim()) : [];
+    const boundHwids = license.hwid ? license.hwid.split(",").map((h) => h.trim()) : [];
     if (!boundHwids.includes(hwid)) {
       return error(403, "License is bound to another hardware ID.");
     }
 
-    return json({ ok: true, message: "License is valid.", expires_at: license.expires_at, type: license.type });
+    return json({
+      ok: true,
+      message: "License is valid.",
+      expires_at: license.expires_at,
+      type: license.type,
+    });
   } catch (err) {
     return error(500, "Failed to validate license.", err instanceof Error ? err.message : null);
   }

@@ -22,7 +22,7 @@ async function handleRequest(context: HandlerContext): Promise<Response> {
     const secretKey = context.env.STORE_SECRET_KEY;
 
     if (!secretKey) {
-        return error(500, "Store integration is not configured on the server.");
+      return error(500, "Store integration is not configured on the server.");
     }
 
     // Check query param first
@@ -30,14 +30,14 @@ async function handleRequest(context: HandlerContext): Promise<Response> {
 
     // Check Authorization header if not in query param
     if (!providedSecret) {
-        const authHeader = context.request.headers.get("Authorization");
-        if (authHeader && authHeader.startsWith("Bearer ")) {
-            providedSecret = authHeader.substring(7);
-        }
+      const authHeader = context.request.headers.get("Authorization");
+      if (authHeader && authHeader.startsWith("Bearer ")) {
+        providedSecret = authHeader.substring(7);
+      }
     }
 
     if (providedSecret !== secretKey) {
-        return error(401, "Unauthorized store request.");
+      return error(401, "Unauthorized store request.");
     }
 
     const db = context.env.DB;
@@ -48,7 +48,8 @@ async function handleRequest(context: HandlerContext): Promise<Response> {
     // sends (query params or JSON/form body — SellHub/Sellix/SellAuth style)
     // so the admin panel can show who purchased each key and under which
     // order number. Extraction is best-effort and can never fail delivery.
-    const payload = context.request.method === "POST" ? await readStorePayload(context.request) : null;
+    const payload =
+      context.request.method === "POST" ? await readStorePayload(context.request) : null;
     const order = extractOrderInfo(url, payload);
 
     // Which plan was bought. Each SellHub variant carries its plan in its own delivery
@@ -57,38 +58,54 @@ async function handleRequest(context: HandlerContext): Promise<Response> {
     // No/unknown plan falls back to lifetime so the pre-existing product link keeps
     // issuing exactly what it always issued.
     const PLANS: Record<string, { type: string; durationDays: number | null }> = {
-        "1m":       { type: "1-month",   durationDays: 30 },
-        "3m":       { type: "3-months",  durationDays: 90 },
-        "6m":       { type: "6-months",  durationDays: 180 },
-        "12m":      { type: "12-months", durationDays: 365 },
-        "lifetime": { type: "lifetime",  durationDays: null },
+      "1m": { type: "1-month", durationDays: 30 },
+      "3m": { type: "3-months", durationDays: 90 },
+      "6m": { type: "6-months", durationDays: 180 },
+      "12m": { type: "12-months", durationDays: 365 },
+      lifetime: { type: "lifetime", durationDays: null },
     };
     const planParam = (url.searchParams.get("plan") ?? "lifetime").toLowerCase();
     const plan = PLANS[planParam] ?? PLANS["lifetime"];
 
     // Generate a secure 16-character key (XXXX-XXXX-XXXX-XXXX)
-    const key = crypto.randomUUID().toUpperCase().split('-').slice(1).join('-');
+    const key = crypto.randomUUID().toUpperCase().split("-").slice(1).join("-");
     const now = nowIso();
 
-    await db.prepare(
+    await db
+      .prepare(
         `INSERT INTO licenses (
            license_key, type, duration_days, custom_options, max_uses, created_at, status,
            order_id, customer_name, customer_email, customer_discord, order_source, order_meta, purchased_at
-         ) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, 'store', ?, ?)`
-    ).bind(
-        key, plan.type, plan.durationDays, '{}', 1, now,
-        order.order_id, order.customer_name, order.customer_email, order.customer_discord,
-        order.order_meta, now
-    ).run();
+         ) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, 'store', ?, ?)`,
+      )
+      .bind(
+        key,
+        plan.type,
+        plan.durationDays,
+        "{}",
+        1,
+        now,
+        order.order_id,
+        order.customer_name,
+        order.customer_email,
+        order.customer_discord,
+        order.order_meta,
+        now,
+      )
+      .run();
 
     // Return plain text so Dynamic Serials (API Delivery) systems like SellHub can easily read and forward it
     return new Response(key, {
-        status: 200,
-        headers: {
-            "Content-Type": "text/plain"
-        }
+      status: 200,
+      headers: {
+        "Content-Type": "text/plain",
+      },
     });
   } catch (err) {
-    return error(500, "Failed to generate store license.", err instanceof Error ? err.message : null);
+    return error(
+      500,
+      "Failed to generate store license.",
+      err instanceof Error ? err.message : null,
+    );
   }
 }

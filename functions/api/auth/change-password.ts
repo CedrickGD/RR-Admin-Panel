@@ -1,4 +1,10 @@
-import { getSessionTokenFromCookie, hashPassword, validatePasswordComplexity, verifyAppSessionToken, verifyPassword } from "../../_lib/auth";
+import {
+  getSessionTokenFromCookie,
+  hashPassword,
+  validatePasswordComplexity,
+  verifyAppSessionToken,
+  verifyPassword,
+} from "../../_lib/auth";
 import { error, json, readJsonBody } from "../../_lib/http";
 import type { RuntimeEnv } from "../../_lib/types";
 import { ensureAuthSchema, findUserByEmail, updateUserPassword } from "../../_lib/users";
@@ -63,9 +69,13 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
 
     return json({
       ok: true,
-      updated: true
+      updated: true,
     });
   } catch (updateError) {
-    return error(500, "Failed to update password.", updateError instanceof Error ? updateError.message : null);
+    return error(
+      500,
+      "Failed to update password.",
+      updateError instanceof Error ? updateError.message : null,
+    );
   }
 }

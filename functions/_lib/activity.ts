@@ -51,7 +51,13 @@ interface LocalParts {
 }
 
 const WEEKDAY_INDEX: Record<string, number> = {
-  Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6,
+  Mon: 0,
+  Tue: 1,
+  Wed: 2,
+  Thu: 3,
+  Fri: 4,
+  Sat: 5,
+  Sun: 6,
 };
 
 function createLocalPartsResolver(timezone: string): (epochMs: number) => LocalParts {
@@ -148,7 +154,7 @@ export async function loadUserActivity(
          FROM app_sessions
          WHERE ${IDENTITY_SQL} = ?1 AND session_id NOT LIKE 'install:%'
          ORDER BY started_at ASC
-         LIMIT 20000`
+         LIMIT 20000`,
       )
       .bind(identity)
       .all<SessionRow>(),
@@ -156,7 +162,7 @@ export async function loadUserActivity(
       .prepare(
         `SELECT COUNT(*) AS legacy_rows, MIN(started_at) AS first_seen, MAX(last_seen_at) AS last_seen
          FROM app_sessions
-         WHERE ${IDENTITY_SQL} = ?1 AND session_id LIKE 'install:%'`
+         WHERE ${IDENTITY_SQL} = ?1 AND session_id LIKE 'install:%'`,
       )
       .bind(identity)
       .first<{ legacy_rows: number; first_seen: string | null; last_seen: string | null }>(),

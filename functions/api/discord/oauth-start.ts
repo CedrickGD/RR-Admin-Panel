@@ -1,4 +1,9 @@
-import { resolveLicenseForVerification, signState, verifyHtmlPage, verifyReasonMessage } from "../../_lib/discord";
+import {
+  resolveLicenseForVerification,
+  signState,
+  verifyHtmlPage,
+  verifyReasonMessage,
+} from "../../_lib/discord";
 import type { RuntimeEnv } from "../../_lib/types";
 
 type HandlerContext = {
@@ -15,13 +20,21 @@ type HandlerContext = {
 export async function onRequestGet(context: HandlerContext): Promise<Response> {
   const env = context.env;
   if (!env.DISCORD_CLIENT_ID || !env.DISCORD_REDIRECT_URI || !env.VERIFY_SHARED_SECRET) {
-    return verifyHtmlPage(false, "Not configured", "Discord verification is not set up on the server yet.");
+    return verifyHtmlPage(
+      false,
+      "Not configured",
+      "Discord verification is not set up on the server yet.",
+    );
   }
 
   const url = new URL(context.request.url);
   const licenseKey = (url.searchParams.get("key") ?? "").trim();
   if (!licenseKey) {
-    return verifyHtmlPage(false, "Missing license key", "Open this link with your license key, e.g. ?key=XXXX-XXXX-XXXX-XXXX.");
+    return verifyHtmlPage(
+      false,
+      "Missing license key",
+      "Open this link with your license key, e.g. ?key=XXXX-XXXX-XXXX-XXXX.",
+    );
   }
 
   const result = await resolveLicenseForVerification(env, licenseKey);

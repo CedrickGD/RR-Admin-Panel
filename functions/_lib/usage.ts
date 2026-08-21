@@ -10,13 +10,13 @@ import { findPaidLicensesForHwid } from "./access";
  * everything each month; a license (any active plan) removes every limit.
  */
 export const FREE_LIMITS: Record<string, number> = {
-  sky_changer: 5,      // injects only — restores are never counted
-  loading_screen: 5,   // replacements only — restores are never counted
-  fonts: 2,            // applying a non-default preset; the default is always free
+  sky_changer: 5, // injects only — restores are never counted
+  loading_screen: 5, // replacements only — restores are never counted
+  fonts: 2, // applying a non-default preset; the default is always free
   desync: 20,
-  stretched_res: 20,   // applying; the auto-revert is never counted
-  fed_suit: 10,        // starts
-  input_scripts: 20,   // combined pot across the nine input-only automation scripts
+  stretched_res: 20, // applying; the auto-revert is never counted
+  fed_suit: 10, // starts
+  input_scripts: 20, // combined pot across the nine input-only automation scripts
 };
 
 export type ConsumeResult =
@@ -58,7 +58,12 @@ export async function isPremiumHwid(env: RuntimeEnv, hwid: string): Promise<bool
  * Atomically consume one use. The UPSERT increments first and the caller reads the result —
  * two racing requests can therefore never both land on "last one free".
  */
-export async function consumeUse(db: D1Database, hwid: string, feature: string, limit: number): Promise<ConsumeResult> {
+export async function consumeUse(
+  db: D1Database,
+  hwid: string,
+  feature: string,
+  limit: number,
+): Promise<ConsumeResult> {
   const period = currentPeriod();
   const now = new Date().toISOString();
 

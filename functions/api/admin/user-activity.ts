@@ -41,6 +41,10 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
 
     return json({ ok: true, generatedAt: new Date().toISOString(), activity });
   } catch (activityError) {
-    return error(500, "Failed to load user activity.", activityError instanceof Error ? activityError.message : null);
+    return error(
+      500,
+      "Failed to load user activity.",
+      activityError instanceof Error ? activityError.message : null,
+    );
   }
 }

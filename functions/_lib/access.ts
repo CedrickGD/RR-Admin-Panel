@@ -107,7 +107,10 @@ export async function ensureAccessSchema(env: RuntimeEnv): Promise<void> {
 }
 
 /** A suspension is in force when active and either permanent or its timed window hasn't passed. */
-export function isSuspensionActive(row: SuspensionRow | null | undefined, now: string = nowIso()): boolean {
+export function isSuspensionActive(
+  row: SuspensionRow | null | undefined,
+  now: string = nowIso(),
+): boolean {
   if (!row || row.is_active !== 1) return false;
   if (!row.banned_until) return true; // permanent ban
   return row.banned_until > now; // timed suspend still within its window
@@ -163,7 +166,10 @@ export async function findActiveSuspension(
  * multi-seat/master keys, so match the hwid as an exact single value OR any element of the CSV.
  * Returns [] for a free user (no license row bound to the machine).
  */
-export async function findPaidLicensesForHwid(env: RuntimeEnv, hwid: string | null | undefined): Promise<PaidLicenseSummary[]> {
+export async function findPaidLicensesForHwid(
+  env: RuntimeEnv,
+  hwid: string | null | undefined,
+): Promise<PaidLicenseSummary[]> {
   const db = requireDb(env);
   const trimmed = typeof hwid === "string" ? hwid.trim() : "";
   if (!trimmed) return [];
@@ -187,11 +193,17 @@ export async function findPaidLicensesForHwid(env: RuntimeEnv, hwid: string | nu
 }
 
 /** Count active Discord links bound to a license, excluding one Discord id (the caller re-verifying). */
-export async function countActiveLinksForLicense(env: RuntimeEnv, licenseKey: string, excludeDiscordId: string): Promise<number> {
+export async function countActiveLinksForLicense(
+  env: RuntimeEnv,
+  licenseKey: string,
+  excludeDiscordId: string,
+): Promise<number> {
   const db = requireDb(env);
   await ensureAccessSchema(env);
   const row = await db
-    .prepare(`SELECT COUNT(*) AS c FROM discord_links WHERE license_key = ? AND is_active = 1 AND discord_id <> ?`)
+    .prepare(
+      `SELECT COUNT(*) AS c FROM discord_links WHERE license_key = ? AND is_active = 1 AND discord_id <> ?`,
+    )
     .bind(licenseKey, excludeDiscordId)
     .first<{ c: number }>();
   return row?.c ?? 0;

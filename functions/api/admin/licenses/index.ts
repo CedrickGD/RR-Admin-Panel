@@ -23,7 +23,9 @@ export async function onRequestGet(context: HandlerContext): Promise<Response> {
     // verified_discord: the Discord account that verified with this key via the
     // bot/OAuth flow — an independent "who actually holds this license" signal
     // next to the storefront customer columns.
-    const { results } = await db.prepare(`
+    const { results } = await db
+      .prepare(
+        `
       SELECT
         l.*,
         s.session_id,
@@ -43,7 +45,9 @@ export async function onRequestGet(context: HandlerContext): Promise<Response> {
         ORDER BY d2.verified_at DESC LIMIT 1
       )
       ORDER BY l.id DESC
-    `).all();
+    `,
+      )
+      .all();
     return json({ ok: true, licenses: results });
   } catch (err) {
     return error(500, "Failed to load licenses.", err instanceof Error ? err.message : null);
@@ -75,9 +79,9 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
       order_note?: string;
     }>(context.request);
 
-    const type = body.type || 'lifetime';
+    const type = body.type || "lifetime";
     const durationDays = body.duration_days || null;
-    const customOptions = body.custom_options ? JSON.stringify(body.custom_options) : '{}';
+    const customOptions = body.custom_options ? JSON.stringify(body.custom_options) : "{}";
     const customKey = body.custom_key?.trim();
     const rawMaxUses = body.max_uses ?? 1;
     const maxUses = rawMaxUses === -1 ? -1 : Math.max(rawMaxUses, 1);
@@ -89,26 +93,40 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
     const customerEmail = normalizeOrderField("customer_email", body.customer_email);
     const customerDiscord = normalizeOrderField("customer_discord", body.customer_discord);
     const orderNote = normalizeOrderField("order_note", body.order_note);
-    const hasOrderInfo = Boolean(orderId || customerName || customerEmail || customerDiscord || orderNote);
+    const hasOrderInfo = Boolean(
+      orderId || customerName || customerEmail || customerDiscord || orderNote,
+    );
 
     const keys = [];
     const now = nowIso();
 
     for (let i = 0; i < count; i++) {
       // Generate a random key like XXXX-XXXX-XXXX-XXXX if customKey is not provided
-      const key = customKey || crypto.randomUUID().toUpperCase().split('-').slice(1).join('-');
+      const key = customKey || crypto.randomUUID().toUpperCase().split("-").slice(1).join("-");
 
-      await db.prepare(
-        `INSERT INTO licenses (
+      await db
+        .prepare(
+          `INSERT INTO licenses (
            license_key, type, duration_days, custom_options, max_uses, created_at, status,
            order_id, customer_name, customer_email, customer_discord, order_note, order_source, purchased_at
-         ) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?)`
-      ).bind(
-        key, type, durationDays, customOptions, maxUses, now,
-        orderId, customerName, customerEmail, customerDiscord, orderNote,
-        hasOrderInfo ? 'admin' : null,
-        hasOrderInfo ? now : null
-      ).run();
+         ) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(
+          key,
+          type,
+          durationDays,
+          customOptions,
+          maxUses,
+          now,
+          orderId,
+          customerName,
+          customerEmail,
+          customerDiscord,
+          orderNote,
+          hasOrderInfo ? "admin" : null,
+          hasOrderInfo ? now : null,
+        )
+        .run();
 
       keys.push(key);
     }

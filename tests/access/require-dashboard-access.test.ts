@@ -4,8 +4,11 @@ import { requireDashboardAccess } from "../../functions/_lib/admin";
 import { createAppSessionToken } from "../../functions/_lib/auth";
 import { createMockD1 } from "../helpers/mock-d1";
 import {
+  TEST_ACCESS_AUD,
+  TEST_ACCESS_TEAM_DOMAIN,
   accessIdentityHeaders,
   createSyntheticRequest,
+  mintAccessToken,
   testAccessDeps,
   testAccessEnv,
 } from "../helpers/request";
@@ -279,5 +282,66 @@ describe("requireDashboardAccess (AUTH_MODE=app)", () => {
       403,
       "Access allow-list is empty.",
     );
+  });
+
+  describe("ACCESS_ENFORCEMENT with a verifiable JWT", () => {
+    const verifying = {
+      ACCESS_ENFORCEMENT: "strict",
+      ACCESS_TEAM_DOMAIN: TEST_ACCESS_TEAM_DOMAIN,
+      ACCESS_AUD: TEST_ACCESS_AUD,
+      ACCESS_ALLOWED_EMAIL: EMAIL,
+    };
+
+    it("identifies the user from the JWT alone (the proxy shells drop the email header)", async () => {
+      const { env, cookie } = await appEnv(verifying);
+      const request = createSyntheticRequest({
+        path: "/api/admin/data",
+        headers: { cookie, "cf-access-jwt-assertion": await mintAccessToken(EMAIL) },
+      });
+
+      const result = await requireDashboardAccess(request, env, deps);
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.access.accessIdentity).toBe(EMAIL);
+    });
+
+    it("prefers the verified JWT over a spoofed email header", async () => {
+      const { env, cookie } = await appEnv(verifying);
+      const headers = await accessIdentityHeaders("other@example.com", { cookie });
+      headers.set("cf-access-authenticated-user-email", EMAIL);
+      const request = createSyntheticRequest({ path: "/api/admin/data", headers });
+
+      await expectDenied(
+        await requireDashboardAccess(request, env, deps),
+        403,
+        "Access identity is not allowed.",
+      );
+    });
+
+    it("refuses an invalid JWT even when the email header matches the allow-list", async () => {
+      const { env, cookie } = await appEnv(verifying);
+      const headers = await accessIdentityHeaders(EMAIL, { cookie }, { aud: ["other-app"] });
+      const request = createSyntheticRequest({ path: "/api/admin/data", headers });
+
+      await expectDenied(await requireDashboardAccess(request, env, deps), 401);
+    });
+
+    it("keeps the header path when verification is not configured", async () => {
+      const { env, cookie } = await appEnv({
+        ACCESS_ENFORCEMENT: "strict",
+        ACCESS_ALLOWED_EMAIL: EMAIL,
+      });
+      const request = createSyntheticRequest({
+        path: "/api/admin/data",
+        headers: { cookie, "cf-access-authenticated-user-email": EMAIL },
+      });
+
+      const result = await requireDashboardAccess(request, env, deps);
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.access.accessIdentity).toBe(EMAIL);
+    });
   });
 });

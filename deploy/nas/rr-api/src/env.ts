@@ -22,7 +22,9 @@ export interface BuildRuntimeEnvOptions {
 
 /**
  * `processEnv` is copied as-is (strings only, `undefined` entries dropped); `DB`, `KV`,
- * `RL_INGEST`, `RL_REGISTER` and `STORAGE_BACKEND` are always owned by rr-api.
+ * `RL_INGEST`, `RL_REGISTER` and `STORAGE_BACKEND` are always owned by rr-api. `ORIGIN_BASE` is
+ * dropped: rr-api IS the origin, and the embedded worker would otherwise forward its own routes
+ * back to itself in an endless loop.
  */
 export function buildRuntimeEnv(
   processEnv: NodeJS.ProcessEnv | Record<string, string | undefined>,
@@ -35,6 +37,7 @@ export function buildRuntimeEnv(
       passthrough[key] = value;
     }
   }
+  delete passthrough.ORIGIN_BASE;
 
   const ingestPerMinute = readPositiveInt(
     passthrough.RL_INGEST_PER_MINUTE,

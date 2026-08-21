@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
 
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import worker, { resetWorkerStateForTests } from "../../backend-worker/index.js";
-import { createApp, type RrApiApp } from "../../deploy/nas/rr-api/src/app";
+import { createApp, parseWorkerHosts, type RrApiApp } from "../../deploy/nas/rr-api/src/app";
 import { applySchema, locateSchemaFile } from "../../deploy/nas/rr-api/src/bootstrap";
 import { attachCloudflareContext } from "../../deploy/nas/rr-api/src/cf-request";
 import {
@@ -15,15 +15,27 @@ import { buildRuntimeEnv } from "../../deploy/nas/rr-api/src/env";
 import {
   applyTrustedForwarding,
   decodeClientCf,
+  readForwardedHost,
   readRequestHost,
+  rebuildClientUrl,
 } from "../../deploy/nas/rr-api/src/trusted-forwarding";
+import { createSessionCookie } from "../../functions/_lib/auth";
+import { enforceSameOriginMutation } from "../../functions/_lib/csrf";
 import { resetRateLimitsForTests } from "../../functions/_lib/ratelimit";
 import { resetInstallsSchemaStateForTests } from "../../shared/installs-store";
-import { encodeClientCf } from "../../shared/origin-proxy";
+import { buildOriginRequest, encodeClientCf } from "../../shared/origin-proxy";
 import { readRequestContext } from "../../shared/telemetry-contract";
+import {
+  TEST_ACCESS_AUD,
+  TEST_ACCESS_TEAM_DOMAIN,
+  accessIdentityHeaders,
+  getTestAccessSigner,
+} from "../helpers/request";
 
 const ORIGIN_KEY = "nas-origin-key".padEnd(40, "z");
 const ORIGIN_HOST = "origin.test";
+const WORKER_HOST = "backend.rr-admin-panel.workers.dev";
+const PAGES_HOST = "rr-admin-panel.pages.dev";
 const TUNNEL_IP = "198.51.100.1";
 const CLIENT_IP = "203.0.113.7";
 const UNAUTHORIZED = { ok: false, error: "Unauthorized origin request." };
@@ -104,7 +116,9 @@ describe("applyTrustedForwarding", () => {
     expect(result.request.headers.get("x-rr-install")).toBe("6f1d2c9a-9b2e-4a5d-8d77-2f4e1c0a9b13");
     expect(result.request.headers.get("x-app-key")).toBe("legacy");
     expect(result.request.method).toBe("POST");
-    expect(result.request.url).toBe("https://api.test/api/ingest?x=1");
+    // Trusted: the URL moves to the forwarded proto/host, path + query untouched.
+    expect(result.request.url).toBe("https://backend.rr-admin-panel.workers.dev/api/ingest?x=1");
+    expect(result.forwardedHost).toBe("backend.rr-admin-panel.workers.dev");
     expect(await result.request.text()).toBe('{"hello":"world"}');
 
     expect(result.cf).toEqual({
@@ -293,6 +307,135 @@ describe("applyTrustedForwarding", () => {
     expect(request.cf).toEqual({ country: "US", ray: "8f1a2b3c4d5e6f70-IAD", colo: "IAD" });
   });
 
+  it("moves a trusted request onto the forwarded proto/host so same-origin checks see the client URL", async () => {
+    // What the Pages shell delivers over the tunnel: Host = origin host, browser Origin intact.
+    const incoming = tunnelRequest(
+      "/api/admin/licenses?x=1",
+      {
+        ...forwardingHeaders({ "x-rr-forwarded-host": PAGES_HOST }),
+        origin: `https://${PAGES_HOST}`,
+        "sec-fetch-site": "same-origin",
+        "content-type": "application/json",
+      },
+      { method: "POST", body: '{"type":"lifetime"}' },
+      ORIGIN_HOST,
+    );
+    // The tunnel speaks plain http to the container.
+    const tunnelUrl = new Request(incoming.url.replace("https://", "http://"), incoming);
+    expect(tunnelUrl.url).toBe(`http://${ORIGIN_HOST}/api/admin/licenses?x=1`);
+
+    const result = applyTrustedForwarding(tunnelUrl, {
+      originKey: ORIGIN_KEY,
+      originHost: ORIGIN_HOST,
+    });
+    if (!result.ok) throw new Error("expected the request to pass");
+    expect(result.trusted).toBe(true);
+    expect(result.forwardedHost).toBe(PAGES_HOST);
+    expect(result.request.url).toBe(`https://${PAGES_HOST}/api/admin/licenses?x=1`);
+    expect(result.request.method).toBe("POST");
+    expect(result.request.headers.get("origin")).toBe(`https://${PAGES_HOST}`);
+    expect(result.request.headers.get("cf-connecting-ip")).toBe(CLIENT_IP);
+    expectStripped(result.request);
+    expect(await result.request.text()).toBe('{"type":"lifetime"}');
+
+    // The CSRF guard compares Origin with request.url: the dashboard mutation passes …
+    expect(enforceSameOriginMutation(result.request)).toBeNull();
+    // … and the session cookie keeps its Secure flag (the tunnel URL was http).
+    expect(createSessionCookie("tok", result.request)).toContain("; Secure");
+  });
+
+  it("still blocks a cross-site Origin on a trusted mutation", () => {
+    const incoming = tunnelRequest(
+      "/api/admin/licenses",
+      {
+        ...forwardingHeaders({ "x-rr-forwarded-host": PAGES_HOST }),
+        origin: "https://evil.example",
+        "content-type": "application/json",
+      },
+      { method: "POST", body: "{}" },
+      ORIGIN_HOST,
+    );
+    const result = applyTrustedForwarding(incoming, { originKey: ORIGIN_KEY });
+    if (!result.ok) throw new Error("expected the request to pass");
+    expect(enforceSameOriginMutation(result.request)?.status).toBe(403);
+  });
+
+  it("keeps the tunnel URL when the forwarded host/proto is absent or not a plain host", () => {
+    const tunnelUrl = `https://${ORIGIN_HOST}/api/admin/data?q=1`;
+    for (const forwardedHost of [
+      "",
+      "   ",
+      "evil.example/@x",
+      "user@evil.example",
+      "evil example",
+      "evil.example:99999x",
+      "[::1]:8787",
+      "http://evil.example",
+      "-bad.example",
+    ]) {
+      const headers =
+        forwardedHost === ""
+          ? forwardingHeaders()
+          : forwardingHeaders({ "x-rr-forwarded-host": forwardedHost });
+      if (forwardedHost === "") delete headers["x-rr-forwarded-host"];
+      const request = tunnelRequest("/api/admin/data?q=1", headers, {}, ORIGIN_HOST);
+      expect(readForwardedHost(request), forwardedHost).toBeNull();
+      const result = applyTrustedForwarding(request, { originKey: ORIGIN_KEY });
+      if (!result.ok) throw new Error("expected the request to pass");
+      expect(result.trusted).toBe(true);
+      expect(result.forwardedHost, forwardedHost).toBeNull();
+      expect(result.request.url, forwardedHost).toBe(tunnelUrl);
+      expectStripped(result.request);
+    }
+
+    // Bogus proto: host still moves, the tunnel scheme stays.
+    const badProto = applyTrustedForwarding(
+      tunnelRequest(
+        "/api/x",
+        forwardingHeaders({ "x-rr-forwarded-host": PAGES_HOST, "x-rr-forwarded-proto": "ftp" }),
+        {},
+        ORIGIN_HOST,
+      ),
+      { originKey: ORIGIN_KEY },
+    );
+    if (!badProto.ok) throw new Error("expected the request to pass");
+    expect(badProto.request.url).toBe(`https://${PAGES_HOST}/api/x`);
+
+    // Host[:port] and upper-case are accepted and normalised.
+    const withPort = tunnelRequest(
+      "/api/x",
+      forwardingHeaders({ "x-rr-forwarded-host": "Admin.Example:8443" }),
+      {},
+      ORIGIN_HOST,
+    );
+    expect(readForwardedHost(withPort)).toBe("admin.example:8443");
+    expect(rebuildClientUrl(withPort)).toBe("https://admin.example:8443/api/x");
+  });
+
+  it("never rewrites the URL of an untrusted request, whatever X-RR-Forwarded-* it carries", () => {
+    const spoofed = tunnelRequest("/api/admin/data", {
+      "x-rr-forwarded-host": PAGES_HOST,
+      "x-rr-forwarded-proto": "https",
+      origin: `https://${PAGES_HOST}`,
+    });
+    for (const options of [{ originKey: ORIGIN_KEY, originHost: ORIGIN_HOST }, { originKey: "" }]) {
+      const result = applyTrustedForwarding(spoofed, options);
+      if (!result.ok) throw new Error("expected the request to pass");
+      expect(result.trusted).toBe(false);
+      expect(result.forwardedHost).toBeNull();
+      expect(result.request.url).toBe("https://api.test/api/admin/data");
+      expectStripped(result.request);
+    }
+  });
+
+  it("parses WORKER_HOST as a lower-cased, comma-separated set", () => {
+    expect(parseWorkerHosts(undefined)).toEqual(new Set());
+    expect(parseWorkerHosts("")).toEqual(new Set());
+    expect(parseWorkerHosts(` ${WORKER_HOST.toUpperCase()}, backend-staging.test ,`)).toEqual(
+      new Set([WORKER_HOST, "backend-staging.test"]),
+    );
+  });
+
   it("reads the request host from Host, X-Forwarded-Host or the URL", () => {
     expect(
       readRequestHost(new Request("https://a.test/x", { headers: { host: "B.test:443" } })),
@@ -309,10 +452,11 @@ describe("applyTrustedForwarding", () => {
 
 describe("trusted forwarding through createApp", () => {
   const SHARED_KEY = "legacy-shared-key";
+  const ADMIN_EMAIL = "admin@example.com";
   let handle: SqliteDatabaseHandle;
   let api: RrApiApp;
 
-  beforeAll(() => {
+  beforeAll(async () => {
     resetWorkerStateForTests();
     resetInstallsSchemaStateForTests();
     resetRateLimitsForTests();
@@ -324,18 +468,74 @@ describe("trusted forwarding through createApp", () => {
       {
         APP_SHARED_KEY: SHARED_KEY,
         LEGACY_INGEST_KEY_ENABLED: "true",
+        AUTH_MODE: "access",
+        ACCESS_TEAM_DOMAIN: TEST_ACCESS_TEAM_DOMAIN,
+        ACCESS_AUD: TEST_ACCESS_AUD,
+        ACCESS_ALLOWED_EMAIL: ADMIN_EMAIL,
         ORIGIN_KEY,
         ORIGIN_HOST,
+        WORKER_HOST,
       },
       createD1Database(handle),
     );
     api = createApp({ env, worker });
+
+    // Access JWT verification fetches the team JWKS; serve the shared test signer's key instead.
+    const signer = await getTestAccessSigner();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url =
+          typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+        if (url === `https://${TEST_ACCESS_TEAM_DOMAIN}/cdn-cgi/access/certs`) {
+          return new Response(JSON.stringify(signer.jwks), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        throw new Error(`Unexpected network request in test: ${url}`);
+      }),
+    );
   });
 
   afterAll(async () => {
+    vi.unstubAllGlobals();
     await api.drain();
     handle.close();
   });
+
+  /** What rr-api receives when the Pages shell forwards a browser request over the tunnel. */
+  async function viaPagesShell(
+    path: string,
+    init: { method?: string; json?: unknown; origin?: string | null } = {},
+  ): Promise<Request> {
+    const headers = await accessIdentityHeaders(ADMIN_EMAIL, {
+      "cf-connecting-ip": CLIENT_IP,
+      "sec-fetch-site": "same-origin",
+      ...(init.json === undefined ? {} : { "content-type": "application/json" }),
+    });
+    if (init.origin !== null) {
+      headers.set("origin", init.origin ?? `https://${PAGES_HOST}`);
+    }
+    const browserRequest = new Request(new URL(path, `https://${PAGES_HOST}`), {
+      method: init.method ?? (init.json === undefined ? "GET" : "POST"),
+      headers,
+      body: init.json === undefined ? undefined : JSON.stringify(init.json),
+    });
+    const forwarded = buildOriginRequest(browserRequest, {
+      originBase: `https://${ORIGIN_HOST}`,
+      originKey: ORIGIN_KEY,
+    });
+    // cloudflared hands the container the tunnel hostname over plain http.
+    const tunnelHeaders = new Headers(forwarded.headers);
+    tunnelHeaders.set("host", ORIGIN_HOST);
+    return new Request(forwarded.url.replace("https://", "http://"), {
+      method: forwarded.method,
+      headers: tunnelHeaders,
+      body: forwarded.body,
+      duplex: "half",
+    } as RequestInit);
+  }
 
   function event(sessionId: string): Record<string, unknown> {
     return {
@@ -417,5 +617,79 @@ describe("trusted forwarding through createApp", () => {
     );
     expect(response.status).toBe(401);
     expect(await response.json()).toEqual(UNAUTHORIZED);
+  });
+
+  it("accepts a dashboard mutation forwarded by the Pages shell (same-origin guard sees the browser URL)", async () => {
+    const created = await api.fetch(
+      await viaPagesShell("/api/admin/announcements", {
+        json: { title: "Proxied", body: "Created through the shell", level: "info" },
+      }),
+    );
+    expect(created.status, await created.clone().text()).toBeLessThan(300);
+    const row = handle.prepare("SELECT title FROM announcements WHERE title = ?").get("Proxied") as
+      | Record<string, unknown>
+      | undefined;
+    expect(row).toEqual({ title: "Proxied" });
+
+    // A cross-site Origin is still refused behind the shell.
+    const crossSite = await api.fetch(
+      await viaPagesShell("/api/admin/announcements", {
+        json: { title: "Evil", body: "nope" },
+        origin: "https://evil.example",
+      }),
+    );
+    expect(crossSite.status).toBe(403);
+    expect(await crossSite.json()).toMatchObject({
+      ok: false,
+      error: "Cross-site request blocked.",
+    });
+
+    // Reads work too (the Access JWT is verified on rr-api).
+    const list = await api.fetch(await viaPagesShell("/api/admin/announcements"));
+    expect(list.status).toBe(200);
+  });
+
+  it("serves requests forwarded from the worker hostname with the worker surface only", async () => {
+    const fromWorker = (
+      path: string,
+      headers: Record<string, string> = {},
+      init: RequestInit = {},
+    ): Request =>
+      tunnelRequest(
+        path,
+        { ...forwardingHeaders({ "x-rr-forwarded-host": WORKER_HOST }), ...headers },
+        init,
+        ORIGIN_HOST,
+      );
+
+    // Ingest still lands (worker handler, real client ip).
+    const ingest = await api.fetch(
+      fromWorker(
+        "/api/ingest",
+        { "x-app-key": SHARED_KEY, "content-type": "application/json" },
+        { method: "POST", body: JSON.stringify(event("session-worker-shell")) },
+      ),
+    );
+    expect(ingest.status).toBe(202);
+    expect(
+      handle
+        .prepare("SELECT client_ip FROM app_sessions WHERE session_id = ?")
+        .get("session-worker-shell"),
+    ).toEqual({ client_ip: CLIENT_IP });
+
+    // Pages-only routes answer exactly like the standalone worker does today: 410 / 404.
+    const dashboard = await api.fetch(fromWorker("/api/admin/data"));
+    expect(dashboard.status).toBe(410);
+    const publicRoute = await api.fetch(fromWorker("/api/announcements/active"));
+    expect(publicRoute.status).toBe(404);
+    expect(await publicRoute.json()).toEqual({ ok: false, error: "Route not found." });
+
+    // The same public route forwarded by the Pages shell (or reached directly) is served.
+    const viaPages = await api.fetch(
+      fromWorker("/api/announcements/active", { "x-rr-forwarded-host": PAGES_HOST }),
+    );
+    expect(viaPages.status).toBe(200);
+    const direct = await api.fetch(tunnelRequest("/api/announcements/active"));
+    expect(direct.status).toBe(200);
   });
 });

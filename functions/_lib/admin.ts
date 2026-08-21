@@ -1,4 +1,9 @@
-import { resolveAccessIdentity, type AccessIdentityDeps } from "./access-jwt";
+import {
+  ACCESS_JWT_HEADER,
+  isAccessVerificationConfigured,
+  resolveAccessIdentity,
+  type AccessIdentityDeps,
+} from "./access-jwt";
 import { getSessionTokenFromCookie, verifyAppSessionToken } from "./auth";
 import { enforceSameOriginMutation } from "./csrf";
 import { enforceAccessAllowList, error, getAccessIdentity } from "./http";
@@ -32,7 +37,7 @@ export async function requireDashboardAccess(
   if (resolveAuthMode(env) === "access") {
     return requireVerifiedAccess(request, env, deps);
   }
-  return requireAppSession(request, env);
+  return requireAppSession(request, env, deps);
 }
 
 /**
@@ -73,10 +78,17 @@ async function requireVerifiedAccess(
   };
 }
 
-/** `AUTH_MODE=app`: signed cookie session as before, plus the same-origin guard for mutations. */
+/**
+ * `AUTH_MODE=app`: signed cookie session as before, plus the same-origin guard for mutations.
+ * With `ACCESS_ENFORCEMENT` on, the Access identity comes from the verified JWT whenever the
+ * deployment can verify it (behind the proxy shells only the assertion travels, never the
+ * unverified email header); the header stays the best-effort fallback for deployments without
+ * `ACCESS_TEAM_DOMAIN` / `ACCESS_AUD`.
+ */
 async function requireAppSession(
   request: Request,
   env: RuntimeEnv,
+  deps: DashboardAccessDeps | undefined,
 ): Promise<DashboardAccessResult> {
   if (!env.JWT_SECRET) {
     return deny(error(500, "Server is missing JWT_SECRET."));
@@ -94,9 +106,16 @@ async function requireAppSession(
     return deny(error(401, "Login required."));
   }
 
-  const accessIdentity = getAccessIdentity(request, env);
+  let accessIdentity = getAccessIdentity(request, env);
   const accessEnforcement = (env.ACCESS_ENFORCEMENT ?? "off").toLowerCase();
   if (accessEnforcement !== "off") {
+    if (request.headers.get(ACCESS_JWT_HEADER)?.trim() && isAccessVerificationConfigured(env)) {
+      const verified = await resolveAccessIdentity(request, env, deps);
+      if (!verified.ok) {
+        return deny(error(verified.status, verified.message));
+      }
+      accessIdentity = verified.email;
+    }
     if (!accessIdentity) {
       return deny(error(401, "Cloudflare Access identity is required."));
     }

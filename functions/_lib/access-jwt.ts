@@ -149,6 +149,14 @@ export async function verifyAccessJwt(
   };
 }
 
+/** True when `ACCESS_TEAM_DOMAIN` + `ACCESS_AUD` allow `resolveAccessIdentity` to verify tokens. */
+export function isAccessVerificationConfigured(env: RuntimeEnv): boolean {
+  return (
+    normalizeTeamDomain(env.ACCESS_TEAM_DOMAIN).length > 0 &&
+    parseAudiences(env.ACCESS_AUD).length > 0
+  );
+}
+
 /**
  * Resolves the verified Access identity for a dashboard request.
  * 500 when the deployment is not configured for verification, 401 when the token is missing or

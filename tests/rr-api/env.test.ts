@@ -61,6 +61,18 @@ describe("buildRuntimeEnv", () => {
     handle.close();
   });
 
+  it("drops ORIGIN_BASE so the embedded worker can never proxy back to rr-api itself", () => {
+    const handle = createInMemoryDatabase();
+    const env = buildRuntimeEnv(
+      { ORIGIN_BASE: "https://origin.test", ORIGIN_KEY: "k", ORIGIN_HOST: "origin.test" },
+      createD1Database(handle),
+    );
+    expect("ORIGIN_BASE" in env).toBe(false);
+    expect(env.ORIGIN_KEY).toBe("k");
+    expect(env.ORIGIN_HOST).toBe("origin.test");
+    handle.close();
+  });
+
   it("defaults the limiters to 60/min ingest and 5/min register", async () => {
     const handle = createInMemoryDatabase();
     const env = buildRuntimeEnv({}, createD1Database(handle));

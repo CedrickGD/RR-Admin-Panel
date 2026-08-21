@@ -113,9 +113,10 @@ describe("buildOriginRequest", () => {
         "x-rr-client-cf": "eyJjb3VudHJ5IjoiWFgifQ",
         "x-rr-forwarded-host": "evil.example",
         "x-rr-forwarded-proto": "http",
+        // dropped like every other cf-* header (unverified identity; rr-api verifies the JWT)
+        "cf-access-authenticated-user-email": "admin@example.com",
         // forwarded as-is
         "cf-access-jwt-assertion": "jwt-token",
-        "cf-access-authenticated-user-email": "admin@example.com",
         cookie: "rr_session=abc",
         authorization: "Bearer shared-key",
         "content-type": "application/json",
@@ -146,6 +147,7 @@ describe("buildOriginRequest", () => {
       "trailer",
       "proxy-authorization",
       "proxy-connection",
+      "cf-access-authenticated-user-email",
     ]) {
       expect(h.get(dropped), dropped).toBeNull();
     }
@@ -153,7 +155,6 @@ describe("buildOriginRequest", () => {
     expect(h.get("content-length")).not.toBe("7");
 
     expect(h.get("cf-access-jwt-assertion")).toBe("jwt-token");
-    expect(h.get("cf-access-authenticated-user-email")).toBe("admin@example.com");
     expect(h.get("cookie")).toBe("rr_session=abc");
     expect(h.get("authorization")).toBe("Bearer shared-key");
     expect(h.get("content-type")).toBe("application/json");

@@ -50,7 +50,7 @@ afterEach(() => {
 });
 
 describe("functions/api/_middleware (proxy mode)", () => {
-  it("forwards admin requests with cf-access-jwt-assertion and cookie, never calling next()", async () => {
+  it("forwards admin requests with cf-access-jwt-assertion and cookie (not the unverified email header), never calling next()", async () => {
     const fetchMock = stubFetch();
     const local = localNext();
     const headers = await accessIdentityHeaders("admin@example.com", {
@@ -71,7 +71,8 @@ describe("functions/api/_middleware (proxy mode)", () => {
     const sent = sentRequest(fetchMock);
     expect(sent.url).toBe(`${ORIGIN_BASE}/api/admin/data?range=7d`);
     expect(sent.headers.get("cf-access-jwt-assertion")).toBe(jwt);
-    expect(sent.headers.get("cf-access-authenticated-user-email")).toBe("admin@example.com");
+    // Only the verifiable assertion crosses; the unverified identity header is dropped.
+    expect(sent.headers.get("cf-access-authenticated-user-email")).toBeNull();
     expect(sent.headers.get("cookie")).toBe("rr_session=abc");
     expect(sent.headers.get("x-rr-origin-key")).toBe(ORIGIN_KEY);
     expect(sent.headers.get("x-rr-client-ip")).toBe("203.0.113.9");

@@ -52,8 +52,10 @@ export const ORIGIN_UNAVAILABLE_MESSAGE = "Backend temporarily unavailable.";
 
 // Request headers that never cross to the origin: connection/hop-by-hop headers, everything the
 // edge derived for THIS hop (cf-*, x-forwarded-*, x-real-ip, host) and the forwarding headers
-// themselves (a client must not be able to pre-fill them). `cf-access-*` is the exception: Access
-// sets those on the Pages request and rr-api verifies the JWT itself.
+// themselves (a client must not be able to pre-fill them). `cf-access-jwt-assertion` is the one
+// `cf-*` exception: Access sets it on the Pages request and rr-api verifies the JWT itself. The
+// unverified `cf-access-authenticated-user-email` is dropped like every other `cf-*` header — a
+// client could send it to the worker hostname, which has no Access in front.
 const DROPPED_REQUEST_HEADERS: ReadonlySet<string> = new Set([
   "host",
   "x-real-ip",
@@ -69,7 +71,7 @@ const DROPPED_REQUEST_HEADERS: ReadonlySet<string> = new Set([
   ...FORWARDING_HEADERS,
 ]);
 const DROPPED_REQUEST_HEADER_PREFIXES: readonly string[] = ["cf-", "x-forwarded-"];
-const KEPT_REQUEST_HEADER_PREFIXES: readonly string[] = ["cf-access-"];
+const KEPT_REQUEST_HEADERS: ReadonlySet<string> = new Set(["cf-access-jwt-assertion"]);
 
 // Response headers the runtime owns (hop-by-hop) or recomputes (length/encoding).
 const DROPPED_RESPONSE_HEADERS: ReadonlySet<string> = new Set([
@@ -116,7 +118,7 @@ export function readOriginProxyConfig(env: {
 /** True when the proxy must not forward this request header to the origin. */
 export function isDroppedRequestHeader(name: string): boolean {
   const lower = name.toLowerCase();
-  if (KEPT_REQUEST_HEADER_PREFIXES.some((prefix) => lower.startsWith(prefix))) {
+  if (KEPT_REQUEST_HEADERS.has(lower)) {
     return false;
   }
   if (DROPPED_REQUEST_HEADERS.has(lower)) {

@@ -43,6 +43,17 @@ export function isWorkerPath(pathname: string): boolean {
   return WORKER_PREFIXES.some((prefix) => pathname.startsWith(prefix));
 }
 
+/** `WORKER_HOST`: comma-separated hostnames of the standalone worker shell (lower-cased set). */
+export function parseWorkerHosts(raw: unknown): ReadonlySet<string> {
+  if (typeof raw !== "string") return new Set();
+  return new Set(
+    raw
+      .split(",")
+      .map((part) => part.trim().toLowerCase())
+      .filter((part) => part.length > 0),
+  );
+}
+
 function notFound(): Response {
   return Response.json({ ok: false, error: "Route not found." }, { status: 404 });
 }
@@ -86,6 +97,7 @@ export function createApp(options: CreateAppOptions): RrApiApp {
       console.error("background_task_failed", error);
     });
   const pending = new Set<Promise<unknown>>();
+  const workerHosts = parseWorkerHosts(env.WORKER_HOST);
   const app = new Hono();
 
   app.get("/health", (c) => c.json({ ok: true, service: SERVICE_NAME }));
@@ -104,7 +116,15 @@ export function createApp(options: CreateAppOptions): RrApiApp {
     const url = new URL(request.url);
     const ctx = createExecutionContext(onBackgroundError, pending);
 
-    if (isWorkerPath(url.pathname)) {
+    // The worker shell forwards every /api/* and /v1/* path, but its hostname has no Access or
+    // WAF rule in front. Requests it forwarded keep exactly the surface the worker serves on its
+    // own (ingest/register/telemetry, 410 for the dashboard routes, 404 otherwise): the embedded
+    // worker answers them all, never the Pages route table.
+    const fromWorkerShell =
+      forwarding.trusted &&
+      forwarding.forwardedHost !== null &&
+      workerHosts.has(forwarding.forwardedHost);
+    if (fromWorkerShell || isWorkerPath(url.pathname)) {
       return worker.fetch(request, env, ctx);
     }
 

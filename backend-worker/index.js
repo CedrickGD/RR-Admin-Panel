@@ -59,6 +59,13 @@ const HWID_WINDOW_MS = 24 * 60 * 60 * 1000;
 const AUTH_MODE_SIGNED = "signed";
 const AUTH_MODE_LEGACY_KEY = "legacy_key";
 const RATE_LIMIT_RETRY_AFTER_SECONDS = "60";
+// Per-isolate fixed-window fallback next to the platform ratelimit binding: the binding is
+// per-colo and best-effort (observed never tripping in production), this bounds one hot isolate.
+const INGEST_RATE_LIMIT = 60;
+const REGISTER_RATE_LIMIT = 5;
+const RATE_LIMIT_WINDOW_SECONDS = 60;
+const MEMORY_RATE_LIMIT_MAX_ENTRIES = 10_000;
+const memoryRateLimits = new Map();
 
 // Hosted media proxy: read-only Nextcloud public share, fronted by the CF edge
 // cache. The token belongs to a share that only ever contains deliberately
@@ -75,6 +82,7 @@ let schemaReady = false;
 
 /** Test hook: forget the per-isolate schema flag so every test starts from a cold isolate. */
 export function resetWorkerStateForTests() {
+  memoryRateLimits.clear();
   schemaReady = false;
 }
 
@@ -403,7 +411,11 @@ function disabledStandaloneRoute() {
 // ── Install registration (rr.install.v1) ────────────────────────────────────
 
 async function handleRegister(request, env) {
-  if (await isRateLimited(env?.RL_REGISTER, clientIp(request))) {
+  const ip = clientIp(request);
+  if (
+    memoryRateLimited("register", ip, REGISTER_RATE_LIMIT, RATE_LIMIT_WINDOW_SECONDS) ||
+    (await isRateLimited(env?.RL_REGISTER, ip))
+  ) {
     return tooManyRequests();
   }
 
@@ -460,7 +472,11 @@ async function handleRegister(request, env) {
 // ── Telemetry ingest ────────────────────────────────────────────────────────
 
 async function handleIngest(request, env) {
-  if (await isRateLimited(env?.RL_INGEST, clientIp(request))) {
+  const ip = clientIp(request);
+  if (
+    memoryRateLimited("ingest", ip, INGEST_RATE_LIMIT, RATE_LIMIT_WINDOW_SECONDS) ||
+    (await isRateLimited(env?.RL_INGEST, ip))
+  ) {
     return tooManyRequests();
   }
 
@@ -1326,14 +1342,55 @@ function clientIp(request) {
   return request.headers.get("cf-connecting-ip")?.trim() || "unknown";
 }
 
+/** In-isolate fixed window (route + key). Returns true when the caller exceeded `limit` per window. */
+function memoryRateLimited(route, key, limit, windowSeconds, nowMs = Date.now()) {
+  const windowMs = windowSeconds * 1000;
+  const mapKey = `${route}|${key}`;
+  const entry = memoryRateLimits.get(mapKey);
+  if (!entry || nowMs - entry.windowStart >= windowMs) {
+    if (memoryRateLimits.size >= MEMORY_RATE_LIMIT_MAX_ENTRIES) {
+      for (const [k, v] of memoryRateLimits) {
+        if (nowMs - v.windowStart >= windowMs * 2) {
+          memoryRateLimits.delete(k);
+        }
+      }
+      if (memoryRateLimits.size >= MEMORY_RATE_LIMIT_MAX_ENTRIES) {
+        memoryRateLimits.clear();
+      }
+    }
+    memoryRateLimits.set(mapKey, { windowStart: nowMs, count: 1 });
+    return false;
+  }
+  entry.count += 1;
+  return entry.count > limit;
+}
+
+let rateLimitBindingDiagnosed = false;
+
 /** Cloudflare rate-limit binding (`unsafe.bindings` type "ratelimit"); fails open on errors. */
 async function isRateLimited(limiter, key) {
   if (!limiter || typeof limiter.limit !== "function") {
+    if (limiter && !rateLimitBindingDiagnosed) {
+      rateLimitBindingDiagnosed = true;
+      console.warn("ratelimit_binding_unusable", {
+        type: typeof limiter,
+        keys: Object.keys(limiter ?? {}),
+      });
+    }
     return false;
   }
 
   try {
     const outcome = await limiter.limit({ key });
+    if (
+      !rateLimitBindingDiagnosed &&
+      (typeof outcome !== "object" || outcome === null || typeof outcome.success !== "boolean")
+    ) {
+      rateLimitBindingDiagnosed = true;
+      console.warn("ratelimit_binding_unexpected", {
+        outcome: JSON.stringify(outcome)?.slice(0, 200),
+      });
+    }
     return outcome?.success === false;
   } catch (err) {
     console.error("ratelimit_error", { message: errorMessage(err) });

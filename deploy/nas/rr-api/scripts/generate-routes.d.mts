@@ -10,6 +10,7 @@ export interface CollectedRoute {
 export const FUNCTIONS_DIR: string;
 export const OUTPUT_FILE: string;
 
+export function isRouteFile(basename: string): boolean;
 export function readHandlerExports(source: string): string[];
 export function filePathToPattern(relativePath: string): string;
 export function compareRoutes(

@@ -9,6 +9,7 @@
 //   [[name]].ts         -> :name* (catch-all)          (params.name is an array of segments)
 //   onRequest           -> every method (method: null)
 //   onRequestGet|Post|… -> that method only
+//   _middleware.ts etc. -> skipped (Pages middleware / underscore files are not routes)
 //
 // Routes are sorted like Pages (wrangler's compareRoutes): more segments first, then per segment
 // static > param > wildcard, then method-specific before method-less, then path order.
@@ -43,11 +44,22 @@ function walk(dir, files = []) {
     const full = join(dir, entry);
     if (statSync(full).isDirectory()) {
       walk(full, files);
-    } else if (/\.(ts|js|mjs)$/.test(entry) && !entry.endsWith(".d.ts")) {
+    } else if (isRouteFile(entry)) {
       files.push(full);
     }
   }
   return files;
+}
+
+/**
+ * Route modules only: `.ts/.js/.mjs`, no declaration files, and no `_`-prefixed files — Pages
+ * treats `_middleware.ts` as middleware (rr-api applies the proxy switch itself) and never routes
+ * other underscore files either.
+ */
+export function isRouteFile(basename) {
+  if (basename.startsWith("_")) return false;
+  if (basename.endsWith(".d.ts")) return false;
+  return /\.(ts|js|mjs)$/.test(basename);
 }
 
 /** Names of the exported `onRequest*` handlers in a module (declarations and re-exports). */

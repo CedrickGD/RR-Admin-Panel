@@ -16,6 +16,8 @@ export interface CloudflareRequestProperties {
   continent?: string;
   colo?: string;
   ray?: string;
+  asn?: string;
+  asOrganization?: string;
 }
 
 const HEADER_MAP: ReadonlyArray<readonly [string, keyof CloudflareRequestProperties]> = [
@@ -55,12 +57,19 @@ export function readCloudflareProperties(headers: Headers): CloudflareRequestPro
 }
 
 /**
- * Returns a Request whose non-enumerable `cf` property mirrors the Cloudflare headers. The same
+ * Returns a Request whose non-enumerable `cf` property mirrors the Cloudflare headers, overlaid
+ * by `overrides` (the client geo a trusted proxy forwarded — see trusted-forwarding.ts). The same
  * object is returned when it can be extended (keeps the body stream untouched); a frozen request
  * is wrapped instead. Never throws when the headers are absent — `cf` is then just `{}`.
  */
-export function attachCloudflareContext(request: Request): Request {
-  const cf = readCloudflareProperties(request.headers);
+export function attachCloudflareContext(
+  request: Request,
+  overrides: CloudflareRequestProperties = {},
+): Request {
+  const cf: CloudflareRequestProperties = {
+    ...readCloudflareProperties(request.headers),
+    ...overrides,
+  };
   const existing = Object.getOwnPropertyDescriptor(request, "cf");
   if (existing && !existing.configurable) {
     return request;

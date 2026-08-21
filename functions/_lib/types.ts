@@ -67,6 +67,13 @@ export interface RuntimeEnv {
   LEGACY_INGEST_KEY_ENABLED?: string;
   REQUIRE_INSTALL_SIGNATURE?: string;
   BUILD_SHA?: string;
+  // Proxy mode (docs/superpowers/specs/2026-08-21-proxy-shells.md): when ORIGIN_BASE and
+  // ORIGIN_KEY are both set, the Pages middlewares forward /api/* (except /api/health) and /v1/*
+  // to rr-api instead of running the handlers. ORIGIN_HOST is rr-api only: requests arriving on
+  // that hostname must carry the key.
+  ORIGIN_BASE?: string;
+  ORIGIN_KEY?: string;
+  ORIGIN_HOST?: string;
   STORE_SECRET_KEY?: string;
   // Discord verification / paid-community gating.
   VERIFY_SHARED_SECRET?: string; // shared secret the bot presents to /api/discord/verify|status

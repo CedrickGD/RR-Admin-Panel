@@ -75,6 +75,8 @@ function main(): void {
       port: info.port,
       pagesRoutes: api.routeCount,
       cron: cronExpression,
+      trustedForwarding: Boolean(process.env.ORIGIN_KEY?.trim()),
+      originHost: process.env.ORIGIN_HOST?.trim() || null,
     });
   });
 

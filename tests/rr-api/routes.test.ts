@@ -1,5 +1,6 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -9,6 +10,7 @@ import {
   collectRoutes,
   compareRoutes,
   filePathToPattern,
+  isRouteFile,
   readHandlerExports,
   renderRoutesModule,
 } from "../../deploy/nas/rr-api/scripts/generate-routes.mjs";
@@ -31,6 +33,20 @@ describe("generated route table", () => {
     expect(has(null, "/api/admin/data")).toBe(true);
     expect(has(null, "/v1/telemetry/event")).toBe(true);
     expect(has(null, "/api/ingest")).toBe(true);
+  });
+
+  it("contains no _middleware entries (the proxy switch is not a route)", () => {
+    expect(routes.some((route) => route.pattern.includes("_middleware"))).toBe(false);
+    expect(
+      routes.some((route) => route.pattern.split("/").some((segment) => segment.startsWith("_"))),
+    ).toBe(false);
+    // Sanity: the middleware files exist and would have been picked up without the skip.
+    expect(readFileSync(resolve(FUNCTIONS_DIR, "api/_middleware.ts"), "utf8")).toContain(
+      "export async function onRequest",
+    );
+    expect(readFileSync(resolve(FUNCTIONS_DIR, "v1/_middleware.ts"), "utf8")).toContain(
+      "export async function onRequest",
+    );
   });
 
   it("binds every handler to a function", () => {
@@ -92,6 +108,38 @@ describe("file routing rules", () => {
     );
     expect(filePathToPattern("api/admin/licenses/[key]/index")).toBe("/api/admin/licenses/:key");
     expect(filePathToPattern("api/docs/[[path]]")).toBe("/api/docs/:path*");
+  });
+
+  it("skips _-prefixed files and declaration files", () => {
+    expect(isRouteFile("_middleware.ts")).toBe(false);
+    expect(isRouteFile("_helpers.ts")).toBe(false);
+    expect(isRouteFile("health.d.ts")).toBe(false);
+    expect(isRouteFile("health.ts")).toBe(true);
+    expect(isRouteFile("[key].ts")).toBe(true);
+    expect(isRouteFile("event.mjs")).toBe(true);
+    expect(isRouteFile("notes.md")).toBe(false);
+
+    const dir = mkdtempSync(join(tmpdir(), "rr-routes-"));
+    try {
+      mkdirSync(join(dir, "api", "nested"), { recursive: true });
+      mkdirSync(join(dir, "v1"), { recursive: true });
+      writeFileSync(join(dir, "api", "_middleware.ts"), "export async function onRequest() {}\n");
+      writeFileSync(
+        join(dir, "api", "nested", "_middleware.ts"),
+        "export function onRequest() {}\n",
+      );
+      writeFileSync(join(dir, "api", "nested", "_shared.ts"), "export const onRequestGet = 1;\n");
+      writeFileSync(join(dir, "api", "health.ts"), "export async function onRequestGet() {}\n");
+      writeFileSync(join(dir, "v1", "_middleware.ts"), "export const onRequest = () => {};\n");
+      writeFileSync(join(dir, "v1", "event.ts"), "export async function onRequest() {}\n");
+      const collected = collectRoutes(dir);
+      expect(collected.map((route) => `${route.method ?? "ANY"} ${route.pattern}`)).toEqual([
+        "GET /api/health",
+        "ANY /v1/event",
+      ]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("reads declared and re-exported handlers", () => {

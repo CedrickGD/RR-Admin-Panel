@@ -9,6 +9,7 @@ import { installWorkersGlobals } from "./cf-polyfills";
 import type { RrApiEnv } from "./env";
 import { routes as generatedRoutes } from "./routes.generated";
 import { matchRoute, type GeneratedRoute, type PagesFunctionContext } from "./router";
+import { applyTrustedForwarding } from "./trusted-forwarding";
 
 export const SERVICE_NAME = "rr-api";
 
@@ -90,7 +91,16 @@ export function createApp(options: CreateAppOptions): RrApiApp {
   app.get("/health", (c) => c.json({ ok: true, service: SERVICE_NAME }));
 
   app.all("*", async (c) => {
-    const request = attachCloudflareContext(c.req.raw);
+    // Proxy shells (worker / Pages) authenticate with ORIGIN_KEY and hand over the real client's
+    // ip + geo; anything else on ORIGIN_HOST is refused. Strips the X-RR-* forwarding headers.
+    const forwarding = applyTrustedForwarding(c.req.raw, {
+      originKey: env.ORIGIN_KEY,
+      originHost: env.ORIGIN_HOST,
+    });
+    if (!forwarding.ok) {
+      return forwarding.response;
+    }
+    const request = attachCloudflareContext(forwarding.request, forwarding.cf);
     const url = new URL(request.url);
     const ctx = createExecutionContext(onBackgroundError, pending);
 

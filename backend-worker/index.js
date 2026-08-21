@@ -1,6 +1,9 @@
 // Standalone backend worker: install registration, signed/legacy telemetry ingest, media proxy,
 // update proxy and health. Shares the telemetry contract and the install signing/store modules
 // with the Pages Functions (wrangler/esbuild and vitest both resolve the explicit `.ts` imports).
+// Proxy mode (ORIGIN_BASE + ORIGIN_KEY set): every /api/* and /v1/* request except health is
+// forwarded to rr-api on the NAS (docs/superpowers/specs/2026-08-21-proxy-shells.md); media,
+// update and health stay local. Without those vars the worker behaves exactly as before.
 import {
   MAX_BODY_BYTES,
   attachRequestContext,
@@ -22,6 +25,7 @@ import {
   registerInstall,
   touchInstall,
 } from "../shared/installs-store.ts";
+import { proxyToOrigin, readOriginProxyConfig } from "../shared/origin-proxy.ts";
 
 const EVENT_RETENTION_DAYS = 90;
 // Legacy clients heartbeat every 30s; coalesce those into at most one session write per interval.
@@ -143,6 +147,11 @@ export default {
       ) {
         // Liveness only — no D1 round trip, nothing for an unauthenticated caller to learn.
         return json({ ok: true, service: "backend" });
+      }
+
+      const proxyConfig = readOriginProxyConfig(env);
+      if (proxyConfig && isProxiedPath(path)) {
+        return await proxyApiRequest(request, env, proxyConfig);
       }
 
       if (request.method === "GET" && (path === "/api/summary" || path === "/summary")) {
@@ -392,6 +401,62 @@ async function handleUpdateDownload(request, env) {
   }
 
   return new Response(`Installer download failed (${assetRes.status}).`, { status: 502 });
+}
+
+// ── Proxy mode (W3.7) ───────────────────────────────────────────────────────
+
+/** `/api/*` and `/v1/*` except the local health endpoints (media/update never match). */
+function isProxiedPath(path) {
+  if (path === "/api/health" || path === "/healthz") {
+    return false;
+  }
+  return path === "/api" || path.startsWith("/api/") || path === "/v1" || path.startsWith("/v1/");
+}
+
+/**
+ * Proxy mode: the cheap local guards that run before the handler today (per-IP rate limits and
+ * the declared body cap for ingest/register — a rejected request is answered exactly as before),
+ * then the request is forwarded to rr-api. No D1 access on this path.
+ */
+async function proxyApiRequest(request, env, proxyConfig) {
+  const path = new URL(request.url).pathname;
+  if (request.method === "POST" && path === "/api/install/register") {
+    const rejected = await proxyGuard(request, env, "register", REGISTER_MAX_BODY_BYTES);
+    if (rejected) {
+      return rejected;
+    }
+  } else if (
+    request.method === "POST" &&
+    (path === "/v1/telemetry/event" || path === "/api/ingest")
+  ) {
+    const rejected = await proxyGuard(request, env, "ingest", MAX_BODY_BYTES);
+    if (rejected) {
+      return rejected;
+    }
+  }
+  return proxyToOrigin(request, proxyConfig);
+}
+
+/** 429 / 413 exactly like the local handler would answer, or `null` when the request may pass. */
+async function proxyGuard(request, env, route, maxBodyBytes) {
+  const ip = clientIp(request);
+  const limit = route === "register" ? REGISTER_RATE_LIMIT : INGEST_RATE_LIMIT;
+  const binding = route === "register" ? env?.RL_REGISTER : env?.RL_INGEST;
+  if (
+    memoryRateLimited(route, ip, limit, RATE_LIMIT_WINDOW_SECONDS) ||
+    (await isRateLimited(binding, ip))
+  ) {
+    return tooManyRequests();
+  }
+
+  const declared = request.headers.get("content-length");
+  if (declared) {
+    const contentLength = Number.parseInt(declared, 10);
+    if (Number.isFinite(contentLength) && contentLength > maxBodyBytes) {
+      return json({ ok: false, error: `Payload exceeds ${maxBodyBytes} bytes.` }, 413);
+    }
+  }
+  return null;
 }
 
 function disabledStandaloneRoute() {

@@ -1,7 +1,7 @@
 # Ingress for the locally-managed tunnel "rr-nas" (hostnames are public DNS anyway — no secrets here).
 # Credentials JSON lives in ${DATA_DIR}/cloudflared on the NAS, mounted read-only at /etc/cloudflared/creds.
-tunnel: TUNNEL_ID
-credentials-file: /etc/cloudflared/creds/TUNNEL_ID.json
+tunnel: 5d1207af-345f-4713-87c4-c5dcc58a0ade
+credentials-file: /etc/cloudflared/creds/5d1207af-345f-4713-87c4-c5dcc58a0ade.json
 ingress:
   - hostname: media.razorreaper.app
     service: http://caddy:8080

@@ -1,14 +1,33 @@
-const SERVICE_PATTERN = /^[a-zA-Z0-9._:-]{1,64}$/;
-const STATUS_VALUES = new Set(["ok", "degraded", "down"]);
+// Standalone backend worker: install registration, signed/legacy telemetry ingest, media proxy,
+// update proxy and health. Shares the telemetry contract and the install signing/store modules
+// with the Pages Functions (wrangler/esbuild and vitest both resolve the explicit `.ts` imports).
+import {
+  MAX_BODY_BYTES,
+  attachRequestContext,
+  clampTimestamp,
+  normalizePayload,
+  readBodyTextLimited,
+  readRequestContext,
+  validatePayload,
+} from "../shared/telemetry-contract.ts";
+import {
+  hasSignatureHeaders,
+  validateRegistrationBody,
+  verifySignedRequest,
+} from "../shared/install-auth.ts";
+import {
+  countInstallsForHwidSince,
+  ensureInstallsSchema,
+  findInstall,
+  registerInstall,
+  touchInstall,
+} from "../shared/installs-store.ts";
+
 const EVENT_RETENTION_DAYS = 90;
 // Legacy clients heartbeat every 30s; coalesce those into at most one session write per interval.
 const HEARTBEAT_MIN_WRITE_MS = 75 * 1000;
-const ACTIVE_SESSION_TIMEOUT_MS = 6 * 60 * 1000;
 const SESSION_SELECT_COLUMNS =
   "session_id, install_id, hwid, source, user_label, client_ip, client_country, client_city, client_region, client_latitude, client_longitude, client_timezone, client_geo_source, client_geo_signal_source, client_accuracy_meters, client_geo_captured_at, app_version, display_version, platform, os_version, device_model, rpc_enabled, discord_user, features_json, started_at, last_seen_at, ended_at, duration_seconds, is_active, last_event, last_status, error_count, updated_at";
-const MAX_METRICS_KEYS = 64;
-const MAX_MESSAGE_LENGTH = 500;
-const MAX_METRICS_BYTES = 8 * 1024;
 const MAX_FEATURE_KEYS = 32;
 const SESSION_START = "session_start";
 const SESSION_ACTIVE = "session_active";
@@ -30,8 +49,16 @@ const KNOWN_COUNTER_SERVICES = new Set([
   "custom_lab.sky_inject",
   "custom_lab.sky_restore",
   "discord_rpc_toggle",
-  "crosshair_overlay"
+  "crosshair_overlay",
 ]);
+
+// rr.install.v1 — see docs/superpowers/specs/2026-08-21-install-signing-contract.md.
+const REGISTER_MAX_BODY_BYTES = 4 * 1024;
+const INSTALLS_PER_HWID_PER_DAY = 3;
+const HWID_WINDOW_MS = 24 * 60 * 60 * 1000;
+const AUTH_MODE_SIGNED = "signed";
+const AUTH_MODE_LEGACY_KEY = "legacy_key";
+const RATE_LIMIT_RETRY_AFTER_SECONDS = "60";
 
 // Hosted media proxy: read-only Nextcloud public share, fronted by the CF edge
 // cache. The token belongs to a share that only ever contains deliberately
@@ -43,8 +70,21 @@ const MEDIA_MAX_PATH_LENGTH = 512;
 // ship under a new filename anyway (clients cache by URL on disk).
 const MEDIA_CACHE_CONTROL = "public, max-age=3600, s-maxage=86400";
 
-// Schema is idempotent but expensive (~20 statements); run it once per isolate, not per request.
+// Schema is idempotent but expensive (~25 statements); run it once per isolate, not per request.
 let schemaReady = false;
+
+/** Test hook: forget the per-isolate schema flag so every test starts from a cold isolate. */
+export function resetWorkerStateForTests() {
+  schemaReady = false;
+}
+
+class SessionOwnershipError extends Error {
+  constructor(sessionId) {
+    super("Session belongs to another install.");
+    this.name = "SessionOwnershipError";
+    this.sessionId = sessionId;
+  }
+}
 
 export default {
   // Nightly housekeeping (cron in wrangler.toml). Expired licenses disappear from the
@@ -59,8 +99,10 @@ export default {
       const result = await env.DB.prepare(
         `DELETE FROM licenses
          WHERE status = 'expired'
-            OR (expires_at IS NOT NULL AND expires_at < ?)`
-      ).bind(nowIso).run();
+            OR (expires_at IS NOT NULL AND expires_at < ?)`,
+      )
+        .bind(nowIso)
+        .run();
       const deleted = result?.meta?.changes ?? 0;
       if (deleted > 0) {
         console.log(`license cleanup: deleted ${deleted} expired license(s)`);
@@ -71,49 +113,48 @@ export default {
   },
 
   async fetch(request, env, ctx) {
-    if (request.method === "OPTIONS") {
-      return withCors(new Response(null, { status: 204 }), request);
-    }
-
     const url = new URL(request.url);
     const path = url.pathname;
+    const isMedia = path.startsWith("/media/");
+
+    // Only the media proxy is consumed cross-origin (app WebViews, the website); API routes
+    // are called by the desktop client and never need CORS.
+    if (request.method === "OPTIONS") {
+      const preflight = new Response(null, { status: 204 });
+      return isMedia ? withCors(preflight, request) : preflight;
+    }
 
     try {
-      if ((request.method === "GET" || request.method === "HEAD") && path.startsWith("/media/")) {
+      if ((request.method === "GET" || request.method === "HEAD") && isMedia) {
         return await handleMedia(request, env, ctx);
       }
 
-      if (request.method === "GET" && path === "/health") {
-        return json(
-          {
-            ok: true,
-            service: "backend",
-            storage: "rr_admin_panel"
-          },
-          200,
-          request
-        );
-      }
-
-      if (request.method === "GET" && (path === "/api/health" || path === "/healthz")) {
-        const health = await loadHealth(env);
-        return json(health, 200, request);
+      if (
+        request.method === "GET" &&
+        (path === "/health" || path === "/api/health" || path === "/healthz")
+      ) {
+        // Liveness only — no D1 round trip, nothing for an unauthenticated caller to learn.
+        return json({ ok: true, service: "backend" });
       }
 
       if (request.method === "GET" && (path === "/api/summary" || path === "/summary")) {
-        return disabledStandaloneRoute(request);
+        return disabledStandaloneRoute();
       }
 
       if (request.method === "GET" && path === "/api/auth/session") {
-        return disabledStandaloneRoute(request);
+        return disabledStandaloneRoute();
       }
 
       if (request.method === "POST" && path === "/api/auth/logout") {
-        return disabledStandaloneRoute(request);
+        return disabledStandaloneRoute();
       }
 
       if (request.method === "GET" && path === "/api/admin/data") {
-        return disabledStandaloneRoute(request);
+        return disabledStandaloneRoute();
+      }
+
+      if (request.method === "POST" && path === "/api/install/register") {
+        return await handleRegister(request, env);
       }
 
       if (request.method === "POST" && (path === "/v1/telemetry/event" || path === "/api/ingest")) {
@@ -124,30 +165,18 @@ export default {
         return await handleUpdateManifest(request, env);
       }
 
-      if (request.method === "GET" && (path === "/update/download" || path === "/update/download/latest")) {
+      if (
+        request.method === "GET" &&
+        (path === "/update/download" || path === "/update/download/latest")
+      ) {
         return await handleUpdateDownload(request, env);
       }
 
-      return json(
-        {
-          ok: false,
-          error: "Route not found."
-        },
-        404,
-        request
-      );
+      return json({ ok: false, error: "Route not found." }, 404);
     } catch (err) {
-      return json(
-        {
-          ok: false,
-          error: "Internal error.",
-          details: err instanceof Error ? err.message : String(err)
-        },
-        500,
-        request
-      );
+      return internalError(err);
     }
-  }
+  },
 };
 
 async function handleMedia(request, env, ctx) {
@@ -157,7 +186,7 @@ async function handleMedia(request, env, ctx) {
   try {
     mediaPath = decodeURIComponent(url.pathname.slice("/media/".length));
   } catch {
-    return json({ ok: false, error: "Invalid media path encoding." }, 400, request);
+    return withCors(json({ ok: false, error: "Invalid media path encoding." }, 400), request);
   }
 
   if (
@@ -168,7 +197,7 @@ async function handleMedia(request, env, ctx) {
     mediaPath.startsWith("/") ||
     mediaPath.endsWith("/")
   ) {
-    return json({ ok: false, error: "Invalid media path." }, 400, request);
+    return withCors(json({ ok: false, error: "Invalid media path." }, 400), request);
   }
 
   const davBase = (env?.NEXTCLOUD_PUBLIC_DAV_BASE || MEDIA_DAV_BASE).replace(/\/+$/, "");
@@ -196,20 +225,32 @@ async function handleMedia(request, env, ctx) {
     mediaPath.split("/").map(encodeURIComponent).join("/");
   const upstream = await fetch(upstreamUrl, {
     method: "GET",
-    headers: rangeHeader ? { Range: rangeHeader } : undefined
+    headers: rangeHeader ? { Range: rangeHeader } : undefined,
   });
 
   if (!(upstream.status === 200 || upstream.status === 206)) {
     const notFound = upstream.status === 404;
-    return json(
-      { ok: false, error: notFound ? "File not found." : `Upstream fetch failed (${upstream.status}).` },
-      notFound ? 404 : 502,
-      request
+    return withCors(
+      json(
+        {
+          ok: false,
+          error: notFound ? "File not found." : `Upstream fetch failed (${upstream.status}).`,
+        },
+        notFound ? 404 : 502,
+      ),
+      request,
     );
   }
 
   const headers = new Headers();
-  for (const name of ["content-type", "content-length", "content-range", "etag", "last-modified", "accept-ranges"]) {
+  for (const name of [
+    "content-type",
+    "content-length",
+    "content-range",
+    "etag",
+    "last-modified",
+    "accept-ranges",
+  ]) {
     const value = upstream.headers.get(name);
     if (value) {
       headers.set(name, value);
@@ -248,7 +289,7 @@ function ghConfig(env) {
     token: (env.GITHUB_TOKEN ?? "").trim(),
     repo: (env.GITHUB_REPO ?? "CedrickGD/RazorReaper").trim(),
     branch: (env.GITHUB_BRANCH ?? "master").trim(),
-    asset: (env.UPDATE_ASSET_NAME ?? "RazorReaper-Setup.exe").trim()
+    asset: (env.UPDATE_ASSET_NAME ?? "RazorReaper-Setup.exe").trim(),
   };
 }
 
@@ -256,7 +297,7 @@ function ghHeaders(cfg, accept) {
   const headers = {
     Accept: accept,
     "User-Agent": "RazorReaper-Updater",
-    "X-GitHub-Api-Version": "2022-11-28"
+    "X-GitHub-Api-Version": "2022-11-28",
   };
   if (cfg.token) {
     headers.Authorization = `Bearer ${cfg.token}`;
@@ -289,8 +330,8 @@ async function handleUpdateManifest(request, env) {
     status: 200,
     headers: {
       "content-type": "application/xml; charset=utf-8",
-      "cache-control": "public, max-age=120"
-    }
+      "cache-control": "public, max-age=120",
+    },
   });
 }
 
@@ -300,7 +341,7 @@ async function handleUpdateDownload(request, env) {
   let relRes;
   try {
     relRes = await fetch(`${GH_API}/repos/${cfg.repo}/releases/latest`, {
-      headers: ghHeaders(cfg, "application/vnd.github+json")
+      headers: ghHeaders(cfg, "application/vnd.github+json"),
     });
   } catch {
     return new Response("Release lookup unavailable.", { status: 502 });
@@ -312,7 +353,9 @@ async function handleUpdateDownload(request, env) {
   const rel = await relRes.json();
   const asset = Array.isArray(rel?.assets) ? rel.assets.find((a) => a.name === cfg.asset) : null;
   if (!asset) {
-    return new Response(`Installer '${cfg.asset}' not found in the latest release.`, { status: 404 });
+    return new Response(`Installer '${cfg.asset}' not found in the latest release.`, {
+      status: 404,
+    });
   }
 
   // The asset API 302-redirects to a short-lived, pre-signed URL that needs no auth — hand that
@@ -321,7 +364,7 @@ async function handleUpdateDownload(request, env) {
   try {
     assetRes = await fetch(asset.url, {
       headers: ghHeaders(cfg, "application/octet-stream"),
-      redirect: "manual"
+      redirect: "manual",
     });
   } catch {
     return new Response("Installer download unavailable.", { status: 502 });
@@ -338,105 +381,142 @@ async function handleUpdateDownload(request, env) {
       status: 200,
       headers: {
         "content-type": "application/octet-stream",
-        "content-disposition": `attachment; filename="${cfg.asset}"`
-      }
+        "content-disposition": `attachment; filename="${cfg.asset}"`,
+      },
     });
   }
 
   return new Response(`Installer download failed (${assetRes.status}).`, { status: 502 });
 }
 
-function disabledStandaloneRoute(request) {
+function disabledStandaloneRoute() {
   return json(
     {
       ok: false,
-      error: "Dashboard routes are disabled on the standalone worker. Use the Cloudflare Pages app behind Zero Trust."
+      error:
+        "Dashboard routes are disabled on the standalone worker. Use the Cloudflare Pages app behind Zero Trust.",
     },
     410,
-    request
   );
 }
 
+// ── Install registration (rr.install.v1) ────────────────────────────────────
+
+async function handleRegister(request, env) {
+  if (await isRateLimited(env?.RL_REGISTER, clientIp(request))) {
+    return tooManyRequests();
+  }
+
+  const db = requireDb(env);
+
+  const body = await readBodyTextLimited(request, REGISTER_MAX_BODY_BYTES);
+  if (!body.ok) {
+    return json({ ok: false, error: body.message }, body.status);
+  }
+
+  const raw = parseJson(body.text);
+  if (raw === undefined) {
+    return json({ ok: false, error: "Request body must be valid JSON." }, 400);
+  }
+
+  const registration = validateRegistrationBody(raw);
+  if (!registration.ok) {
+    return json({ ok: false, error: registration.message }, 400);
+  }
+
+  const { installId, hwid, publicKeyJwk, appVersion, licenseKey } = registration.value;
+  await ensureInstallsSchema(db);
+
+  const nowMs = Date.now();
+  const since = new Date(nowMs - HWID_WINDOW_MS).toISOString();
+  const recentInstalls = await countInstallsForHwidSince(db, hwid, since);
+  if (recentInstalls >= INSTALLS_PER_HWID_PER_DAY) {
+    return json({ ok: false, error: "Too many installs for this device." }, 429);
+  }
+
+  const result = await registerInstall(db, {
+    installId,
+    hwid,
+    publicKeyJwk,
+    appVersion,
+    licenseKey,
+    nowIso: new Date(nowMs).toISOString(),
+  });
+
+  switch (result.outcome) {
+    case "created":
+      return json({ ok: true, install_id: installId, registered_at: result.registeredAt }, 201);
+    case "same":
+      return json({ ok: true, install_id: installId, registered_at: result.registeredAt }, 200);
+    case "conflict":
+      return json({ ok: false, error: "install_id already registered with a different key" }, 409);
+    case "revoked":
+      return json({ ok: false, error: "Install is revoked." }, 401);
+    default:
+      throw new Error(`Unexpected registration outcome: ${String(result.outcome)}`);
+  }
+}
+
+// ── Telemetry ingest ────────────────────────────────────────────────────────
+
 async function handleIngest(request, env) {
-  if (!env?.DB) {
-    return json(
-      {
-        ok: false,
-        error: "D1 binding DB is missing."
-      },
-      500,
-      request
-    );
+  if (await isRateLimited(env?.RL_INGEST, clientIp(request))) {
+    return tooManyRequests();
   }
 
-  const authError = validateAuthorization(request, env);
-  if (authError) {
-    return authError;
+  const db = requireDb(env);
+
+  const body = await readBodyTextLimited(request, MAX_BODY_BYTES);
+  if (!body.ok) {
+    return json({ ok: false, error: body.message }, body.status);
   }
 
-  let raw;
-  try {
-    raw = await request.json();
-  } catch {
-    return json(
-      {
-        ok: false,
-        error: "Request body must be valid JSON."
-      },
-      400,
-      request
-    );
+  const auth = await authenticateIngest(request, env, db, body.text);
+  if (!auth.ok) {
+    return auth.response;
+  }
+
+  const raw = parseJson(body.text);
+  if (raw === undefined) {
+    return json({ ok: false, error: "Request body must be valid JSON." }, 400);
   }
 
   const normalized = normalizePayload(raw);
   if (!normalized.valid) {
-    return json(
-      {
-        ok: false,
-        error: normalized.message
-      },
-      400,
-      request
-    );
+    return json({ ok: false, error: normalized.message }, 400);
   }
 
   const payload = normalized.payload;
   const validation = validatePayload(payload);
   if (!validation.valid) {
-    return json(
-      {
-        ok: false,
-        error: validation.message
-      },
-      400,
-      request
-    );
+    return json({ ok: false, error: validation.message }, 400);
   }
 
-  const now = nowIso();
-  const requestContext = readRequestContext(request);
+  const nowMs = Date.now();
+  const metrics = attachRequestContext(payload.metrics, readRequestContext(request));
+  if (auth.installId) {
+    // The authenticated install always wins over whatever the body claims.
+    metrics.install_id = auth.installId;
+  }
+
   const event = {
     id: crypto.randomUUID(),
     source: payload.source,
     service: payload.service,
-    timestamp: new Date(payload.timestamp).toISOString(),
+    timestamp: clampTimestamp(payload.timestamp, nowMs).iso,
     status: payload.status,
-    metrics: attachRequestContext(payload.metrics, requestContext),
+    metrics,
     message: payload.message ?? null,
-    receivedAt: now
+    receivedAt: new Date(nowMs).toISOString(),
   };
 
   try {
-    await storeTelemetryD1(env, event);
+    await storeTelemetryD1(db, event, auth.installId, auth.mode);
   } catch (err) {
-    return json(
-      {
-        ok: false,
-        error: err instanceof Error ? err.message : "Failed to persist telemetry."
-      },
-      500,
-      request
-    );
+    if (err instanceof SessionOwnershipError) {
+      return json({ ok: false, error: "Session belongs to another install." }, 403);
+    }
+    return internalError(err);
   }
 
   return json(
@@ -445,52 +525,87 @@ async function handleIngest(request, env) {
       accepted: true,
       backend: "d1",
       eventId: event.id,
-      receivedAt: event.receivedAt
+      receivedAt: event.receivedAt,
     },
     202,
-    request
   );
 }
 
-function validateAuthorization(request, env) {
-  const sharedKey = (env.APP_SHARED_KEY ?? env.INGEST_TOKEN ?? "").trim();
+/**
+ * Signed requests (rr.install.v1) are verified against the installs table; unsigned requests
+ * fall back to the shared legacy key only while LEGACY_INGEST_KEY_ENABLED is not "false".
+ * A request that carries any signature header never falls back to the legacy key.
+ */
+async function authenticateIngest(request, env, db, bodyText) {
+  if (hasSignatureHeaders(request)) {
+    await ensureInstallsSchema(db);
+    const verdict = await verifySignedRequest(request, bodyText, {
+      lookupInstall: (installId) => findInstall(db, installId),
+    });
+    if (!verdict.ok) {
+      return { ok: false, response: invalidInstallSignature() };
+    }
+
+    try {
+      await touchInstall(db, verdict.installId, nowIso());
+    } catch (err) {
+      // last_seen_at is a convenience column; never fail ingest over it.
+      console.error("install_touch_failed", { message: errorMessage(err) });
+    }
+
+    return { ok: true, installId: verdict.installId, mode: AUTH_MODE_SIGNED };
+  }
+
+  if (!legacyIngestKeyEnabled(env)) {
+    return { ok: false, response: invalidInstallSignature() };
+  }
+
+  if (!legacyKeyAuthorized(request, env)) {
+    return { ok: false, response: json({ ok: false, error: "Invalid ingest credentials." }, 401) };
+  }
+
+  return { ok: true, installId: null, mode: AUTH_MODE_LEGACY_KEY };
+}
+
+function legacyIngestKeyEnabled(env) {
+  return (env?.LEGACY_INGEST_KEY_ENABLED ?? "true").trim().toLowerCase() !== "false";
+}
+
+function legacyKeyAuthorized(request, env) {
+  const sharedKey = (env?.APP_SHARED_KEY ?? env?.INGEST_TOKEN ?? "").trim();
   if (!sharedKey) {
-    return json(
-      {
-        ok: false,
-        error: "Ingest key is missing (APP_SHARED_KEY or INGEST_TOKEN)."
-      },
-      500,
-      request
-    );
+    return false;
   }
 
   const headerValue = request.headers.get("x-app-key")?.trim() ?? "";
   const bearer = readBearerToken(request);
 
-  const authorized =
+  return (
     (headerValue.length > 0 && timingSafeEqual(headerValue, sharedKey)) ||
-    (bearer !== null && timingSafeEqual(bearer, sharedKey));
-
-  if (!authorized) {
-    return json(
-      {
-        ok: false,
-        error: "Invalid ingest credentials."
-      },
-      401,
-      request
-    );
-  }
-
-  return null;
+    (bearer !== null && timingSafeEqual(bearer, sharedKey))
+  );
 }
 
-async function storeTelemetryD1(env, event) {
-  const db = env.DB;
+function invalidInstallSignature() {
+  return json({ ok: false, error: "Invalid install signature." }, 401);
+}
+
+async function storeTelemetryD1(db, event, ownerInstallId, authMode) {
   await ensureTelemetrySchema(db);
 
-  const existing = await readSessionRow(db, readSessionId(event));
+  const sessionId = readSessionId(event);
+  const existing = await readSessionRow(db, sessionId);
+
+  // A signed install may only write into sessions it owns; nobody can poison another
+  // install's session row by guessing its session_id.
+  const existingOwner = toText(existing?.install_id);
+  if (
+    ownerInstallId &&
+    existingOwner &&
+    existingOwner.toLowerCase() !== ownerInstallId.toLowerCase()
+  ) {
+    throw new SessionOwnershipError(sessionId);
+  }
 
   // Heartbeats are liveness pings, not history: they only bump the session row.
   // No event row, no counters — and at most one write per HEARTBEAT_MIN_WRITE_MS
@@ -508,10 +623,20 @@ async function storeTelemetryD1(env, event) {
   await db
     .prepare(
       `INSERT INTO telemetry_events
-        (event_id, source, service, ts, status, metrics_json, message, received_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+        (event_id, source, service, ts, status, metrics_json, message, received_at, ingest_auth_mode)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .bind(event.id, event.source, event.service, event.timestamp, event.status, metricsJson, event.message, event.receivedAt)
+    .bind(
+      event.id,
+      event.source,
+      event.service,
+      event.timestamp,
+      event.status,
+      metricsJson,
+      event.message,
+      event.receivedAt,
+      authMode,
+    )
     .run();
 
   const counterService = KNOWN_COUNTER_SERVICES.has(event.service) ? event.service : "other";
@@ -548,7 +673,7 @@ async function readSessionRow(db, sessionId) {
     .prepare(
       `SELECT ${SESSION_SELECT_COLUMNS}
        FROM app_sessions
-       WHERE session_id = ?`
+       WHERE session_id = ?`,
     )
     .bind(sessionId)
     .first();
@@ -560,7 +685,7 @@ async function bumpCounters(db, keys, updatedAt) {
      VALUES (?, 1, ?)
      ON CONFLICT(counter_key) DO UPDATE SET
        counter_value = counter_value + 1,
-       updated_at = excluded.updated_at`
+       updated_at = excluded.updated_at`,
   );
 
   await db.batch(keys.map((key) => statement.bind(key, updatedAt)));
@@ -569,39 +694,6 @@ async function bumpCounters(db, keys, updatedAt) {
 async function trimOldEvents(db) {
   const cutoff = new Date(Date.now() - EVENT_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
   await db.prepare(`DELETE FROM telemetry_events WHERE ts < ?`).bind(cutoff).run();
-}
-
-async function loadHealth(env) {
-  const db = env.DB;
-  if (!db) {
-    throw new Error("D1 binding DB is missing.");
-  }
-
-  await ensureTelemetrySchema(db);
-  await expireStaleSessionsD1(db);
-  await db.prepare("SELECT 1").first();
-  const stats = await db.prepare("SELECT COUNT(*) AS totalEvents, MAX(ts) AS lastIngestAt FROM telemetry_events").first();
-  const lifetime = await db
-    .prepare("SELECT counter_value FROM telemetry_counters WHERE counter_key = 'events_total'")
-    .first();
-
-  return {
-    ok: true,
-    api: "alive",
-    storage: {
-      backend: "d1",
-      available: true
-    },
-    lastIngestAt: stats?.lastIngestAt ?? null,
-    count: toNumber(stats?.totalEvents),
-    lifetimeEvents: toNumber(lifetime?.counter_value),
-    build: {
-      commit: "backend",
-      branch: "production",
-      environment: "workers",
-      generatedAt: nowIso()
-    }
-  };
 }
 
 function mapSessionRow(row) {
@@ -627,7 +719,10 @@ function mapSessionRow(row) {
     platform: row.platform ?? null,
     osVersion: row.os_version ?? null,
     deviceModel: row.device_model ?? null,
-    rpcEnabled: row.rpc_enabled === null || row.rpc_enabled === undefined ? null : toNumber(row.rpc_enabled) === 1,
+    rpcEnabled:
+      row.rpc_enabled === null || row.rpc_enabled === undefined
+        ? null
+        : toNumber(row.rpc_enabled) === 1,
     discordUser: row.discord_user ?? null,
     featuresJson: row.features_json ?? null,
     startedAt: row.started_at,
@@ -637,7 +732,7 @@ function mapSessionRow(row) {
     isActive: toNumber(row.is_active) === 1,
     lastEvent: row.last_event ?? null,
     lastStatus: row.last_status,
-    errorCount: toNumber(row.error_count)
+    errorCount: toNumber(row.error_count),
   };
 }
 
@@ -656,7 +751,8 @@ async function ensureTelemetrySchema(db) {
       status TEXT NOT NULL CHECK (status IN ('ok', 'degraded', 'down')),
       metrics_json TEXT NOT NULL DEFAULT '{}',
       message TEXT,
-      received_at TEXT NOT NULL
+      received_at TEXT NOT NULL,
+      ingest_auth_mode TEXT
     )`,
     `CREATE INDEX IF NOT EXISTS idx_events_ts ON telemetry_events(ts DESC)`,
     `CREATE INDEX IF NOT EXISTS idx_events_source_service ON telemetry_events(source, service, ts DESC)`,
@@ -695,9 +791,10 @@ async function ensureTelemetrySchema(db) {
       counter_key TEXT PRIMARY KEY,
       counter_value INTEGER NOT NULL DEFAULT 0,
       updated_at TEXT NOT NULL
-    )`
+    )`,
   ];
   const alterStatements = [
+    `ALTER TABLE telemetry_events ADD COLUMN ingest_auth_mode TEXT`,
     `ALTER TABLE app_sessions ADD COLUMN client_city TEXT`,
     `ALTER TABLE app_sessions ADD COLUMN client_region TEXT`,
     `ALTER TABLE app_sessions ADD COLUMN client_latitude REAL`,
@@ -713,7 +810,7 @@ async function ensureTelemetrySchema(db) {
     `ALTER TABLE app_sessions ADD COLUMN device_model TEXT`,
     `ALTER TABLE app_sessions ADD COLUMN rpc_enabled INTEGER`,
     `ALTER TABLE app_sessions ADD COLUMN features_json TEXT`,
-    `ALTER TABLE app_sessions ADD COLUMN discord_user TEXT`
+    `ALTER TABLE app_sessions ADD COLUMN discord_user TEXT`,
   ];
 
   for (const statement of statements) {
@@ -731,36 +828,10 @@ async function ensureTelemetrySchema(db) {
     }
   }
 
+  // Signed ingest looks installs up before storing; the table must exist alongside the rest.
+  await ensureInstallsSchema(db);
+
   schemaReady = true;
-}
-
-async function expireStaleSessionsD1(db) {
-  if (!db) {
-    return;
-  }
-
-  const cutoff = new Date(Date.now() - ACTIVE_SESSION_TIMEOUT_MS).toISOString();
-
-  await db
-    .prepare(
-      `UPDATE app_sessions
-       SET
-         is_active = 0,
-         ended_at = COALESCE(ended_at, last_seen_at),
-         duration_seconds = COALESCE(
-           duration_seconds,
-           CASE
-             WHEN strftime('%s', last_seen_at) >= strftime('%s', started_at)
-             THEN CAST(strftime('%s', last_seen_at) - strftime('%s', started_at) AS INTEGER)
-             ELSE duration_seconds
-           END
-         ),
-         updated_at = ?
-       WHERE is_active = 1
-         AND last_seen_at < ?`
-    )
-    .bind(nowIso(), cutoff)
-    .run();
 }
 
 async function upsertSessionD1(db, event, existingRow) {
@@ -812,7 +883,7 @@ async function upsertSessionD1(db, event, existingRow) {
          last_event = excluded.last_event,
          last_status = excluded.last_status,
          error_count = excluded.error_count,
-         updated_at = excluded.updated_at`
+         updated_at = excluded.updated_at`,
     )
     .bind(
       next.id,
@@ -847,7 +918,7 @@ async function upsertSessionD1(db, event, existingRow) {
       next.lastEvent,
       next.lastStatus,
       next.errorCount,
-      nowIso()
+      nowIso(),
     )
     .run();
 }
@@ -860,33 +931,76 @@ function mergeSessionRecord(existing, event) {
   }
 
   const hwid = readMetricText(event.metrics, ["hwid"]) ?? existing?.hwid ?? null;
-  const source = readMetricText(event.metrics, ["app_name"]) ?? event.source ?? existing?.source ?? "razorreaper";
-  const userLabel = readMetricText(event.metrics, ["user_label", "machine_name"]) ?? existing?.userLabel ?? null;
+  const source =
+    readMetricText(event.metrics, ["app_name"]) ??
+    event.source ??
+    existing?.source ??
+    "razorreaper";
+  const userLabel =
+    readMetricText(event.metrics, ["user_label", "machine_name"]) ?? existing?.userLabel ?? null;
   const clientIp = readMetricText(event.metrics, ["client_ip", "ip"]) ?? existing?.clientIp ?? null;
-  const clientCountry = readMetricText(event.metrics, ["client_country", "country"]) ?? existing?.clientCountry ?? null;
-  const clientCity = readMetricText(event.metrics, ["client_city", "city"]) ?? existing?.clientCity ?? null;
-  const clientRegion = readMetricText(event.metrics, ["client_region", "region"]) ?? existing?.clientRegion ?? null;
-  const clientLatitude = readMetricFloat(event.metrics, ["client_latitude", "latitude"]) ?? existing?.clientLatitude ?? null;
-  const clientLongitude = readMetricFloat(event.metrics, ["client_longitude", "longitude"]) ?? existing?.clientLongitude ?? null;
-  const clientTimezone = readMetricText(event.metrics, ["client_timezone", "timezone"]) ?? existing?.clientTimezone ?? null;
-  const clientGeoSource = readMetricText(event.metrics, ["client_geo_source", "geo_source"]) ?? existing?.clientGeoSource ?? null;
-  const clientGeoSignalSource = readMetricText(event.metrics, ["client_geo_signal_source", "geo_signal_source"]) ?? existing?.clientGeoSignalSource ?? null;
-  const clientAccuracyMeters = readMetricFloat(event.metrics, ["client_accuracy_meters", "accuracy_meters"]) ?? existing?.clientAccuracyMeters ?? null;
-  const clientGeoCapturedAt = readMetricText(event.metrics, ["client_geo_captured_at", "geo_captured_at"]) ?? existing?.clientGeoCapturedAt ?? null;
-  const appVersion = readMetricText(event.metrics, ["app_version", "version"]) ?? existing?.appVersion ?? null;
+  const clientCountry =
+    readMetricText(event.metrics, ["client_country", "country"]) ?? existing?.clientCountry ?? null;
+  const clientCity =
+    readMetricText(event.metrics, ["client_city", "city"]) ?? existing?.clientCity ?? null;
+  const clientRegion =
+    readMetricText(event.metrics, ["client_region", "region"]) ?? existing?.clientRegion ?? null;
+  const clientLatitude =
+    readMetricFloat(event.metrics, ["client_latitude", "latitude"]) ??
+    existing?.clientLatitude ??
+    null;
+  const clientLongitude =
+    readMetricFloat(event.metrics, ["client_longitude", "longitude"]) ??
+    existing?.clientLongitude ??
+    null;
+  const clientTimezone =
+    readMetricText(event.metrics, ["client_timezone", "timezone"]) ??
+    existing?.clientTimezone ??
+    null;
+  const clientGeoSource =
+    readMetricText(event.metrics, ["client_geo_source", "geo_source"]) ??
+    existing?.clientGeoSource ??
+    null;
+  const clientGeoSignalSource =
+    readMetricText(event.metrics, ["client_geo_signal_source", "geo_signal_source"]) ??
+    existing?.clientGeoSignalSource ??
+    null;
+  const clientAccuracyMeters =
+    readMetricFloat(event.metrics, ["client_accuracy_meters", "accuracy_meters"]) ??
+    existing?.clientAccuracyMeters ??
+    null;
+  const clientGeoCapturedAt =
+    readMetricText(event.metrics, ["client_geo_captured_at", "geo_captured_at"]) ??
+    existing?.clientGeoCapturedAt ??
+    null;
+  const appVersion =
+    readMetricText(event.metrics, ["app_version", "version"]) ?? existing?.appVersion ?? null;
   const displayVersion =
-    readMetricText(event.metrics, ["app_display_version"]) ?? normalizeDisplayVersion(appVersion) ?? existing?.displayVersion ?? null;
-  const platform = readMetricText(event.metrics, ["platform", "os_platform", "os"]) ?? existing?.platform ?? null;
+    readMetricText(event.metrics, ["app_display_version"]) ??
+    normalizeDisplayVersion(appVersion) ??
+    existing?.displayVersion ??
+    null;
+  const platform =
+    readMetricText(event.metrics, ["platform", "os_platform", "os"]) ?? existing?.platform ?? null;
   const osVersion = readMetricText(event.metrics, ["os_version"]) ?? existing?.osVersion ?? null;
-  const deviceModel = readMetricText(event.metrics, ["device_model"]) ?? existing?.deviceModel ?? null;
-  const rpcEnabled = readMetricBool(event.metrics, ["rpc_enabled", "discord_rpc_enabled", "discord_rpc"]) ?? existing?.rpcEnabled ?? null;
-  const discordUser = readMetricText(event.metrics, ["discord_user", "discord_username", "discord_name"]) ?? existing?.discordUser ?? null;
+  const deviceModel =
+    readMetricText(event.metrics, ["device_model"]) ?? existing?.deviceModel ?? null;
+  const rpcEnabled =
+    readMetricBool(event.metrics, ["rpc_enabled", "discord_rpc_enabled", "discord_rpc"]) ??
+    existing?.rpcEnabled ??
+    null;
+  const discordUser =
+    readMetricText(event.metrics, ["discord_user", "discord_username", "discord_name"]) ??
+    existing?.discordUser ??
+    null;
   const metricStartedAt = readMetricText(event.metrics, ["session_started_at"]);
   const eventTimestamp = event.timestamp;
 
   let featuresJson = existing?.featuresJson ?? null;
   let startedAt = existing?.startedAt ?? metricStartedAt ?? eventTimestamp;
-  let lastSeenAt = newerIso(existing?.lastSeenAt, eventTimestamp) ? eventTimestamp : existing?.lastSeenAt ?? eventTimestamp;
+  let lastSeenAt = newerIso(existing?.lastSeenAt, eventTimestamp)
+    ? eventTimestamp
+    : (existing?.lastSeenAt ?? eventTimestamp);
   let endedAt = existing?.endedAt ?? null;
   let durationSeconds = existing?.durationSeconds ?? null;
   let isActive = existing?.isActive ?? true;
@@ -895,7 +1009,8 @@ function mergeSessionRecord(existing, event) {
   // Client events are fire-and-forget HTTP calls, so a start/heartbeat/feature event can
   // land AFTER the session_end it logically preceded. Only events strictly newer than the
   // recorded end may reopen a closed session.
-  const closedAt = existing && !existing.isActive ? existing.endedAt ?? existing.lastSeenAt : null;
+  const closedAt =
+    existing && !existing.isActive ? (existing.endedAt ?? existing.lastSeenAt) : null;
   const mayReopenClosedSession = closedAt === null || compareIso(eventTimestamp, closedAt) > 0;
 
   if (event.service === SESSION_START) {
@@ -921,7 +1036,9 @@ function mergeSessionRecord(existing, event) {
   } else if (event.service === SESSION_END) {
     lastSeenAt = eventTimestamp;
     endedAt = eventTimestamp;
-    durationSeconds = readMetricNumber(event.metrics, ["session_duration_seconds"]) ?? durationBetween(startedAt, endedAt);
+    durationSeconds =
+      readMetricNumber(event.metrics, ["session_duration_seconds"]) ??
+      durationBetween(startedAt, endedAt);
     isActive = false;
   } else if (event.service === APP_ERROR) {
     errorCount += 1;
@@ -969,7 +1086,7 @@ function mergeSessionRecord(existing, event) {
     isActive,
     lastEvent: event.service,
     lastStatus: event.status,
-    errorCount
+    errorCount,
   };
 }
 
@@ -1055,361 +1172,6 @@ function timingSafeEqual(left, right) {
   }
 
   return mismatch === 0;
-}
-
-function readRequestContext(request) {
-  const cf = request.cf ?? null;
-  const directIp = toText(request.headers.get("cf-connecting-ip"));
-  const forwarded = toText(request.headers.get("x-forwarded-for"));
-  const fallbackIp = forwarded ? toText(forwarded.split(",")[0]) : null;
-  const country = toText(cf?.country) ?? toText(request.headers.get("cf-ipcountry"));
-
-  return {
-    clientIp: directIp || fallbackIp,
-    country,
-    city: toText(cf?.city),
-    region: toText(cf?.region),
-    latitude: normalizeCoordinate(toFiniteNumber(cf?.latitude), -90, 90),
-    longitude: normalizeCoordinate(toFiniteNumber(cf?.longitude), -180, 180),
-    timezone: toText(cf?.timezone)
-  };
-}
-
-function attachRequestContext(metricsRaw, context) {
-  const metrics = isObject(metricsRaw) ? { ...metricsRaw } : {};
-
-  // Keep client IP visible per active session in Live view.
-  if (context.clientIp && toText(metrics.client_ip) === null) {
-    metrics.client_ip = context.clientIp;
-  }
-
-  if (context.clientIp && toText(metrics.client_ip_version) === null) {
-    metrics.client_ip_version = ipVersion(context.clientIp);
-  }
-
-  if (context.country && toText(metrics.client_country) === null) {
-    metrics.client_country = context.country;
-  }
-
-  if (
-    toText(metrics.client_geo_source) === null &&
-    (context.country || context.city || context.region || context.latitude !== null || context.longitude !== null)
-  ) {
-    metrics.client_geo_source = "edge_ip";
-  }
-
-  if (toText(metrics.client_geo_signal_source) === null && context.country) {
-    metrics.client_geo_signal_source = "ip";
-  }
-
-  if (context.city && toText(metrics.client_city) === null) {
-    metrics.client_city = context.city;
-  }
-
-  if (context.region && toText(metrics.client_region) === null) {
-    metrics.client_region = context.region;
-  }
-
-  if (context.latitude !== null && readMetricFloat(metrics, ["client_latitude"]) === null) {
-    metrics.client_latitude = context.latitude;
-  }
-
-  if (context.longitude !== null && readMetricFloat(metrics, ["client_longitude"]) === null) {
-    metrics.client_longitude = context.longitude;
-  }
-
-  if (context.timezone && toText(metrics.client_timezone) === null) {
-    metrics.client_timezone = context.timezone;
-  }
-
-  return metrics;
-}
-
-function ipVersion(value) {
-  if (value.includes(":")) {
-    return "ipv6";
-  }
-
-  if (value.includes(".")) {
-    return "ipv4";
-  }
-
-  return "unknown";
-}
-
-function normalizePayload(raw) {
-  if (!isObject(raw)) {
-    return { valid: false, message: "Payload must be a JSON object." };
-  }
-
-  const canonical = tryNormalizeCanonicalPayload(raw);
-  if (canonical.valid) {
-    return canonical;
-  }
-
-  const legacy = tryNormalizeLegacyPayload(raw);
-  if (legacy.valid) {
-    return legacy;
-  }
-
-  return {
-    valid: false,
-    message:
-      "Payload does not match supported schemas: canonical { source, service, timestamp, status, metrics, message? } or legacy { install_id, event_name, app_version?, timestamp_utc, platform?, properties? }."
-  };
-}
-
-function tryNormalizeCanonicalPayload(raw) {
-  const source = raw.source;
-  const service = raw.service;
-  const timestamp = raw.timestamp;
-  const status = raw.status;
-  const metrics = raw.metrics;
-  const message = raw.message;
-
-  if (
-    typeof source !== "string" ||
-    typeof service !== "string" ||
-    typeof timestamp !== "string" ||
-    typeof status !== "string" ||
-    !isObject(metrics)
-  ) {
-    return { valid: false };
-  }
-
-  if (message !== undefined && typeof message !== "string") {
-    return { valid: false };
-  }
-
-  return {
-    valid: true,
-    payload: {
-      source,
-      service,
-      timestamp,
-      status,
-      metrics,
-      message
-    }
-  };
-}
-
-function tryNormalizeLegacyPayload(raw) {
-  const installId = raw.install_id;
-  const eventName = raw.event_name;
-  const timestampUtc = raw.timestamp_utc;
-  const appVersion = raw.app_version;
-  const platform = raw.platform;
-  const propertiesRaw = raw.properties;
-
-  if (typeof installId !== "string" || typeof eventName !== "string" || typeof timestampUtc !== "string") {
-    return { valid: false };
-  }
-
-  if (appVersion !== undefined && typeof appVersion !== "string") {
-    return { valid: false };
-  }
-
-  if (platform !== undefined && typeof platform !== "string") {
-    return { valid: false };
-  }
-
-  const properties = isObject(propertiesRaw) ? propertiesRaw : {};
-  const sourceFromProperties = toText(properties.worker_name) || toText(properties.source);
-
-  const source = sanitizeIdentifier(sourceFromProperties || installId, "unknown-source");
-  const service = normalizeLegacyService(eventName);
-  const status = deriveLegacyStatus(eventName, properties);
-  const message = deriveLegacyMessage(properties);
-  const sessionId = deriveLegacySessionId(installId, properties);
-
-  const metrics = {
-    install_id: installId,
-    session_id: sessionId
-  };
-
-  if (appVersion) {
-    metrics.app_version = appVersion;
-  }
-  if (platform) {
-    metrics.platform = platform;
-  }
-
-  for (const [key, value] of Object.entries(properties)) {
-    if (typeof value === "string") {
-      metrics[key] = coerceLegacyScalar(value);
-    } else if (typeof value === "number" || typeof value === "boolean") {
-      metrics[key] = value;
-    } else if (value !== null && value !== undefined) {
-      metrics[key] = String(value);
-    }
-  }
-
-  return {
-    valid: true,
-    payload: {
-      source,
-      service,
-      timestamp: timestampUtc,
-      status,
-      metrics,
-      message: message ?? undefined
-    }
-  };
-}
-
-function validatePayload(payload) {
-  if (!isObject(payload)) {
-    return { valid: false, message: "Payload must be a JSON object." };
-  }
-
-  if (typeof payload.source !== "string" || !SERVICE_PATTERN.test(payload.source)) {
-    return { valid: false, message: "Invalid source. Use 1-64 chars [a-zA-Z0-9._:-]." };
-  }
-
-  if (typeof payload.service !== "string" || !SERVICE_PATTERN.test(payload.service)) {
-    return { valid: false, message: "Invalid service. Use 1-64 chars [a-zA-Z0-9._:-]." };
-  }
-
-  if (typeof payload.timestamp !== "string" || !Number.isFinite(Date.parse(payload.timestamp))) {
-    return { valid: false, message: "timestamp must be a valid ISO string." };
-  }
-
-  if (!STATUS_VALUES.has(payload.status)) {
-    return { valid: false, message: "status must be one of: ok, degraded, down." };
-  }
-
-  if (!isObject(payload.metrics)) {
-    return { valid: false, message: "metrics must be a JSON object." };
-  }
-
-  const metricKeys = Object.keys(payload.metrics);
-  if (metricKeys.length > MAX_METRICS_KEYS) {
-    return { valid: false, message: `metrics has too many keys (max ${MAX_METRICS_KEYS}).` };
-  }
-
-  let metricBytes = 0;
-  try {
-    metricBytes = new TextEncoder().encode(JSON.stringify(payload.metrics)).byteLength;
-  } catch {
-    return { valid: false, message: "metrics contains non-serializable values." };
-  }
-  if (metricBytes > MAX_METRICS_BYTES) {
-    return { valid: false, message: `metrics payload exceeds ${MAX_METRICS_BYTES} bytes.` };
-  }
-
-  if (!metricKeys.every((key) => key.length > 0 && key.length <= 64)) {
-    return { valid: false, message: "metrics keys must be between 1 and 64 characters." };
-  }
-
-  if (payload.message !== undefined && (typeof payload.message !== "string" || payload.message.length > MAX_MESSAGE_LENGTH)) {
-    return { valid: false, message: `message must be <= ${MAX_MESSAGE_LENGTH} characters.` };
-  }
-
-  return { valid: true };
-}
-
-function sanitizeIdentifier(value, fallback) {
-  const normalized = value
-    .trim()
-    .toLowerCase()
-    .replaceAll(/\s+/g, "_")
-    .replaceAll(/[^a-z0-9._:-]/g, "_")
-    .replaceAll(/_+/g, "_")
-    .slice(0, 64);
-
-  return normalized.length > 0 ? normalized : fallback;
-}
-
-function normalizeLegacyService(eventName) {
-  const normalizedEvent = sanitizeIdentifier(eventName, "event");
-
-  switch (normalizedEvent) {
-    case "heartbeat":
-      return SESSION_ACTIVE;
-    case "app_start":
-      return SESSION_START;
-    case "app_exit":
-    case "app_stop":
-    case "shutdown":
-      return SESSION_END;
-    default:
-      return normalizedEvent;
-  }
-}
-
-function deriveLegacySessionId(installId, properties) {
-  const explicitSessionId = toText(properties.session_id);
-  if (explicitSessionId) {
-    return explicitSessionId;
-  }
-
-  return `install:${installId}`;
-}
-
-function deriveLegacyStatus(eventName, properties) {
-  const normalizedEvent = eventName.trim().toLowerCase();
-  const result = toText(properties.result)?.toLowerCase() ?? "";
-
-  if (normalizedEvent.includes("error")) {
-    return "down";
-  }
-
-  if (["error", "fail", "failed", "failure", "fatal"].includes(result)) {
-    return "down";
-  }
-
-  if (["degraded", "warn", "warning", "timeout", "slow"].includes(result)) {
-    return "degraded";
-  }
-
-  return "ok";
-}
-
-function deriveLegacyMessage(properties) {
-  const directMessage = toText(properties.message);
-  if (directMessage) {
-    return directMessage;
-  }
-
-  const result = toText(properties.result);
-  if (result) {
-    return `result:${result}`;
-  }
-
-  const route = toText(properties.route);
-  if (route) {
-    return `route:${route}`;
-  }
-
-  const type = toText(properties.type);
-  if (type) {
-    return `type:${type}`;
-  }
-
-  return null;
-}
-
-function coerceLegacyScalar(value) {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return "";
-  }
-
-  const lowered = trimmed.toLowerCase();
-  if (lowered === "true") {
-    return true;
-  }
-  if (lowered === "false") {
-    return false;
-  }
-
-  const numeric = Number(trimmed);
-  if (Number.isFinite(numeric) && /^-?\d+(\.\d+)?$/.test(trimmed)) {
-    return numeric;
-  }
-
-  return trimmed;
 }
 
 function toText(value) {
@@ -1547,42 +1309,77 @@ function toNullableFloat(value) {
   return null;
 }
 
-function toFiniteNumber(value) {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value;
-  }
-
-  if (typeof value === "string") {
-    const parsed = Number.parseFloat(value);
-    if (Number.isFinite(parsed)) {
-      return parsed;
-    }
-  }
-
-  return null;
-}
-
-function normalizeCoordinate(value, min, max) {
-  if (value === null) {
-    return null;
-  }
-
-  return value >= min && value <= max ? value : null;
-}
-
 function nowIso() {
   return new Date().toISOString();
 }
 
-function json(data, status = 200, request) {
-  const response = new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      "content-type": "application/json; charset=utf-8",
-      "cache-control": "no-store"
-    }
+// ── Request plumbing ────────────────────────────────────────────────────────
+
+function requireDb(env) {
+  if (!env?.DB) {
+    throw new Error("D1 binding DB is missing.");
+  }
+  return env.DB;
+}
+
+function clientIp(request) {
+  return request.headers.get("cf-connecting-ip")?.trim() || "unknown";
+}
+
+/** Cloudflare rate-limit binding (`unsafe.bindings` type "ratelimit"); fails open on errors. */
+async function isRateLimited(limiter, key) {
+  if (!limiter || typeof limiter.limit !== "function") {
+    return false;
+  }
+
+  try {
+    const outcome = await limiter.limit({ key });
+    return outcome?.success === false;
+  } catch (err) {
+    console.error("ratelimit_error", { message: errorMessage(err) });
+    return false;
+  }
+}
+
+function tooManyRequests() {
+  return json({ ok: false, error: "Too many requests." }, 429, {
+    "retry-after": RATE_LIMIT_RETRY_AFTER_SECONDS,
   });
-  return withCors(response, request);
+}
+
+/** Returns the parsed value, or `undefined` when the text is not valid JSON. */
+function parseJson(text) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+}
+
+function errorMessage(err) {
+  return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * Every unexpected failure maps to the same opaque body; the requestId in the response is
+ * the only thing a caller can quote back, and it pairs with the console line (Workers logs).
+ */
+function internalError(err) {
+  const requestId = crypto.randomUUID();
+  console.error("internal_error", { requestId, message: errorMessage(err) });
+  return json({ ok: false, error: "Internal error.", requestId }, 500);
+}
+
+function json(data, status = 200, extraHeaders) {
+  const headers = new Headers({
+    "content-type": "application/json; charset=utf-8",
+    "cache-control": "no-store",
+  });
+  for (const [name, value] of Object.entries(extraHeaders ?? {})) {
+    headers.set(name, value);
+  }
+
+  return new Response(JSON.stringify(data), { status, headers });
 }
 
 function withCors(response, request) {
@@ -1598,6 +1395,6 @@ function withCors(response, request) {
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
-    headers
+    headers,
   });
 }

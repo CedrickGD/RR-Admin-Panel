@@ -1,5 +1,7 @@
 # RazorReaper backend on the UGREEN NAS (W3)
 
+> **Cut-over executed 2026-08-21 (evening):** rr-api on the NAS is authoritative; the worker and Pages run in proxy mode (`ORIGIN_BASE=https://origin.razorreaper.app`).
+
 Target: Cloudflare stays the edge (DNS, cache, WAF, Access); the NAS is the origin behind a
 **Cloudflare Tunnel** (outbound only — no router port-forwarding, home IP never exposed).
 

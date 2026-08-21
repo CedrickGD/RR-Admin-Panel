@@ -118,7 +118,7 @@ describe("CORS scope", () => {
     expect(response.headers.get("access-control-allow-origin")).toBe("*");
     expect(response.headers.get("content-type")).toBe("image/png");
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/spots/preview.png");
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("https://media.razorreaper.app/spots/preview.png");
     expect(harness.mock.operations).toHaveLength(0);
   });
 

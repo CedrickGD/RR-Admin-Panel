@@ -67,11 +67,11 @@ const RATE_LIMIT_WINDOW_SECONDS = 60;
 const MEMORY_RATE_LIMIT_MAX_ENTRIES = 10_000;
 const memoryRateLimits = new Map();
 
-// Hosted media proxy: read-only Nextcloud public share, fronted by the CF edge
-// cache. The token belongs to a share that only ever contains deliberately
-// public app media (spot previews, videos), so it is config, not a secret.
-const MEDIA_DAV_BASE = "https://nx79849.your-storageshare.de/public.php/dav/files";
-const MEDIA_SHARE_TOKEN = "Yfcpe7AR3cDJJmr";
+// Hosted media proxy: static files served by the NAS (caddy behind the Cloudflare
+// Tunnel, `media.razorreaper.app`), fronted by the CF edge cache. Legacy clients
+// have this worker's /media/* URL baked in, so the route stays forever. Override
+// with the MEDIA_ORIGIN var (no trailing slash needed).
+const MEDIA_ORIGIN = "https://media.razorreaper.app";
 const MEDIA_MAX_PATH_LENGTH = 512;
 // Browsers/clients revalidate hourly; the edge keeps a day. New media should
 // ship under a new filename anyway (clients cache by URL on disk).
@@ -208,8 +208,7 @@ async function handleMedia(request, env, ctx) {
     return withCors(json({ ok: false, error: "Invalid media path." }, 400), request);
   }
 
-  const davBase = (env?.NEXTCLOUD_PUBLIC_DAV_BASE || MEDIA_DAV_BASE).replace(/\/+$/, "");
-  const shareToken = env?.NEXTCLOUD_SHARE_TOKEN || MEDIA_SHARE_TOKEN;
+  const mediaOrigin = (env?.MEDIA_ORIGIN || MEDIA_ORIGIN).replace(/\/+$/, "");
   const rangeHeader = request.headers.get("Range");
 
   // Serve whole files from the edge cache; Range requests (video seeks) go
@@ -228,9 +227,7 @@ async function handleMedia(request, env, ctx) {
     }
   }
 
-  const upstreamUrl =
-    `${davBase}/${encodeURIComponent(shareToken)}/` +
-    mediaPath.split("/").map(encodeURIComponent).join("/");
+  const upstreamUrl = `${mediaOrigin}/` + mediaPath.split("/").map(encodeURIComponent).join("/");
   const upstream = await fetch(upstreamUrl, {
     method: "GET",
     headers: rangeHeader ? { Range: rangeHeader } : undefined,

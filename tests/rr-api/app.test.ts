@@ -73,7 +73,7 @@ beforeAll(async () => {
           headers: { "content-type": "application/json" },
         });
       }
-      if (url.startsWith("https://nx79849.your-storageshare.de/")) {
+      if (url.startsWith("https://media.razorreaper.app/")) {
         return new Response("png-bytes", {
           status: 200,
           headers: { "content-type": "image/png", etag: '"abc"' },

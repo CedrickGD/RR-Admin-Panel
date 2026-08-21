@@ -1,13 +1,20 @@
 # docker compose for the RazorReaper backend on the UGREEN NAS. See README.md.
+# Project dir on the NAS: /volume1/docker/razorreaper/src/RR-Admin-Panel/deploy/nas (mirrored from
+# the repo). Secrets/credentials never live in this tree: they sit under ${DATA_DIR}/env and
+# ${DATA_DIR}/cloudflared so a source re-sync can never clobber or publish them.
 name: razorreaper
 services:
+  # Locally-managed tunnel: ingress rules in ./cloudflared/config.yml (tracked, no secrets),
+  # credentials JSON (created by `cloudflared tunnel create rr-nas`) in ${DATA_DIR}/cloudflared.
   cloudflared:
     image: cloudflare/cloudflared:latest
     restart: unless-stopped
-    command: tunnel --no-autoupdate run
-    environment:
-      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
-    depends_on: [caddy, bot, rr-api]
+    command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run
+    volumes:
+      - ./cloudflared/config.yml:/etc/cloudflared/config.yml:ro
+      - ${DATA_DIR}/cloudflared:/etc/cloudflared/creds:ro
+    # no depends_on: services come up in stages (media -> bot -> api); cloudflared answers 502
+    # for a hostname until its container exists and keeps retrying.
 
   caddy:
     image: caddy:2-alpine
@@ -21,16 +28,9 @@ services:
     build:
       context: ${BOT_SRC}
     restart: unless-stopped
+    env_file: ${DATA_DIR}/env/bot.env   # TOKEN, NOTIFIER_*, VERIFY_* (see .env.example)
     environment:
       - PORT=8080
-      - TOKEN=${TOKEN}
-      - NOTIFIER_TOKEN=${NOTIFIER_TOKEN}
-      - NOTIFIER_CHANNELS=${NOTIFIER_CHANNELS}
-      - NOTIFIER_MESSAGE_CONTENT=${NOTIFIER_MESSAGE_CONTENT}
-      - VERIFY_API_BASE=${VERIFY_API_BASE}
-      - VERIFY_SHARED_SECRET=${VERIFY_SHARED_SECRET}
-      - VERIFIED_ROLE_ID=${VERIFIED_ROLE_ID}
-      - VERIFY_CHANNEL_ID=${VERIFY_CHANNEL_ID}
     volumes:
       - ${DATA_DIR}/bot:/data
     healthcheck:
@@ -46,7 +46,7 @@ services:
       context: ../..
       dockerfile: deploy/nas/rr-api/Dockerfile
     restart: unless-stopped
-    env_file: ./rr-api/.env
+    env_file: ${DATA_DIR}/env/rr-api.env   # copy of rr-api/.env.example, filled in
     volumes:
       - ${DATA_DIR}/db:/data/db
     healthcheck:

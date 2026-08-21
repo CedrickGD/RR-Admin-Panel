@@ -85,7 +85,7 @@ repo README's env table is passed through 1:1; rr-api adds:
 | `CRON_LICENSE_CLEANUP` | `30 3 * * *` | cron for the nightly license cleanup |
 | `RL_INGEST_PER_MINUTE` / `RL_REGISTER_PER_MINUTE` | `60` / `5` | in-process rate limiters that replace the `RL_*` bindings |
 | `APP_SHARED_KEY` | – | legacy ingest key for the worker routes (falls back to `INGEST_TOKEN`) |
-| `NEXTCLOUD_PUBLIC_DAV_BASE` / `NEXTCLOUD_SHARE_TOKEN` | worker defaults | `/media/*` upstream |
+| `MEDIA_ORIGIN` | `https://media.razorreaper.app` | `/media/*` upstream (legacy route) |
 | `GITHUB_TOKEN` / `GITHUB_REPO` / `GITHUB_BRANCH` / `UPDATE_ASSET_NAME` | worker defaults | `/update/*` proxy |
 
 `STORAGE_BACKEND` is forced to `d1` (SQLite is authoritative; there is no KV).

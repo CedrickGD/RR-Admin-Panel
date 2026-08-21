@@ -190,6 +190,7 @@ Proxy mode (Pages app **and** standalone worker; see [`docs/superpowers/specs/20
 - `ORIGIN_BASE`: rr-api base URL over the tunnel, e.g. `https://origin.razorreaper.app` (no trailing slash). Proxy mode is ON only when `ORIGIN_BASE` **and** `ORIGIN_KEY` are both non-empty; unset = today's local handlers
 - `ORIGIN_KEY`: secret (`wrangler secret put ORIGIN_KEY` / `wrangler pages secret put ORIGIN_KEY`), random >= 32 chars, the same value rr-api gets as `ORIGIN_KEY`; sent as `X-RR-Origin-Key` together with the real client's `X-RR-Client-IP` / `X-RR-Client-CF`
 - `ORIGIN_HOST`: rr-api only (`deploy/nas/rr-api/.env`), e.g. `origin.razorreaper.app` — requests arriving on that hostname must carry a valid key (`401 {ok:false,error:"Unauthorized origin request."}` otherwise; `/health` exempt)
+- `WORKER_HOST`: rr-api only, hostname(s) of the standalone worker (comma-separated), e.g. `backend.rr-admin-panel.workers.dev` — requests the worker shell forwards are answered by the embedded worker only (ingest/register/telemetry; 410/404 for the rest), so the worker URL keeps exactly today's surface. rr-api ignores `ORIGIN_BASE` (it is the origin).
 
 ## Local Development
 

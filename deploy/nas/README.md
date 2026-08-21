@@ -97,11 +97,17 @@ repo README's env table is passed through 1:1; rr-api adds:
 | `GITHUB_TOKEN` / `GITHUB_REPO` / `GITHUB_BRANCH` / `UPDATE_ASSET_NAME` | worker defaults | `/update/*` proxy |
 | `ORIGIN_KEY` | – | shared secret of the proxy shells (`X-RR-Origin-Key`); the same value is the worker's + Pages' `ORIGIN_KEY` secret. Empty = trusted forwarding disabled (`X-RR-*` headers are ignored and stripped) |
 | `ORIGIN_HOST` | – | e.g. `origin.razorreaper.app`; requests on that `Host` without a valid key -> `401 Unauthorized origin request.` (`/health` exempt) |
+| `WORKER_HOST` | – | hostname(s) of the standalone worker shell, comma-separated (`backend.rr-admin-panel.workers.dev`); trusted requests forwarded from there are answered by the embedded worker only (its routes; 410/404 for the rest), never by the Pages routes |
+| `ORIGIN_BASE` | – | **ignored** on rr-api (dropped by `buildRuntimeEnv`): rr-api is the origin and must never proxy to itself |
 
 With a valid `ORIGIN_KEY` the request is *trusted*: `cf-connecting-ip` becomes the forwarded
-`X-RR-Client-IP` (when it is a valid IP literal) and `request.cf` is the tunnel's geo overlaid by
-the forwarded `X-RR-Client-CF`, so rate limits and telemetry see the real client, not Cloudflare's
-egress. A wrong key is always `401`. (`src/trusted-forwarding.ts`.)
+`X-RR-Client-IP` (when it is a valid IP literal), `request.cf` is the tunnel's geo overlaid by
+the forwarded `X-RR-Client-CF`, and `request.url` is rebuilt on the forwarded
+`X-RR-Forwarded-Proto://X-RR-Forwarded-Host` (when it is a plain hostname[:port]) so the
+dashboard's same-origin CSRF guard compares the browser's `Origin` with the Pages hostname it
+actually used — not with `origin.<domain>` — and session cookies keep their `Secure` flag. Rate
+limits and telemetry see the real client, not Cloudflare's egress. A wrong key is always `401`;
+an untrusted request never gets its ip/geo/URL rewritten. (`src/trusted-forwarding.ts`.)
 
 `STORAGE_BACKEND` is forced to `d1` (SQLite is authoritative; there is no KV).
 
@@ -155,9 +161,10 @@ switch is configuration only, and every step is reversible by unsetting `ORIGIN_
 1. **rr-api up with a full copy (T0).** Export D1 and import it into the NAS database
    (`npx wrangler d1 export rr-admin-panel --remote --output export-T0.sql`, then on the NAS
    `sqlite3 /volume1/docker/razorreaper/data/db/rr.sqlite < export-T0.sql` — see *Database*
-   above). `ORIGIN_KEY` (random >= 32 chars, e.g. `openssl rand -base64 48`) and
-   `ORIGIN_HOST=origin.<domain>` are set in `${DATA_DIR}/env/rr-api.env`; `docker compose up -d
-   --build rr-api`. `origin.<domain>` and `api.<domain>` both answer `/health`
+   above). `ORIGIN_KEY` (random >= 32 chars, e.g. `openssl rand -base64 48`),
+   `ORIGIN_HOST=origin.<domain>` and `WORKER_HOST=backend.rr-admin-panel.workers.dev` are set in
+   `${DATA_DIR}/env/rr-api.env` (never `ORIGIN_BASE` — that is a shell-side variable);
+   `docker compose up -d --build rr-api`. `origin.<domain>` and `api.<domain>` both answer `/health`
    (`curl -s https://origin.<domain>/health` -> `{"ok":true,"service":"rr-api"}`, and
    `curl -si https://origin.<domain>/api/health` -> `401 Unauthorized origin request.`), and the
    parity probes (ingest, register, license validate, admin data with an Access JWT) are green

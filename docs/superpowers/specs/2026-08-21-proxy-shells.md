@@ -1,6 +1,8 @@
 # Proxy shells (W3.7): worker + Pages become thin proxies to rr-api
 
-**Status:** approved 2026-08-21 (plan `~/.claude/plans/bro-i-thought-you-iridescent-charm.md`, W3.7).
+**Status:** approved 2026-08-21 (plan `~/.claude/plans/bro-i-thought-you-iridescent-charm.md`, W3.7);
+amended after review 2026-08-21 (trusted requests get the client-facing URL, `WORKER_HOST`, rr-api
+ignores `ORIGIN_BASE`).
 **Goal:** `backend.rr-admin-panel.workers.dev` (standalone worker) and `rr-admin-panel.pages.dev`
 (Pages Functions) keep their URLs forever (they are baked into shipped app builds) but stop owning
 any data logic once rr-api on the NAS is authoritative. In proxy mode they forward requests to
@@ -17,6 +19,8 @@ cut-over); the switch is configuration only.
 | Pages | `ORIGIN_BASE` / `ORIGIN_KEY` | var / secret | same semantics |
 | rr-api | `ORIGIN_KEY` | env | same value; empty/unset = trusted forwarding disabled |
 | rr-api | `ORIGIN_HOST` | env, optional | e.g. `origin.razorreaper.app`; requests whose `Host` equals it MUST carry a valid key, else `401 {ok:false,error:"Unauthorized origin request."}` |
+| rr-api | `WORKER_HOST` | env, optional | hostname(s) of the standalone worker shell, comma-separated, e.g. `backend.rr-admin-panel.workers.dev`. Trusted requests whose `X-RR-Forwarded-Host` matches are answered by the embedded worker only (its own routes, 410/404 for the rest) — the worker hostname keeps exactly today's surface and never reaches the Pages routes, which have no Access/WAF in front there. |
+| rr-api | `ORIGIN_BASE` | – | ignored (dropped in `buildRuntimeEnv`): rr-api is the origin; the embedded worker must never proxy back to it. |
 
 Why a separate `origin.` hostname: worker/Pages subrequests reach the zone from Cloudflare egress
 IPs, so the WAF rate-limit rule on `api.razorreaper.app` (120 req/10 s per IP) would count all
@@ -84,12 +88,22 @@ New `src/trusted-forwarding.ts` applied in `app.ts` before `attachCloudflareCont
 - `ORIGIN_KEY` empty/unset -> trusted forwarding disabled: strip any incoming `X-RR-*` forwarding
   headers (key, client-ip, client-cf, forwarded-host/proto) and continue as today.
 - `ORIGIN_KEY` set and request carries `X-RR-Origin-Key`:
-  - timing-safe equal -> TRUSTED: build a new Request (same method/body/url) whose headers have
-    `cf-connecting-ip` := `X-RR-Client-IP` when it is a syntactically valid IPv4/IPv6 (else leave
-    the tunnel value), and whose `cf` object = tunnel-derived properties overlaid by the decoded
-    `X-RR-Client-CF` JSON (only whitelisted string keys, each <= 128 chars; malformed base64/JSON ->
-    ignore the header). Strip the `X-RR-*` forwarding headers afterwards so handlers never see them.
+  - timing-safe equal -> TRUSTED: build a new Request (same method/body) whose URL is
+    `<X-RR-Forwarded-Proto>://<X-RR-Forwarded-Host>` + the tunnel URL's path + query — each part
+    only when valid (proto `http`/`https`; host a plain hostname[:port], no userinfo/path/
+    brackets), else the tunnel value stays — so `enforceSameOriginMutation` (browser `Origin`
+    vs `request.url`) and the session cookie's `Secure` flag see the client-facing origin, not the
+    tunnel hostname; whose headers have `cf-connecting-ip` := `X-RR-Client-IP` when it is a
+    syntactically valid IPv4/IPv6 (else leave the tunnel value); and whose `cf` object =
+    tunnel-derived properties overlaid by the decoded `X-RR-Client-CF` JSON (only whitelisted
+    string keys, each <= 128 chars; malformed base64/JSON -> ignore the header). Strip the
+    `X-RR-*` forwarding headers afterwards so handlers never see them. An untrusted request never
+    gets its URL rewritten.
   - not equal -> `401 {ok:false,error:"Unauthorized origin request."}`.
+- `WORKER_HOST` set and the trusted request's (validated) `X-RR-Forwarded-Host` is one of those
+  hostnames -> the embedded worker answers the request whatever the path (`app.ts`), i.e. the
+  worker hostname serves ingest/register/telemetry and answers 410/404 for everything else exactly
+  as the standalone worker does with proxy mode OFF.
 - `ORIGIN_HOST` set and `Host` header (or `X-Forwarded-Host`/`:authority` as the tunnel delivers
   it) equals it and the request is NOT trusted -> 401 as above. `/health` is exempt (container healthcheck).
 - The Hono `/health` route stays first and unconditional.
@@ -107,13 +121,20 @@ New `src/trusted-forwarding.ts` applied in `app.ts` before `attachCloudflareCont
   `cookie`, skips `/api/health`, calls `next()` when mode OFF.
 - `tests/rr-api/trusted-forwarding.test.ts`: valid key -> cf-connecting-ip and cf overridden and
   X-RR headers stripped; invalid key -> 401; ORIGIN_HOST enforcement (+ `/health` exempt); no key
-  configured -> headers ignored+stripped; malformed client-cf ignored.
+  configured -> headers ignored+stripped; malformed client-cf ignored; trusted URL rewrite
+  (valid/bogus/absent forwarded host+proto, untrusted never rewritten) and, through `createApp`,
+  a dashboard mutation forwarded by the Pages shell passes the same-origin guard while a
+  cross-site `Origin` is still 403; `WORKER_HOST` surface.
+- `tests/rr-api/env.test.ts`: `ORIGIN_BASE` is dropped from the rr-api env.
+- `tests/access/require-dashboard-access.test.ts`: `AUTH_MODE=app` + `ACCESS_ENFORCEMENT` takes
+  the identity from the verified JWT when `ACCESS_TEAM_DOMAIN`/`ACCESS_AUD` are set (the shells
+  forward only `cf-access-jwt-assertion`), header fallback otherwise.
 - `tests/rr-api/routes.test.ts`: generated table contains no `_middleware` entries.
 
 ## Docs
 
 - Repo `README.md` env table + `deploy/nas/README.md` + `deploy/nas/rr-api/.env.example`:
-  `ORIGIN_BASE`, `ORIGIN_KEY`, `ORIGIN_HOST`.
+  `ORIGIN_BASE`, `ORIGIN_KEY`, `ORIGIN_HOST`, `WORKER_HOST`.
 - `backend-worker/wrangler.template.toml` and `wrangler.template.toml`: commented `ORIGIN_BASE` var.
 - `deploy/nas/cloudflared/config.yml`: add `origin.razorreaper.app -> http://rr-api:8787`.
 - `deploy/nas/README.md` -> new section **Cut-over runbook**:

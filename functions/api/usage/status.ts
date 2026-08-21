@@ -1,4 +1,5 @@
 import { error, json } from "../../_lib/http";
+import { requireInstallAuth } from "../../_lib/install-auth";
 import { enforceRateLimit } from "../../_lib/ratelimit";
 import type { RuntimeEnv } from "../../_lib/types";
 import { FREE_LIMITS, currentPeriod, ensureUsageSchema, isPremiumHwid } from "../../_lib/usage";
@@ -13,6 +14,7 @@ type HandlerContext = {
  *
  * Read-only view for the app's quota chips: every limited feature with used/limit for the
  * current month. Premium answers `unlimited` so the app can hide the chips entirely.
+ * Requires an install signature (signed over the path without the query and an empty body).
  */
 export async function onRequestGet(context: HandlerContext): Promise<Response> {
   const limited = enforceRateLimit(context.request, {
@@ -21,6 +23,9 @@ export async function onRequestGet(context: HandlerContext): Promise<Response> {
     windowSeconds: 60,
   });
   if (limited) return limited;
+
+  const auth = await requireInstallAuth(context, "required");
+  if (!auth.ok) return auth.response;
 
   try {
     const db = context.env.DB;

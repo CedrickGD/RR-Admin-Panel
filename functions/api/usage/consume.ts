@@ -1,4 +1,5 @@
 import { error, json } from "../../_lib/http";
+import { parseJsonObject, requireInstallAuth } from "../../_lib/install-auth";
 import { enforceRateLimit } from "../../_lib/ratelimit";
 import type { RuntimeEnv } from "../../_lib/types";
 import { FREE_LIMITS, consumeUse, ensureUsageSchema, isPremiumHwid } from "../../_lib/usage";
@@ -15,8 +16,8 @@ type HandlerContext = {
  * short-circuit to `unlimited` without touching a counter. Unknown features are unlimited
  * by definition — the limits table is the product decision, not the client.
  *
- * Unauthenticated by design, like /api/license/validate: the HWID is the identity, and the
- * worst abuse is someone burning their own quota.
+ * Requires an install signature (no legacy client calls this route): the HWID is the identity,
+ * the signature proves the call comes from a registered, non-revoked install.
  */
 export async function onRequestPost(context: HandlerContext): Promise<Response> {
   const limited = enforceRateLimit(context.request, {
@@ -26,14 +27,14 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
   });
   if (limited) return limited;
 
+  const auth = await requireInstallAuth(context, "required");
+  if (!auth.ok) return auth.response;
+
   try {
     const db = context.env.DB;
     if (!db) return error(500, "Database not available");
 
-    const body = (await context.request.json().catch(() => null)) as {
-      hwid?: string;
-      feature?: string;
-    } | null;
+    const body = parseJsonObject(auth.bodyText);
     const hwid = typeof body?.hwid === "string" ? body.hwid.trim() : "";
     const feature = typeof body?.feature === "string" ? body.feature.trim().toLowerCase() : "";
     if (!hwid || !feature) return error(400, "hwid and feature are required.");

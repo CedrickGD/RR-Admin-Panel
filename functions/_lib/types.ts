@@ -61,6 +61,11 @@ export interface RuntimeEnv {
   // comma-separated AUD tags of every Access application that fronts this project.
   ACCESS_TEAM_DOMAIN?: string;
   ACCESS_AUD?: string;
+  // rr.install.v1 rollout switches (read as strings from [vars]): keep accepting the shared
+  // ingest key next to install signatures ("true" by default), and force signatures on the
+  // optional app routes — feedback / access-status / license ("false" by default).
+  LEGACY_INGEST_KEY_ENABLED?: string;
+  REQUIRE_INSTALL_SIGNATURE?: string;
   BUILD_SHA?: string;
   STORE_SECRET_KEY?: string;
   // Discord verification / paid-community gating.

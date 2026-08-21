@@ -1,14 +1,15 @@
 import {
-  MAX_BODY_BYTES,
   attachRequestContext,
+  clampTimestamp,
   normalizePayload,
-  readBodyTextLimited,
   readRequestContext,
   validatePayload,
 } from "../../shared/telemetry-contract";
-import { error, getBearerToken, json, nowIso, timingSafeEqualText } from "../_lib/http";
+import { error, getBearerToken, json, timingSafeEqualText } from "../_lib/http";
+import { requireInstallAuth } from "../_lib/install-auth";
 import { enforceRateLimit } from "../_lib/ratelimit";
-import { storeTelemetry } from "../_lib/storage";
+import { internalError } from "../_lib/responses";
+import { SessionOwnershipError, storeTelemetry, type IngestAuthMode } from "../_lib/storage";
 import type { RuntimeEnv, TelemetryEvent } from "../_lib/types";
 
 type HandlerContext = {
@@ -28,23 +29,34 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
   });
   if (limited) return limited;
 
-  const authorizationFailure = validateIngestAuthorization(context.request, context.env);
-  if (authorizationFailure) {
-    return authorizationFailure;
+  // Per-install signature first; the shared key is the legacy fallback until the operator
+  // flips LEGACY_INGEST_KEY_ENABLED to "false".
+  const auth = await requireInstallAuth(context, "optional");
+  if (!auth.ok) {
+    return auth.response;
   }
 
-  const body = await readBodyTextLimited(context.request, MAX_BODY_BYTES);
-  if (!body.ok) {
-    return error(body.status, body.message);
+  let authMode: IngestAuthMode;
+  if (auth.installId) {
+    authMode = "signed";
+  } else {
+    if (!isLegacyIngestKeyEnabled(context.env)) {
+      return error(401, "Install signature required.");
+    }
+    const authorizationFailure = validateIngestAuthorization(context.request, context.env);
+    if (authorizationFailure) {
+      return authorizationFailure;
+    }
+    authMode = "legacy_key";
   }
 
-  if (!body.text.trim()) {
+  if (!auth.bodyText.trim()) {
     return error(400, "Request body is required.");
   }
 
   let payloadRaw: unknown;
   try {
-    payloadRaw = JSON.parse(body.text);
+    payloadRaw = JSON.parse(auth.bodyText);
   } catch {
     return error(400, "Invalid JSON.");
   }
@@ -60,21 +72,29 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
     return error(400, validation.message, validation.details);
   }
 
-  const requestContext = readRequestContext(context.request);
+  const metrics = attachRequestContext(payload.metrics, readRequestContext(context.request));
+  if (auth.installId) {
+    // The verified identity wins over whatever the client claimed.
+    metrics.install_id = auth.installId;
+  }
 
+  const nowMs = Date.now();
   const event: TelemetryEvent = {
     id: crypto.randomUUID(),
     source: payload.source,
     service: payload.service,
-    timestamp: new Date(payload.timestamp).toISOString(),
+    timestamp: clampTimestamp(payload.timestamp, nowMs).iso,
     status: payload.status,
-    metrics: attachRequestContext(payload.metrics, requestContext),
+    metrics,
     message: payload.message ?? null,
-    receivedAt: nowIso(),
+    receivedAt: new Date(nowMs).toISOString(),
   };
 
   try {
-    const backend = await storeTelemetry(context.env, event);
+    const backend = await storeTelemetry(context.env, event, {
+      ownerInstallId: auth.installId,
+      authMode,
+    });
     return json(
       {
         ok: true,
@@ -85,12 +105,16 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
       202,
     );
   } catch (storageError) {
-    return error(
-      500,
-      "Failed to persist telemetry.",
-      storageError instanceof Error ? storageError.message : null,
-    );
+    if (storageError instanceof SessionOwnershipError) {
+      return error(403, "Session belongs to another install.");
+    }
+    return internalError(context.request, "Unable to save the operation.", storageError);
   }
+}
+
+/** The shared ingest key stays accepted until the operator sets LEGACY_INGEST_KEY_ENABLED=false. */
+function isLegacyIngestKeyEnabled(env: RuntimeEnv): boolean {
+  return (env.LEGACY_INGEST_KEY_ENABLED ?? "true").trim().toLowerCase() !== "false";
 }
 
 function validateIngestAuthorization(request: Request, env: RuntimeEnv): Response | null {

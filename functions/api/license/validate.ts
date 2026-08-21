@@ -1,4 +1,5 @@
-import { json, error, readJsonBody } from "../../_lib/http";
+import { json, error } from "../../_lib/http";
+import { parseJsonObject, requireInstallAuth } from "../../_lib/install-auth";
 import { enforceRateLimit } from "../../_lib/ratelimit";
 import type { RuntimeEnv } from "../../_lib/types";
 
@@ -10,17 +11,26 @@ export async function onRequestPost(context: { request: Request; env: RuntimeEnv
   });
   if (limited) return limited;
 
+  // Signature verified when present; unsigned stays allowed for legacy clients until
+  // REQUIRE_INSTALL_SIGNATURE=true.
+  const auth = await requireInstallAuth(context, "optional");
+  if (!auth.ok) return auth.response;
+
   const db = context.env.DB;
   if (!db) return error(500, "Database not available");
 
+  const body = parseJsonObject(auth.bodyText);
+  if (!body) return error(400, "Request body must be a JSON object.");
+
   try {
-    const body = await readJsonBody<{ license_key: string; hwid: string }>(context.request);
-    if (!body.license_key || !body.hwid) {
+    const licenseKey = typeof body.license_key === "string" ? body.license_key : "";
+    const hwidRaw = typeof body.hwid === "string" ? body.hwid : "";
+    if (!licenseKey || !hwidRaw) {
       return error(400, "license_key and hwid are required.");
     }
 
-    const key = body.license_key.trim();
-    const hwid = body.hwid.trim();
+    const key = licenseKey.trim();
+    const hwid = hwidRaw.trim();
 
     // Find license
     const license = await db

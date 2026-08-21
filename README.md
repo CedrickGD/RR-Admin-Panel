@@ -39,6 +39,9 @@ The frontend uses same-origin API routes by default. Leave `VITE_API_BASE_URL` u
 
 - Primary ingest route: `POST /api/ingest`
 - Legacy ingest route: `POST /v1/telemetry/event`
+- App requests are signed per install (`rr.install.v1`, see [`docs/superpowers/specs/2026-08-21-install-signing-contract.md`](./docs/superpowers/specs/2026-08-21-install-signing-contract.md)): `X-RR-Install`, `X-RR-Timestamp`, `X-RR-Signature` (ECDSA P-256 over method, path, timestamp and the SHA-256 of the raw body). A verified install id overwrites `metrics.install_id`, and a session row can only be written by the install that owns it (`403` otherwise)
+- Ingest accepts either a valid install signature or, while `LEGACY_INGEST_KEY_ENABLED=true`, the shared bearer/app key; every event row records which one in `telemetry_events.ingest_auth_mode` (`signed` / `legacy_key`)
+- `POST /api/usage/consume` and `GET /api/usage/status` always require a signature; `POST /api/feedback`, `POST /api/access/status`, `POST /api/license/validate` and `POST /api/license/activate` verify a signature when present and keep accepting unsigned calls until `REQUIRE_INSTALL_SIGNATURE=true`
 - Legacy payloads without `session_id` are normalized into session records during ingest
 - Active sessions time out after 6 minutes without activity
 - Session exports are generated as readable block-formatted text reports, not a single-line dump
@@ -165,8 +168,10 @@ Use [`.dev.vars.example`](./.dev.vars.example) as the local template.
 
 Core variables:
 
-- `INGEST_TOKEN`: required bearer token for ingest
+- `INGEST_TOKEN`: shared bearer token for ingest (legacy clients; install signatures replace it)
 - `TELEMETRY_APP_KEY`: optional legacy header key for `POST /v1/telemetry/event`
+- `LEGACY_INGEST_KEY_ENABLED`: `true` (default) keeps the shared ingest key working next to install signatures; `false` makes ingest signature-only
+- `REQUIRE_INSTALL_SIGNATURE`: `false` (default) lets legacy clients call the feedback / access-status / license routes unsigned; `true` requires a valid install signature there too
 - `JWT_SECRET`: required for `AUTH_MODE=app`
 - `AUTH_MODE`: `access` or `app`
 - `STORAGE_BACKEND`: usually `d1`
@@ -264,9 +269,9 @@ Important: cleaning the current files does not erase old commits. If you want th
 - `GET /api/summary`
   - Unprotected telemetry summary payload
 - `POST /api/ingest`
-  - Bearer-token ingest
+  - Install-signed ingest (the shared bearer/app key stays accepted while `LEGACY_INGEST_KEY_ENABLED=true`)
 - `POST /v1/telemetry/event`
-  - Legacy-compatible ingest route
+  - Legacy-compatible ingest route (same handler)
 - `GET /api/auth/session`
   - Resolves current dashboard auth state
 - `POST /api/auth/bootstrap`

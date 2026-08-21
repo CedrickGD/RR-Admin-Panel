@@ -137,26 +137,48 @@ export function resolveStorageBackend(env: RuntimeEnv): StorageBackend {
   throw new Error("No storage binding available. Configure D1 or KV.");
 }
 
+/** How the ingest request authenticated; persisted per event row in `ingest_auth_mode`. */
+export type IngestAuthMode = "signed" | "legacy_key";
+
+export interface StoreTelemetryOptions {
+  /**
+   * Verified install id of the caller (rr.install.v1). When set, an existing session row must
+   * belong to that install — nobody can write into another install's session.
+   */
+  ownerInstallId?: string | null;
+  authMode: IngestAuthMode;
+}
+
+/** Thrown when a signed install tries to write into a session row owned by another install. */
+export class SessionOwnershipError extends Error {
+  constructor(public readonly sessionId: string) {
+    super("Session belongs to another install.");
+    this.name = "SessionOwnershipError";
+  }
+}
+
 export async function storeTelemetry(
   env: RuntimeEnv,
   event: TelemetryEvent,
+  options?: StoreTelemetryOptions,
 ): Promise<StorageBackend> {
   const preferred = resolveStorageBackend(env);
 
   if (preferred === "d1") {
     try {
-      await storeTelemetryD1(env, event);
+      await storeTelemetryD1(env, event, options);
       return "d1";
     } catch (error) {
-      if (!env.KV) {
+      // An ownership refusal is a verdict, not an outage — never retry it against KV.
+      if (error instanceof SessionOwnershipError || !env.KV) {
         throw error;
       }
-      await storeTelemetryKv(env, event);
+      await storeTelemetryKv(env, event, options);
       return "kv";
     }
   }
 
-  await storeTelemetryKv(env, event);
+  await storeTelemetryKv(env, event, options);
   return "kv";
 }
 
@@ -211,7 +233,11 @@ export async function loadSessionExportText(env: RuntimeEnv): Promise<string> {
   return loadSessionExportTextKv(env);
 }
 
-async function storeTelemetryD1(env: RuntimeEnv, event: TelemetryEvent): Promise<void> {
+async function storeTelemetryD1(
+  env: RuntimeEnv,
+  event: TelemetryEvent,
+  options?: StoreTelemetryOptions,
+): Promise<void> {
   const db = env.DB;
   if (!db) {
     throw new Error("D1 binding DB is missing.");
@@ -219,7 +245,9 @@ async function storeTelemetryD1(env: RuntimeEnv, event: TelemetryEvent): Promise
 
   await ensureTelemetrySchema(db);
 
-  const existing = await readSessionRowD1(db, readSessionId(event));
+  const sessionId = readSessionId(event);
+  const existing = await readSessionRowD1(db, sessionId);
+  assertSessionOwnership(existing?.install_id ?? null, sessionId, options);
 
   // Heartbeats are liveness pings, not history: they only bump the session row.
   // No event row, no counters — and at most one write per HEARTBEAT_MIN_WRITE_MS
@@ -236,8 +264,8 @@ async function storeTelemetryD1(env: RuntimeEnv, event: TelemetryEvent): Promise
   await db
     .prepare(
       `INSERT INTO telemetry_events
-        (event_id, source, service, ts, status, metrics_json, message, received_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        (event_id, source, service, ts, status, metrics_json, message, received_at, ingest_auth_mode)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       event.id,
@@ -248,6 +276,7 @@ async function storeTelemetryD1(env: RuntimeEnv, event: TelemetryEvent): Promise
       metricsJson,
       event.message,
       event.receivedAt,
+      options?.authMode ?? null,
     )
     .run();
 
@@ -275,6 +304,26 @@ function isFreshHeartbeat(existing: D1SessionRow, event: TelemetryEvent): boolea
   }
 
   return eventTs - lastSeenTs < HEARTBEAT_MIN_WRITE_MS;
+}
+
+/**
+ * rr.install.v1 binding: a signed request may only touch a session row whose `install_id` is
+ * the verified install. Unsigned (legacy-key) writes carry no identity and are not checked.
+ * Install ids are GUIDs, so the comparison is case-insensitive.
+ */
+function assertSessionOwnership(
+  existingInstallId: string | null,
+  sessionId: string | null,
+  options?: StoreTelemetryOptions,
+): void {
+  const owner = options?.ownerInstallId?.trim().toLowerCase();
+  const current = existingInstallId?.trim().toLowerCase();
+  if (!owner || !sessionId || !current) {
+    return;
+  }
+  if (current !== owner) {
+    throw new SessionOwnershipError(sessionId);
+  }
 }
 
 async function readSessionRowD1(
@@ -483,7 +532,11 @@ async function loadHealthD1(env: RuntimeEnv): Promise<HealthPayload> {
   };
 }
 
-async function storeTelemetryKv(env: RuntimeEnv, event: TelemetryEvent): Promise<void> {
+async function storeTelemetryKv(
+  env: RuntimeEnv,
+  event: TelemetryEvent,
+  options?: StoreTelemetryOptions,
+): Promise<void> {
   const kv = env.KV;
   if (!kv) {
     throw new Error("KV binding KV is missing.");
@@ -494,11 +547,15 @@ async function storeTelemetryKv(env: RuntimeEnv, event: TelemetryEvent): Promise
     kvGetJson<Record<string, AppSessionRecord>>(kv, SESSIONS_KEY, {}),
   ]);
 
+  const sessionId = readSessionId(event);
+  const existingSession = sessionId ? sessionsMap[sessionId] : undefined;
+  assertSessionOwnership(existingSession?.installId ?? null, sessionId, options);
+
   // Match the D1 path: heartbeats only touch the session map, and the event log is
   // bounded (this is a fallback store, not history).
   const nextEvents =
     event.service === SESSION_ACTIVE ? events : [event, ...events].slice(0, MAX_KV_EVENTS);
-  const session = mergeSessionRecord(sessionsMap[readSessionId(event) ?? ""], event);
+  const session = mergeSessionRecord(existingSession, event);
   if (session) {
     sessionsMap[session.id] = session;
   }
@@ -674,11 +731,12 @@ export async function ensureTelemetrySchema(db: RuntimeEnv["DB"]): Promise<void>
   // Cold-start fast path: the full DDL run below is ~26 sequential D1 roundtrips,
   // paid by the first request of every fresh isolate. If the newest columns and
   // tables already exist the schema is current — probe once and skip the storm.
-  // (discord_user/features_json are the most recently added app_sessions columns.)
+  // (discord_user/features_json are the most recently added app_sessions columns,
+  // ingest_auth_mode the most recently added telemetry_events column.)
   try {
     await db.prepare("SELECT discord_user, features_json FROM app_sessions LIMIT 1").first();
     await db.prepare("SELECT counter_value FROM telemetry_counters LIMIT 1").first();
-    await db.prepare("SELECT event_id FROM telemetry_events LIMIT 1").first();
+    await db.prepare("SELECT event_id, ingest_auth_mode FROM telemetry_events LIMIT 1").first();
     schemaReady = true;
     return;
   } catch {
@@ -754,6 +812,8 @@ export async function ensureTelemetrySchema(db: RuntimeEnv["DB"]): Promise<void>
     `ALTER TABLE app_sessions ADD COLUMN rpc_enabled INTEGER`,
     `ALTER TABLE app_sessions ADD COLUMN features_json TEXT`,
     `ALTER TABLE app_sessions ADD COLUMN discord_user TEXT`,
+    // rr.install.v1: 'signed' | 'legacy_key' per ingested event row.
+    `ALTER TABLE telemetry_events ADD COLUMN ingest_auth_mode TEXT`,
   ];
 
   for (const statement of statements) {

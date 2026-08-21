@@ -12,6 +12,12 @@ ACCESS_ADMIN_EMAIL = ""
 # comma-separated AUD tags of every Access application that fronts this project (prod + preview).
 ACCESS_TEAM_DOMAIN = "rr-adminpanel.cloudflareaccess.com"
 ACCESS_AUD = "<prod-aud>,<preview-aud>"
+# rr.install.v1 rollout switches (docs/superpowers/specs/2026-08-21-install-signing-contract.md):
+# keep accepting the shared ingest key next to install signatures ("true" until every client is
+# >= 1.4.9), and whether feedback / access-status / license routes must be signed ("false" while
+# legacy clients are still around).
+LEGACY_INGEST_KEY_ENABLED = "true"
+REQUIRE_INSTALL_SIGNATURE = "false"
 
 [[d1_databases]]
 binding = "DB"

@@ -1,5 +1,6 @@
 import { ensureFeedbackSchema } from "../../_lib/content";
-import { error, json, nowIso, readJsonBody } from "../../_lib/http";
+import { error, json, nowIso } from "../../_lib/http";
+import { parseJsonObject, requireInstallAuth } from "../../_lib/install-auth";
 import { enforceRateLimit } from "../../_lib/ratelimit";
 import type { RuntimeEnv } from "../../_lib/types";
 
@@ -19,10 +20,11 @@ function trimField(value: unknown): string | null {
 }
 
 /**
- * Public, unauthenticated endpoint the desktop app POSTs user feedback to — same access model as
- * /api/license/*. Identity fields are best-effort context supplied by the client so the admin can
- * follow up; only `message` is required. The per-IP rate limit and readJsonBody's byte cap are
- * the basic abuse guards.
+ * Public endpoint the desktop app POSTs user feedback to — same access model as /api/license/*:
+ * an install signature is verified when present and unsigned calls stay allowed for legacy
+ * clients until REQUIRE_INSTALL_SIGNATURE=true. Identity fields are best-effort context supplied
+ * by the client so the admin can follow up; only `message` is required. The per-IP rate limit
+ * and the middleware byte cap are the basic abuse guards.
  */
 export async function onRequestPost(context: HandlerContext): Promise<Response> {
   const limited = enforceRateLimit(context.request, {
@@ -32,24 +34,19 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
   });
   if (limited) return limited;
 
+  const auth = await requireInstallAuth(context, "optional");
+  if (!auth.ok) return auth.response;
+
   const db = context.env.DB;
   if (!db) return error(500, "Database not available");
+
+  const body = parseJsonObject(auth.bodyText);
+  if (!body) return error(400, "Request body must be a JSON object.");
 
   try {
     await ensureFeedbackSchema(context.env);
 
-    const body = await readJsonBody<{
-      message?: string;
-      contact?: string;
-      hwid?: string;
-      install_id?: string;
-      license_key?: string;
-      machine_name?: string;
-      app_version?: string;
-      platform?: string;
-    }>(context.request);
-
-    const message = body.message?.trim() ?? "";
+    const message = typeof body.message === "string" ? body.message.trim() : "";
     if (!message) return error(400, "Feedback message is required.");
     if (message.length > MAX_MESSAGE_LENGTH) {
       return error(400, `Feedback must be <= ${MAX_MESSAGE_LENGTH} characters.`);

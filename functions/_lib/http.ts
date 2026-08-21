@@ -13,14 +13,20 @@ export function json(data: unknown, status = 200, headers?: HeadersInit): Respon
   });
 }
 
-export function error(status: number, message: string, details?: unknown): Response {
+export function error(
+  status: number,
+  message: string,
+  details?: unknown,
+  headers?: HeadersInit,
+): Response {
   return json(
     {
       ok: false,
       error: message,
-      details: details ?? null
+      details: details ?? null,
     },
-    status
+    status,
+    headers,
   );
 }
 

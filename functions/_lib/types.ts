@@ -30,6 +30,7 @@ export interface D1PreparedStatement {
 
 export interface D1Database {
   prepare(query: string): D1PreparedStatement;
+  batch<T = D1RunResult>(statements: D1PreparedStatement[]): Promise<T[]>;
 }
 
 export interface KVListResult {

@@ -25,6 +25,9 @@
     "src/**/*.tsx",
     "src/**/*.d.ts",
     "functions/**/*.ts",
-    "vite.config.ts"
+    "vite.config.ts",
+    "tests/**/*.ts",
+    "shared/**/*.ts",
+    "vitest.config.ts"
   ]
 }

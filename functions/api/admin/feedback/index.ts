@@ -1,6 +1,7 @@
 import { requireDashboardAccess } from "../../../_lib/admin";
 import { ensureFeedbackSchema, type FeedbackRow } from "../../../_lib/content";
 import { error, json } from "../../../_lib/http";
+import { internalError } from "../../../_lib/responses";
 import type { RuntimeEnv } from "../../../_lib/types";
 
 type HandlerContext = {
@@ -26,6 +27,6 @@ export async function onRequestGet(context: HandlerContext): Promise<Response> {
 
     return json({ ok: true, feedback: results, unread });
   } catch (err) {
-    return error(500, "Failed to load feedback.", err instanceof Error ? err.message : null);
+    return internalError(context.request, "Unable to complete the request.", err);
   }
 }

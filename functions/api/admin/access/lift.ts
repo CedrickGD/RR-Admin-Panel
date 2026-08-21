@@ -1,6 +1,7 @@
 import { requireDashboardAccess } from "../../../_lib/admin";
 import { ensureAccessSchema } from "../../../_lib/access";
 import { error, json, readJsonBody, nowIso } from "../../../_lib/http";
+import { internalError } from "../../../_lib/responses";
 import type { RuntimeEnv } from "../../../_lib/types";
 
 type HandlerContext = {
@@ -40,6 +41,6 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
 
     return json({ ok: true, lifted: true, identity });
   } catch (err) {
-    return error(500, "Failed to lift suspension.", err instanceof Error ? err.message : null);
+    return internalError(context.request, "Unable to complete the request.", err);
   }
 }

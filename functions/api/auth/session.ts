@@ -1,6 +1,7 @@
 import { getSessionTokenFromCookie, verifyAppSessionToken } from "../../_lib/auth";
 import { resolveAccessIdentity } from "../../_lib/access-jwt";
 import { enforceAccessAllowList, error, json } from "../../_lib/http";
+import { internalError } from "../../_lib/responses";
 import type { AppUserRole, RuntimeEnv } from "../../_lib/types";
 import { countUsers, ensureAuthSchema, findUserByEmail } from "../../_lib/users";
 
@@ -87,11 +88,7 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
       },
     });
   } catch (sessionError) {
-    return error(
-      500,
-      "Failed to resolve auth session.",
-      sessionError instanceof Error ? sessionError.message : null,
-    );
+    return internalError(context.request, "Unable to complete the request.", sessionError);
   }
 }
 

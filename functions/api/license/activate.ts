@@ -1,4 +1,5 @@
 import { json, error, nowIso } from "../../_lib/http";
+import { internalError } from "../../_lib/responses";
 import { parseJsonObject, requireInstallAuth } from "../../_lib/install-auth";
 import { enforceRateLimit } from "../../_lib/ratelimit";
 import type { RuntimeEnv } from "../../_lib/types";
@@ -114,6 +115,6 @@ export async function onRequestPost(context: { request: Request; env: RuntimeEnv
       type: license.type,
     });
   } catch (err) {
-    return error(500, "Failed to activate license.", err instanceof Error ? err.message : null);
+    return internalError(context.request, "Unable to complete the request.", err);
   }
 }

@@ -6,7 +6,8 @@ import {
   normalizeEmail,
   validatePasswordComplexity,
 } from "../../_lib/auth";
-import { error, json, readJsonBody } from "../../_lib/http";
+import { error, json, jsonBodyErrorMessage, readJsonBody } from "../../_lib/http";
+import { internalError } from "../../_lib/responses";
 import type { RuntimeEnv } from "../../_lib/types";
 import { countUsers, createUser, ensureAuthSchema } from "../../_lib/users";
 
@@ -33,7 +34,7 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
   try {
     payload = await readJsonBody<BootstrapRequest>(context.request, 8 * 1024);
   } catch (bodyError) {
-    return error(400, bodyError instanceof Error ? bodyError.message : "Invalid request.");
+    return error(400, jsonBodyErrorMessage(bodyError));
   }
 
   const email = normalizeEmail(payload?.email ?? "");
@@ -79,10 +80,6 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
       },
     );
   } catch (bootstrapError) {
-    return error(
-      500,
-      "Failed to bootstrap admin user.",
-      bootstrapError instanceof Error ? bootstrapError.message : null,
-    );
+    return internalError(context.request, "Unable to complete the request.", bootstrapError);
   }
 }

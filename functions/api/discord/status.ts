@@ -1,6 +1,7 @@
 import { resolveLicenseForVerification } from "../../_lib/discord";
 import { ensureAccessSchema, type DiscordLinkRow } from "../../_lib/access";
 import { error, json, readJsonBody, getBearerToken, timingSafeEqualText } from "../../_lib/http";
+import { internalError } from "../../_lib/responses";
 import type { RuntimeEnv } from "../../_lib/types";
 
 type HandlerContext = {
@@ -12,15 +13,14 @@ type HandlerContext = {
  * Called by the bot to learn whether a Discord user should currently hold the Verified role:
  * the link must exist, be active, AND its license must still validate (not revoked/expired/
  * suspended). The bot uses this on guildMemberAdd and in its periodic reconcile sweep to add or
- * strip the role. Authenticated with VERIFY_SHARED_SECRET.
+ * strip the role. Authenticated with VERIFY_SHARED_SECRET as a Bearer token (no `?secret=`).
  */
 export async function onRequestPost(context: HandlerContext): Promise<Response> {
   try {
     const secret = context.env.VERIFY_SHARED_SECRET;
     if (!secret) return error(500, "Discord verification is not configured on the server.");
 
-    const url = new URL(context.request.url);
-    const provided = getBearerToken(context.request) ?? url.searchParams.get("secret") ?? "";
+    const provided = getBearerToken(context.request) ?? "";
     if (!timingSafeEqualText(provided, secret)) {
       return error(401, "Unauthorized.");
     }
@@ -60,6 +60,6 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
       reason: active ? undefined : result.reason,
     });
   } catch (err) {
-    return error(500, "Failed to resolve link status.", err instanceof Error ? err.message : null);
+    return internalError(context.request, "Unable to complete the request.", err);
   }
 }

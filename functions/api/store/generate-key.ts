@@ -1,4 +1,5 @@
 import { error, nowIso } from "../../_lib/http";
+import { internalError } from "../../_lib/responses";
 import { ensureLicenseOrderColumns, extractOrderInfo, readStorePayload } from "../../_lib/licenses";
 import type { RuntimeEnv } from "../../_lib/types";
 
@@ -102,10 +103,6 @@ async function handleRequest(context: HandlerContext): Promise<Response> {
       },
     });
   } catch (err) {
-    return error(
-      500,
-      "Failed to generate store license.",
-      err instanceof Error ? err.message : null,
-    );
+    return internalError(context.request, "Unable to complete the request.", err);
   }
 }

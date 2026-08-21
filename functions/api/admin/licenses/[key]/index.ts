@@ -1,5 +1,6 @@
 import { requireDashboardAccess } from "../../../../_lib/admin";
 import { decodeKeyParam, error, json, readJsonBody } from "../../../../_lib/http";
+import { internalError } from "../../../../_lib/responses";
 import {
   EDITABLE_ORDER_FIELDS,
   ensureLicenseOrderColumns,
@@ -59,7 +60,7 @@ export async function onRequestPatch(context: HandlerContext): Promise<Response>
       .first();
     return json({ ok: true, license: updated });
   } catch (err) {
-    return error(500, "Failed to update license.", err instanceof Error ? err.message : null);
+    return internalError(context.request, "Unable to complete the request.", err);
   }
 }
 
@@ -83,6 +84,6 @@ export async function onRequestDelete(context: HandlerContext): Promise<Response
 
     return json({ ok: true, message: "License permanently deleted." });
   } catch (err) {
-    return error(500, "Failed to delete license.", err instanceof Error ? err.message : null);
+    return internalError(context.request, "Unable to complete the request.", err);
   }
 }

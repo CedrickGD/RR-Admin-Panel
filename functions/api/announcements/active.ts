@@ -1,5 +1,6 @@
 import { ensureAnnouncementsSchema, type AnnouncementRow } from "../../_lib/content";
 import { error, json, nowIso } from "../../_lib/http";
+import { internalError } from "../../_lib/responses";
 import { enforceRateLimit } from "../../_lib/ratelimit";
 import type { RuntimeEnv } from "../../_lib/types";
 
@@ -50,6 +51,6 @@ export async function onRequestGet(context: HandlerContext): Promise<Response> {
 
     return json({ ok: true, announcements: results });
   } catch (err) {
-    return error(500, "Failed to load announcements.", err instanceof Error ? err.message : null);
+    return internalError(context.request, "Unable to complete the request.", err);
   }
 }

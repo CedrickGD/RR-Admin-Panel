@@ -1,5 +1,6 @@
 import { ensureAccessSchema, findActiveSuspension, isSuspensionActive } from "../../_lib/access";
 import { error, json, nowIso } from "../../_lib/http";
+import { internalError } from "../../_lib/responses";
 import { parseJsonObject, requireInstallAuth } from "../../_lib/install-auth";
 import { enforceRateLimit } from "../../_lib/ratelimit";
 import type { RuntimeEnv } from "../../_lib/types";
@@ -69,10 +70,6 @@ async function handle(context: HandlerContext): Promise<Response> {
       banned_until: suspension!.banned_until,
     });
   } catch (err) {
-    return error(
-      500,
-      "Failed to resolve access status.",
-      err instanceof Error ? err.message : null,
-    );
+    return internalError(context.request, "Unable to complete the request.", err);
   }
 }

@@ -1,5 +1,6 @@
 import { requireDashboardAccess } from "../../_lib/admin";
 import { error, json } from "../../_lib/http";
+import { internalError } from "../../_lib/responses";
 import { loadHealth, loadSummary } from "../../_lib/storage";
 import type { RuntimeEnv } from "../../_lib/types";
 
@@ -34,10 +35,6 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
       sessionExpiresAt: access.access.sessionExpiresAt,
     });
   } catch (dataError) {
-    return error(
-      500,
-      "Failed to load protected admin data.",
-      dataError instanceof Error ? dataError.message : null,
-    );
+    return internalError(context.request, "Unable to complete the request.", dataError);
   }
 }

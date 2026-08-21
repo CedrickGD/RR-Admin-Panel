@@ -5,7 +5,8 @@ import {
   normalizeEmail,
   verifyPassword,
 } from "../../_lib/auth";
-import { error, json, readJsonBody } from "../../_lib/http";
+import { error, json, jsonBodyErrorMessage, readJsonBody } from "../../_lib/http";
+import { internalError } from "../../_lib/responses";
 import type { RuntimeEnv } from "../../_lib/types";
 import {
   countUsers,
@@ -37,7 +38,7 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
   try {
     payload = await readJsonBody<LoginRequest>(context.request, 8 * 1024);
   } catch (bodyError) {
-    return error(400, bodyError instanceof Error ? bodyError.message : "Invalid request.");
+    return error(400, jsonBodyErrorMessage(bodyError));
   }
 
   const email = normalizeEmail(payload?.email ?? "");
@@ -83,10 +84,6 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
       },
     );
   } catch (loginError) {
-    return error(
-      500,
-      "Failed to authenticate user.",
-      loginError instanceof Error ? loginError.message : null,
-    );
+    return internalError(context.request, "Unable to complete the request.", loginError);
   }
 }

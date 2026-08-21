@@ -1,5 +1,6 @@
 import { requireDashboardAccess } from "../../_lib/admin";
 import { error, json } from "../../_lib/http";
+import { internalError } from "../../_lib/responses";
 import { loadUserActivity } from "../../_lib/activity";
 import type { RuntimeEnv } from "../../_lib/types";
 
@@ -41,10 +42,6 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
 
     return json({ ok: true, generatedAt: new Date().toISOString(), activity });
   } catch (activityError) {
-    return error(
-      500,
-      "Failed to load user activity.",
-      activityError instanceof Error ? activityError.message : null,
-    );
+    return internalError(context.request, "Unable to complete the request.", activityError);
   }
 }

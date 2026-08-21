@@ -1,5 +1,6 @@
 import { requireDashboardAccess } from "../../_lib/admin";
 import { error } from "../../_lib/http";
+import { internalError } from "../../_lib/responses";
 import { loadSessionExportText } from "../../_lib/storage";
 import type { RuntimeEnv } from "../../_lib/types";
 
@@ -31,10 +32,6 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
       },
     });
   } catch (exportError) {
-    return error(
-      500,
-      "Failed to export session log.",
-      exportError instanceof Error ? exportError.message : null,
-    );
+    return internalError(context.request, "Unable to complete the request.", exportError);
   }
 }

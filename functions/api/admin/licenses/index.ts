@@ -1,6 +1,7 @@
 import { ensureAccessSchema } from "../../../_lib/access";
 import { requireDashboardAccess } from "../../../_lib/admin";
 import { error, json, readJsonBody, nowIso } from "../../../_lib/http";
+import { internalError } from "../../../_lib/responses";
 import { ensureLicenseOrderColumns, normalizeOrderField } from "../../../_lib/licenses";
 import type { RuntimeEnv } from "../../../_lib/types";
 
@@ -50,7 +51,7 @@ export async function onRequestGet(context: HandlerContext): Promise<Response> {
       .all();
     return json({ ok: true, licenses: results });
   } catch (err) {
-    return error(500, "Failed to load licenses.", err instanceof Error ? err.message : null);
+    return internalError(context.request, "Unable to complete the request.", err);
   }
 }
 
@@ -133,6 +134,6 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
 
     return json({ ok: true, generated_keys: keys });
   } catch (err) {
-    return error(500, "Failed to generate licenses.", err instanceof Error ? err.message : null);
+    return internalError(context.request, "Unable to complete the request.", err);
   }
 }

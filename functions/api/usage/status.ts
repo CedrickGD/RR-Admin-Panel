@@ -1,4 +1,5 @@
 import { error, json } from "../../_lib/http";
+import { internalError } from "../../_lib/responses";
 import { requireInstallAuth } from "../../_lib/install-auth";
 import { enforceRateLimit } from "../../_lib/ratelimit";
 import type { RuntimeEnv } from "../../_lib/types";
@@ -53,6 +54,6 @@ export async function onRequestGet(context: HandlerContext): Promise<Response> {
 
     return json({ ok: true, unlimited: false, period, features });
   } catch (err) {
-    return error(500, "Failed to read usage.", err instanceof Error ? err.message : null);
+    return internalError(context.request, "Unable to complete the request.", err);
   }
 }

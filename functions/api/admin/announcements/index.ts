@@ -6,6 +6,7 @@ import {
   type AnnouncementRow,
 } from "../../../_lib/content";
 import { error, json, nowIso, readJsonBody } from "../../../_lib/http";
+import { internalError } from "../../../_lib/responses";
 import type { RuntimeEnv } from "../../../_lib/types";
 
 type HandlerContext = {
@@ -39,7 +40,7 @@ export async function onRequestGet(context: HandlerContext): Promise<Response> {
 
     return json({ ok: true, announcements: results });
   } catch (err) {
-    return error(500, "Failed to load announcements.", err instanceof Error ? err.message : null);
+    return internalError(context.request, "Unable to complete the request.", err);
   }
 }
 
@@ -87,6 +88,6 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
 
     return json({ ok: true, id: result.meta?.last_row_id ?? null });
   } catch (err) {
-    return error(500, "Failed to create announcement.", err instanceof Error ? err.message : null);
+    return internalError(context.request, "Unable to complete the request.", err);
   }
 }

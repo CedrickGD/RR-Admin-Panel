@@ -4,6 +4,7 @@ import {
   verifyReasonMessage,
 } from "../../_lib/discord";
 import { error, json, readJsonBody, getBearerToken, timingSafeEqualText } from "../../_lib/http";
+import { internalError } from "../../_lib/responses";
 import type { RuntimeEnv } from "../../_lib/types";
 
 type HandlerContext = {
@@ -13,9 +14,10 @@ type HandlerContext = {
 
 /**
  * Called by the Discord bot's /verify command. Authenticated with the shared VERIFY_SHARED_SECRET
- * (Bearer token or ?secret=). Validates the supplied license key, records the Discord↔license link,
- * and returns ok — the BOT then grants the Verified role to the caller. Deliberately does not touch
- * Discord itself, so this path needs no bot token on the Pages side.
+ * (Bearer token only — a `?secret=` query string is not accepted). Validates the supplied license
+ * key, records the Discord↔license link, and returns ok — the BOT then grants the Verified role to
+ * the caller. Deliberately does not touch Discord itself, so this path needs no bot token on the
+ * Pages side.
  *
  * A `manual: true` body is the staff-grant path (from `/verify user:@member`): it records a
  * permanent, license-less link (source = "manual") that /api/discord/status always reports active,
@@ -27,8 +29,7 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
     const secret = context.env.VERIFY_SHARED_SECRET;
     if (!secret) return error(500, "Discord verification is not configured on the server.");
 
-    const url = new URL(context.request.url);
-    const provided = getBearerToken(context.request) ?? url.searchParams.get("secret") ?? "";
+    const provided = getBearerToken(context.request) ?? "";
     if (!timingSafeEqualText(provided, secret)) {
       return error(401, "Unauthorized.");
     }
@@ -102,6 +103,6 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
       license_key: result.license.license_key,
     });
   } catch (err) {
-    return error(500, "Failed to verify.", err instanceof Error ? err.message : null);
+    return internalError(context.request, "Unable to complete the request.", err);
   }
 }

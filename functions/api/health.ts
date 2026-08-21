@@ -1,4 +1,5 @@
 import { error, json } from "../_lib/http";
+import { internalError } from "../_lib/responses";
 import { loadHealth } from "../_lib/storage";
 import type { RuntimeEnv } from "../_lib/types";
 
@@ -16,10 +17,6 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
     const health = await loadHealth(context.env);
     return json(health);
   } catch (healthError) {
-    return error(
-      500,
-      "Health check failed.",
-      healthError instanceof Error ? healthError.message : null,
-    );
+    return internalError(context.request, "Unable to complete the request.", healthError);
   }
 }

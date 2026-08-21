@@ -57,28 +57,45 @@ export function timingSafeEqualText(left: string, right: string): boolean {
   return mismatch === 0;
 }
 
+/** Thrown by `readJsonBody`; its message describes the client's body and is safe to return. */
+export class JsonBodyError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "JsonBodyError";
+  }
+}
+
+/**
+ * Public 400 text for a failed `readJsonBody`. Anything that is not a `JsonBodyError` (a runtime
+ * failure while reading the stream, for instance) collapses to a fixed message so no internal
+ * error text reaches the client.
+ */
+export function jsonBodyErrorMessage(cause: unknown): string {
+  return cause instanceof JsonBodyError ? cause.message : "Invalid request.";
+}
+
 export async function readJsonBody<T>(request: Request, maxBytes = 16 * 1024): Promise<T> {
   const declared = request.headers.get("content-length");
   if (declared) {
     const contentLength = Number.parseInt(declared, 10);
     if (Number.isFinite(contentLength) && contentLength > maxBytes) {
-      throw new Error(`Payload exceeds ${maxBytes} bytes.`);
+      throw new JsonBodyError(`Payload exceeds ${maxBytes} bytes.`);
     }
   }
 
   const raw = await request.text();
   if (encoder.encode(raw).byteLength > maxBytes) {
-    throw new Error(`Payload exceeds ${maxBytes} bytes.`);
+    throw new JsonBodyError(`Payload exceeds ${maxBytes} bytes.`);
   }
 
   if (!raw.trim()) {
-    throw new Error("Request body is required.");
+    throw new JsonBodyError("Request body is required.");
   }
 
   try {
     return JSON.parse(raw) as T;
   } catch {
-    throw new Error("Invalid JSON.");
+    throw new JsonBodyError("Invalid JSON.");
   }
 }
 

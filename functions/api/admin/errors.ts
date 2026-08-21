@@ -1,6 +1,7 @@
 import { requireDashboardAccess } from "../../_lib/admin";
 import { loadErrorsByUser, parseErrorsRange } from "../../_lib/errors";
 import { error, json } from "../../_lib/http";
+import { internalError } from "../../_lib/responses";
 import type { RuntimeEnv } from "../../_lib/types";
 
 type HandlerContext = {
@@ -24,10 +25,6 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
 
     return json({ ok: true, errors });
   } catch (errorsError) {
-    return error(
-      500,
-      "Failed to load the errors rollup.",
-      errorsError instanceof Error ? errorsError.message : null,
-    );
+    return internalError(context.request, "Unable to complete the request.", errorsError);
   }
 }

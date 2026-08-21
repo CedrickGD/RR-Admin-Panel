@@ -1,4 +1,5 @@
 import { error, json } from "../../_lib/http";
+import { internalError } from "../../_lib/responses";
 import { parseJsonObject, requireInstallAuth } from "../../_lib/install-auth";
 import { enforceRateLimit } from "../../_lib/ratelimit";
 import type { RuntimeEnv } from "../../_lib/types";
@@ -51,6 +52,6 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
     await ensureUsageSchema(db);
     return json(await consumeUse(db, hwid, feature, limit));
   } catch (err) {
-    return error(500, "Failed to consume usage.", err instanceof Error ? err.message : null);
+    return internalError(context.request, "Unable to complete the request.", err);
   }
 }

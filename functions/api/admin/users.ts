@@ -1,5 +1,6 @@
 import { requireDashboardAccess } from "../../_lib/admin";
 import { error, json } from "../../_lib/http";
+import { internalError } from "../../_lib/responses";
 import { loadUsersRollup, parseStatsFilters } from "../../_lib/stats";
 import type { RuntimeEnv } from "../../_lib/types";
 
@@ -24,10 +25,6 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
 
     return json({ ok: true, generatedAt: new Date().toISOString(), users });
   } catch (usersError) {
-    return error(
-      500,
-      "Failed to load user rollups.",
-      usersError instanceof Error ? usersError.message : null,
-    );
+    return internalError(context.request, "Unable to complete the request.", usersError);
   }
 }

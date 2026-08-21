@@ -1,5 +1,6 @@
 import { ensureFeedbackSchema } from "../../_lib/content";
 import { error, json, nowIso } from "../../_lib/http";
+import { internalError } from "../../_lib/responses";
 import { parseJsonObject, requireInstallAuth } from "../../_lib/install-auth";
 import { enforceRateLimit } from "../../_lib/ratelimit";
 import type { RuntimeEnv } from "../../_lib/types";
@@ -73,6 +74,6 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
 
     return json({ ok: true, message: "Feedback received. Thank you!" }, 201);
   } catch (err) {
-    return error(500, "Failed to submit feedback.", err instanceof Error ? err.message : null);
+    return internalError(context.request, "Unable to complete the request.", err);
   }
 }

@@ -1,5 +1,6 @@
 import { requireDashboardAccess } from "../../../../_lib/admin";
 import { decodeKeyParam, error, json } from "../../../../_lib/http";
+import { internalError } from "../../../../_lib/responses";
 import type { RuntimeEnv } from "../../../../_lib/types";
 
 type HandlerContext = {
@@ -40,6 +41,6 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
 
     return json({ ok: true, message: "License revoked successfully." });
   } catch (err) {
-    return error(500, "Failed to revoke license.", err instanceof Error ? err.message : null);
+    return internalError(context.request, "Unable to complete the request.", err);
   }
 }

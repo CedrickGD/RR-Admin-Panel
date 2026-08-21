@@ -1,5 +1,6 @@
 import { requireDashboardAccess } from "../../_lib/admin";
 import { error, json } from "../../_lib/http";
+import { internalError } from "../../_lib/responses";
 import { loadStats, parseStatsFilters } from "../../_lib/stats";
 import type { RuntimeEnv } from "../../_lib/types";
 
@@ -24,10 +25,6 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
 
     return json({ ok: true, stats });
   } catch (statsError) {
-    return error(
-      500,
-      "Failed to load stats.",
-      statsError instanceof Error ? statsError.message : null,
-    );
+    return internalError(context.request, "Unable to complete the request.", statsError);
   }
 }

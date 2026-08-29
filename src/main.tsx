@@ -4,10 +4,13 @@ import App from "./App";
 import "./index.css";
 import "./theme/styles.css";
 import "./theme/app-glue.css";
+import { redirectLegacyPagesHost } from "./utils/legacyPagesRedirect";
 
 const root = document.getElementById("root");
 if (!root) {
   throw new Error("Missing #root mount node.");
 }
 
-createRoot(root).render(<App />);
+if (!redirectLegacyPagesHost(window.location)) {
+  createRoot(root).render(<App />);
+}

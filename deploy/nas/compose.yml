@@ -56,6 +56,24 @@ services:
       retries: 3
       start_period: 10s
 
+  # Admin SPA + same-origin API gateway. Cloudflare Access protects
+  # admin.<domain>; Caddy forwards its JWT and browser Origin/Host to rr-api.
+  admin:
+    build:
+      context: ../..
+      dockerfile: deploy/nas/admin/Dockerfile
+    restart: unless-stopped
+    env_file: ${DATA_DIR}/env/admin.env   # ORIGIN_KEY only; see admin.env.example
+    depends_on:
+      rr-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
   backup:
     image: alpine:3.20
     restart: unless-stopped

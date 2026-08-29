@@ -46,8 +46,31 @@ function cloudflareHeaders(): Plugin {
   };
 }
 
+// Advanced-mode Pages workers otherwise default to every route. Keep the static
+// redirect shell off the Functions quota entirely: only legacy API calls may
+// invoke the proxy worker.
+export const PAGES_ROUTES = {
+  version: 1,
+  include: ["/api/*", "/v1/*"],
+  exclude: [],
+} as const;
+
+function cloudflareRoutes(): Plugin {
+  return {
+    name: "emit-cf-routes",
+    apply: "build",
+    generateBundle() {
+      this.emitFile({
+        type: "asset",
+        fileName: "_routes.json",
+        source: `${JSON.stringify(PAGES_ROUTES, null, 2)}\n`,
+      });
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), tailwindcss(), cloudflareHeaders()],
+  plugins: [react(), tailwindcss(), cloudflareHeaders(), cloudflareRoutes()],
   root: "public",
   build: {
     outDir: path.resolve(projectRoot, "dist"),
@@ -78,7 +101,7 @@ export default defineConfig({
   },
   server: {
     fs: {
-      allow: [projectRoot]
-    }
-  }
+      allow: [projectRoot],
+    },
+  },
 });

@@ -1,0 +1,52 @@
+# Admin UI and same-origin API gateway behind the outbound Cloudflare Tunnel.
+# The port is not published on the NAS host.
+:8080 {
+	@backend path /api /api/* /v1 /v1/*
+	handle @backend {
+		header Cache-Control "no-store"
+		reverse_proxy rr-api:8787 {
+			# Caddy -> rr-api is plain HTTP on the private Docker network. Use the
+			# existing authenticated forwarding contract so rr-api reconstructs the
+			# browser-facing HTTPS URL (Secure cookies + same-origin CSRF), while a
+			# client can never inject its own forwarding identity.
+			header_up -X-RR-Origin-Key
+			header_up -X-RR-Client-IP
+			header_up -X-RR-Client-CF
+			header_up -X-RR-Forwarded-Host
+			header_up -X-RR-Forwarded-Proto
+			header_up X-RR-Origin-Key {$ORIGIN_KEY}
+			header_up X-RR-Client-IP {http.request.header.Cf-Connecting-Ip}
+			header_up X-RR-Forwarded-Host {http.request.host}
+			header_up X-RR-Forwarded-Proto https
+
+			# Pin the Access/CSRF inputs as an explicit deployment contract. Caddy
+			# also forwards them by default.
+			header_up Host {http.request.host}
+			header_up Origin {http.request.header.Origin}
+			header_up Cf-Access-Jwt-Assertion {http.request.header.Cf-Access-Jwt-Assertion}
+		}
+	}
+
+	@assets path /assets/*
+	handle @assets {
+		root * /srv/admin
+		header Cache-Control "public, max-age=31536000, immutable"
+		file_server
+	}
+
+	# Hash routing means every non-asset navigation is the current SPA shell.
+	# Never cache it: a normal reload must pick up the newest hashed assets.
+	handle {
+		root * /srv/admin
+		try_files {path} /index.html
+		header Cache-Control "no-store"
+		file_server
+	}
+
+	header -Server
+	header X-Content-Type-Options "nosniff"
+	header X-Frame-Options "DENY"
+	header Content-Security-Policy "frame-ancestors 'none'"
+	header Referrer-Policy "strict-origin-when-cross-origin"
+	header Permissions-Policy "camera=(), microphone=(), geolocation=()"
+}

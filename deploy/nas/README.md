@@ -7,6 +7,7 @@ Target: Cloudflare stays the edge (DNS, cache, WAF, Access); the NAS is the orig
 
 ```
 api.<domain>    -> rr-api          (Node 22; the Pages Functions + worker code on SQLite)   [W3.5]
+admin.<domain>  -> admin           (Caddy; dashboard SPA + same-origin API gateway)
 origin.<domain> -> rr-api          (same container; upstream of the worker/Pages proxy shells,
                                     key-gated via ORIGIN_KEY, not WAF-rate-limited)         [W3.7]
 media.<domain>  -> caddy           (static files from /volume1/docker/razorreaper/media)          [W3.3]
@@ -31,6 +32,8 @@ into the tunnel.
    `origin.<domain>` -> `http://rr-api:8787` (W3.7; worker/Pages subrequests come from Cloudflare
    egress IPs, so this hostname must stay OUT of the `api.<domain>` WAF rate-limit rule — rr-api
    rejects anything on it without the `ORIGIN_KEY`).
+   Add `admin.<domain>` -> `http://admin:8080` as well, and add `admin.<domain>` to the **same
+   Cloudflare Access application** as the Pages dashboard so it keeps the existing Access audience.
 4. Zone settings: Rules -> Transform Rules -> **Managed Transforms -> "Add visitor location headers" ON**
    (keeps `cf-ipcity/cf-iplatitude/cf-iplongitude/cf-region/cf-timezone` flowing to rr-api);
    Caching -> Cache Rules: hostname `media.<domain>` -> Cache everything, Edge TTL 1 day;
@@ -49,6 +52,35 @@ docker compose logs -f cloudflared     # expect "Registered tunnel connection"
 ```
 
 Update: `git -C /volume1/docker/razorreaper/src/RR-Admin-Panel pull && git -C /volume1/docker/razorreaper/src/razorreaper-bot pull && docker compose up -d --build`.
+
+### Admin panel emergency/redeploy path
+
+The dashboard is served directly from the NAS so it does not depend on the Cloudflare Pages
+Functions daily quota. `admin` serves the Vite SPA and reverse-proxies `/api/*` and `/v1/*` to
+`rr-api` on the private Compose network. The browser therefore remains same-origin and Caddy
+preserves the Cloudflare Access JWT, `Origin`, cookies and original `Host` on every API request.
+Its dedicated `admin.env` contains only the same `ORIGIN_KEY` already used by rr-api; that lets
+rr-api authenticate Caddy's forwarding headers and reconstruct the public HTTPS URL.
+
+After pulling this commit on the NAS, build the new service and restart cloudflared so its
+process reloads the tracked tunnel ingress file:
+
+```bash
+cd /volume1/docker/razorreaper/src/RR-Admin-Panel/deploy/nas
+grep -m1 '^ORIGIN_KEY=' /volume1/docker/razorreaper/data/env/rr-api.env > /volume1/docker/razorreaper/data/env/admin.env
+chmod 600 /volume1/docker/razorreaper/data/env/admin.env
+docker compose up -d --build admin
+docker compose restart cloudflared
+docker compose ps rr-api admin cloudflared
+```
+
+One-time Cloudflare setup: create the DNS route/CNAME for `admin.razorreaper.app` to the existing
+`rr-nas` tunnel, then add `admin.razorreaper.app` as another public hostname on the existing
+dashboard Access application (do not create a second application/audience). Verify
+`https://admin.razorreaper.app/api/health` returns JSON and opening
+`https://admin.razorreaper.app/#/live` loads the dashboard. The legacy
+`rr-admin-panel.pages.dev` shell redirects there while preserving query strings and hash routes;
+its `_routes.json` keeps all static UI requests outside the Pages Functions invocation quota.
 
 ## Media migration (W3.3)
 

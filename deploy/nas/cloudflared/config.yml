@@ -9,6 +9,8 @@ ingress:
     service: http://bot:8080
   - hostname: api.razorreaper.app
     service: http://rr-api:8787
+  - hostname: admin.razorreaper.app
+    service: http://admin:8080
   # Upstream of the worker/Pages proxy shells (W3.7): same container, but rr-api only accepts
   # requests on this hostname with the ORIGIN_KEY (401 otherwise). Keep it out of the WAF
   # rate-limit rule — the shells' subrequests all come from Cloudflare egress IPs.

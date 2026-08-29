@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && vite build --config vite.pages-worker.config.ts",
     "preview": "vite preview",
     "pages:dev": "wrangler pages dev dist --compatibility-date 2026-02-25 --kv KV",
     "dev:pages": "npm run build && npm run pages:dev",

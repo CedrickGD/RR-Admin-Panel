@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS app_sessions (
 CREATE INDEX IF NOT EXISTS idx_sessions_active_last_seen ON app_sessions(is_active, last_seen_at DESC);
 CREATE INDEX IF NOT EXISTS idx_sessions_updated ON app_sessions(updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_sessions_install ON app_sessions(install_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_sessions_identity_started ON app_sessions(COALESCE(hwid, install_id), started_at DESC);
 
 CREATE TABLE IF NOT EXISTS admin_users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

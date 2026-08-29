@@ -87,7 +87,9 @@ body::after {
   border: none;
   box-shadow: none;
 }
-.stat-label { padding-right: 0; }
+.stat-label {
+  padding-right: 0;
+}
 
 /* Static accent glow hairlines on panel edges — retired (no static
    glows; the aurora is the only ambience). */
@@ -108,20 +110,28 @@ body::after {
   text-transform: uppercase;
   position: static;
 }
-.kicker { text-shadow: none; }
+.kicker {
+  text-shadow: none;
+}
 
 /* Page subtitles were filler — the title row stays lean. */
-.page-subtitle { display: none; }
+.page-subtitle {
+  display: none;
+}
 
 /* index.css's legacy page-entrance animation is retired here; the single
    pageIn rise (the app's one entrance layer) is defined later in this file. */
-.page-enter { animation: none; }
+.page-enter {
+  animation: none;
+}
 
 /* ── (a) Heatmap: map fills the viewport instead of stopping at
    520px. Scoped to >900px so the index.css mobile heights still
    apply; fullscreen mode has a more specific selector. */
 @media (min-width: 901px) {
-  .world-heatmap-map-shell { min-height: clamp(460px, calc(100vh - 330px), 940px); }
+  .world-heatmap-map-shell {
+    min-height: clamp(460px, calc(100vh - 330px), 940px);
+  }
 }
 
 /* ── Component/page port needs ─────────────────────────────────── */
@@ -130,13 +140,18 @@ body::after {
    of caller-passed Tailwind utility classes (pages still pass
    h-4 w-4 = 16px, a no-op in this codebase) or the lucide 24px
    default. */
-.tile-icon svg { width: 14px; height: 14px; }
+.tile-icon svg {
+  width: 14px;
+  height: 14px;
+}
 
 /* App extension to the DS drill-down modal: the recharts area section
    between TimespanGrid and BreakdownList. (Currently also in
    index.css; this copy keeps the modal chart styled if the legacy kpi
    block is ever pruned.) */
-.kpi-modal-chart { margin: 0 -6px; }
+.kpi-modal-chart {
+  margin: 0 -6px;
+}
 
 /* FilterBar mobile — replaces the index.css ≤640px rules that were
    scoped to the removed .filter-bar wrapper (the seg control now
@@ -155,11 +170,18 @@ body::after {
 
 /* Chart tooltip: uppercase micro time label (DS tooltip anatomy —
    extends the .chart-tip-label base in components.css). */
-.chart-tip-label { text-transform: uppercase; letter-spacing: 0.07em; }
+.chart-tip-label {
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
 
 /* Chart tooltip: divider above the summed Total row
    (TelemetryChartTooltip showTotal). */
-.chart-tip-total { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); }
+.chart-tip-total {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
 
 /* Overview · Recent Errors: per-row dismiss action — an app feature
    the DS Feed component has no slot for; the rows themselves reuse
@@ -178,7 +200,9 @@ body::after {
   border-radius: 8px;
   color: var(--text-3);
   cursor: pointer;
-  transition: color 0.15s ease, background 0.15s ease;
+  transition:
+    color 0.15s ease,
+    background 0.15s ease;
 }
 .feed-dismiss:hover {
   color: var(--text-1);
@@ -204,7 +228,9 @@ body::after {
   padding: 12px 14px 6px;
   transition: border-color 0.2s;
 }
-.timezone-card:hover { border-color: var(--line-hi); }
+.timezone-card:hover {
+  border-color: var(--line-hi);
+}
 .timezone-card-top {
   display: flex;
   align-items: flex-start;
@@ -226,8 +252,16 @@ body::after {
   font-size: 0.65625rem;
   color: var(--text-3);
 }
-.timezone-card-metrics { display: flex; gap: 12px; }
-.timezone-card-metrics > div { display: flex; flex-direction: column; gap: 2px; text-align: right; }
+.timezone-card-metrics {
+  display: flex;
+  gap: 12px;
+}
+.timezone-card-metrics > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: right;
+}
 .timezone-card-metrics span {
   font-size: var(--fs-micro);
   font-weight: 500;
@@ -245,7 +279,9 @@ body::after {
 }
 /* Chart well inside the timezone card — pull the recharts plot toward
    the card edges (same recipe as .kpi-modal-chart). */
-.timezone-card-shell { margin: 0 -6px; }
+.timezone-card-shell {
+  margin: 0 -6px;
+}
 
 /* Inline danger note — one-line error banner under the KPI row
    (WorkersPage TXT-export failures). */
@@ -277,8 +313,14 @@ body::after {
 
 /* LogsPage: DS base.css only ships stat-grid-4/6/7 — the Errors page
    uses a 3-up KPI row. */
-.stat-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-@media (max-width: 900px) { .stat-grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.stat-grid-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+@media (max-width: 900px) {
+  .stat-grid-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 
 /* LogsPage: accent-tinted active state for the panel-head Filters
    toggle (DS Button). */
@@ -291,26 +333,55 @@ body::after {
 /* LogsPage: the expandable filter panel sits first in the flush panel
    body — the panel head already draws a bottom hairline, so drop the
    panel's own top border to avoid a double line. */
-.panel-body-flush > .error-filter-panel:first-child { border-top: 0; }
+.panel-body-flush > .error-filter-panel:first-child {
+  border-top: 0;
+}
 
 /* ── Settings page (SettingsPage.tsx) ─────────────────────────── */
 
 /* Kicker with a leading 12px lucide icon */
-.kicker-row { display: inline-flex; align-items: center; gap: 6px; }
+.kicker-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 
 /* Copyable kv values (backend build info) — button reset only;
    typography stays on .kv-val so machine values keep their mono */
-.kv-val-copy { background: none; border: none; padding: 0; cursor: copy; }
-.kv-val-copy:hover { color: var(--accent-text); }
-.kv-copied { display: inline-flex; align-items: center; gap: 4px; color: var(--success-text); animation: kv-pop 0.13s var(--ease-pop); }
+.kv-val-copy {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: copy;
+}
+.kv-val-copy:hover {
+  color: var(--accent-text);
+}
+.kv-copied {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--success-text);
+  animation: kv-pop 0.13s var(--ease-pop);
+}
 @keyframes kv-pop {
-  from { opacity: 0; transform: scale(0.9); }
-  to   { opacity: 1; transform: none; }
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 /* Current-accent chip in the Appearance panel head — follows the
    live accent vars and the --glow multiplier */
-.accent-current { display: flex; align-items: center; gap: 10px; }
+.accent-current {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 .accent-current-chip {
   width: 28px;
   height: 28px;
@@ -319,7 +390,11 @@ body::after {
   border: 2px solid rgba(255, 255, 255, 0.15);
   box-shadow: 0 0 16px hsl(var(--ah) var(--as) var(--al) / calc(0.5 * var(--glow)));
 }
-.accent-current-value { font-family: var(--font-mono); font-size: var(--fs-small); color: var(--text-2); }
+.accent-current-value {
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  color: var(--text-2);
+}
 
 /* Inline mono suffix on .label-sm micro-labels ("262° — Purple") */
 .label-sm-suffix {
@@ -351,7 +426,11 @@ body::after {
 }
 
 /* Chart/donut color preset chips (Settings) */
-.preset-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.preset-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 .preset-chip {
   display: inline-flex;
   align-items: center;
@@ -363,14 +442,39 @@ body::after {
   color: var(--text-2);
   font-size: var(--fs-small);
   cursor: pointer;
-  transition: background var(--t-med), border-color var(--t-med), color var(--t-med);
+  transition:
+    background var(--t-med),
+    border-color var(--t-med),
+    color var(--t-med);
 }
-.preset-chip:hover { background: var(--surface-2); border-color: var(--line-hi); color: var(--text-1); }
-.preset-chip.active { background: var(--surface-3); border-color: var(--line-hi); color: var(--text-1); font-weight: 500; }
-.preset-chip-dots { display: flex; gap: 4px; }
-.preset-dot { width: 12px; height: 12px; border-radius: 50%; }
-.preset-dot-sm { width: 10px; height: 10px; }
-.preset-check { display: flex; color: var(--accent-text); }
+.preset-chip:hover {
+  background: var(--surface-2);
+  border-color: var(--line-hi);
+  color: var(--text-1);
+}
+.preset-chip.active {
+  background: var(--surface-3);
+  border-color: var(--line-hi);
+  color: var(--text-1);
+  font-weight: 500;
+}
+.preset-chip-dots {
+  display: flex;
+  gap: 4px;
+}
+.preset-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+.preset-dot-sm {
+  width: 10px;
+  height: 10px;
+}
+.preset-check {
+  display: flex;
+  color: var(--accent-text);
+}
 
 /* ── Auth screen — centered frosted card on the aurora ground ── */
 .auth-shell {
@@ -402,7 +506,11 @@ body::after {
   padding-bottom: 16px;
   border-bottom: 1px solid var(--line);
 }
-.auth-brand-img { width: 28px; height: 28px; object-fit: contain; }
+.auth-brand-img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+}
 .auth-brand-name {
   display: block;
   font-family: var(--font-display);
@@ -424,10 +532,24 @@ body::after {
   white-space: nowrap;
 }
 
-.auth-head { display: flex; flex-direction: column; gap: 4px; }
-.auth-head .kicker { margin-bottom: 2px; }
-.auth-title { font-size: var(--fs-page); letter-spacing: -0.02em; }
-.auth-sub { margin: 0; font-size: var(--fs-body); color: var(--text-2); line-height: 1.65; }
+.auth-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.auth-head .kicker {
+  margin-bottom: 2px;
+}
+.auth-title {
+  font-size: var(--fs-page);
+  letter-spacing: -0.02em;
+}
+.auth-sub {
+  margin: 0;
+  font-size: var(--fs-body);
+  color: var(--text-2);
+  line-height: 1.65;
+}
 
 /* Scope / Mode meta strip — inset kv cells */
 .auth-meta {
@@ -439,7 +561,11 @@ body::after {
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
 }
-.auth-meta > div { display: grid; gap: 3px; min-width: 0; }
+.auth-meta > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
 .auth-meta strong {
   font-size: var(--fs-small);
   font-weight: 600;
@@ -457,8 +583,15 @@ body::after {
   animation: v2rise var(--t-med) var(--ease-rise) backwards;
 }
 
-.auth-form { display: flex; flex-direction: column; gap: 13px; }
-.auth-field { display: grid; gap: 6px; }
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+.auth-field {
+  display: grid;
+  gap: 6px;
+}
 
 /* Input wells — dark inset glass, accent focus ring (3px --accent-subtle) */
 .auth-input {
@@ -470,15 +603,23 @@ body::after {
   background: rgba(3, 5, 14, 0.32);
   border: 1px solid var(--line);
   border-radius: var(--r-ctl);
-  transition: border-color var(--t-med), box-shadow var(--t-med), background var(--t-med);
+  transition:
+    border-color var(--t-med),
+    box-shadow var(--t-med),
+    background var(--t-med);
 }
-.auth-input:hover { border-color: var(--line-hi); }
+.auth-input:hover {
+  border-color: var(--line-hi);
+}
 .auth-input:focus-within {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-subtle);
   background: rgba(3, 5, 14, 0.42);
 }
-.auth-input svg { color: var(--text-3); flex: none; }
+.auth-input svg {
+  color: var(--text-3);
+  flex: none;
+}
 .auth-input input {
   flex: 1;
   min-width: 0;
@@ -489,7 +630,9 @@ body::after {
   color: var(--text-1);
   font-size: var(--fs-body);
 }
-.auth-input input::placeholder { color: var(--text-3); }
+.auth-input input::placeholder {
+  color: var(--text-3);
+}
 
 /* Keep Chrome autofill from flashing a white well */
 .auth-input input:-webkit-autofill,
@@ -501,10 +644,15 @@ body::after {
   transition: background-color 9999s ease-in-out 0s;
 }
 
-.auth-submit { width: 100%; margin-top: 3px; }
+.auth-submit {
+  width: 100%;
+  margin-top: 3px;
+}
 
 @media (max-width: 480px) {
-  .auth-card { padding: 22px 18px; }
+  .auth-card {
+    padding: 22px 18px;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -540,7 +688,7 @@ body::after {
   /* Lift the whole console out of the murk: lighter ground, lighter
      glass, brighter secondary text */
   --bg: #0b0d17;
-  --text-2: rgba(236, 241, 255, 0.70);
+  --text-2: rgba(236, 241, 255, 0.7);
   --text-3: rgba(236, 241, 255, 0.42);
   --surface-1: hsl(238 30% 16% / 0.55);
   --surface-2: hsl(236 32% 20% / 0.62);
@@ -565,16 +713,36 @@ body::after {
 html::before {
   inset: -18%;
   background:
-    radial-gradient(40% 36% at 26% 72%, hsl(calc(var(--ah) - 40) 90% 56% / calc(0.46 * var(--glow))), transparent 66%),
-    radial-gradient(46% 40% at 50% 47%, hsl(var(--ah) 92% 58% / calc(0.36 * var(--glow))), transparent 68%);
+    radial-gradient(
+      40% 36% at 26% 72%,
+      hsl(calc(var(--ah) - 40) 90% 56% / calc(0.46 * var(--glow))),
+      transparent 66%
+    ),
+    radial-gradient(
+      46% 40% at 50% 47%,
+      hsl(var(--ah) 92% 58% / calc(0.36 * var(--glow))),
+      transparent 68%
+    );
   animation: liquid-a 24s ease-in-out infinite alternate;
 }
 html::after {
   inset: -18%;
   background:
-    radial-gradient(36% 32% at 76% 24%, hsl(calc(var(--ah) + 45) 95% 58% / calc(0.30 * var(--glow))), transparent 66%),
-    radial-gradient(28% 26% at 64% 49%, hsl(calc(var(--ah) + 90) 85% 56% / calc(0.18 * var(--glow))), transparent 66%),
-    radial-gradient(24% 22% at 17% 33%, hsl(calc(var(--ah) + 180) 80% 55% / calc(0.10 * var(--glow))), transparent 66%);
+    radial-gradient(
+      36% 32% at 76% 24%,
+      hsl(calc(var(--ah) + 45) 95% 58% / calc(0.3 * var(--glow))),
+      transparent 66%
+    ),
+    radial-gradient(
+      28% 26% at 64% 49%,
+      hsl(calc(var(--ah) + 90) 85% 56% / calc(0.18 * var(--glow))),
+      transparent 66%
+    ),
+    radial-gradient(
+      24% 22% at 17% 33%,
+      hsl(calc(var(--ah) + 180) 80% 55% / calc(0.1 * var(--glow))),
+      transparent 66%
+    );
   animation: liquid-b 33s ease-in-out infinite alternate;
 }
 /* --bg-ox/--bg-oy (Settings → Background Position) shift the whole painted
@@ -582,18 +750,38 @@ html::after {
    properties resolve inside keyframes at runtime, so the offset rides along
    with the drift animation. */
 @keyframes liquid-a {
-  0%   { transform: translate3d(calc(-4% + var(--bg-ox, 0%)), calc(-3% + var(--bg-oy, 0%)), 0) rotate(0deg)   scale(1); }
-  45%  { transform: translate3d(calc(5% + var(--bg-ox, 0%)),  calc(4% + var(--bg-oy, 0%)), 0)  rotate(11deg)  scale(1.13); }
-  100% { transform: translate3d(calc(-3% + var(--bg-ox, 0%)), calc(5% + var(--bg-oy, 0%)), 0)  rotate(-8deg)  scale(1.04); }
+  0% {
+    transform: translate3d(calc(-4% + var(--bg-ox, 0%)), calc(-3% + var(--bg-oy, 0%)), 0)
+      rotate(0deg) scale(1);
+  }
+  45% {
+    transform: translate3d(calc(5% + var(--bg-ox, 0%)), calc(4% + var(--bg-oy, 0%)), 0)
+      rotate(11deg) scale(1.13);
+  }
+  100% {
+    transform: translate3d(calc(-3% + var(--bg-ox, 0%)), calc(5% + var(--bg-oy, 0%)), 0)
+      rotate(-8deg) scale(1.04);
+  }
 }
 @keyframes liquid-b {
-  0%   { transform: translate3d(calc(4% + var(--bg-ox, 0%)),  calc(4% + var(--bg-oy, 0%)), 0)  rotate(0deg)   scale(1.06); }
-  50%  { transform: translate3d(calc(-5% + var(--bg-ox, 0%)), calc(-4% + var(--bg-oy, 0%)), 0) rotate(-12deg) scale(0.97); }
-  100% { transform: translate3d(calc(4% + var(--bg-ox, 0%)),  calc(-5% + var(--bg-oy, 0%)), 0) rotate(10deg)  scale(1.12); }
+  0% {
+    transform: translate3d(calc(4% + var(--bg-ox, 0%)), calc(4% + var(--bg-oy, 0%)), 0) rotate(0deg)
+      scale(1.06);
+  }
+  50% {
+    transform: translate3d(calc(-5% + var(--bg-ox, 0%)), calc(-4% + var(--bg-oy, 0%)), 0)
+      rotate(-12deg) scale(0.97);
+  }
+  100% {
+    transform: translate3d(calc(4% + var(--bg-ox, 0%)), calc(-5% + var(--bg-oy, 0%)), 0)
+      rotate(10deg) scale(1.12);
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   html::before,
-  html::after { animation: none; }
+  html::after {
+    animation: none;
+  }
 }
 
 /* While the heatmap is panning/zooming (WorldHeatmap toggles .map-moving on
@@ -625,12 +813,22 @@ svg * {
   filter: none !important;
 }
 /* MapLibre canvas had a per-frame saturate/contrast filter. */
-.world-heatmap-map canvas { filter: none !important; }
-.stat-card { background: var(--surface-1); }
-.stat-card:hover { background: var(--surface-2); }
+.world-heatmap-map canvas {
+  filter: none !important;
+}
+.stat-card {
+  background: var(--surface-1);
+}
+.stat-card:hover {
+  background: var(--surface-2);
+}
 /* Floating surfaces compensate with deeper fills (no blur behind) */
-.gdrop-menu { background: hsl(240 30% 11% / 0.97); }
-.kpi-modal { background: hsl(240 30% 10% / 0.97); }
+.gdrop-menu {
+  background: hsl(240 30% 11% / 0.97);
+}
+.kpi-modal {
+  background: hsl(240 30% 10% / 0.97);
+}
 
 /* ── Sidebar shell (nav back on the left) ───────────────────────── */
 .sidebar {
@@ -661,7 +859,11 @@ svg * {
   white-space: nowrap;
   overflow: hidden;
 }
-html.sb-collapsed .sb-group-label { visibility: hidden; padding: 4px 0 0; height: 8px; }
+html.sb-collapsed .sb-group-label {
+  visibility: hidden;
+  padding: 4px 0 0;
+  height: 8px;
+}
 
 /* Brand lockup — must NEVER overflow the rail: the text column clips with
    ellipsis, and below ~210px the "Operations Console" sub-line disappears
@@ -674,8 +876,16 @@ html.sb-collapsed .sb-group-label { visibility: hidden; padding: 4px 0 0; height
   border-bottom: 1px solid var(--line);
   overflow: hidden;
 }
-.sb-brand-img { width: 32px; height: 32px; object-fit: contain; flex: none; }
-.sb-brand-text { min-width: 0; overflow: hidden; }
+.sb-brand-img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  flex: none;
+}
+.sb-brand-text {
+  min-width: 0;
+  overflow: hidden;
+}
 .sb-brand-name {
   display: block;
   font-family: var(--font-display);
@@ -701,11 +911,22 @@ html.sb-collapsed .sb-group-label { visibility: hidden; padding: 4px 0 0; height
   text-overflow: ellipsis;
 }
 @container sidebar (max-width: 210px) {
-  .sb-brand-sub { display: none; }
+  .sb-brand-sub {
+    display: none;
+  }
 }
-.sb-close { display: none; margin-left: auto; }
+.sb-close {
+  display: none;
+  margin-left: auto;
+}
 
-.sb-nav { display: flex; flex-direction: column; gap: 4px; min-height: 0; overflow-y: auto; }
+.sb-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+  overflow-y: auto;
+}
 .sb-item {
   display: flex;
   align-items: center;
@@ -716,21 +937,44 @@ html.sb-collapsed .sb-group-label { visibility: hidden; padding: 4px 0 0; height
   font-weight: 500;
   color: var(--text-2);
   text-align: left;
-  transition: background var(--t-med) var(--ease-smooth), color var(--t-med) var(--ease-smooth), transform var(--t-fast) var(--ease-smooth);
+  transition:
+    background var(--t-med) var(--ease-smooth),
+    color var(--t-med) var(--ease-smooth),
+    transform var(--t-fast) var(--ease-smooth);
 }
-.sb-item svg { opacity: 0.75; flex: none; transition: opacity var(--t-med), color var(--t-med); }
-.sb-item:hover { color: var(--text-1); background: rgba(255, 255, 255, 0.06); }
-.sb-item:hover svg { opacity: 1; }
-.sb-item:active { transform: scale(0.97); }
+.sb-item svg {
+  opacity: 0.75;
+  flex: none;
+  transition:
+    opacity var(--t-med),
+    color var(--t-med);
+}
+.sb-item:hover {
+  color: var(--text-1);
+  background: rgba(255, 255, 255, 0.06);
+}
+.sb-item:hover svg {
+  opacity: 1;
+}
+.sb-item:active {
+  transform: scale(0.97);
+}
 .sb-item.active {
-  background: linear-gradient(135deg, hsl(var(--ah) var(--as) var(--al) / 0.24), hsl(calc(var(--ah) + 40) var(--as) var(--al) / 0.10));
+  background: linear-gradient(
+    135deg,
+    hsl(var(--ah) var(--as) var(--al) / 0.24),
+    hsl(calc(var(--ah) + 40) var(--as) var(--al) / 0.1)
+  );
   color: var(--text-1);
   font-weight: 600;
   box-shadow:
     inset 0 0 0 1px hsl(var(--ah) var(--as) var(--al) / 0.45),
     0 0 20px -8px hsl(var(--ah) var(--as) var(--al) / calc(0.6 * var(--glow)));
 }
-.sb-item.active svg { opacity: 1; color: var(--accent); }
+.sb-item.active svg {
+  opacity: 1;
+  color: var(--accent);
+}
 
 .sb-foot {
   margin-top: auto;
@@ -740,11 +984,20 @@ html.sb-collapsed .sb-group-label { visibility: hidden; padding: 4px 0 0; height
   padding: 14px 8px 0;
   border-top: 1px solid var(--line);
 }
-.sb-meta { font-size: 0.65625rem; color: var(--text-3); font-family: var(--font-mono); }
-.sb-actions { display: flex; gap: 8px; }
+.sb-meta {
+  font-size: 0.65625rem;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+}
+.sb-actions {
+  display: flex;
+  gap: 8px;
+}
 
 /* Mobile bar + drawer */
-.mobilebar { display: none; }
+.mobilebar {
+  display: none;
+}
 .sb-scrim {
   position: fixed;
   inset: 0;
@@ -754,14 +1007,23 @@ html.sb-collapsed .sb-group-label { visibility: hidden; padding: 4px 0 0; height
   pointer-events: none;
   transition: opacity 0.28s var(--ease-smooth);
 }
-.sb-scrim-open { opacity: 1; pointer-events: auto; }
-@media (min-width: 901px) { .sb-scrim { display: none; } }
+.sb-scrim-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+@media (min-width: 901px) {
+  .sb-scrim {
+    display: none;
+  }
+}
 
 /* Content sits right of the sidebar and owns the FULL remaining width.
    No max-width cap: wide tables (Users / Sessions) need every pixel, and
    the old centered 1660px column left them clipped on the right while the
    screen sat there with empty side margins. */
-.v2-main { margin-left: var(--sb-w); }
+.v2-main {
+  margin-left: var(--sb-w);
+}
 .page-content {
   max-width: none;
   margin: 0;
@@ -769,14 +1031,20 @@ html.sb-collapsed .sb-group-label { visibility: hidden; padding: 4px 0 0; height
 }
 
 @media (max-width: 900px) {
-  .v2-main { margin-left: 0; }
+  .v2-main {
+    margin-left: 0;
+  }
   .sidebar {
     transform: translateX(-102%);
     transition: transform 0.28s var(--ease-smooth);
     box-shadow: 0 0 60px rgba(0, 0, 0, 0.6);
   }
-  .sidebar.open { transform: translateX(0); }
-  .sb-close { display: inline-flex; }
+  .sidebar.open {
+    transform: translateX(0);
+  }
+  .sb-close {
+    display: inline-flex;
+  }
   .mobilebar {
     position: sticky;
     top: 0;
@@ -797,7 +1065,10 @@ html.sb-collapsed .sb-group-label { visibility: hidden; padding: 4px 0 0; height
     font-weight: 700;
     color: var(--text-1);
   }
-  .mobilebar-logo { width: 24px; height: 24px; }
+  .mobilebar-logo {
+    width: 24px;
+    height: 24px;
+  }
 }
 
 /* ── Icon-only collapsed rail ─────────────────────────────────────
@@ -807,17 +1078,46 @@ html.sb-collapsed .sb-group-label { visibility: hidden; padding: 4px 0 0; height
    the full rail (Navbar.resetResize). Desktop only — the mobile
    drawer keeps its full layout. */
 @media (min-width: 901px) {
-  html.sb-collapsed .sidebar { padding: 18px 8px 14px; gap: 10px; }
-  html.sb-collapsed .sb-brand { justify-content: center; padding: 2px 0 13px; gap: 0; }
-  html.sb-collapsed .sb-brand-img { width: 30px; height: 30px; }
-  html.sb-collapsed .sb-brand-text { display: none; }
-  html.sb-collapsed .sb-item { justify-content: center; padding: 10px 0; gap: 0; }
-  html.sb-collapsed .sb-item span { display: none; }
-  html.sb-collapsed .sb-foot { padding: 12px 0 0; align-items: center; }
-  html.sb-collapsed .sb-meta { display: none; }
+  html.sb-collapsed .sidebar {
+    padding: 18px 8px 14px;
+    gap: 10px;
+  }
+  html.sb-collapsed .sb-brand {
+    justify-content: center;
+    padding: 2px 0 13px;
+    gap: 0;
+  }
+  html.sb-collapsed .sb-brand-img {
+    width: 30px;
+    height: 30px;
+  }
+  html.sb-collapsed .sb-brand-text {
+    display: none;
+  }
+  html.sb-collapsed .sb-item {
+    justify-content: center;
+    padding: 10px 0;
+    gap: 0;
+  }
+  html.sb-collapsed .sb-item span {
+    display: none;
+  }
+  html.sb-collapsed .sb-foot {
+    padding: 12px 0 0;
+    align-items: center;
+  }
+  html.sb-collapsed .sb-meta {
+    display: none;
+  }
   /* Live pill shrinks to just its dot */
-  html.sb-collapsed .tn-live { font-size: 0; gap: 0; }
-  html.sb-collapsed .tn-live .tn-live-dot { width: 8px; height: 8px; }
+  html.sb-collapsed .tn-live {
+    font-size: 0;
+    gap: 0;
+  }
+  html.sb-collapsed .tn-live .tn-live-dot {
+    width: 8px;
+    height: 8px;
+  }
 }
 
 /* Phones: the 24px desktop floor wastes ~12% of a 400px screen in gutters,
@@ -827,8 +1127,12 @@ html.sb-collapsed .sb-group-label { visibility: hidden; padding: 4px 0 0; height
     --page-pad: 14px;
     --gap-panel: 12px;
   }
-  .meta-row { gap: 14px; }
-  .meta-item { text-align: left; }
+  .meta-row {
+    gap: 14px;
+  }
+  .meta-item {
+    text-align: left;
+  }
 }
 
 /* ── Page header: frosts in as you scroll (scroll-driven) ─────────
@@ -853,14 +1157,18 @@ html.sb-collapsed .sb-group-label { visibility: hidden; padding: 4px 0 0; height
     border-radius: 0 0 16px 16px;
     /* Near-opaque: content must NOT read through the stuck header */
     background: hsl(240 36% 8% / 0.97);
-    box-shadow: inset 0 0 0 1px var(--line), 0 14px 36px -20px rgba(0, 0, 0, 0.8);
+    box-shadow:
+      inset 0 0 0 1px var(--line),
+      0 14px 36px -20px rgba(0, 0, 0, 0.8);
     opacity: 0;
     animation: hdr-frost-fade linear both;
     animation-timeline: scroll(root block);
     animation-range: 0px 140px;
   }
   @keyframes hdr-frost-fade {
-    to { opacity: 1; }
+    to {
+      opacity: 1;
+    }
   }
 
   /* Phones already have the fixed mobilebar as chrome; a second sticky layer
@@ -872,7 +1180,9 @@ html.sb-collapsed .sb-group-label { visibility: hidden; padding: 4px 0 0; height
       padding: 0;
       margin: 0;
     }
-    .page-header::before { content: none; }
+    .page-header::before {
+      content: none;
+    }
   }
 }
 
@@ -883,17 +1193,30 @@ html.sb-collapsed .sb-group-label { visibility: hidden; padding: 4px 0 0; height
   border: none;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
   border-radius: 12px;
-  transition: background var(--t-med) var(--ease-smooth), color var(--t-med), transform var(--t-fast) var(--ease-smooth), box-shadow var(--t-med);
+  transition:
+    background var(--t-med) var(--ease-smooth),
+    color var(--t-med),
+    transform var(--t-fast) var(--ease-smooth),
+    box-shadow var(--t-med);
 }
-.btn-icon { border-radius: 50%; }
+.btn-icon {
+  border-radius: 50%;
+}
 .btn:hover:not(:disabled),
-.btn-icon:hover:not(:disabled) { background: rgba(255, 255, 255, 0.12); color: var(--text-1); }
+.btn-icon:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text-1);
+}
 @media (hover: hover) and (pointer: fine) {
   .btn:hover:not(:disabled),
-  .btn-icon:hover:not(:disabled) { transform: translateY(-1px); }
+  .btn-icon:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
 }
 .btn:active:not(:disabled),
-.btn-icon:active:not(:disabled) { transform: translateY(0) scale(0.97); }
+.btn-icon:active:not(:disabled) {
+  transform: translateY(0) scale(0.97);
+}
 
 .seg-control {
   background: rgba(255, 255, 255, 0.05);
@@ -905,9 +1228,14 @@ html.sb-collapsed .sb-group-label { visibility: hidden; padding: 4px 0 0; height
 .seg-btn {
   border-radius: var(--r-pill);
   border: none;
-  transition: background var(--t-med) var(--ease-smooth), color var(--t-med), transform var(--t-fast);
+  transition:
+    background var(--t-med) var(--ease-smooth),
+    color var(--t-med),
+    transform var(--t-fast);
 }
-.seg-btn:active { transform: scale(0.96); }
+.seg-btn:active {
+  transform: scale(0.96);
+}
 .seg-btn.active {
   background: hsl(var(--ah) var(--as) var(--al) / 0.22);
   color: var(--text-1);
@@ -920,11 +1248,21 @@ html.sb-collapsed .sb-group-label { visibility: hidden; padding: 4px 0 0; height
   border: none;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
   border-radius: var(--r-pill);
-  transition: background var(--t-med) var(--ease-smooth), box-shadow var(--t-med), transform var(--t-fast);
+  transition:
+    background var(--t-med) var(--ease-smooth),
+    box-shadow var(--t-med),
+    transform var(--t-fast);
 }
-.gdrop-trigger:hover { background: rgba(255, 255, 255, 0.11); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1); }
-.gdrop-trigger:active { transform: scale(0.98); }
-.gdrop-active .gdrop-trigger { box-shadow: inset 0 0 0 1px hsl(var(--ah) var(--as) var(--al) / 0.5); }
+.gdrop-trigger:hover {
+  background: rgba(255, 255, 255, 0.11);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+.gdrop-trigger:active {
+  transform: scale(0.98);
+}
+.gdrop-active .gdrop-trigger {
+  box-shadow: inset 0 0 0 1px hsl(var(--ah) var(--as) var(--al) / 0.5);
+}
 
 .search-wrap,
 .glass-input {
@@ -940,7 +1278,9 @@ input.glass-input {
   padding-right: 16px;
   text-overflow: ellipsis;
 }
-.search-wrap input.glass-input { padding-left: 34px; }
+.search-wrap input.glass-input {
+  padding-left: 34px;
+}
 /* A PILL is wrong for multi-line and dropdown controls: a 999px-radius
    textarea clips its own first/last lines at the corner curves, and a pill
    select runs its value under the native arrow. Both get the control radius. */
@@ -971,14 +1311,20 @@ select.glass-input {
   align-items: flex-start;
   gap: 1px;
 }
-.stat-card::before { content: none; }   /* left accent tick retired */
+.stat-card::before {
+  content: none;
+} /* left accent tick retired */
 .stat-card .tile-main {
   display: flex;
   flex-direction: column;
   gap: 1px;
   min-width: 0;
 }
-.stat-card .tile-side { display: flex; flex: none; align-items: center; }
+.stat-card .tile-side {
+  display: flex;
+  flex: none;
+  align-items: center;
+}
 
 .tile-icon {
   background: none;
@@ -988,8 +1334,14 @@ select.glass-input {
   color: var(--text-3);
   transition: color var(--t-med) var(--ease-smooth);
 }
-.tile-icon svg { width: 15px; height: 15px; stroke-width: 2; }
-.stat-card:hover .tile-icon { color: var(--accent-text); }
+.tile-icon svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 2;
+}
+.stat-card:hover .tile-icon {
+  color: var(--accent-text);
+}
 
 .stat-card .stat-value {
   font-size: 1.05rem;
@@ -1000,8 +1352,14 @@ select.glass-input {
   column-gap: 6px;
   min-width: 0;
 }
-.stat-card .stat-label { font-size: 0.6rem; letter-spacing: 0.1em; }
-.stat-card .stat-sub { font-size: 0.66rem; margin-top: 1px; }
+.stat-card .stat-label {
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+}
+.stat-card .stat-sub {
+  font-size: 0.66rem;
+  margin-top: 1px;
+}
 /* Narrow phone cards truncate almost every sub-line mid-word — let them wrap
    to two clamped lines instead of ellipsizing the information away. */
 @media (max-width: 480px) {
@@ -1015,14 +1373,24 @@ select.glass-input {
 
 /* Tones recolor the icon (the tick is gone) */
 .stat-card.tone-danger .tile-icon,
-.stat-card.tone-danger:hover .tile-icon { color: var(--danger-text); }
+.stat-card.tone-danger:hover .tile-icon {
+  color: var(--danger-text);
+}
 .stat-card.tone-warning .tile-icon,
-.stat-card.tone-warning:hover .tile-icon { color: var(--warning-text); }
+.stat-card.tone-warning:hover .tile-icon {
+  color: var(--warning-text);
+}
 .stat-card.tone-success .tile-icon,
-.stat-card.tone-success:hover .tile-icon { color: var(--success-text); }
+.stat-card.tone-success:hover .tile-icon {
+  color: var(--success-text);
+}
 
 /* Header tools: filter pill + refresh side by side in page headers */
-.header-tools { display: flex; align-items: center; gap: 8px; }
+.header-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 
 /* Sidebar resize handle: thin grab strip on the right edge */
 .sb-resize {
@@ -1036,43 +1404,75 @@ select.glass-input {
 }
 .sb-resize:hover,
 .sb-resize:active {
-  background: linear-gradient(90deg, transparent, hsl(var(--ah) var(--as) var(--al) / 0.35), transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    hsl(var(--ah) var(--as) var(--al) / 0.35),
+    transparent
+  );
 }
 @media (max-width: 900px) {
-  .sb-resize { display: none; }
+  .sb-resize {
+    display: none;
+  }
 }
 
 /* ── Page switch: quick rise so navigation feels alive ──────────── */
 /* No fill mode: a filling transform animation keeps .page-enter a containing
    block for fixed descendants in Chromium forever, which trapped the heatmap's
    fullscreen overlay inside the page box instead of the viewport. */
-.page-enter { animation: pageIn 0.26s var(--ease-rise); }
+.page-enter {
+  animation: pageIn 0.26s var(--ease-rise);
+}
 @keyframes pageIn {
-  from { opacity: 0; transform: translateY(7px); }
-  to   { opacity: 1; transform: none; }
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 /* Hard guarantee: while the map is fullscreen, the wrapper must never be
    animating transform at all (covers clicks landing mid-entrance). */
-.page-enter:has(.world-heatmap-fullscreen) { animation: none; }
+.page-enter:has(.world-heatmap-fullscreen) {
+  animation: none;
+}
 
 /* ── Primary actions: accent gradient, soft glow (no white slabs) ── */
 .btn-primary {
-  background: linear-gradient(135deg, var(--accent), hsl(calc(var(--ah) + 32) var(--as) calc(var(--al) - 6%)));
+  background: linear-gradient(
+    135deg,
+    var(--accent),
+    hsl(calc(var(--ah) + 32) var(--as) calc(var(--al) - 6%))
+  );
   border-color: transparent;
   color: #fff;
   font-weight: 600;
   box-shadow: 0 6px 22px -8px hsl(var(--ah) var(--as) var(--al) / calc(0.55 * var(--glow)));
 }
 .btn-primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, hsl(var(--ah) var(--as) calc(var(--al) + 6%)), hsl(calc(var(--ah) + 32) var(--as) var(--al)));
+  background: linear-gradient(
+    135deg,
+    hsl(var(--ah) var(--as) calc(var(--al) + 6%)),
+    hsl(calc(var(--ah) + 32) var(--as) var(--al))
+  );
   border-color: transparent;
   color: #fff;
 }
 @media (hover: hover) and (pointer: fine) {
-  .btn-primary:hover:not(:disabled) { transform: translateY(-1px); }
+  .btn-primary:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
 }
-.btn-primary:active:not(:disabled) { transform: translateY(0) scale(0.97); }
-.btn-primary .spinner { border-color: rgba(255, 255, 255, 0.35); border-top-color: #fff; }
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0) scale(0.97);
+}
+.btn-primary .spinner {
+  border-color: rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+}
 
 /* ── Radial gauges: clean ring, no filter (the drop-shadow filter
    region rendered as a ghost box behind the circle) ── */
@@ -1080,11 +1480,19 @@ select.glass-input {
   /* SVG2 paint fallback: solid pink if the defs id is absent in a frame */
   stroke: url(#gauge-vivid-ramp) hsl(345 95% 58%);
 }
-.gauge { background: none; border: none; box-shadow: none; }
+.gauge {
+  background: none;
+  border: none;
+  box-shadow: none;
+}
 
 /* Refresh lives beside the brand now, not buried in the footer */
-.sb-brand-actions { display: flex; align-items: center; gap: 6px; margin-left: auto; }
-
+.sb-brand-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
 
 /* ═══════════════════════════════════════════════════════════════
    ROUND-3 FUNCTIONAL FIX NEEDS (from the parallel fixers)
@@ -1097,14 +1505,28 @@ select.glass-input {
   .heatmap-page .world-heatmap:not(.world-heatmap-fullscreen) .world-heatmap-map-shell {
     min-height: clamp(380px, calc(100vh - 375px), 820px);
   }
-  .heatmap-page .heatmap-map-container { min-height: 0; }
-  .page-content.heatmap-page { padding-bottom: 24px; }
+  .heatmap-page .heatmap-map-container {
+    min-height: 0;
+  }
+  .page-content.heatmap-page {
+    padding-bottom: 24px;
+  }
 }
 
 /* TrafficPage: 5-up KPI row */
-.stat-grid-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-@media (max-width: 1280px) { .stat-grid-5 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@media (max-width: 900px) { .stat-grid-5 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.stat-grid-5 {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+@media (max-width: 1280px) {
+  .stat-grid-5 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 900px) {
+  .stat-grid-5 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 
 /* KPI drill-down modal — ONE clean enter/exit (overrides the duplicate
    legacy entrance rules in index.css/components.css by source order).
@@ -1114,12 +1536,22 @@ select.glass-input {
    before fading out). @starting-style supplies the entrance's from-frame;
    Modal.tsx unmounts on the overlay's opacity transitionend. */
 @keyframes kpi-overlay-fade {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 @keyframes popover-in {
-  from { opacity: 0; transform: scale(0.96) translateY(-4px); }
-  to   { opacity: 1; transform: none; }
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 .kpi-overlay {
   animation: none; /* keep suppressing the legacy components.css entrance */
@@ -1129,14 +1561,27 @@ select.glass-input {
 .kpi-modal {
   opacity: 1;
   transform: none;
-  transition: opacity 0.18s var(--ease-out), transform 0.18s var(--ease-out);
+  transition:
+    opacity 0.18s var(--ease-out),
+    transform 0.18s var(--ease-out);
 }
 @starting-style {
-  .kpi-overlay { opacity: 0; }
-  .kpi-modal { opacity: 0; transform: scale(0.97); }
+  .kpi-overlay {
+    opacity: 0;
+  }
+  .kpi-modal {
+    opacity: 0;
+    transform: scale(0.97);
+  }
 }
-.kpi-overlay[data-state="closed"] { opacity: 0; pointer-events: none; }
-.kpi-overlay[data-state="closed"] .kpi-modal { opacity: 0; transform: scale(0.97); }
+.kpi-overlay[data-state="closed"] {
+  opacity: 0;
+  pointer-events: none;
+}
+.kpi-overlay[data-state="closed"] .kpi-modal {
+  opacity: 0;
+  transform: scale(0.97);
+}
 @media (prefers-reduced-motion: reduce) {
   /* Fade-only both ways: the scale movement goes, the opacity bridge stays
      (transform isn't in the transition list, so it snaps to its final value). */
@@ -1148,7 +1593,9 @@ select.glass-input {
 }
 
 /* ── FilterBar compact pill + popover ───────────────────────────── */
-.filter-bar-right { position: relative; }
+.filter-bar-right {
+  position: relative;
+}
 .filter-pill {
   display: inline-flex;
   align-items: center;
@@ -1161,9 +1608,15 @@ select.glass-input {
   font-size: 0.8125rem;
   font-weight: 500;
   cursor: pointer;
-  transition: border-color 0.18s, color 0.18s, background 0.18s, transform 0.13s;
+  transition:
+    border-color 0.18s,
+    color 0.18s,
+    background 0.18s,
+    transform 0.13s;
 }
-.filter-pill:active { transform: scale(0.97); }
+.filter-pill:active {
+  transform: scale(0.97);
+}
 .filter-pill:hover {
   border-color: rgba(255, 255, 255, 0.18);
   color: var(--text-1);
@@ -1179,7 +1632,9 @@ select.glass-input {
   color: var(--accent-text);
   background: var(--accent-subtle);
 }
-.filter-pill-sep { opacity: 0.45; }
+.filter-pill-sep {
+  opacity: 0.45;
+}
 .filter-pill-count {
   display: inline-flex;
   align-items: center;
@@ -1220,12 +1675,16 @@ select.glass-input {
   flex: 1;
   text-align: center;
 }
-.filter-pop .gdrop { width: 100%; }
+.filter-pop .gdrop {
+  width: 100%;
+}
 .filter-pop .gdrop-trigger {
   width: 100%;
   justify-content: space-between;
 }
-.filter-pop .btn { justify-content: center; }
+.filter-pop .btn {
+  justify-content: center;
+}
 
 /* ═══════════════════════════════════════════════════════════════
    LIST / TABLE SCALING — nothing gets silently cut off
@@ -1256,7 +1715,9 @@ select.glass-input {
   /* Near-opaque: scrolled rows must not read through the pinned header. */
   background: hsl(238 34% 11% / 0.97);
 }
-.data-table-wrap::-webkit-scrollbar { height: 9px; }
+.data-table-wrap::-webkit-scrollbar {
+  height: 9px;
+}
 .data-table-wrap::-webkit-scrollbar-track {
   background: rgba(255, 255, 255, 0.04);
   border-radius: 999px;
@@ -1272,7 +1733,9 @@ select.glass-input {
 /* Phones: make sure the last column never hides under the panel edge. */
 @media (max-width: 640px) {
   .data-table thead th:last-child,
-  .data-table tbody td:last-child { padding-right: 12px; }
+  .data-table tbody td:last-child {
+    padding-right: 12px;
+  }
 }
 
 /* Flush tables inside panels: square top (they sit under the panel head's
@@ -1282,6 +1745,63 @@ select.glass-input {
 .panel .data-table-wrap {
   border: none;
   border-radius: 0 0 calc(var(--r) - 2px) calc(var(--r) - 2px);
+}
+.panel .data-table-wrap.data-table-wrap-paginated {
+  border-radius: 0;
+}
+.table-pagination {
+  min-height: 46px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--line);
+  border-radius: 0 0 calc(var(--r) - 2px) calc(var(--r) - 2px);
+  background: hsl(238 30% 14% / 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.table-pagination-summary,
+.table-pagination-page {
+  color: var(--text-2);
+  font-size: 0.71875rem;
+  white-space: nowrap;
+}
+.table-pagination-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.table-pagination-page {
+  min-width: 92px;
+  text-align: center;
+}
+@media (max-width: 560px) {
+  .table-pagination {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .table-pagination-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
+.user-directory-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.user-directory-controls .gdrop-trigger {
+  min-width: 116px;
+  max-width: 170px;
+}
+@media (max-width: 900px) {
+  .user-directory-controls {
+    justify-content: flex-start;
+    width: 100%;
+  }
 }
 
 /* ── FIT-FIRST TABLES ────────────────────────────────────────────
@@ -1298,20 +1818,43 @@ select.glass-input {
       Nothing is lost: every hidden field remains in the row's
       expanded detail view. */
 @media (max-width: 1799px) {
-  .data-table-wrap table thead th { padding: 9px 11px; }
-  .data-table-wrap table tbody td { padding: 9px 11px; }
+  .data-table-wrap table thead th {
+    padding: 9px 11px;
+  }
+  .data-table-wrap table tbody td {
+    padding: 9px 11px;
+  }
 }
 @media (max-width: 1599px) {
-  .data-table-wrap table { font-size: 0.775rem; }
-  .data-table-wrap table thead th { padding: 8px 9px; font-size: 0.625rem; }
-  .data-table-wrap table tbody td { padding: 8px 9px; }
+  .data-table-wrap table {
+    font-size: 0.775rem;
+  }
+  .data-table-wrap table thead th {
+    padding: 8px 9px;
+    font-size: 0.625rem;
+  }
+  .data-table-wrap table tbody td {
+    padding: 8px 9px;
+  }
 }
 /* Tier cutoffs sit ABOVE the common effective widths (1280 / 1366 / 1536 —
    what Windows 125–150 % scaling makes of 1080p/1440p panels), so each of
    those lands in a configuration that actually fits. */
-@media (max-width: 1799px) { .data-table-wrap .col-xl { display: none; } }
-@media (max-width: 1599px) { .data-table-wrap .col-lg { display: none; } }
-@media (max-width: 1299px) { .data-table-wrap .col-md { display: none; } }
+@media (max-width: 1799px) {
+  .data-table-wrap .col-xl {
+    display: none;
+  }
+}
+@media (max-width: 1599px) {
+  .data-table-wrap .col-lg {
+    display: none;
+  }
+}
+@media (max-width: 1299px) {
+  .data-table-wrap .col-md {
+    display: none;
+  }
+}
 
 /* ── Reduced motion: fewer and gentler, not zero — opacity cues stay,
    position changes go. (.spinner/.animate-spin keep rotating: activity
@@ -1319,11 +1862,19 @@ select.glass-input {
 @media (prefers-reduced-motion: reduce) {
   /* Popovers: keep the fade, drop the movement */
   .gdrop-menu,
-  .filter-pop { animation: kpi-overlay-fade 0.12s ease-out; }
+  .filter-pop {
+    animation: kpi-overlay-fade 0.12s ease-out;
+  }
   /* Drawer: instant (position change), scrim keeps its opacity transition */
-  .sidebar { transition-duration: 0.01s; }
+  .sidebar {
+    transition-duration: 0.01s;
+  }
   /* Page switch: fade only */
-  .page-enter { animation: kpi-overlay-fade 0.2s ease-out; }
+  .page-enter {
+    animation: kpi-overlay-fade 0.2s ease-out;
+  }
   /* Auth error entrance: fade only */
-  .auth-card .inline-error { animation: v2fade var(--t-med) ease-out backwards; }
+  .auth-card .inline-error {
+    animation: v2fade var(--t-med) ease-out backwards;
+  }
 }

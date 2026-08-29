@@ -22,7 +22,8 @@ interface FilterBarProps {
  * Global KPI filters, compact presentation: a single pill in the page header's
  * right slot showing the active range (plus a count badge when dimension
  * filters are set). Clicking it opens a popover with the full controls —
- * range seg-control, the version / platform / country dropdowns, and Clear.
+ * range seg-control, the version / country dropdowns, and Clear. Platform is
+ * intentionally omitted because every supported client is Windows.
  * Options are sourced from the unfiltered option lists so a selected filter
  * never hides its own alternatives.
  */
@@ -31,22 +32,19 @@ export function FilterBar({ filters, stats, onChange }: FilterBarProps) {
   const rootRef = useRef<HTMLDivElement>(null);
 
   const versionOptions = useMemo(() => {
-    const fromStats = stats?.options?.versions ?? stats?.breakdowns.versionsAllTime.map((v) => v.version) ?? [];
+    const fromStats =
+      stats?.options?.versions ?? stats?.breakdowns.versionsAllTime.map((v) => v.version) ?? [];
     return dedupeSorted([...fromStats, ...(filters.version ? [filters.version] : [])]);
   }, [stats, filters.version]);
 
-  const platformOptions = useMemo(() => {
-    const fromStats = stats?.options?.platforms ?? stats?.breakdowns.platforms.map((p) => p.key) ?? [];
-    return dedupeSorted([...fromStats, ...(filters.platform ? [filters.platform] : [])]);
-  }, [stats, filters.platform]);
-
   const countryOptions = useMemo(() => {
-    const fromStats = stats?.options?.countries ?? stats?.breakdowns.countries.map((c) => c.key) ?? [];
+    const fromStats =
+      stats?.options?.countries ?? stats?.breakdowns.countries.map((c) => c.key) ?? [];
     return dedupeSorted([...fromStats, ...(filters.country ? [filters.country] : [])]);
   }, [stats, filters.country]);
 
-  const hasDimensionFilter = Boolean(filters.version || filters.platform || filters.country);
-  const dimensionCount = [filters.version, filters.platform, filters.country].filter(Boolean).length;
+  const hasDimensionFilter = Boolean(filters.version || filters.country);
+  const dimensionCount = [filters.version, filters.country].filter(Boolean).length;
   const rangeLabel = RANGES.find((range) => range.key === filters.range)?.label ?? filters.range;
 
   // Outside pointer-down + Escape dismissal — same pattern as GlassDropdown.
@@ -118,12 +116,6 @@ export function FilterBar({ filters, stats, onChange }: FilterBarProps) {
             renderOption={(option) => (option === "legacy" ? "Legacy (pre-1.4)" : option)}
           />
           <GlassDropdown
-            placeholder="All platforms"
-            options={platformOptions}
-            value={filters.platform}
-            onChange={(platform) => onChange({ ...filters, platform })}
-          />
-          <GlassDropdown
             placeholder="All countries"
             options={countryOptions}
             value={filters.country}
@@ -148,6 +140,6 @@ export function FilterBar({ filters, stats, onChange }: FilterBarProps) {
 
 function dedupeSorted(values: string[]): string[] {
   return [...new Set(values.filter((value) => value.length > 0))].sort((left, right) =>
-    left.localeCompare(right, undefined, { numeric: true })
+    left.localeCompare(right, undefined, { numeric: true }),
   );
 }

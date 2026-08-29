@@ -33,7 +33,17 @@ export interface AppSessionRecord {
   source: string;
   userLabel: string | null;
   clientIp: string | null;
-  licenses?: Array<{ license_key: string; max_uses: number; custom_options: string; status: string; type: string; duration_days: number | null; usage_count: number; expires_at: string | null; created_at: string }>;
+  licenses?: Array<{
+    license_key: string;
+    max_uses: number;
+    custom_options: string;
+    status: string;
+    type: string;
+    duration_days: number | null;
+    usage_count: number;
+    expires_at: string | null;
+    created_at: string;
+  }>;
   clientCountry: string | null;
   clientCity?: string | null;
   clientRegion?: string | null;
@@ -99,7 +109,12 @@ export interface BreakdownPoint {
 
 export interface StatsPayload {
   generatedAt: string;
-  filters: { rangeDays: number | null; version: string | null; platform: string | null; country: string | null };
+  filters: {
+    rangeDays: number | null;
+    version: string | null;
+    platform: string | null;
+    country: string | null;
+  };
   totals: {
     lifetimeUsers: number;
     lifetimeSessions: number;
@@ -220,6 +235,13 @@ export interface UserActivityDay {
   sessions: number;
 }
 
+export interface UserActivityInterval {
+  startedAt: string;
+  endedAt: string;
+  /** End came from the most recent heartbeat rather than an explicit session_end. */
+  approximateEnd: boolean;
+}
+
 /** Per-user behaviour analytics from GET /api/admin/user-activity. */
 export interface UserActivityPayload {
   identity: string;
@@ -233,6 +255,8 @@ export interface UserActivityPayload {
   /** Only legacy install-scoped sessions exist — no per-run history available. */
   legacyOnly: boolean;
   days: UserActivityDay[];
+  intervals: UserActivityInterval[];
+  intervalsComplete: boolean;
   /** Seconds online per weekday x hour (local time); [0][*] = Monday. */
   hourOfWeek: number[][];
   hourOfDay: number[];

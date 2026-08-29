@@ -78,14 +78,6 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (id.includes("node_modules/recharts")) {
-            return "charts";
-          }
-
-          if (id.includes("node_modules/maplibre-gl")) {
-            return "map";
-          }
-
           if (id.includes("node_modules/lucide-react")) {
             return "icons";
           }

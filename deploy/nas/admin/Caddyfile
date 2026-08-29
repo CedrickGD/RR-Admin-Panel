@@ -1,6 +1,10 @@
 # Admin UI and same-origin API gateway behind the outbound Cloudflare Tunnel.
 # The port is not published on the NAS host.
 :8080 {
+	# Compress JS/CSS/JSON at the origin. Cloudflare can reuse the compact
+	# representation instead of pulling multi-megabyte route chunks from NAS.
+	encode zstd gzip
+
 	@backend path /api /api/* /v1 /v1/*
 	handle @backend {
 		header Cache-Control "no-store"

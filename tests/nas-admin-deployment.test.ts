@@ -37,6 +37,7 @@ describe("NAS admin deployment", () => {
   it("serves immutable hashed assets but never caches the SPA shell", () => {
     const caddyfile = repoFile("deploy/nas/admin/Caddyfile");
 
+    expect(caddyfile).toContain("encode zstd gzip");
     expect(caddyfile).toContain('header Cache-Control "public, max-age=31536000, immutable"');
     expect(caddyfile).toContain("try_files {path} /index.html");
     expect(caddyfile).toContain('header Cache-Control "no-store"');

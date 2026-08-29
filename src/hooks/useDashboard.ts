@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   AdminDataPayload,
   AuthMode,
@@ -24,8 +24,13 @@ export function useDashboard(activePage: PageKey) {
   const [health, setHealth] = useState<HealthPayload | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const loadDashboard = useCallback(
-    async (silent: boolean) => {
+  const dashboardRequest = useRef<Promise<void> | null>(null);
+  const loadDashboard = useCallback((silent: boolean): Promise<void> => {
+    // Slow NAS reads and fetch retries can exceed the polling interval. Share
+    // the in-flight request instead of stacking more DB work behind it.
+    if (dashboardRequest.current) return dashboardRequest.current;
+
+    const request = (async () => {
       try {
         const { ok, data, status } = await fetchAdminData();
 
@@ -37,9 +42,7 @@ export function useDashboard(activePage: PageKey) {
           setAuthMode(session.authMode ?? "access");
           setRequiresBootstrap(!session.hasUsers);
           setAuthError(
-            session.authMode === "app"
-              ? "Session expired. Please sign in again."
-              : null
+            session.authMode === "app" ? "Session expired. Please sign in again." : null,
           );
           return;
         }
@@ -54,25 +57,26 @@ export function useDashboard(activePage: PageKey) {
         // payload clobber a newer one already on screen. (Unparseable timestamps
         // fall through to accept, so a bad value can't wedge the view.)
         const incoming = data.summary;
-        setSummary(prev =>
-          prev && Date.parse(incoming.generatedAt) < Date.parse(prev.generatedAt)
-            ? prev
-            : incoming
+        setSummary((prev) =>
+          prev && Date.parse(incoming.generatedAt) < Date.parse(prev.generatedAt) ? prev : incoming,
         );
         setHealth(data.health);
         setUser(data.user);
-        setAuthMode(prev => data.authMode ?? prev);
+        setAuthMode((prev) => data.authMode ?? prev);
         setLoadError(null);
       } catch (err) {
         if (!silent) {
-          setLoadError(
-            err instanceof Error ? err.message : "Failed to load dashboard data."
-          );
+          setLoadError(err instanceof Error ? err.message : "Failed to load dashboard data.");
         }
       }
-    },
-    []
-  );
+    })();
+
+    dashboardRequest.current = request;
+    void request.finally(() => {
+      if (dashboardRequest.current === request) dashboardRequest.current = null;
+    });
+    return request;
+  }, []);
 
   // Bootstrap auth session — runs once on mount
   useEffect(() => {
@@ -88,7 +92,7 @@ export function useDashboard(activePage: PageKey) {
       }
       setReady(true);
     })();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -96,7 +100,7 @@ export function useDashboard(activePage: PageKey) {
 
     const refreshMs = activePage === "live" ? LIVE_REFRESH_MS : DEFAULT_REFRESH_MS;
     const id = window.setInterval(() => {
-      void loadDashboard(true);
+      if (document.visibilityState === "visible") void loadDashboard(true);
     }, refreshMs);
 
     return () => window.clearInterval(id);
@@ -130,11 +134,7 @@ export function useDashboard(activePage: PageKey) {
     };
   }, [loadDashboard, user]);
 
-  const authenticate = async (
-    email: string,
-    password: string,
-    confirm: string
-  ) => {
+  const authenticate = async (email: string, password: string, confirm: string) => {
     if (authBusy) return;
     if (!email || !password) {
       setAuthError("Email and password are required.");
@@ -149,9 +149,7 @@ export function useDashboard(activePage: PageKey) {
     setAuthError(null);
 
     try {
-      const endpoint = requiresBootstrap
-        ? "/api/auth/bootstrap"
-        : "/api/auth/login";
+      const endpoint = requiresBootstrap ? "/api/auth/bootstrap" : "/api/auth/login";
       const { ok, data } = await postAuth(endpoint, email, password);
       if (!ok || !data?.user) {
         setAuthError(data?.error ?? "Authentication failed.");

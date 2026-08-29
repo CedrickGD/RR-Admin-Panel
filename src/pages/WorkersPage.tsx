@@ -12,12 +12,22 @@ import {
   Search,
   Users as UsersIcon,
 } from "lucide-react";
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import * as XLSX from "xlsx";
+import {
+  Fragment,
+  lazy,
+  Suspense,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { CollapsiblePanel } from "../components/CollapsiblePanel";
+import { GlassDropdown } from "../components/GlassDropdown";
 import { RowExpandClip } from "../components/RowExpandClip";
 import { type KpiDrilldown, KpiStatCard } from "../components/KpiStatCard";
-import { UserActivityPanel } from "../components/UserActivityPanel";
 import { type SessionPresence, StatusBadge } from "../components/StatusBadge";
 import { Badge } from "../components/ds/Badge";
 import { Button, IconButton } from "../components/ds/Button";
@@ -26,11 +36,48 @@ import { EmptyState } from "../components/ds/EmptyState";
 import { Feed } from "../components/ds/Feed";
 import { PageHeader } from "../components/ds/PageHeader";
 import { SearchInput } from "../components/ds/SearchInput";
+import { TablePagination } from "../components/ds/TablePagination";
 import { Tag } from "../components/ds/Tag";
-import type { AppSessionRecord, InstallRecord, StatsPayload, SummaryPayload, TelemetryEvent, UserRollupRecord } from "../types/telemetry";
+import type {
+  AppSessionRecord,
+  InstallRecord,
+  StatsPayload,
+  SummaryPayload,
+  TelemetryEvent,
+  UserRollupRecord,
+} from "../types/telemetry";
 import { fetchInstalls, revokeInstall } from "../utils/api";
-import { formatAccuracy, formatDate, formatDuration, formatEventName, formatGeoSource, formatNumber, timeAgo } from "../utils/format";
+import {
+  formatAccuracy,
+  formatDate,
+  formatDuration,
+  formatEventName,
+  formatGeoSource,
+  formatNumber,
+  timeAgo,
+} from "../utils/format";
 import { resolveCountry } from "../utils/geography";
+import { paginate } from "../utils/pagination";
+import {
+  buildSessionDirectoryOptions,
+  defaultSessionSortDirection,
+  filterAndSortSessions,
+  type SessionDirectorySortKey,
+} from "../utils/sessionDirectory";
+import {
+  buildUserDirectoryOptions,
+  defaultUserSortDirection,
+  filterAndSortUsers,
+  type DirectorySortDirection,
+  type UserDirectoryFilters,
+  type UserDirectorySortKey,
+} from "../utils/userDirectory";
+
+const UserActivityPanel = lazy(() =>
+  import("../components/UserActivityPanel").then((module) => ({
+    default: module.UserActivityPanel,
+  })),
+);
 
 interface WorkersPageProps {
   summary: SummaryPayload;
@@ -44,8 +91,6 @@ interface WorkersPageProps {
 }
 
 type TabKey = "users" | "sessions";
-type SortKey = "lastSeen" | "firstSeen" | "sessions" | "totalTime" | "errors";
-type SortDir = "asc" | "desc";
 
 interface SessionTimelineMarker {
   id: string;
@@ -64,7 +109,10 @@ interface SessionTimelineData {
 const APP_ERROR = "app_error";
 const MAX_TIMELINE_MARKERS = 6;
 const SKELETON_ROWS = 8;
-const USER_COLUMN_COUNT = 12;
+const USER_COLUMN_COUNT = 11;
+const SESSION_COLUMN_COUNT = 10;
+const USER_PAGE_SIZE = 100;
+const SESSION_PAGE_SIZE = 75;
 
 /* ── shared helpers ─────────────────────────────────────────── */
 
@@ -93,9 +141,25 @@ function discordHandle(value: string): string {
 /* ── per-user Excel export ───────────────────────────────────── */
 
 const USER_EXPORT_COLUMNS = [
-  "User", "Discord", "Tier", "Version", "Platform", "OS", "Device",
-  "City", "Country", "Timezone", "RPC", "Sessions", "Total Time",
-  "Errors", "First Seen", "Last Seen", "Last Event", "Identity", "HWID",
+  "User",
+  "Discord",
+  "Tier",
+  "Version",
+  "Platform",
+  "OS",
+  "Device",
+  "City",
+  "Country",
+  "Timezone",
+  "RPC",
+  "Sessions",
+  "Total Time",
+  "Errors",
+  "First Seen",
+  "Last Seen",
+  "Last Event",
+  "Identity",
+  "HWID",
 ] as const;
 
 /**
@@ -107,7 +171,8 @@ function buildUserRows(users: UserRollupRecord[]): Record<string, string | numbe
   for (const u of users) {
     const key = u.identity.trim().toLowerCase();
     const existing = byIdentity.get(key);
-    if (!existing || parseTimestamp(u.lastSeen) > parseTimestamp(existing.lastSeen)) byIdentity.set(key, u);
+    if (!existing || parseTimestamp(u.lastSeen) > parseTimestamp(existing.lastSeen))
+      byIdentity.set(key, u);
   }
   return [...byIdentity.values()]
     .sort((a, b) => parseTimestamp(b.lastSeen) - parseTimestamp(a.lastSeen))
@@ -135,11 +200,17 @@ function buildUserRows(users: UserRollupRecord[]): Record<string, string | numbe
 }
 
 /** Real .xlsx (not CSV) so it opens with clean columns in Excel on any locale. */
-function exportUsersXlsx(users: UserRollupRecord[]): void {
+async function exportUsersXlsx(users: UserRollupRecord[]): Promise<void> {
+  const XLSX = await import("xlsx");
   const header = [...USER_EXPORT_COLUMNS];
   const sheet = XLSX.utils.json_to_sheet(buildUserRows(users), { header });
   sheet["!cols"] = header.map((h) => ({
-    wch: h === "Identity" || h === "HWID" ? 34 : h === "User" || h === "Discord" || h === "City" || h === "Device" ? 18 : 12,
+    wch:
+      h === "Identity" || h === "HWID"
+        ? 34
+        : h === "User" || h === "Discord" || h === "City" || h === "Device"
+          ? 18
+          : 12,
   }));
   const book = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(book, sheet, "Users");
@@ -157,22 +228,6 @@ function userLocation(user: UserRollupRecord): string {
   return [user.city, user.country].filter((v): v is string => Boolean(v?.trim())).join(", ");
 }
 
-function userSortValue(user: UserRollupRecord, key: SortKey): number {
-  switch (key) {
-    case "lastSeen": {
-      const ts = parseTimestamp(user.lastSeen);
-      return Number.isFinite(ts) ? ts : 0;
-    }
-    case "firstSeen": {
-      const ts = parseTimestamp(user.firstSeen);
-      return Number.isFinite(ts) ? ts : 0;
-    }
-    case "sessions":  return user.sessions;
-    case "totalTime": return user.totalDurationSeconds;
-    case "errors":    return user.errors;
-  }
-}
-
 /* ── sessions tab helpers (preserved behaviour) ─────────────── */
 
 function displaySessionUser(session: AppSessionRecord): string {
@@ -184,15 +239,19 @@ function resolveSessionEnd(session: AppSessionRecord): string {
 }
 
 function resolveSessionDuration(session: AppSessionRecord): string {
-  if (session.durationSeconds !== null && Number.isFinite(session.durationSeconds)) return formatDuration(session.durationSeconds);
+  if (session.durationSeconds !== null && Number.isFinite(session.durationSeconds))
+    return formatDuration(session.durationSeconds);
   const startedAt = Date.parse(session.startedAt);
-  const endedAt   = Date.parse(resolveSessionEnd(session));
-  if (!Number.isFinite(startedAt) || !Number.isFinite(endedAt) || endedAt < startedAt) return "open";
+  const endedAt = Date.parse(resolveSessionEnd(session));
+  if (!Number.isFinite(startedAt) || !Number.isFinite(endedAt) || endedAt < startedAt)
+    return "open";
   return formatDuration((endedAt - startedAt) / 1000);
 }
 
 function buildSessionLocationLabel(session: AppSessionRecord): string {
-  return [session.clientCity, session.clientRegion, session.clientCountry].filter((v): v is string => Boolean(v?.trim())).join(", ");
+  return [session.clientCity, session.clientRegion, session.clientCountry]
+    .filter((v): v is string => Boolean(v?.trim()))
+    .join(", ");
 }
 
 /** Derive a human-meaningful presence from session state */
@@ -227,18 +286,23 @@ function eventMatchesSession(event: TelemetryEvent, session: AppSessionRecord): 
   return readMetricText(event.metrics, ["install_id"]) === session.installId;
 }
 
-function buildSessionTimeline(session: AppSessionRecord, recentEvents: TelemetryEvent[]): SessionTimelineData {
+function buildSessionTimeline(
+  session: AppSessionRecord,
+  recentEvents: TelemetryEvent[],
+): SessionTimelineData {
   const startedAt = parseTimestamp(session.startedAt);
-  const endedAt   = parseTimestamp(resolveSessionEnd(session));
-  const hasRange  = Number.isFinite(startedAt) && Number.isFinite(endedAt);
+  const endedAt = parseTimestamp(resolveSessionEnd(session));
+  const hasRange = Number.isFinite(startedAt) && Number.isFinite(endedAt);
   const rangeStart = hasRange ? Math.min(startedAt, endedAt) : Number.NEGATIVE_INFINITY;
-  const rangeEnd   = hasRange ? Math.max(startedAt, endedAt) : Number.POSITIVE_INFINITY;
-  const relevantEvents = recentEvents.filter((e) => {
-    if (!eventMatchesSession(e, session)) return false;
-    const ts = parseTimestamp(e.timestamp);
-    return Number.isFinite(ts) && ts >= rangeStart && ts <= rangeEnd;
-  }).sort((a, b) => parseTimestamp(a.timestamp) - parseTimestamp(b.timestamp));
-  const errorEvents   = relevantEvents.filter((e) => e.service === APP_ERROR);
+  const rangeEnd = hasRange ? Math.max(startedAt, endedAt) : Number.POSITIVE_INFINITY;
+  const relevantEvents = recentEvents
+    .filter((e) => {
+      if (!eventMatchesSession(e, session)) return false;
+      const ts = parseTimestamp(e.timestamp);
+      return Number.isFinite(ts) && ts >= rangeStart && ts <= rangeEnd;
+    })
+    .sort((a, b) => parseTimestamp(a.timestamp) - parseTimestamp(b.timestamp));
+  const errorEvents = relevantEvents.filter((e) => e.service === APP_ERROR);
   const visibleErrors = errorEvents.slice(-MAX_TIMELINE_MARKERS);
   const duration = hasRange ? Math.max(1, rangeEnd - rangeStart) : 1;
   const markers = visibleErrors.map((event, i) => {
@@ -263,10 +327,19 @@ function buildSessionTimeline(session: AppSessionRecord, recentEvents: Telemetry
 
 /** Rich Presence renders as a tiny accent "RPC" badge; Off and not-yet-reported stay quiet. */
 function RpcBadge({ rpcEnabled }: { rpcEnabled: boolean | null }) {
-  if (rpcEnabled === true)  return <Badge tone="accent" title="Discord Rich Presence on">RPC</Badge>;
+  if (rpcEnabled === true)
+    return (
+      <Badge tone="accent" title="Discord Rich Presence on">
+        RPC
+      </Badge>
+    );
   if (rpcEnabled === false) return <Badge tone="muted">Off</Badge>;
   return (
-    <span className="badge badge-muted" style={{ opacity: 0.55 }} title="Not reported yet — RPC telemetry is a newer field">
+    <span
+      className="badge badge-muted"
+      style={{ opacity: 0.55 }}
+      title="Not reported yet — RPC telemetry is a newer field"
+    >
       —
     </span>
   );
@@ -332,18 +405,36 @@ function InstallsPanel({ hwid }: InstallsPanelProps) {
 
   let body: ReactNode;
   if (!hwid) {
-    body = <p style={{ fontSize: "0.75rem", color: "var(--text-3)" }}>No hardware ID reported — installs are keyed by device.</p>;
+    body = (
+      <p style={{ fontSize: "0.75rem", color: "var(--text-3)" }}>
+        No hardware ID reported — installs are keyed by device.
+      </p>
+    );
   } else if (loadError) {
     body = (
-      <p style={{ fontSize: "0.75rem", color: "var(--danger)", display: "flex", alignItems: "center", gap: 8 }}>
+      <p
+        style={{
+          fontSize: "0.75rem",
+          color: "var(--danger)",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+        }}
+      >
         {loadError}
-        <Button size="xs" onClick={load}>Retry</Button>
+        <Button size="xs" onClick={load}>
+          Retry
+        </Button>
       </p>
     );
   } else if (installs === null) {
     body = <div className="skeleton" style={{ height: 12, width: 160 }} />;
   } else if (installs.length === 0) {
-    body = <p style={{ fontSize: "0.75rem", color: "var(--text-3)" }}>No registered installs yet — clients before 1.4.9 never register.</p>;
+    body = (
+      <p style={{ fontSize: "0.75rem", color: "var(--text-3)" }}>
+        No registered installs yet — clients before 1.4.9 never register.
+      </p>
+    );
   } else {
     body = (
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -355,21 +446,54 @@ function InstallsPanel({ hwid }: InstallsPanelProps) {
             <div
               key={install.installId}
               className="glass-inset"
-              style={{ padding: "6px 12px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", opacity: revoked ? 0.7 : 1 }}
+              style={{
+                padding: "6px 12px",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                flexWrap: "wrap",
+                opacity: revoked ? 0.7 : 1,
+              }}
             >
-              <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.75rem", color: "var(--text-1)" }} title={install.installId}>
+              <span
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: "0.75rem",
+                  color: "var(--text-1)",
+                }}
+                title={install.installId}
+              >
                 {install.installId.slice(0, 8)}
               </span>
               <Badge tone="muted">{versionLabel(install.appVersion)}</Badge>
-              {install.licenseId !== null ? <Badge tone="accent" title="A license is bound to this install">Verified</Badge> : null}
-              {revoked ? (
-                <Badge tone="danger" title={`Revoked ${formatDate(install.revokedAt)}${install.revokeReason ? ` — ${install.revokeReason}` : ""}`}>Revoked</Badge>
+              {install.licenseId !== null ? (
+                <Badge tone="accent" title="A license is bound to this install">
+                  Verified
+                </Badge>
               ) : null}
-              <span style={{ fontSize: "0.71875rem", color: "var(--text-3)", whiteSpace: "nowrap" }} title={install.lastSeenAt ? formatDate(install.lastSeenAt) : undefined}>
+              {revoked ? (
+                <Badge
+                  tone="danger"
+                  title={`Revoked ${formatDate(install.revokedAt)}${install.revokeReason ? ` — ${install.revokeReason}` : ""}`}
+                >
+                  Revoked
+                </Badge>
+              ) : null}
+              <span
+                style={{ fontSize: "0.71875rem", color: "var(--text-3)", whiteSpace: "nowrap" }}
+                title={install.lastSeenAt ? formatDate(install.lastSeenAt) : undefined}
+              >
                 {install.lastSeenAt ? `seen ${timeAgo(install.lastSeenAt)}` : "not seen yet"}
               </span>
               {!revoked ? (
-                <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                <span
+                  style={{
+                    marginLeft: "auto",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
                   {confirming ? (
                     <>
                       <input
@@ -381,8 +505,22 @@ function InstallsPanel({ hwid }: InstallsPanelProps) {
                         disabled={busy}
                         style={{ height: 26, fontSize: "0.75rem", width: 180 }}
                       />
-                      <Button size="xs" onClick={() => { setConfirmId(null); setReason(""); }} disabled={busy}>Cancel</Button>
-                      <Button size="xs" variant="danger" onClick={() => void revoke(install.installId)} disabled={busy}>
+                      <Button
+                        size="xs"
+                        onClick={() => {
+                          setConfirmId(null);
+                          setReason("");
+                        }}
+                        disabled={busy}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="danger"
+                        onClick={() => void revoke(install.installId)}
+                        disabled={busy}
+                      >
                         {busy ? "Revoking…" : "Confirm revoke"}
                       </Button>
                     </>
@@ -391,7 +529,11 @@ function InstallsPanel({ hwid }: InstallsPanelProps) {
                       size="xs"
                       variant="danger"
                       title="Invalidate this install's signing key — the app must register a new install"
-                      onClick={() => { setConfirmId(install.installId); setReason(""); setActionError(null); }}
+                      onClick={() => {
+                        setConfirmId(install.installId);
+                        setReason("");
+                        setActionError(null);
+                      }}
                     >
                       Revoke
                     </Button>
@@ -401,14 +543,18 @@ function InstallsPanel({ hwid }: InstallsPanelProps) {
             </div>
           );
         })}
-        {actionError ? <p style={{ fontSize: "0.75rem", color: "var(--danger)", margin: 0 }}>{actionError}</p> : null}
+        {actionError ? (
+          <p style={{ fontSize: "0.75rem", color: "var(--danger)", margin: 0 }}>{actionError}</p>
+        ) : null}
       </div>
     );
   }
 
   return (
     <div style={{ marginBottom: 14 }}>
-      <p className="label-sm" style={{ marginBottom: 8 }}>Installs</p>
+      <p className="label-sm" style={{ marginBottom: 8 }}>
+        Installs
+      </p>
       {body}
     </div>
   );
@@ -416,10 +562,10 @@ function InstallsPanel({ hwid }: InstallsPanelProps) {
 
 interface SortableThProps {
   label: string;
-  sortKey: SortKey;
-  activeKey: SortKey;
-  dir: SortDir;
-  onSort: (key: SortKey) => void;
+  sortKey: UserDirectorySortKey;
+  activeKey: UserDirectorySortKey;
+  dir: DirectorySortDirection;
+  onSort: (key: UserDirectorySortKey) => void;
   /** Column-priority tag (col-xl / col-lg / col-md) — hides with its tds on narrow viewports. */
   className?: string;
 }
@@ -436,11 +582,53 @@ function SortableTh({ label, sortKey, activeKey, dir, onSort, className }: Sorta
     >
       <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
         {label}
-        {isActive
-          ? dir === "asc"
-            ? <ArrowUp size={12} style={{ color: "var(--accent)" }} />
-            : <ArrowDown size={12} style={{ color: "var(--accent)" }} />
-          : null}
+        {isActive ? (
+          dir === "asc" ? (
+            <ArrowUp size={12} style={{ color: "var(--accent)" }} />
+          ) : (
+            <ArrowDown size={12} style={{ color: "var(--accent)" }} />
+          )
+        ) : null}
+      </span>
+    </th>
+  );
+}
+
+interface SessionSortableThProps {
+  label: string;
+  sortKey: SessionDirectorySortKey;
+  activeKey: SessionDirectorySortKey;
+  dir: DirectorySortDirection;
+  onSort: (key: SessionDirectorySortKey) => void;
+  className?: string;
+}
+
+function SessionSortableTh({
+  label,
+  sortKey,
+  activeKey,
+  dir,
+  onSort,
+  className,
+}: SessionSortableThProps) {
+  const isActive = activeKey === sortKey;
+  return (
+    <th
+      className={className}
+      onClick={() => onSort(sortKey)}
+      style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}
+      title={`Sort by ${label.toLowerCase()}`}
+      aria-sort={isActive ? (dir === "asc" ? "ascending" : "descending") : undefined}
+    >
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+        {label}
+        {isActive ? (
+          dir === "asc" ? (
+            <ArrowUp size={12} style={{ color: "var(--accent)" }} />
+          ) : (
+            <ArrowDown size={12} style={{ color: "var(--accent)" }} />
+          )
+        ) : null}
       </span>
     </th>
   );
@@ -464,92 +652,142 @@ function SkeletonRows() {
 
 /* ── page ───────────────────────────────────────────────────── */
 
-export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapSession, onOpenMapUser, filterBar }: WorkersPageProps) {
+export function WorkersPage({
+  summary,
+  stats,
+  users,
+  focusedWorkerId,
+  onOpenMapSession,
+  onOpenMapUser,
+  filterBar,
+}: WorkersPageProps) {
   const [tab, setTab] = useState<TabKey>("users");
 
   // Users tab state
   const [userQuery, setUserQuery] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("lastSeen");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [expandedUsers, setExpandedUsers] = useState<string[]>([]);
-  // "Has ever expanded" memory — rows never expanded keep costing nothing (no detail DOM).
-  const [expandedEverUsers, setExpandedEverUsers] = useState<Set<string>>(new Set());
+  const deferredUserQuery = useDeferredValue(userQuery);
+  const [userPage, setUserPage] = useState(1);
+  const [sortKey, setSortKey] = useState<UserDirectorySortKey>("lastSeen");
+  const [sortDir, setSortDir] = useState<DirectorySortDirection>("desc");
+  const [userFilters, setUserFilters] = useState<UserDirectoryFilters>({
+    version: null,
+    continent: null,
+    country: null,
+  });
+  const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (focusedWorkerId) {
       setTab("users");
       setUserQuery(focusedWorkerId);
-      setExpandedUsers([focusedWorkerId]);
-      setExpandedEverUsers((prev) => (prev.has(focusedWorkerId) ? prev : new Set(prev).add(focusedWorkerId)));
+      setUserPage(1);
+      setExpandedUsers(new Set([focusedWorkerId]));
     }
   }, [focusedWorkerId]);
 
   // Sessions tab state
   const [sessionQuery, setSessionQuery] = useState("");
-  const [expandedSessions, setExpandedSessions] = useState<string[]>([]);
-  // "Has ever expanded" memory — rows never expanded keep costing nothing (no detail DOM).
-  const [expandedEverSessions, setExpandedEverSessions] = useState<Set<string>>(new Set());
+  const deferredSessionQuery = useDeferredValue(sessionQuery);
+  const [sessionPage, setSessionPage] = useState(1);
+  const [sessionSortKey, setSessionSortKey] = useState<SessionDirectorySortKey>("lastSeen");
+  const [sessionSortDir, setSessionSortDir] = useState<DirectorySortDirection>("desc");
+  const [sessionFilters, setSessionFilters] = useState<UserDirectoryFilters>({
+    version: null,
+    continent: null,
+    country: null,
+  });
+  const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set());
   const [exportError, setExportError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   /* ── users derivations (rollup-backed; never the 200-row window) ── */
 
+  const userFilterOptions = useMemo(
+    () => buildUserDirectoryOptions(users ?? [], userFilters.continent),
+    [users, userFilters.continent],
+  );
+
+  const countryOptionLabels = useMemo(
+    () => new Map(userFilterOptions.countries.map((option) => [option.value, option.label])),
+    [userFilterOptions.countries],
+  );
+  const hasUserFilters = Boolean(
+    userFilters.version || userFilters.continent || userFilters.country,
+  );
+
   const filteredUsers = useMemo(() => {
     if (!users) return null;
-    // Defensive dedupe — exactly one row per identity even if the rollup ever ships duplicates.
-    const byIdentity = new Map<string, UserRollupRecord>();
-    for (const u of users) {
-      const key = u.identity.trim().toLowerCase();
-      const existing = byIdentity.get(key);
-      if (!existing || parseTimestamp(u.lastSeen) > parseTimestamp(existing.lastSeen)) byIdentity.set(key, u);
-    }
-    const deduped = [...byIdentity.values()];
-    const q = userQuery.trim().toLowerCase();
-    const filtered = !q
-      ? deduped
-      : deduped.filter((u) => {
-          const hay = [
-            u.userLabel ?? "",
-            u.identity,
-            u.discordUser ?? "",
-            u.displayVersion ?? "",
-            u.appVersion ?? "",
-            u.country ?? "",
-            u.city ?? "",
-            u.platform ?? "",
-          ].join(" ").toLowerCase();
-          return hay.includes(q);
-        });
-    const factor = sortDir === "asc" ? 1 : -1;
-    return [...filtered].sort((a, b) => (userSortValue(a, sortKey) - userSortValue(b, sortKey)) * factor);
-  }, [users, userQuery, sortKey, sortDir]);
+    return filterAndSortUsers(users, deferredUserQuery, userFilters, sortKey, sortDir);
+  }, [users, deferredUserQuery, userFilters, sortKey, sortDir]);
 
-  function handleSort(key: SortKey) {
+  const paginatedUsers = useMemo(
+    () => (filteredUsers ? paginate(filteredUsers, userPage, USER_PAGE_SIZE) : null),
+    [filteredUsers, userPage],
+  );
+
+  useEffect(() => {
+    if (paginatedUsers && paginatedUsers.page !== userPage) {
+      setUserPage(paginatedUsers.page);
+    }
+  }, [paginatedUsers, userPage]);
+
+  function handleUserQuery(value: string) {
+    setUserQuery(value);
+    setUserPage(1);
+    setExpandedUsers(new Set());
+  }
+
+  function handleSort(key: UserDirectorySortKey) {
+    setUserPage(1);
+    setExpandedUsers(new Set());
     if (key === sortKey) {
       setSortDir((d) => (d === "desc" ? "asc" : "desc"));
     } else {
       setSortKey(key);
-      setSortDir("desc");
+      setSortDir(defaultUserSortDirection(key));
     }
   }
 
+  function updateUserFilter(key: keyof UserDirectoryFilters, value: string | null) {
+    setUserFilters((current) => ({
+      ...current,
+      [key]: value,
+      ...(key === "continent" ? { country: null } : {}),
+    }));
+    setUserPage(1);
+    setExpandedUsers(new Set());
+  }
+
   function toggleUserExpanded(identity: string) {
-    setExpandedUsers((curr) => curr.includes(identity) ? curr.filter((id) => id !== identity) : [...curr, identity]);
-    setExpandedEverUsers((prev) => (prev.has(identity) ? prev : new Set(prev).add(identity)));
+    setExpandedUsers((current) => {
+      const next = new Set(current);
+      if (!next.delete(identity)) next.add(identity);
+      return next;
+    });
+  }
+
+  function changeUserPage(page: number) {
+    setExpandedUsers(new Set());
+    setUserPage(page);
   }
 
   /* ── header KPI values (stats/rollup driven, summary fallback) ── */
 
-  const totalUsersValue = users ? users.length : stats ? stats.totals.lifetimeUsers : summary.stats.lifetimeUsers;
-  const activeNowValue  = stats ? stats.totals.activeNow : summary.stats.activeUsers;
+  const totalUsersValue = users
+    ? users.length
+    : stats
+      ? stats.totals.lifetimeUsers
+      : summary.stats.lifetimeUsers;
+  const activeNowValue = stats ? stats.totals.activeNow : summary.stats.activeUsers;
 
   const totalUsersDrill: KpiDrilldown | null = useMemo(() => {
     if (!stats) return null;
     const lifetime = stats.totals.lifetimeUsers;
     return {
       timespans: [
-        { label: "In range",     value: formatNumber(stats.totals.usersInRange) },
+        { label: "In range", value: formatNumber(stats.totals.usersInRange) },
         { label: "New in range", value: formatNumber(stats.totals.newUsersInRange) },
-        { label: "All-time",     value: formatNumber(lifetime) },
+        { label: "All-time", value: formatNumber(lifetime) },
       ],
       series: stats.series.newUsersPerDay.map((p) => ({ day: p.day, value: p.users })),
       seriesName: "New users",
@@ -568,9 +806,24 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
     const unknown = Math.max(0, lifetimeUsers - rpcKnownUsers);
     return {
       breakdown: [
-        { label: "On",                 value: formatNumber(rpcEnabledUsers), share: lifetimeUsers > 0 ? rpcEnabledUsers / lifetimeUsers : undefined },
-        { label: "Off",                value: formatNumber(Math.max(0, rpcKnownUsers - rpcEnabledUsers)), share: lifetimeUsers > 0 ? Math.max(0, rpcKnownUsers - rpcEnabledUsers) / lifetimeUsers : undefined },
-        { label: "Unknown (no report yet)", value: formatNumber(unknown), share: lifetimeUsers > 0 ? unknown / lifetimeUsers : undefined },
+        {
+          label: "On",
+          value: formatNumber(rpcEnabledUsers),
+          share: lifetimeUsers > 0 ? rpcEnabledUsers / lifetimeUsers : undefined,
+        },
+        {
+          label: "Off",
+          value: formatNumber(Math.max(0, rpcKnownUsers - rpcEnabledUsers)),
+          share:
+            lifetimeUsers > 0
+              ? Math.max(0, rpcKnownUsers - rpcEnabledUsers) / lifetimeUsers
+              : undefined,
+        },
+        {
+          label: "Unknown (no report yet)",
+          value: formatNumber(unknown),
+          share: lifetimeUsers > 0 ? unknown / lifetimeUsers : undefined,
+        },
       ],
       breakdownTitle: "RPC adoption",
       note: `${formatNumber(rpcLiveNow)} live right now. RPC telemetry is a newer field — older clients have not reported it yet.`,
@@ -588,50 +841,94 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
 
   /* ── sessions derivations (preserved recent-sessions view) ── */
 
-  const sessions = useMemo(() => {
-    const q = sessionQuery.trim().toLowerCase();
-    const base = summary.recentSessions.filter((s) => !s.id.startsWith("install:"));
-    // One row per user: keep only each user's most recent session so the list
-    // isn't flooded with duplicates from people who relaunch often.
-    const latestPerUser = new Map<string, (typeof base)[number]>();
-    for (const session of base) {
-      const identity = (session.hwid ?? session.installId).trim().toLowerCase();
-      const existing = latestPerUser.get(identity);
-      if (!existing || Date.parse(session.lastSeenAt) > Date.parse(existing.lastSeenAt)) {
-        latestPerUser.set(identity, session);
-      }
+  const sessionFilterOptions = useMemo(
+    () => buildSessionDirectoryOptions(summary.recentSessions, sessionFilters.continent),
+    [summary.recentSessions, sessionFilters.continent],
+  );
+  const sessionCountryOptionLabels = useMemo(
+    () => new Map(sessionFilterOptions.countries.map((option) => [option.value, option.label])),
+    [sessionFilterOptions.countries],
+  );
+  const hasSessionFilters = Boolean(
+    sessionFilters.version || sessionFilters.continent || sessionFilters.country,
+  );
+
+  const sessions = useMemo(
+    () =>
+      filterAndSortSessions(
+        summary.recentSessions,
+        deferredSessionQuery,
+        sessionFilters,
+        sessionSortKey,
+        sessionSortDir,
+      ),
+    [deferredSessionQuery, sessionFilters, sessionSortDir, sessionSortKey, summary.recentSessions],
+  );
+
+  const paginatedSessions = useMemo(
+    () => paginate(sessions, sessionPage, SESSION_PAGE_SIZE),
+    [sessions, sessionPage],
+  );
+
+  useEffect(() => {
+    if (paginatedSessions.page !== sessionPage) {
+      setSessionPage(paginatedSessions.page);
     }
-    const deduped = [...latestPerUser.values()];
-    const filtered = !q
-      ? deduped
-      : deduped.filter((s) => {
-          const hay = [displaySessionUser(s), s.installId, s.clientIp ?? "", s.clientCountry ?? "", s.appVersion ?? "", s.platform ?? "", s.lastEvent ?? ""].join(" ").toLowerCase();
-          return hay.includes(q);
-        });
-    return filtered.sort((a, b) => Date.parse(b.lastSeenAt) - Date.parse(a.lastSeenAt));
-  }, [sessionQuery, summary.recentSessions]);
+  }, [paginatedSessions, sessionPage]);
 
-  const sessionTimelines = useMemo(() => {
-    const map = new Map<string, SessionTimelineData>();
-    for (const session of sessions) map.set(session.id, buildSessionTimeline(session, summary.recentEvents));
-    return map;
-  }, [sessions, summary.recentEvents]);
-
-  function toggleSessionExpanded(sessionId: string) {
-    setExpandedSessions((curr) => curr.includes(sessionId) ? curr.filter((id) => id !== sessionId) : [...curr, sessionId]);
-    setExpandedEverSessions((prev) => (prev.has(sessionId) ? prev : new Set(prev).add(sessionId)));
+  function handleSessionQuery(value: string) {
+    setSessionQuery(value);
+    setSessionPage(1);
+    setExpandedSessions(new Set());
   }
 
-  function handleExport() {
+  function handleSessionSort(key: SessionDirectorySortKey) {
+    setSessionPage(1);
+    setExpandedSessions(new Set());
+    if (key === sessionSortKey) {
+      setSessionSortDir((direction) => (direction === "desc" ? "asc" : "desc"));
+    } else {
+      setSessionSortKey(key);
+      setSessionSortDir(defaultSessionSortDirection(key));
+    }
+  }
+
+  function updateSessionFilter(key: keyof UserDirectoryFilters, value: string | null) {
+    setSessionFilters((current) => ({
+      ...current,
+      [key]: value,
+      ...(key === "continent" ? { country: null } : {}),
+    }));
+    setSessionPage(1);
+    setExpandedSessions(new Set());
+  }
+
+  function toggleSessionExpanded(sessionId: string) {
+    setExpandedSessions((current) => {
+      const next = new Set(current);
+      if (!next.delete(sessionId)) next.add(sessionId);
+      return next;
+    });
+  }
+
+  function changeSessionPage(page: number) {
+    setExpandedSessions(new Set());
+    setSessionPage(page);
+  }
+
+  async function handleExport() {
     if (!users || users.length === 0) {
       setExportError("No users to export yet — the directory fills as telemetry arrives.");
       return;
     }
     setExportError(null);
+    setExporting(true);
     try {
-      exportUsersXlsx(users);
+      await exportUsersXlsx(users);
     } catch (err) {
       setExportError(err instanceof Error ? err.message : "Failed to export users.");
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -644,10 +941,12 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
           <>
             {filterBar}
             <div className="seg-control">
-              {([
-                { key: "users",    label: "Users" },
-                { key: "sessions", label: "Sessions" },
-              ] as Array<{ key: TabKey; label: string }>).map((t) => (
+              {(
+                [
+                  { key: "users", label: "Users" },
+                  { key: "sessions", label: "Sessions" },
+                ] as Array<{ key: TabKey; label: string }>
+              ).map((t) => (
                 <button
                   key={t.key}
                   type="button"
@@ -661,11 +960,11 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
             <Button
               size="sm"
               icon={<Download />}
-              onClick={handleExport}
-              disabled={!users || users.length === 0}
+              onClick={() => void handleExport()}
+              disabled={exporting || !users || users.length === 0}
               title="Download one row per user (every user ever seen) as a clean Excel (.xlsx) sheet"
             >
-              Export Users
+              {exporting ? "Preparing…" : "Export Users"}
             </Button>
           </>
         }
@@ -676,7 +975,11 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
         <KpiStatCard
           label="Total Users"
           value={formatNumber(totalUsersValue)}
-          sub={stats ? `${formatNumber(stats.totals.lifetimeUsers)} all-time · ${formatNumber(stats.totals.newUsersInRange)} new in range` : "All-time unique users"}
+          sub={
+            stats
+              ? `${formatNumber(stats.totals.lifetimeUsers)} all-time · ${formatNumber(stats.totals.newUsersInRange)} new in range`
+              : "All-time unique users"
+          }
           icon={<UsersIcon size={14} />}
           tone="primary"
           drilldown={totalUsersDrill}
@@ -691,14 +994,22 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
         <KpiStatCard
           label="RPC On"
           value={stats ? formatNumber(stats.totals.rpcEnabledUsers) : "—"}
-          sub={stats ? `of ${formatNumber(stats.totals.rpcKnownUsers)} reporting · ${formatNumber(stats.totals.rpcLiveNow)} live now` : "Waiting for stats…"}
+          sub={
+            stats
+              ? `of ${formatNumber(stats.totals.rpcKnownUsers)} reporting · ${formatNumber(stats.totals.rpcLiveNow)} live now`
+              : "Waiting for stats…"
+          }
           icon={<RadioTower size={14} />}
           tone="amber"
           drilldown={rpcDrill}
         />
         <KpiStatCard
           label="Errors in Range"
-          value={stats ? formatNumber(stats.totals.errorsInRange) : formatNumber(summary.stats.errorsLast24Hours)}
+          value={
+            stats
+              ? formatNumber(stats.totals.errorsInRange)
+              : formatNumber(summary.stats.errorsLast24Hours)
+          }
           sub={stats ? "Within selected range" : "Last 24 h · fallback window"}
           icon={<AlertTriangle size={14} />}
           tone="rose"
@@ -707,7 +1018,9 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
       </div>
 
       {exportError ? (
-        <div className="inline-danger-note" role="alert">{exportError}</div>
+        <div className="inline-danger-note" role="alert">
+          {exportError}
+        </div>
       ) : null}
 
       {tab === "users" ? (
@@ -716,193 +1029,438 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
           kicker="Rollup"
           title="All Users"
           collapsible={false}
-          sub={filteredUsers
-            ? `${formatNumber(filteredUsers.length)} of ${formatNumber(users?.length ?? 0)} shown · every user ever seen, rolled up across the full session history`
-            : "Loading user rollup…"}
+          sub={
+            filteredUsers
+              ? `${formatNumber(filteredUsers.length)} of ${formatNumber(users?.length ?? 0)} shown · every user ever seen, rolled up across the full session history`
+              : "Loading user rollup…"
+          }
           right={
-            <SearchInput
-              value={userQuery}
-              onChange={setUserQuery}
-              placeholder="Search user, Discord, version…"
-              style={{ width: "min(280px,100%)" }}
-            />
+            <div className="user-directory-controls">
+              <SearchInput
+                value={userQuery}
+                onChange={handleUserQuery}
+                placeholder="Search user or Discord…"
+                style={{ width: "min(260px,100%)" }}
+              />
+              <GlassDropdown
+                placeholder="All versions"
+                options={userFilterOptions.versions}
+                value={userFilters.version}
+                onChange={(value) => updateUserFilter("version", value)}
+                renderOption={(value) => versionLabel(value)}
+                align="left"
+              />
+              <GlassDropdown
+                placeholder="All continents"
+                options={userFilterOptions.continents}
+                value={userFilters.continent}
+                onChange={(value) => updateUserFilter("continent", value)}
+                align="left"
+              />
+              <GlassDropdown
+                placeholder="All countries"
+                options={userFilterOptions.countries.map((option) => option.value)}
+                value={userFilters.country}
+                onChange={(value) => updateUserFilter("country", value)}
+                renderOption={(value) => countryOptionLabels.get(value) ?? value}
+                align="left"
+              />
+            </div>
           }
         >
           <div className="panel-body-flush">
             {filteredUsers === null || filteredUsers.length > 0 ? (
-              <div className="data-table-wrap">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>User</th>
-                      <th className="col-lg">Discord</th>
-                      <th>Version</th>
-                      <th className="col-lg">Platform</th>
-                      <th className="col-md">Location</th>
-                      <th className="col-md">RPC</th>
-                      <SortableTh label="Sessions"   sortKey="sessions"  activeKey={sortKey} dir={sortDir} onSort={handleSort} />
-                      <SortableTh label="Total Time" sortKey="totalTime" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
-                      <SortableTh label="Errors"     sortKey="errors"    activeKey={sortKey} dir={sortDir} onSort={handleSort} />
-                      <SortableTh label="Last Seen"  sortKey="lastSeen"  activeKey={sortKey} dir={sortDir} onSort={handleSort} />
-                      <SortableTh label="First Seen" sortKey="firstSeen" activeKey={sortKey} dir={sortDir} onSort={handleSort} className="col-xl" />
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody key={filteredUsers === null ? "loading" : "loaded"} className={filteredUsers === null ? undefined : "dt-settle"}>
-                    {filteredUsers === null ? (
-                      <SkeletonRows />
-                    ) : (
-                      filteredUsers.map((user) => {
-                        const isExpanded = expandedUsers.includes(user.identity);
-                        const features = Object.entries(user.features ?? {}).sort((a, b) => b[1] - a[1]);
-                        const recentErrors = user.recentErrors ?? [];
-                        // Mappable when the rollup has coordinates or at least a known
-                        // country (centroid fallback) — online OR offline.
-                        const canMap =
-                          resolveCountry(user.country) !== null ||
-                          (Number.isFinite(user.latitude ?? Number.NaN) && Number.isFinite(user.longitude ?? Number.NaN));
+              <>
+                <div className="data-table-wrap data-table-wrap-paginated">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <SortableTh
+                          label="User"
+                          sortKey="user"
+                          activeKey={sortKey}
+                          dir={sortDir}
+                          onSort={handleSort}
+                        />
+                        <SortableTh
+                          label="Discord"
+                          sortKey="discord"
+                          activeKey={sortKey}
+                          dir={sortDir}
+                          onSort={handleSort}
+                          className="col-lg"
+                        />
+                        <SortableTh
+                          label="Version"
+                          sortKey="version"
+                          activeKey={sortKey}
+                          dir={sortDir}
+                          onSort={handleSort}
+                        />
+                        <SortableTh
+                          label="Location"
+                          sortKey="location"
+                          activeKey={sortKey}
+                          dir={sortDir}
+                          onSort={handleSort}
+                          className="col-md"
+                        />
+                        <th className="col-md">RPC</th>
+                        <SortableTh
+                          label="Sessions"
+                          sortKey="sessions"
+                          activeKey={sortKey}
+                          dir={sortDir}
+                          onSort={handleSort}
+                        />
+                        <SortableTh
+                          label="Total Time"
+                          sortKey="totalTime"
+                          activeKey={sortKey}
+                          dir={sortDir}
+                          onSort={handleSort}
+                        />
+                        <SortableTh
+                          label="Errors"
+                          sortKey="errors"
+                          activeKey={sortKey}
+                          dir={sortDir}
+                          onSort={handleSort}
+                        />
+                        <SortableTh
+                          label="Last Seen"
+                          sortKey="lastSeen"
+                          activeKey={sortKey}
+                          dir={sortDir}
+                          onSort={handleSort}
+                        />
+                        <SortableTh
+                          label="First Seen"
+                          sortKey="firstSeen"
+                          activeKey={sortKey}
+                          dir={sortDir}
+                          onSort={handleSort}
+                          className="col-xl"
+                        />
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody
+                      key={filteredUsers === null ? "loading" : "loaded"}
+                      className={filteredUsers === null ? undefined : "dt-settle"}
+                    >
+                      {filteredUsers === null ? (
+                        <SkeletonRows />
+                      ) : (
+                        (paginatedUsers?.items ?? []).map((user) => {
+                          const isExpanded = expandedUsers.has(user.identity);
+                          const features = isExpanded
+                            ? Object.entries(user.features ?? {}).sort((a, b) => b[1] - a[1])
+                            : [];
+                          const recentErrors = isExpanded ? (user.recentErrors ?? []) : [];
+                          // Mappable when the rollup has coordinates or at least a known
+                          // country (centroid fallback) — online OR offline.
+                          const canMap =
+                            resolveCountry(user.country) !== null ||
+                            (Number.isFinite(user.latitude ?? Number.NaN) &&
+                              Number.isFinite(user.longitude ?? Number.NaN));
 
-                        return (
-                          <Fragment key={user.identity}>
-                            <tr
-                              className={isExpanded ? "row-expanded" : ""}
-                              onClick={() => toggleUserExpanded(user.identity)}
-                              style={{ cursor: "pointer" }}
-                            >
-                              <td style={{ whiteSpace: "nowrap" }}>
-                                <span style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: "0.8125rem", marginRight: 6, display: "inline-block", maxWidth: 190, overflow: "hidden", textOverflow: "ellipsis", verticalAlign: "bottom" }} title={userDisplayName(user)}>{userDisplayName(user)}</span>
-                                {user.licenseTier === "premium" ? (
-                                  <span style={{ fontSize: "0.625rem", padding: "2px 6px", borderRadius: "4px", background: "var(--accent-subtle)", color: "var(--accent-text)", fontWeight: 700, letterSpacing: "0.05em", verticalAlign: "middle" }}>PREMIUM</span>
-                                ) : (
-                                  <span style={{ fontSize: "0.625rem", padding: "2px 6px", borderRadius: "4px", background: "var(--bg-subtle)", color: "var(--text-muted)", fontWeight: 700, letterSpacing: "0.05em", verticalAlign: "middle" }}>FREE</span>
-                                )}
-                                <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.6875rem", color: "var(--text-3)", marginLeft: 8 }}>
-                                  {user.identity.slice(0, 8)}
-                                </span>
-                              </td>
-                              <td className="col-lg" style={{ whiteSpace: "nowrap", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis" }}>
-                                {user.discordUser?.trim() ? (
-                                  <span style={{ fontSize: "0.71875rem", color: "var(--text-2)" }} title={`Discord: ${user.discordUser}`}>
-                                    {discordHandle(user.discordUser)}
+                          return (
+                            <Fragment key={user.identity}>
+                              <tr
+                                className={isExpanded ? "row-expanded" : ""}
+                                onClick={() => toggleUserExpanded(user.identity)}
+                                style={{ cursor: "pointer" }}
+                              >
+                                <td style={{ whiteSpace: "nowrap" }}>
+                                  <span
+                                    style={{
+                                      fontFamily: "var(--font-display)",
+                                      fontWeight: 600,
+                                      fontSize: "0.8125rem",
+                                      marginRight: 6,
+                                      display: "inline-block",
+                                      maxWidth: 190,
+                                      overflow: "hidden",
+                                      textOverflow: "ellipsis",
+                                      verticalAlign: "bottom",
+                                    }}
+                                    title={userDisplayName(user)}
+                                  >
+                                    {userDisplayName(user)}
                                   </span>
-                                ) : (
-                                  <span style={{ color: "var(--text-3)", opacity: 0.55 }} title="RPC not connected / not reported yet">—</span>
-                                )}
-                              </td>
-                              <td>
-                                <Badge tone="muted" title={user.appVersion ?? undefined}>
-                                  {versionLabel(user.displayVersion ?? user.appVersion)}
-                                </Badge>
-                              </td>
-                              <td className="muted col-lg">{user.platform ?? "—"}</td>
-                              <td className="muted col-md" style={{ whiteSpace: "nowrap", maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis" }} title={userLocation(user) || undefined}>{userLocation(user) || "—"}</td>
-                              <td className="col-md"><RpcBadge rpcEnabled={user.rpcEnabled} /></td>
-                              <td className="muted">{formatNumber(user.sessions)}</td>
-                              <td className="muted" style={{ whiteSpace: "nowrap" }}>{user.totalDurationSeconds > 0 ? formatDuration(user.totalDurationSeconds) : "—"}</td>
-                              <td>
-                                {user.errors > 0
-                                  ? <Badge tone="danger">{formatNumber(user.errors)}</Badge>
-                                  : <Badge tone="muted">0</Badge>}
-                              </td>
-                              <td className="muted" style={{ whiteSpace: "nowrap" }}>
-                                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                                  {user.isActive ? <span className="status-dot" /> : null}
-                                  {timeAgo(user.lastSeen)}
-                                </span>
-                              </td>
-                              <td className="muted col-xl" style={{ whiteSpace: "nowrap" }}>{formatDateOnly(user.firstSeen)}</td>
-                              <td>
-                                <div style={{ display: "flex", gap: 4 }}>
-                                  <IconButton
-                                    icon={<Globe2 />}
-                                    style={{ padding: 4 }}
-                                    disabled={!canMap}
-                                    title={canMap
-                                      ? user.isActive ? "Show on map" : "Show last known location"
-                                      : "No location data"}
-                                    aria-label="Show on map"
-                                    onClick={(e) => { e.stopPropagation(); if (canMap) onOpenMapUser(user.identity); }}
-                                  />
-                                  <IconButton
-                                    icon={isExpanded ? <ChevronUp /> : <ChevronDown />}
-                                    style={{ padding: 4 }}
-                                    onClick={(e) => { e.stopPropagation(); toggleUserExpanded(user.identity); }}
-                                    aria-label={isExpanded ? "Collapse" : "Expand"}
-                                  />
-                                </div>
-                              </td>
-                            </tr>
-
-                            {/* Detail stays mounted once opened; the grid-rows clip animates the fold smoothly. */}
-                            {expandedEverUsers.has(user.identity) ? (
-                              <tr className={isExpanded ? undefined : "row-expand-collapsed"}>
-                                <td colSpan={USER_COLUMN_COUNT} className="row-expand-panel row-expand-td">
-                                  <RowExpandClip open={isExpanded}>
-                                    <div style={{ marginBottom: 14 }}>
-                                      <DetailGrid
-                                        items={[
-                                          { k: "Identity",     v: user.identity },
-                                          { k: "Hardware ID",  v: user.hwid ?? "—" },
-                                          { k: "Discord",      v: user.discordUser?.trim() ? discordHandle(user.discordUser) : "—" },
-                                          { k: "Device Model", v: user.deviceModel ?? "—" },
-                                          { k: "OS Version",   v: user.osVersion ?? "—" },
-                                          { k: "Timezone",     v: user.timezone ?? "—" },
-                                          { k: "App Version",  v: user.displayVersion ?? user.appVersion ?? "—" },
-                                          { k: "Last Status",  v: user.lastStatus ?? "—" },
-                                          { k: "Last Event",   v: user.lastEvent ? formatEventName(user.lastEvent) : "—" },
-                                          { k: "First Seen",   v: formatDate(user.firstSeen) },
-                                          { k: "Last Seen",    v: formatDate(user.lastSeen) },
-                                        ]}
-                                      />
-                                    </div>
-
-                                    <InstallsPanel hwid={user.hwid} />
-
-                                    <UserActivityPanel identity={user.identity} />
-
-                                    <p className="label-sm" style={{ marginBottom: 8 }}>Recent Errors</p>
-                                    {recentErrors.length > 0 ? (
-                                      <div style={{ marginBottom: 14 }}>
-                                        <Feed
-                                          items={recentErrors.map((err, i) => ({
-                                            id: `${err.timestamp}-${i}`,
-                                            tone: "bad" as const,
-                                            title: <span title={err.message ?? undefined}>{err.type?.trim() || "error"}</span>,
-                                            meta: <span title={err.message ?? undefined}>{err.message?.trim() || "(no message)"}</span>,
-                                            time: timeAgo(err.timestamp),
-                                          }))}
-                                        />
-                                      </div>
-                                    ) : (
-                                      <p style={{ fontSize: "0.75rem", color: "var(--text-3)", marginBottom: 14 }}>No errors recorded.</p>
-                                    )}
-
-                                    <p className="label-sm" style={{ marginBottom: 8 }}>Feature Usage</p>
-                                    {features.length > 0 ? (
-                                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                                        {features.map(([feature, count]) => (
-                                          <Tag key={feature} accent>
-                                            {feature} ×{formatNumber(count)}
-                                          </Tag>
-                                        ))}
-                                      </div>
-                                    ) : (
-                                      <p style={{ fontSize: "0.75rem", color: "var(--text-3)" }}>No feature usage reported yet.</p>
-                                    )}
-                                  </RowExpandClip>
+                                  {user.licenseTier === "premium" ? (
+                                    <span
+                                      style={{
+                                        fontSize: "0.625rem",
+                                        padding: "2px 6px",
+                                        borderRadius: "4px",
+                                        background: "var(--accent-subtle)",
+                                        color: "var(--accent-text)",
+                                        fontWeight: 700,
+                                        letterSpacing: "0.05em",
+                                        verticalAlign: "middle",
+                                      }}
+                                    >
+                                      PREMIUM
+                                    </span>
+                                  ) : (
+                                    <span
+                                      style={{
+                                        fontSize: "0.625rem",
+                                        padding: "2px 6px",
+                                        borderRadius: "4px",
+                                        background: "var(--bg-subtle)",
+                                        color: "var(--text-muted)",
+                                        fontWeight: 700,
+                                        letterSpacing: "0.05em",
+                                        verticalAlign: "middle",
+                                      }}
+                                    >
+                                      FREE
+                                    </span>
+                                  )}
+                                  <span
+                                    style={{
+                                      fontFamily: "var(--font-mono)",
+                                      fontSize: "0.6875rem",
+                                      color: "var(--text-3)",
+                                      marginLeft: 8,
+                                    }}
+                                  >
+                                    {user.identity.slice(0, 8)}
+                                  </span>
+                                </td>
+                                <td
+                                  className="col-lg"
+                                  style={{
+                                    whiteSpace: "nowrap",
+                                    maxWidth: 160,
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                  }}
+                                >
+                                  {user.discordUser?.trim() ? (
+                                    <span
+                                      style={{ fontSize: "0.71875rem", color: "var(--text-2)" }}
+                                      title={`Discord: ${user.discordUser}`}
+                                    >
+                                      {discordHandle(user.discordUser)}
+                                    </span>
+                                  ) : (
+                                    <span
+                                      style={{ color: "var(--text-3)", opacity: 0.55 }}
+                                      title="RPC not connected / not reported yet"
+                                    >
+                                      —
+                                    </span>
+                                  )}
+                                </td>
+                                <td>
+                                  <Badge tone="muted" title={user.appVersion ?? undefined}>
+                                    {versionLabel(user.displayVersion ?? user.appVersion)}
+                                  </Badge>
+                                </td>
+                                <td
+                                  className="muted col-md"
+                                  style={{
+                                    whiteSpace: "nowrap",
+                                    maxWidth: 150,
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                  }}
+                                  title={userLocation(user) || undefined}
+                                >
+                                  {userLocation(user) || "—"}
+                                </td>
+                                <td className="col-md">
+                                  <RpcBadge rpcEnabled={user.rpcEnabled} />
+                                </td>
+                                <td className="muted">{formatNumber(user.sessions)}</td>
+                                <td className="muted" style={{ whiteSpace: "nowrap" }}>
+                                  {user.totalDurationSeconds > 0
+                                    ? formatDuration(user.totalDurationSeconds)
+                                    : "—"}
+                                </td>
+                                <td>
+                                  {user.errors > 0 ? (
+                                    <Badge tone="danger">{formatNumber(user.errors)}</Badge>
+                                  ) : (
+                                    <Badge tone="muted">0</Badge>
+                                  )}
+                                </td>
+                                <td className="muted" style={{ whiteSpace: "nowrap" }}>
+                                  <span
+                                    style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+                                  >
+                                    {user.isActive ? <span className="status-dot" /> : null}
+                                    {timeAgo(user.lastSeen)}
+                                  </span>
+                                </td>
+                                <td className="muted col-xl" style={{ whiteSpace: "nowrap" }}>
+                                  {formatDateOnly(user.firstSeen)}
+                                </td>
+                                <td>
+                                  <div style={{ display: "flex", gap: 4 }}>
+                                    <IconButton
+                                      icon={<Globe2 />}
+                                      style={{ padding: 4 }}
+                                      disabled={!canMap}
+                                      title={
+                                        canMap
+                                          ? user.isActive
+                                            ? "Show on map"
+                                            : "Show last known location"
+                                          : "No location data"
+                                      }
+                                      aria-label="Show on map"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (canMap) onOpenMapUser(user.identity);
+                                      }}
+                                    />
+                                    <IconButton
+                                      icon={isExpanded ? <ChevronUp /> : <ChevronDown />}
+                                      style={{ padding: 4 }}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleUserExpanded(user.identity);
+                                      }}
+                                      aria-label={isExpanded ? "Collapse" : "Expand"}
+                                    />
+                                  </div>
                                 </td>
                               </tr>
-                            ) : null}
-                          </Fragment>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            ) : userQuery ? (
+
+                              {isExpanded ? (
+                                <tr>
+                                  <td
+                                    colSpan={USER_COLUMN_COUNT}
+                                    className="row-expand-panel row-expand-td"
+                                  >
+                                    <RowExpandClip open>
+                                      <div style={{ marginBottom: 14 }}>
+                                        <DetailGrid
+                                          items={[
+                                            { k: "Identity", v: user.identity },
+                                            { k: "Hardware ID", v: user.hwid ?? "—" },
+                                            {
+                                              k: "Discord",
+                                              v: user.discordUser?.trim()
+                                                ? discordHandle(user.discordUser)
+                                                : "—",
+                                            },
+                                            { k: "Device Model", v: user.deviceModel ?? "—" },
+                                            { k: "OS Version", v: user.osVersion ?? "—" },
+                                            { k: "Timezone", v: user.timezone ?? "—" },
+                                            {
+                                              k: "App Version",
+                                              v: user.displayVersion ?? user.appVersion ?? "—",
+                                            },
+                                            { k: "Last Status", v: user.lastStatus ?? "—" },
+                                            {
+                                              k: "Last Event",
+                                              v: user.lastEvent
+                                                ? formatEventName(user.lastEvent)
+                                                : "—",
+                                            },
+                                            { k: "First Seen", v: formatDate(user.firstSeen) },
+                                            { k: "Last Seen", v: formatDate(user.lastSeen) },
+                                          ]}
+                                        />
+                                      </div>
+
+                                      <InstallsPanel hwid={user.hwid} />
+
+                                      <Suspense
+                                        fallback={
+                                          <div
+                                            className="skeleton"
+                                            style={{ height: 96, marginBottom: 14 }}
+                                          />
+                                        }
+                                      >
+                                        <UserActivityPanel identity={user.identity} />
+                                      </Suspense>
+
+                                      <p className="label-sm" style={{ marginBottom: 8 }}>
+                                        Recent Errors
+                                      </p>
+                                      {recentErrors.length > 0 ? (
+                                        <div style={{ marginBottom: 14 }}>
+                                          <Feed
+                                            items={recentErrors.map((err, i) => ({
+                                              id: `${err.timestamp}-${i}`,
+                                              tone: "bad" as const,
+                                              title: (
+                                                <span title={err.message ?? undefined}>
+                                                  {err.type?.trim() || "error"}
+                                                </span>
+                                              ),
+                                              meta: (
+                                                <span title={err.message ?? undefined}>
+                                                  {err.message?.trim() || "(no message)"}
+                                                </span>
+                                              ),
+                                              time: timeAgo(err.timestamp),
+                                            }))}
+                                          />
+                                        </div>
+                                      ) : (
+                                        <p
+                                          style={{
+                                            fontSize: "0.75rem",
+                                            color: "var(--text-3)",
+                                            marginBottom: 14,
+                                          }}
+                                        >
+                                          No errors recorded.
+                                        </p>
+                                      )}
+
+                                      <p className="label-sm" style={{ marginBottom: 8 }}>
+                                        Feature Usage
+                                      </p>
+                                      {features.length > 0 ? (
+                                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                                          {features.map(([feature, count]) => (
+                                            <Tag key={feature} accent>
+                                              {feature} ×{formatNumber(count)}
+                                            </Tag>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <p style={{ fontSize: "0.75rem", color: "var(--text-3)" }}>
+                                          No feature usage reported yet.
+                                        </p>
+                                      )}
+                                    </RowExpandClip>
+                                  </td>
+                                </tr>
+                              ) : null}
+                            </Fragment>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                {paginatedUsers ? (
+                  <TablePagination
+                    page={paginatedUsers.page}
+                    pageCount={paginatedUsers.pageCount}
+                    start={paginatedUsers.start}
+                    end={paginatedUsers.end}
+                    total={paginatedUsers.total}
+                    itemLabel="users"
+                    onPageChange={changeUserPage}
+                  />
+                ) : null}
+              </>
+            ) : userQuery || hasUserFilters ? (
               <EmptyState icon={<Search />} title="No users match">
-                Nothing in the rollup matches “{userQuery}”. Clear the search to see every user.
+                Nothing in the rollup matches the current search and filters. Clear them to see
+                every user.
               </EmptyState>
             ) : (
               <EmptyState icon={<UsersIcon />} title="No users recorded yet">
@@ -919,126 +1477,330 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
           collapsible={false}
           sub="One row per user · most recent session from the retained window. Expand for timeline detail."
           right={
-            <SearchInput
-              value={sessionQuery}
-              onChange={setSessionQuery}
-              placeholder="Search user, IP, version…"
-              style={{ width: "min(280px,100%)" }}
-            />
+            <div className="user-directory-controls">
+              <SearchInput
+                value={sessionQuery}
+                onChange={handleSessionQuery}
+                placeholder="Search user or Discord…"
+                style={{ width: "min(260px,100%)" }}
+              />
+              <GlassDropdown
+                placeholder="All versions"
+                options={sessionFilterOptions.versions}
+                value={sessionFilters.version}
+                onChange={(value) => updateSessionFilter("version", value)}
+                renderOption={(value) => versionLabel(value)}
+                align="left"
+              />
+              <GlassDropdown
+                placeholder="All continents"
+                options={sessionFilterOptions.continents}
+                value={sessionFilters.continent}
+                onChange={(value) => updateSessionFilter("continent", value)}
+                align="left"
+              />
+              <GlassDropdown
+                placeholder="All countries"
+                options={sessionFilterOptions.countries.map((option) => option.value)}
+                value={sessionFilters.country}
+                onChange={(value) => updateSessionFilter("country", value)}
+                renderOption={(value) => sessionCountryOptionLabels.get(value) ?? value}
+                align="left"
+              />
+            </div>
           }
         >
           <div className="panel-body-flush">
             {sessions.length > 0 ? (
-              <div className="data-table-wrap">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>User</th>
-                      <th>Location</th>
-                      <th>Version</th>
-                      <th className="col-lg">Platform</th>
-                      <th>Duration</th>
-                      <th>Last Seen</th>
-                      <th className="col-md">Errors</th>
-                      <th>Status</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sessions.map((session) => {
-                      const isExpanded = expandedSessions.includes(session.id);
-                      const timeline   = sessionTimelines.get(session.id);
+              <>
+                <div className="data-table-wrap data-table-wrap-paginated">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <SessionSortableTh
+                          label="User"
+                          sortKey="user"
+                          activeKey={sessionSortKey}
+                          dir={sessionSortDir}
+                          onSort={handleSessionSort}
+                        />
+                        <SessionSortableTh
+                          label="Discord"
+                          sortKey="discord"
+                          activeKey={sessionSortKey}
+                          dir={sessionSortDir}
+                          onSort={handleSessionSort}
+                          className="col-lg"
+                        />
+                        <SessionSortableTh
+                          label="Location"
+                          sortKey="location"
+                          activeKey={sessionSortKey}
+                          dir={sessionSortDir}
+                          onSort={handleSessionSort}
+                        />
+                        <SessionSortableTh
+                          label="Version"
+                          sortKey="version"
+                          activeKey={sessionSortKey}
+                          dir={sessionSortDir}
+                          onSort={handleSessionSort}
+                        />
+                        <SessionSortableTh
+                          label="Duration"
+                          sortKey="duration"
+                          activeKey={sessionSortKey}
+                          dir={sessionSortDir}
+                          onSort={handleSessionSort}
+                        />
+                        <SessionSortableTh
+                          label="Started"
+                          sortKey="startedAt"
+                          activeKey={sessionSortKey}
+                          dir={sessionSortDir}
+                          onSort={handleSessionSort}
+                          className="col-lg"
+                        />
+                        <SessionSortableTh
+                          label="Last Seen"
+                          sortKey="lastSeen"
+                          activeKey={sessionSortKey}
+                          dir={sessionSortDir}
+                          onSort={handleSessionSort}
+                        />
+                        <SessionSortableTh
+                          label="Errors"
+                          sortKey="errors"
+                          activeKey={sessionSortKey}
+                          dir={sessionSortDir}
+                          onSort={handleSessionSort}
+                          className="col-md"
+                        />
+                        <th>Status</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginatedSessions.items.map((session) => {
+                        const isExpanded = expandedSessions.has(session.id);
+                        const timeline = isExpanded
+                          ? buildSessionTimeline(session, summary.recentEvents)
+                          : null;
 
-                      return (
-                        <Fragment key={session.id}>
-                          <tr className={isExpanded ? "row-expanded" : ""}>
-                            <td style={{ whiteSpace: "nowrap" }}>
-                              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                                <span style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: "0.8125rem", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={displaySessionUser(session)}>{displaySessionUser(session)}</span>
-                                {session.discordUser?.trim() ? (
-                                  <span style={{ fontSize: "0.6875rem", color: "var(--text-2)" }} title={`Discord: ${session.discordUser}`}>
-                                    {discordHandle(session.discordUser)}
+                        return (
+                          <Fragment key={session.id}>
+                            <tr className={isExpanded ? "row-expanded" : ""}>
+                              <td style={{ whiteSpace: "nowrap" }}>
+                                <span
+                                  style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+                                >
+                                  <span
+                                    style={{
+                                      fontFamily: "var(--font-display)",
+                                      fontWeight: 600,
+                                      fontSize: "0.8125rem",
+                                      maxWidth: 180,
+                                      overflow: "hidden",
+                                      textOverflow: "ellipsis",
+                                      whiteSpace: "nowrap",
+                                    }}
+                                    title={displaySessionUser(session)}
+                                  >
+                                    {displaySessionUser(session)}
                                   </span>
-                                ) : null}
-                                {session.rpcEnabled ? <Badge tone="accent" title="Discord Rich Presence on">RPC</Badge> : null}
-                              </span>
-                            </td>
-                            <td className="muted" style={{ whiteSpace: "nowrap", maxWidth: 170, overflow: "hidden", textOverflow: "ellipsis" }} title={buildSessionLocationLabel(session) || undefined}>{buildSessionLocationLabel(session) || "—"}</td>
-                            <td><Badge tone="muted">{session.displayVersion ?? session.appVersion ?? "—"}</Badge></td>
-                            <td className="muted col-lg">{session.platform ?? "—"}</td>
-                            <td className="muted">{resolveSessionDuration(session)}</td>
-                            <td className="muted">{timeAgo(session.lastSeenAt)}</td>
-                            <td className="col-md">
-                              {session.errorCount > 0
-                                ? <Badge tone="warning">{session.errorCount}</Badge>
-                                : <Badge tone="success">0</Badge>
-                              }
-                            </td>
-                            <td><StatusBadge presence={resolvePresence(session)} /></td>
-                            <td>
-                              <div style={{ display: "flex", gap: 4 }}>
-                                <IconButton icon={<Globe2 />} style={{ padding: 4 }} title="Show on map" onClick={() => onOpenMapSession(session.id)} />
-                                <IconButton
-                                  icon={isExpanded ? <ChevronUp /> : <ChevronDown />}
-                                  style={{ padding: 4 }}
-                                  onClick={() => toggleSessionExpanded(session.id)}
-                                  aria-label={isExpanded ? "Collapse" : "Expand"}
-                                />
-                              </div>
-                            </td>
-                          </tr>
-
-                          {/* Detail stays mounted once opened; the grid-rows clip animates the fold smoothly. */}
-                          {expandedEverSessions.has(session.id) && timeline ? (
-                            <tr className={isExpanded ? undefined : "row-expand-collapsed"}>
-                              <td colSpan={9} className="row-expand-panel row-expand-td">
-                                <RowExpandClip open={isExpanded}>
-                                  {timeline.markers.length > 0 ? (
-                                    <div style={{ marginBottom: 14 }}>
-                                      <p className="label-sm" style={{ marginBottom: 8 }}>Error Timeline</p>
-                                      <div className="timeline-track">
-                                        <div className="timeline-fill" style={{ width: "100%" }} />
-                                        {timeline.markers.map((marker) => (
-                                          <div key={marker.id} className="timeline-marker is-error" style={{ left: `${marker.position}%` }} title={marker.label} />
-                                        ))}
-                                      </div>
-                                      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
-                                        <span style={{ fontSize: "0.6875rem", color: "var(--text-3)" }}>{formatDate(session.startedAt)}</span>
-                                        {timeline.hiddenErrorCount > 0 ? <span style={{ fontSize: "0.6875rem", color: "var(--danger)" }}>+{timeline.hiddenErrorCount} more</span> : null}
-                                      </div>
-                                    </div>
+                                  {session.rpcEnabled ? (
+                                    <Badge tone="accent" title="Discord Rich Presence on">
+                                      RPC
+                                    </Badge>
                                   ) : null}
-
-                                  <DetailGrid
-                                    items={[
-                                      { k: "Install ID",  v: session.installId },
-                                      { k: "Session ID",  v: session.id },
-                                      { k: "Hardware ID", v: session.hwid ?? "—" },
-                                      { k: "Client IP",   v: session.clientIp ?? "—" },
-                                      { k: "Started",     v: formatDate(session.startedAt) },
-                                      { k: "Last Seen",   v: timeAgo(session.lastSeenAt) },
-                                      { k: "Events",      v: String(timeline.trackedEventCount) },
-                                      { k: "Discord User", v: session.discordUser?.trim() ? discordHandle(session.discordUser) : "—" },
-                                      { k: "Discord RPC", v: session.rpcEnabled === true ? "On" : session.rpcEnabled === false ? "Off" : "—" },
-                                      { k: "Timezone",    v: session.clientTimezone ?? "—" },
-                                      { k: "Geo Source",  v: formatGeoSource(session.clientGeoSource, session.clientGeoSignalSource) },
-                                      { k: "Geo Accuracy", v: formatAccuracy(session.clientAccuracyMeters) },
-                                      { k: "Last Event",  v: session.lastEvent ? formatEventName(session.lastEvent) : "—" },
-                                    ]}
+                                </span>
+                              </td>
+                              <td
+                                className="muted col-lg"
+                                style={{
+                                  whiteSpace: "nowrap",
+                                  maxWidth: 150,
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                }}
+                              >
+                                {session.discordUser?.trim()
+                                  ? discordHandle(session.discordUser)
+                                  : "—"}
+                              </td>
+                              <td
+                                className="muted"
+                                style={{
+                                  whiteSpace: "nowrap",
+                                  maxWidth: 170,
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                }}
+                                title={buildSessionLocationLabel(session) || undefined}
+                              >
+                                {buildSessionLocationLabel(session) || "—"}
+                              </td>
+                              <td>
+                                <Badge tone="muted">
+                                  {session.displayVersion ?? session.appVersion ?? "—"}
+                                </Badge>
+                              </td>
+                              <td className="muted">{resolveSessionDuration(session)}</td>
+                              <td className="muted col-lg" style={{ whiteSpace: "nowrap" }}>
+                                {formatDateOnly(session.startedAt)}
+                              </td>
+                              <td className="muted">{timeAgo(session.lastSeenAt)}</td>
+                              <td className="col-md">
+                                {session.errorCount > 0 ? (
+                                  <Badge tone="warning">{session.errorCount}</Badge>
+                                ) : (
+                                  <Badge tone="success">0</Badge>
+                                )}
+                              </td>
+                              <td>
+                                <StatusBadge presence={resolvePresence(session)} />
+                              </td>
+                              <td>
+                                <div style={{ display: "flex", gap: 4 }}>
+                                  <IconButton
+                                    icon={<Globe2 />}
+                                    style={{ padding: 4 }}
+                                    title="Show on map"
+                                    onClick={() => onOpenMapSession(session.id)}
                                   />
-                                </RowExpandClip>
+                                  <IconButton
+                                    icon={isExpanded ? <ChevronUp /> : <ChevronDown />}
+                                    style={{ padding: 4 }}
+                                    onClick={() => toggleSessionExpanded(session.id)}
+                                    aria-label={isExpanded ? "Collapse" : "Expand"}
+                                  />
+                                </div>
                               </td>
                             </tr>
-                          ) : null}
-                        </Fragment>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            ) : sessionQuery ? (
+
+                            {isExpanded && timeline ? (
+                              <tr>
+                                <td
+                                  colSpan={SESSION_COLUMN_COUNT}
+                                  className="row-expand-panel row-expand-td"
+                                >
+                                  <RowExpandClip open>
+                                    {timeline.markers.length > 0 ? (
+                                      <div style={{ marginBottom: 14 }}>
+                                        <p className="label-sm" style={{ marginBottom: 8 }}>
+                                          Error Timeline
+                                        </p>
+                                        <div className="timeline-track">
+                                          <div
+                                            className="timeline-fill"
+                                            style={{ width: "100%" }}
+                                          />
+                                          {timeline.markers.map((marker) => (
+                                            <div
+                                              key={marker.id}
+                                              className="timeline-marker is-error"
+                                              style={{ left: `${marker.position}%` }}
+                                              title={marker.label}
+                                            />
+                                          ))}
+                                        </div>
+                                        <div
+                                          style={{
+                                            display: "flex",
+                                            justifyContent: "space-between",
+                                            marginTop: 4,
+                                          }}
+                                        >
+                                          <span
+                                            style={{
+                                              fontSize: "0.6875rem",
+                                              color: "var(--text-3)",
+                                            }}
+                                          >
+                                            {formatDate(session.startedAt)}
+                                          </span>
+                                          {timeline.hiddenErrorCount > 0 ? (
+                                            <span
+                                              style={{
+                                                fontSize: "0.6875rem",
+                                                color: "var(--danger)",
+                                              }}
+                                            >
+                                              +{timeline.hiddenErrorCount} more
+                                            </span>
+                                          ) : null}
+                                        </div>
+                                      </div>
+                                    ) : null}
+
+                                    <DetailGrid
+                                      items={[
+                                        { k: "Install ID", v: session.installId },
+                                        { k: "Session ID", v: session.id },
+                                        { k: "Hardware ID", v: session.hwid ?? "—" },
+                                        { k: "Client IP", v: session.clientIp ?? "—" },
+                                        { k: "Started", v: formatDate(session.startedAt) },
+                                        { k: "Last Seen", v: timeAgo(session.lastSeenAt) },
+                                        { k: "Events", v: String(timeline.trackedEventCount) },
+                                        {
+                                          k: "Discord User",
+                                          v: session.discordUser?.trim()
+                                            ? discordHandle(session.discordUser)
+                                            : "—",
+                                        },
+                                        {
+                                          k: "Discord RPC",
+                                          v:
+                                            session.rpcEnabled === true
+                                              ? "On"
+                                              : session.rpcEnabled === false
+                                                ? "Off"
+                                                : "—",
+                                        },
+                                        { k: "Timezone", v: session.clientTimezone ?? "—" },
+                                        {
+                                          k: "Geo Source",
+                                          v: formatGeoSource(
+                                            session.clientGeoSource,
+                                            session.clientGeoSignalSource,
+                                          ),
+                                        },
+                                        {
+                                          k: "Geo Accuracy",
+                                          v: formatAccuracy(session.clientAccuracyMeters),
+                                        },
+                                        {
+                                          k: "Last Event",
+                                          v: session.lastEvent
+                                            ? formatEventName(session.lastEvent)
+                                            : "—",
+                                        },
+                                      ]}
+                                    />
+                                  </RowExpandClip>
+                                </td>
+                              </tr>
+                            ) : null}
+                          </Fragment>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <TablePagination
+                  page={paginatedSessions.page}
+                  pageCount={paginatedSessions.pageCount}
+                  start={paginatedSessions.start}
+                  end={paginatedSessions.end}
+                  total={paginatedSessions.total}
+                  itemLabel="sessions"
+                  onPageChange={changeSessionPage}
+                />
+              </>
+            ) : sessionQuery || hasSessionFilters ? (
               <EmptyState icon={<Search />} title="No sessions match">
-                Nothing in the retained window matches “{sessionQuery}”. Clear the search to see every session.
+                Nothing in the retained window matches the current search and filters. Clear them to
+                see every session.
               </EmptyState>
             ) : (
               <EmptyState icon={<History />} title="No sessions recorded yet">

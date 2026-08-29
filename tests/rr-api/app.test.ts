@@ -286,10 +286,56 @@ describe("rr-api app", () => {
     expect(response.status).toBe(401);
   });
 
-  it("serves GET /api/announcements/active through the Pages route table", async () => {
-    const response = await call("/api/announcements/active");
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ ok: true, announcements: [] });
+  it("serves eligible announcements to an unsigned fresh install", async () => {
+    const past = new Date(Date.now() - 86_400_000).toISOString();
+    const older = new Date(Date.now() - 172_800_000).toISOString();
+    const future = new Date(Date.now() + 86_400_000).toISOString();
+    const insert = handle.prepare(
+      `INSERT INTO announcements
+       (title, body, level, is_active, starts_at, expires_at, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
+
+    insert.run("Fresh install info", "Visible now", "info", 1, null, null, past, past);
+    insert.run("Fresh install critical", "Visible first", "critical", 1, null, null, older, older);
+    insert.run("Inactive", "Hidden", "warning", 0, null, null, past, past);
+    insert.run("Scheduled", "Hidden", "warning", 1, future, null, past, past);
+    insert.run("Expired", "Hidden", "warning", 1, null, past, older, older);
+
+    const previousSignatureRequirement = env.REQUIRE_INSTALL_SIGNATURE;
+    env.REQUIRE_INSTALL_SIGNATURE = "true";
+    try {
+      // A brand-new install has no key or signature headers yet. This public route must remain
+      // available even when every install-auth-capable route is configured to require signing.
+      const response = await call("/api/announcements/active");
+      expect(response.status).toBe(200);
+      const payload = (await response.json()) as {
+        ok: boolean;
+        announcements: Array<Record<string, unknown>>;
+      };
+      expect(payload.ok).toBe(true);
+      expect(payload.announcements.map(({ id: _id, ...announcement }) => announcement)).toEqual([
+        {
+          title: "Fresh install critical",
+          body: "Visible first",
+          level: "critical",
+          starts_at: null,
+          expires_at: null,
+          created_at: older,
+        },
+        {
+          title: "Fresh install info",
+          body: "Visible now",
+          level: "info",
+          starts_at: null,
+          expires_at: null,
+          created_at: past,
+        },
+      ]);
+      expect(payload.announcements.every(({ id }) => typeof id === "number")).toBe(true);
+    } finally {
+      env.REQUIRE_INSTALL_SIGNATURE = previousSignatureRequirement;
+    }
   });
 
   it("answers POST /api/access/status with a clear verdict", async () => {
@@ -303,6 +349,34 @@ describe("rr-api app", () => {
     const data = await call("/api/admin/data");
     expect(data.status).toBe(401);
     expect((await call("/api/admin/installs?hwid=" + HWID)).status).toBe(401);
+  });
+
+  it("serves user activity through the NAS SQLite adapter", async () => {
+    const identity = "11112222333344445555666677778888";
+    const ingest = await call("/api/ingest", {
+      clientIp: "198.51.100.88",
+      headers: { "x-app-key": SHARED_KEY, "cf-timezone": "Europe/Berlin" },
+      json: event("session_start", "activity-adapter-session", {
+        hwid: identity,
+        install_id: identity,
+      }),
+    });
+    expect(ingest.status).toBe(202);
+
+    const response = await call(
+      `/api/admin/user-activity?identity=${identity}&range=7d`,
+      { headers: await accessIdentityHeaders(ADMIN_EMAIL) },
+    );
+
+    expect(response.status, await response.clone().text()).toBe(200);
+    const payload = (await response.json()) as {
+      ok: boolean;
+      activity: { identity: string; sessionCount: number; timezone: string };
+    };
+    expect(payload.ok).toBe(true);
+    expect(payload.activity.identity).toBe(identity);
+    expect(payload.activity.sessionCount).toBe(1);
+    expect(payload.activity.timezone).toBe("Europe/Berlin");
   });
 
   it("serves static and param admin routes with a verified Access JWT", async () => {

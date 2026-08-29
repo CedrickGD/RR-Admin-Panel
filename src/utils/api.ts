@@ -15,6 +15,7 @@ const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
 
 const REQUEST_TIMEOUT_MS = 12_000;
 const RETRY_DELAY_MS = 400;
+const JSON_MUTATION_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 // A full-page reload renews the Cloudflare Access session via silent SSO. Guard
 // it so a misbehaving edge can never put the app into a reload loop.
 const AUTH_RELOAD_GUARD_KEY = "rr:auth-reload-at";
@@ -79,6 +80,22 @@ async function fetchOnce(url: string, init: RequestInit): Promise<Response> {
 }
 
 /**
+ * Dashboard mutations are JSON-only. Add the required content type centrally so bodyless
+ * mutations (notably DELETE) still satisfy the server contract after passing through adapters
+ * that represent an empty request as a body stream.
+ */
+export function withJsonMutationHeaders(init: RequestInit): RequestInit {
+  const method = (init.method ?? "GET").toUpperCase();
+  if (!JSON_MUTATION_METHODS.has(method)) return init;
+
+  const headers = new Headers(init.headers);
+  if (headers.has("content-type")) return init;
+
+  headers.set("content-type", "application/json");
+  return { ...init, headers };
+}
+
+/**
  * Fetch with the failure handling every dashboard call needs:
  * - hard timeout, so a hung request can never wedge a refresh forever;
  * - Access-expiry detection -> guarded self-reload (see isAuthRedirect);
@@ -87,10 +104,11 @@ async function fetchOnce(url: string, init: RequestInit): Promise<Response> {
  */
 export async function fetchApi(url: string, init: RequestInit, options?: { retry?: boolean }): Promise<Response> {
   const retry = options?.retry ?? true;
+  const normalizedInit = withJsonMutationHeaders(init);
 
   let response: Response | null = null;
   try {
-    response = await fetchOnce(url, init);
+    response = await fetchOnce(url, normalizedInit);
   } catch (err) {
     if (!retry) throw err;
   }
@@ -106,7 +124,7 @@ export async function fetchApi(url: string, init: RequestInit, options?: { retry
   }
 
   await delay(RETRY_DELAY_MS);
-  const second = await fetchOnce(url, init);
+  const second = await fetchOnce(url, normalizedInit);
   if (isAuthRedirect(second)) {
     triggerAuthReload();
     throw new SessionExpiredError();

@@ -507,12 +507,18 @@ describe("trusted forwarding through createApp", () => {
   /** What rr-api receives when the Pages shell forwards a browser request over the tunnel. */
   async function viaPagesShell(
     path: string,
-    init: { method?: string; json?: unknown; origin?: string | null } = {},
+    init: {
+      method?: string;
+      json?: unknown;
+      origin?: string | null;
+      headers?: HeadersInit;
+    } = {},
   ): Promise<Request> {
     const headers = await accessIdentityHeaders(ADMIN_EMAIL, {
       "cf-connecting-ip": CLIENT_IP,
       "sec-fetch-site": "same-origin",
       ...(init.json === undefined ? {} : { "content-type": "application/json" }),
+      ...Object.fromEntries(new Headers(init.headers)),
     });
     if (init.origin !== null) {
       headers.set("origin", init.origin ?? `https://${PAGES_HOST}`);
@@ -626,10 +632,76 @@ describe("trusted forwarding through createApp", () => {
       }),
     );
     expect(created.status, await created.clone().text()).toBeLessThan(300);
-    const row = handle.prepare("SELECT title FROM announcements WHERE title = ?").get("Proxied") as
-      | Record<string, unknown>
+    const row = handle
+      .prepare("SELECT id, title, body, level, is_active FROM announcements WHERE title = ?")
+      .get("Proxied") as
+      | {
+          id: number;
+          title: string;
+          body: string;
+          level: string;
+          is_active: number;
+        }
       | undefined;
-    expect(row).toEqual({ title: "Proxied" });
+    expect(row).toEqual({
+      id: expect.any(Number),
+      title: "Proxied",
+      body: "Created through the shell",
+      level: "info",
+      is_active: 1,
+    });
+    if (!row) throw new Error("expected the announcement to be created");
+
+    const edited = await api.fetch(
+      await viaPagesShell(`/api/admin/announcements/${row.id}`, {
+        method: "PUT",
+        json: {
+          title: "Proxied edited",
+          body: "Updated through the shell",
+          level: "warning",
+        },
+      }),
+    );
+    expect(edited.status, await edited.clone().text()).toBeLessThan(300);
+    expect(
+      handle
+        .prepare("SELECT title, body, level, is_active FROM announcements WHERE id = ?")
+        .get(row.id),
+    ).toEqual({
+      title: "Proxied edited",
+      body: "Updated through the shell",
+      level: "warning",
+      is_active: 1,
+    });
+
+    const toggled = await api.fetch(
+      await viaPagesShell(`/api/admin/announcements/${row.id}`, {
+        method: "PUT",
+        json: { is_active: false },
+      }),
+    );
+    expect(toggled.status, await toggled.clone().text()).toBeLessThan(300);
+    expect(
+      handle
+        .prepare("SELECT title, body, level, is_active FROM announcements WHERE id = ?")
+        .get(row.id),
+    ).toEqual({
+      title: "Proxied edited",
+      body: "Updated through the shell",
+      level: "warning",
+      is_active: 0,
+    });
+
+    const deleted = await api.fetch(
+      await viaPagesShell(`/api/admin/announcements/${row.id}`, {
+        method: "DELETE",
+        // Match the browser client exactly: DELETE has no body, but still declares JSON so the
+        // streamed Pages -> NAS request satisfies the same-origin mutation contract.
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    expect(deleted.status, await deleted.clone().text()).toBeLessThan(300);
+    expect(handle.prepare("SELECT id FROM announcements WHERE id = ?").get(row.id)).toBeUndefined();
 
     // A cross-site Origin is still refused behind the shell.
     const crossSite = await api.fetch(

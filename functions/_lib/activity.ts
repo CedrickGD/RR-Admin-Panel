@@ -152,7 +152,7 @@ export async function loadUserActivity(
       .prepare(
         `SELECT started_at, ended_at, last_seen_at, is_active, client_timezone
          FROM app_sessions
-         WHERE ${IDENTITY_SQL} = ?1 AND session_id NOT LIKE 'install:%'
+         WHERE ${IDENTITY_SQL} = ? AND session_id NOT LIKE 'install:%'
          ORDER BY started_at ASC
          LIMIT 20000`,
       )
@@ -162,7 +162,7 @@ export async function loadUserActivity(
       .prepare(
         `SELECT COUNT(*) AS legacy_rows, MIN(started_at) AS first_seen, MAX(last_seen_at) AS last_seen
          FROM app_sessions
-         WHERE ${IDENTITY_SQL} = ?1 AND session_id LIKE 'install:%'`,
+         WHERE ${IDENTITY_SQL} = ? AND session_id LIKE 'install:%'`,
       )
       .bind(identity)
       .first<{ legacy_rows: number; first_seen: string | null; last_seen: string | null }>(),

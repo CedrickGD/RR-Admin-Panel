@@ -715,6 +715,7 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
         <CollapsiblePanel
           kicker="Rollup"
           title="All Users"
+          collapsible={false}
           sub={filteredUsers
             ? `${formatNumber(filteredUsers.length)} of ${formatNumber(users?.length ?? 0)} shown · every user ever seen, rolled up across the full session history`
             : "Loading user rollup…"}
@@ -915,6 +916,7 @@ export function WorkersPage({ summary, stats, users, focusedWorkerId, onOpenMapS
         <CollapsiblePanel
           kicker="Archive"
           title="Recent Sessions"
+          collapsible={false}
           sub="One row per user · most recent session from the retained window. Expand for timeline detail."
           right={
             <SearchInput

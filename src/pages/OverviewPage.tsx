@@ -1,4 +1,4 @@
-import { Activity, AlertTriangle, Clock, Globe2, RotateCcw, TrendingUp, Users, X } from "lucide-react";
+import { Activity, AlertTriangle, Clock, Download, Globe2, RotateCcw, TrendingUp, Users, X } from "lucide-react";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import {
   Area,
@@ -193,7 +193,7 @@ export function OverviewPage({ summary, stats, filterBar }: OverviewPageProps) {
       <div className="main-side main-side-stretch">
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {/* KPI grid */}
-          <div className="stat-grid stat-grid-6">
+          <div className="stat-grid stat-grid-7">
             <KpiStatCard
               label="Active Users"
               value={formatNumber(activeUsersValue)}
@@ -213,6 +213,13 @@ export function OverviewPage({ summary, stats, filterBar }: OverviewPageProps) {
               drilldown={sessionsDrilldown}
               chartColor="var(--chart-users)"
               spark={stats?.series.sessionsPerDay.map((p) => p.sessions)}
+            />
+            <KpiStatCard
+              label="Free Downloads"
+              value={stats ? formatNumber(stats.totals.freeDownloads) : "—"}
+              sub="Successful public installer redirects"
+              icon={<Download size={14} />}
+              tone="success"
             />
             <KpiStatCard
               label="Avg Session"

@@ -184,9 +184,11 @@ export default {
 
       if (
         request.method === "GET" &&
-        (path === "/update/download" || path === "/update/download/latest")
+        (path === "/update/download" ||
+          path === "/update/download/latest" ||
+          path === "/update/download/free")
       ) {
-        return await handleUpdateDownload(request, env);
+        return await handleUpdateDownload(request, env, ctx, path === "/update/download/free");
       }
 
       return json({ ok: false, error: "Route not found." }, 404);
@@ -297,6 +299,7 @@ async function handleMedia(request, env, ctx) {
 // and the migration window); create a fine-grained PAT (Contents: read-only on the
 // repo) and set GITHUB_TOKEN before flipping the repo to private.
 const GH_API = "https://api.github.com";
+const FREE_DOWNLOAD_COUNTER_KEY = "downloads:free";
 
 function ghConfig(env) {
   return {
@@ -349,7 +352,7 @@ async function handleUpdateManifest(request, env) {
   });
 }
 
-async function handleUpdateDownload(request, env) {
+async function handleUpdateDownload(request, env, ctx, countAsFreeDownload = false) {
   const cfg = ghConfig(env);
 
   let relRes;
@@ -386,21 +389,48 @@ async function handleUpdateDownload(request, env) {
 
   const location = assetRes.headers.get("location");
   if ((assetRes.status === 301 || assetRes.status === 302 || assetRes.status === 307) && location) {
-    return Response.redirect(location, 302);
+    queueFreeDownloadCount(env, ctx, countAsFreeDownload);
+    return new Response(null, {
+      status: 302,
+      headers: {
+        location,
+        "cache-control": "no-store",
+      },
+    });
   }
 
   // Fallback: stream the bytes straight through (no auth header leaks to the client).
   if (assetRes.ok && assetRes.body) {
+    queueFreeDownloadCount(env, ctx, countAsFreeDownload);
     return new Response(assetRes.body, {
       status: 200,
       headers: {
         "content-type": "application/octet-stream",
         "content-disposition": `attachment; filename="${cfg.asset}"`,
+        "cache-control": "no-store",
       },
     });
   }
 
   return new Response(`Installer download failed (${assetRes.status}).`, { status: 502 });
+}
+
+function queueFreeDownloadCount(env, ctx, enabled) {
+  if (!enabled || !env?.DB) {
+    return;
+  }
+
+  const task = (async () => {
+    await ensureTelemetrySchema(env.DB);
+    await bumpCounters(env.DB, [FREE_DOWNLOAD_COUNTER_KEY], new Date().toISOString());
+  })().catch((err) => {
+    // Analytics must never block somebody from receiving the installer.
+    console.error("free_download_counter_failed", { message: errorMessage(err) });
+  });
+
+  if (ctx?.waitUntil) {
+    ctx.waitUntil(task);
+  }
 }
 
 // ── Proxy mode (W3.7) ───────────────────────────────────────────────────────

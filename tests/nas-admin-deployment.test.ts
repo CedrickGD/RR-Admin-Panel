@@ -63,9 +63,9 @@ describe("NAS admin deployment", () => {
       /@download \{[\s\S]*host dl\.razorreaper\.app[\s\S]*method GET[\s\S]*path \//,
     );
     expect(caddyfile).toMatch(
-      /handle @download \{[\s\S]*header Cache-Control "no-store"[\s\S]*rewrite \* \/update\/download[\s\S]*reverse_proxy rr-api:8787/,
+      /handle @download \{[\s\S]*header Cache-Control "no-store"[\s\S]*rewrite \* \/update\/download\/free[\s\S]*reverse_proxy rr-api:8787/,
     );
-    expect(caddyfile).toContain("rewrite * /update/download");
+    expect(caddyfile).toContain("rewrite * /update/download/free");
     expect(caddyfile).toContain("reverse_proxy rr-api:8787");
   });
 });

@@ -11,7 +11,7 @@ admin.<domain>  -> admin           (Caddy; dashboard SPA + same-origin API gatew
 origin.<domain> -> rr-api          (same container; upstream of the worker/Pages proxy shells,
                                     key-gated via ORIGIN_KEY, not WAF-rate-limited)         [W3.7]
 media.<domain>  -> caddy           (static files from /volume1/docker/razorreaper/media)          [W3.3]
-dl.<domain>     -> caddy -> rr-api (stable URL redirect to the latest signed installer)
+dl.<domain>     -> caddy -> rr-api (stable URL redirect + free-download counter)
 bot.<domain>    -> razorreaper-bot (Discord bot + notifier SSE)                            [W3.4]
 ```
 

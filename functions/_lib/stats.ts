@@ -275,6 +275,9 @@ export async function loadStats(env: RuntimeEnv, filters: StatsFilters): Promise
   const lifetimeEvents = toNumber(
     counters.results.find((row) => row.counter_key === "events_total")?.counter_value,
   );
+  const freeDownloads = toNumber(
+    counters.results.find((row) => row.counter_key === "downloads:free")?.counter_value,
+  );
 
   return {
     generatedAt: nowIso(),
@@ -283,6 +286,7 @@ export async function loadStats(env: RuntimeEnv, filters: StatsFilters): Promise
       lifetimeUsers: toNumber(totals?.lifetimeUsers),
       lifetimeSessions: toNumber(totals?.lifetimeSessions),
       lifetimeEvents,
+      freeDownloads,
       usersInRange: toNumber(rangeTotals?.usersInRange),
       sessionsInRange: toNumber(rangeTotals?.sessionsInRange),
       newUsersInRange: newUsersPerDay.results.reduce((sum, row) => sum + toNumber(row.users), 0),

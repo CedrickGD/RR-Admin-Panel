@@ -119,6 +119,7 @@ export interface StatsPayload {
     lifetimeUsers: number;
     lifetimeSessions: number;
     lifetimeEvents: number;
+    freeDownloads: number;
     usersInRange: number;
     sessionsInRange: number;
     newUsersInRange: number;

@@ -79,6 +79,25 @@ beforeAll(async () => {
           headers: { "content-type": "image/png", etag: '"abc"' },
         });
       }
+      if (url === "https://api.github.com/repos/CedrickGD/RazorReaper/releases/latest") {
+        return new Response(
+          JSON.stringify({
+            assets: [
+              {
+                name: "RazorReaper-Setup.exe",
+                url: "https://api.github.com/repos/CedrickGD/RazorReaper/releases/assets/42",
+              },
+            ],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }
+      if (url === "https://api.github.com/repos/CedrickGD/RazorReaper/releases/assets/42") {
+        return new Response(null, {
+          status: 302,
+          headers: { location: "https://release-assets.githubusercontent.com/razorreaper/setup.exe" },
+        });
+      }
       throw new Error(`Unexpected network request in test: ${url}`);
     }),
   );
@@ -418,6 +437,42 @@ describe("rr-api app", () => {
     const preflight = await call("/media/images/presets/default.png", { method: "OPTIONS" });
     expect(preflight.status).toBe(204);
     expect((await call("/media/images/")).status).toBe(400);
+  });
+
+  it("counts only successful public free-download handoffs and exposes the total to admins", async () => {
+    const publicDownload = await call("/update/download/free");
+    expect(publicDownload.status).toBe(302);
+    expect(publicDownload.headers.get("location")).toBe(
+      "https://release-assets.githubusercontent.com/razorreaper/setup.exe",
+    );
+    expect(publicDownload.headers.get("cache-control")).toBe("no-store");
+    await api.drain();
+
+    expect(
+      row<{ counter_value: number }>(
+        "SELECT counter_value FROM telemetry_counters WHERE counter_key = ?",
+        "downloads:free",
+      )?.counter_value,
+    ).toBe(1);
+
+    // Automatic app updates use the ordinary path and must not inflate the public-download KPI.
+    expect((await call("/update/download")).status).toBe(302);
+    await api.drain();
+    expect(
+      row<{ counter_value: number }>(
+        "SELECT counter_value FROM telemetry_counters WHERE counter_key = ?",
+        "downloads:free",
+      )?.counter_value,
+    ).toBe(1);
+
+    const statsResponse = await call("/api/admin/stats?range=30d", {
+      headers: await accessIdentityHeaders(ADMIN_EMAIL),
+    });
+    expect(statsResponse.status, await statsResponse.clone().text()).toBe(200);
+    const payload = (await statsResponse.json()) as {
+      stats: { totals: { freeDownloads: number } };
+    };
+    expect(payload.stats.totals.freeDownloads).toBe(1);
   });
 
   it("rate-limits the 61st ingest from one cf-connecting-ip with 429", async () => {

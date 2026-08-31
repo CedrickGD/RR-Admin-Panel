@@ -925,6 +925,7 @@ export function WorldHeatmap({
       pitchWithRotate: false,
       cooperativeGestures: false,
       renderWorldCopies: true,
+      preserveDrawingBuffer: true,
       // High-DPI screens multiply the pixels the GL context pushes per frame
       // (2x DPR = 4x fill cost on a near-viewport-sized canvas). Capping at
       // 1.5 keeps pans smooth for a barely perceptible softness on this

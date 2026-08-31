@@ -1,26 +1,15 @@
-import {
-  Crosshair,
-  Globe2,
-  Info,
-  Layers,
-  LocateFixed,
-  Map as MapIcon,
-  Maximize2,
-  Menu,
-  Minimize2,
-  Minus,
-  Plus,
-  X,
-} from "lucide-react";
-import maplibregl, { type GeoJSONSource, LngLatBounds, Popup } from "maplibre-gl";
-import "maplibre-gl/dist/maplibre-gl.css";
+import { Crosshair, Globe2, Info, Layers, LocateFixed, Map as MapIcon, Maximize2, Menu, Minimize2, Minus, Plus, X } from "lucide-react";
+import maplibregl, {
+  type GeoJSONSource,
+  LngLatBounds,
+  Popup,
+} from "maplibre-gl";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FeatureCollection, LineString, Point } from "geojson";
 import type { ThemeMode } from "../../types/telemetry";
 import type { HeatmapSessionPoint } from "../../utils/dashboardInsights";
 import { formatAccuracy, formatGeoSource, formatNumber } from "../../utils/format";
 import { motionDuration } from "../../utils/motion";
-import { stableSampleByKey } from "../../utils/stableSample";
 
 interface WorldHeatmapProps {
   sessionPoints: HeatmapSessionPoint[];
@@ -78,9 +67,7 @@ const SATELLITE_STYLE: maplibregl.StyleSpecification = {
   sources: {
     satellite: {
       type: "raster",
-      tiles: [
-        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-      ],
+      tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
       tileSize: 256,
       maxzoom: 19,
     },
@@ -89,11 +76,7 @@ const SATELLITE_STYLE: maplibregl.StyleSpecification = {
 };
 
 const MAP_STYLE_ORDER: MapStyleMode[] = ["tactical", "standard", "satellite"];
-const MAP_STYLE_LABELS: Record<MapStyleMode, string> = {
-  tactical: "Tactical",
-  standard: "Standard",
-  satellite: "Satellite",
-};
+const MAP_STYLE_LABELS: Record<MapStyleMode, string> = { tactical: "Tactical", standard: "Standard", satellite: "Satellite" };
 
 function readSavedMapStyle(): MapStyleMode {
   const saved = localStorage.getItem("rr:map-style");
@@ -113,7 +96,6 @@ const INITIAL_CENTER: [number, number] = [12, 20];
 const INITIAL_ZOOM = 1.45;
 const DEFAULT_MAX_ZOOM = 18.8;
 const PRIMARY_MARKET_ZOOM = 8.2;
-const MAX_CONNECTION_POINTS = 400;
 const HIDDEN_LABEL_LAYERS = new Set([
   "road_one_way_arrow",
   "road_one_way_arrow_opposite",
@@ -426,17 +408,11 @@ function ensureSessionDots(
         "circle-blur": 0.9,
         "circle-opacity": ["+", 0.16, ["*", ["get", "intensity"], 0.2]],
         "circle-radius": [
-          "interpolate",
-          ["linear"],
-          ["zoom"],
-          1,
-          ["+", 4.4, ["*", ["get", "intensity"], 3.4]],
-          5,
-          ["+", 7, ["*", ["get", "intensity"], 5.4]],
-          10,
-          ["+", 11, ["*", ["get", "intensity"], 8.4]],
-          16,
-          ["+", 15, ["*", ["get", "intensity"], 11]],
+          "interpolate", ["linear"], ["zoom"],
+          1, ["+", 4.4, ["*", ["get", "intensity"], 3.4]],
+          5, ["+", 7, ["*", ["get", "intensity"], 5.4]],
+          10, ["+", 11, ["*", ["get", "intensity"], 8.4]],
+          16, ["+", 15, ["*", ["get", "intensity"], 11]],
         ],
       },
     });
@@ -450,36 +426,22 @@ function ensureSessionDots(
       type: "circle",
       source: SESSIONS_SOURCE_ID,
       paint: {
-        "circle-color": [
-          "case",
-          ["to-boolean", ["get", "precise"]],
-          palette.corePrecise,
-          palette.coreSpread,
-        ],
+        "circle-color": ["case", ["to-boolean", ["get", "precise"]], palette.corePrecise, palette.coreSpread],
         "circle-opacity": ["+", 0.78, ["*", ["get", "intensity"], 0.22]],
         "circle-stroke-width": 1,
         "circle-stroke-color": "rgba(255,255,255,0.14)",
         "circle-radius": [
-          "interpolate",
-          ["linear"],
-          ["zoom"],
-          1,
-          ["+", 1.8, ["*", ["get", "intensity"], 1.4]],
-          5,
-          ["+", 2.9, ["*", ["get", "intensity"], 2.3]],
-          10,
-          ["+", 4.4, ["*", ["get", "intensity"], 3.4]],
-          16,
-          ["+", 6.2, ["*", ["get", "intensity"], 4.6]],
+          "interpolate", ["linear"], ["zoom"],
+          1, ["+", 1.8, ["*", ["get", "intensity"], 1.4]],
+          5, ["+", 2.9, ["*", ["get", "intensity"], 2.3]],
+          10, ["+", 4.4, ["*", ["get", "intensity"], 3.4]],
+          16, ["+", 6.2, ["*", ["get", "intensity"], 4.6]],
         ],
       },
     });
   } else {
     map.setPaintProperty(SESSIONS_CORE_LAYER_ID, "circle-color", [
-      "case",
-      ["to-boolean", ["get", "precise"]],
-      palette.corePrecise,
-      palette.coreSpread,
+      "case", ["to-boolean", ["get", "precise"]], palette.corePrecise, palette.coreSpread,
     ]);
   }
 
@@ -494,17 +456,11 @@ function ensureSessionDots(
         "circle-stroke-color": palette.ring,
         "circle-stroke-opacity": 0.92,
         "circle-radius": [
-          "interpolate",
-          ["linear"],
-          ["zoom"],
-          1,
-          ["+", 4.6, ["*", ["get", "intensity"], 1.4]],
-          5,
-          ["+", 5.9, ["*", ["get", "intensity"], 2.3]],
-          10,
-          ["+", 7.4, ["*", ["get", "intensity"], 3.4]],
-          16,
-          ["+", 9.2, ["*", ["get", "intensity"], 4.6]],
+          "interpolate", ["linear"], ["zoom"],
+          1, ["+", 4.6, ["*", ["get", "intensity"], 1.4]],
+          5, ["+", 5.9, ["*", ["get", "intensity"], 2.3]],
+          10, ["+", 7.4, ["*", ["get", "intensity"], 3.4]],
+          16, ["+", 9.2, ["*", ["get", "intensity"], 4.6]],
         ],
       },
     });
@@ -586,7 +542,11 @@ function createPalette(theme: ThemeMode): MapPalette {
   };
 }
 
-function resolveRoadColor(layerId: string, palette: MapPalette, isCasing: boolean): string {
+function resolveRoadColor(
+  layerId: string,
+  palette: MapPalette,
+  isCasing: boolean,
+): string {
   if (layerId.includes("rail")) {
     return palette.rail;
   }
@@ -675,10 +635,7 @@ function styleMap(map: maplibregl.Map, theme: ThemeMode) {
       continue;
     }
 
-    if (
-      (id === "park" || id.startsWith("landcover_") || id.startsWith("landuse_")) &&
-      type === "fill"
-    ) {
+    if ((id === "park" || id.startsWith("landcover_") || id.startsWith("landuse_")) && type === "fill") {
       let fillColor = palette.land;
 
       if (id === "park" || id.includes("wood") || id.includes("grass")) {
@@ -784,21 +741,13 @@ function restoreDefaultStyle(
   for (const [layerId, paint] of savedPaints) {
     if (!map.getLayer(layerId)) continue;
     for (const [prop, value] of Object.entries(paint)) {
-      try {
-        map.setPaintProperty(layerId, prop, value);
-      } catch {
-        /* skip incompatible */
-      }
+      try { map.setPaintProperty(layerId, prop, value); } catch { /* skip incompatible */ }
     }
   }
 
   for (const layerId of HIDDEN_LABEL_LAYERS) {
     if (!map.getLayer(layerId)) continue;
-    try {
-      map.setLayoutProperty(layerId, "visibility", "visible");
-    } catch {
-      /* skip */
-    }
+    try { map.setLayoutProperty(layerId, "visibility", "visible"); } catch { /* skip */ }
   }
 }
 
@@ -817,7 +766,10 @@ function captureOriginalPaints(map: maplibregl.Map): Map<string, Record<string, 
   return result;
 }
 
-function ensureConnections(map: maplibregl.Map, connections: FeatureCollection<LineString>) {
+function ensureConnections(
+  map: maplibregl.Map,
+  connections: FeatureCollection<LineString>,
+) {
   // Accent-tinted arcs so the network reads clearly on the dark styles
   // (and follows the user's accent). Resolved per call like the dots.
   const palette = readDotPalette();
@@ -893,18 +845,9 @@ export function WorldHeatmap({
   const mapStyleRef = useRef(mapStyle);
   const savedPaintsRef = useRef<Map<string, Record<string, unknown>> | null>(null);
   const sessionMarkerPoints = useMemo(() => buildSessionPoints(sessionPoints), [sessionPoints]);
-  // Every dot remains interactive. Only the decorative constellation is
-  // sampled, keeping its O(n²) MST comfortably below a frame as users grow.
-  const connectionPoints = useMemo(
-    () => stableSampleByKey(sessionMarkerPoints, MAX_CONNECTION_POINTS),
-    [sessionMarkerPoints],
-  );
-  const connections = useMemo(() => buildConnections(connectionPoints), [connectionPoints]);
+  const connections = useMemo(() => buildConnections(sessionMarkerPoints), [sessionMarkerPoints]);
   const connectionsRef = useRef(connections);
-  const sessionDots = useMemo(
-    () => buildSessionDotsCollection(sessionMarkerPoints),
-    [sessionMarkerPoints],
-  );
+  const sessionDots = useMemo(() => buildSessionDotsCollection(sessionMarkerPoints), [sessionMarkerPoints]);
   const sessionDotsRef = useRef(sessionDots);
   const onOpenSessionRef = useRef(onOpenSession);
   const onActiveKeyChangeRef = useRef(onActiveKeyChange);
@@ -1130,6 +1073,16 @@ export function WorldHeatmap({
       return;
     }
 
+    ensureConnections(map, connections);
+  }, [connections, mapReady]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+
+    if (!map || !mapReady) {
+      return;
+    }
+
     if (map.isStyleLoaded()) {
       ensureSessionDots(map, sessionDots, activeKeyRef.current);
     } else {
@@ -1153,10 +1106,7 @@ export function WorldHeatmap({
       autoFitRef.current = true;
     }
 
-    if (
-      activeKeyRef.current &&
-      !sessionMarkerPoints.some((point) => point.key === activeKeyRef.current)
-    ) {
+    if (activeKeyRef.current && !sessionMarkerPoints.some((point) => point.key === activeKeyRef.current)) {
       updateActiveKeyRef.current(null);
     }
   }, [mapReady, sessionDots, sessionMarkerPoints]);
@@ -1178,7 +1128,10 @@ export function WorldHeatmap({
       return;
     }
 
-    popup.setLngLat(activePoint.coordinates).setHTML(buildPopupMarkup(activePoint)).addTo(map);
+    popup
+      .setLngLat(activePoint.coordinates)
+      .setHTML(buildPopupMarkup(activePoint))
+      .addTo(map);
 
     // setHTML replaces the DOM each time, so the close button is re-wired per render.
     popup
@@ -1299,9 +1252,7 @@ export function WorldHeatmap({
   }
 
   return (
-    <div
-      className={`world-heatmap world-heatmap-live world-heatmap-${theme}${fullscreen ? " world-heatmap-fullscreen" : ""}`}
-    >
+    <div className={`world-heatmap world-heatmap-live world-heatmap-${theme}${fullscreen ? " world-heatmap-fullscreen" : ""}`}>
       <div className="world-heatmap-map-shell">
         <div ref={containerRef} className="world-heatmap-map" />
         <div className="world-heatmap-overlay" />
@@ -1311,20 +1262,12 @@ export function WorldHeatmap({
             <div className="world-heatmap-floating-head">
               <Globe2 className="h-4 w-4" />
               <span>Live Earth</span>
-              <button
-                type="button"
-                className="btn-icon"
-                style={{ marginLeft: "auto", padding: 2 }}
-                onClick={() => setShowPanel(false)}
-                aria-label="Close"
-              >
+              <button type="button" className="btn-icon" style={{ marginLeft: "auto", padding: 2 }} onClick={() => setShowPanel(false)} aria-label="Close">
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>
             <strong>
-              {activePoint
-                ? `${activePoint.flag ? `${activePoint.flag} ` : ""}${activePoint.label}`
-                : "Select a live node"}
+              {activePoint ? `${activePoint.flag ? `${activePoint.flag} ` : ""}${activePoint.label}` : "Select a live node"}
             </strong>
             {activePoint?.userLabel?.trim() ? (
               <div className="world-heatmap-floating-session">{activePoint.userLabel.trim()}</div>
@@ -1365,18 +1308,10 @@ export function WorldHeatmap({
           </button>
           <div className="world-heatmap-hovbar-items">
             {/* Zoom */}
-            <button
-              type="button"
-              onClick={() => mapRef.current?.zoomIn({ duration: motionDuration(300) })}
-              aria-label="Zoom in"
-            >
+            <button type="button" onClick={() => mapRef.current?.zoomIn({ duration: motionDuration(300) })} aria-label="Zoom in">
               <Plus className="h-4 w-4" />
             </button>
-            <button
-              type="button"
-              onClick={() => mapRef.current?.zoomOut({ duration: motionDuration(300) })}
-              aria-label="Zoom out"
-            >
+            <button type="button" onClick={() => mapRef.current?.zoomOut({ duration: motionDuration(300) })} aria-label="Zoom out">
               <Minus className="h-4 w-4" />
             </button>
             <span className="world-heatmap-hovbar-sep" />
@@ -1384,43 +1319,21 @@ export function WorldHeatmap({
             <button type="button" onClick={focusLiveMarkets} aria-label="Focus live markets">
               <LocateFixed className="h-4 w-4" />
             </button>
-            <button
-              type="button"
-              onClick={focusPrimaryMarket}
-              disabled={!activePoint}
-              aria-label="Zoom to selected"
-            >
+            <button type="button" onClick={focusPrimaryMarket} disabled={!activePoint} aria-label="Zoom to selected">
               <Crosshair className="h-4 w-4" />
             </button>
             <span className="world-heatmap-hovbar-sep" />
             {/* View */}
-            <button
-              type="button"
-              onClick={cycleMapStyle}
-              aria-label={`Map style: ${MAP_STYLE_LABELS[mapStyle]}`}
-              title={MAP_STYLE_LABELS[mapStyle]}
-            >
+            <button type="button" onClick={cycleMapStyle} aria-label={`Map style: ${MAP_STYLE_LABELS[mapStyle]}`} title={MAP_STYLE_LABELS[mapStyle]}>
               <Layers className="h-4 w-4" />
             </button>
-            <button
-              type="button"
-              onClick={toggleProjection}
-              aria-label={globe ? "Switch to flat map" : "Switch to globe"}
-            >
+            <button type="button" onClick={toggleProjection} aria-label={globe ? "Switch to flat map" : "Switch to globe"}>
               {globe ? <MapIcon className="h-4 w-4" /> : <Globe2 className="h-4 w-4" />}
             </button>
-            <button
-              type="button"
-              onClick={() => setFullscreen((f) => !f)}
-              aria-label={fullscreen ? "Exit fullscreen" : "Fullscreen"}
-            >
+            <button type="button" onClick={() => setFullscreen((f) => !f)} aria-label={fullscreen ? "Exit fullscreen" : "Fullscreen"}>
               {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
             </button>
-            <button
-              type="button"
-              onClick={() => setShowPanel((p) => !p)}
-              aria-label="Toggle info panel"
-            >
+            <button type="button" onClick={() => setShowPanel((p) => !p)} aria-label="Toggle info panel">
               <Info className="h-4 w-4" />
             </button>
           </div>

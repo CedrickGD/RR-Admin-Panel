@@ -21,9 +21,26 @@ const ErrorsPage = lazy(() =>
 const FeedbackPage = lazy(() =>
   import("./pages/FeedbackPage").then((module) => ({ default: module.FeedbackPage })),
 );
-const HeatmapPage = lazy(() =>
-  import("./pages/HeatmapPage").then((module) => ({ default: module.HeatmapPage })),
-);
+const HEATMAP_RELOAD_KEY = "rr:heatmap-chunk-reload";
+
+const HeatmapPage = lazy(async () => {
+  try {
+    const module = await import("./pages/HeatmapPage");
+    sessionStorage.removeItem(HEATMAP_RELOAD_KEY);
+    return { default: module.HeatmapPage };
+  } catch (error) {
+    // An already-open admin tab can still reference the previous deployment's
+    // hashed Heatmap chunk after the container is replaced. Reload once so the
+    // tab picks up the current index and asset names instead of staying broken.
+    if (sessionStorage.getItem(HEATMAP_RELOAD_KEY) !== "1") {
+      sessionStorage.setItem(HEATMAP_RELOAD_KEY, "1");
+      window.location.reload();
+      return new Promise<never>(() => undefined);
+    }
+    sessionStorage.removeItem(HEATMAP_RELOAD_KEY);
+    throw error;
+  }
+});
 const LicensesPage = lazy(() =>
   import("./pages/LicensesPage").then((module) => ({ default: module.LicensesPage })),
 );

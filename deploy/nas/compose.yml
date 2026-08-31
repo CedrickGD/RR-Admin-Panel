@@ -45,7 +45,7 @@ services:
   # rr-api (W3.5): Node 22 service running the Pages Functions + worker code on SQLite.
   # Tunnel hostname api.<domain> -> http://rr-api:8787 (no host port; reachable only via the tunnel).
   rr-api:
-    image: razorreaper-rr-api:free-downloads-66e226f
+    image: razorreaper-rr-api:release-hardening-20260831
     build:
       context: ../..
       dockerfile: deploy/nas/rr-api/Dockerfile
@@ -63,7 +63,7 @@ services:
   # Admin SPA + same-origin API gateway. Cloudflare Access protects
   # admin.<domain>; Caddy forwards its JWT and browser Origin/Host to rr-api.
   admin:
-    image: razorreaper-admin:free-downloads-66e226f
+    image: razorreaper-admin:release-hardening-20260831
     build:
       context: ../..
       dockerfile: deploy/nas/admin/Dockerfile

@@ -21,6 +21,7 @@ import { useChartZoom } from "../hooks/useChartZoom";
 import type { DayPoint, StatsPayload, SummaryPayload, ThemeMode } from "../types/telemetry";
 import { buildRegionBreakdown, buildTrafficTimeline } from "../utils/dashboardInsights";
 import { formatDuration, formatNumber, timeAgo } from "../utils/format";
+import { isOverviewErrorInWindow } from "../utils/overviewErrors";
 
 interface OverviewPageProps {
   summary: SummaryPayload;
@@ -71,7 +72,9 @@ export function OverviewPage({ summary, stats, filterBar }: OverviewPageProps) {
 
   const topRegion = regions[0]?.label ?? "Unknown";
   const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
-  const recentErrors24h = summary.recentErrors.filter((e) => Date.parse(e.timestamp) >= twentyFourHoursAgo);
+  const recentErrors24h = summary.recentErrors.filter((e) =>
+    isOverviewErrorInWindow(e, twentyFourHoursAgo),
+  );
   const latestError = recentErrors24h[0];
   const recentSignals = recentErrors24h.slice(0, 6).filter((e) => !dismissedErrors.has(e.id));
   const windowHours = zoom.visibleEnd - zoom.visibleStart;

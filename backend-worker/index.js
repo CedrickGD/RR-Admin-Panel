@@ -340,7 +340,7 @@ async function handleUpdateManifest(request, env) {
   // Point the installer <url> at the worker so a private repo still serves the download.
   // The manifest's version always matches the latest release, so /update/download (= latest)
   // is the exact asset the manifest describes.
-  const origin = new URL(request.url).origin;
+  const origin = publicRequestOrigin(request);
   xml = xml.replace(/<url>[\s\S]*?<\/url>/i, `<url>${origin}/update/download</url>`);
 
   return new Response(xml, {
@@ -350,6 +350,24 @@ async function handleUpdateManifest(request, env) {
       "cache-control": "public, max-age=120",
     },
   });
+}
+
+/**
+ * Cloudflare Tunnel terminates TLS before forwarding to the NAS over HTTP. Hono therefore sees
+ * an http: request URL even though the public client used HTTPS. Honor only a proxy-requested
+ * upgrade; never let a forwarded header downgrade an already-secure public installer URL.
+ */
+function publicRequestOrigin(request) {
+  const url = new URL(request.url);
+  const forwardedProto = request.headers
+    .get("x-forwarded-proto")
+    ?.split(",", 1)[0]
+    ?.trim()
+    .toLowerCase();
+  if (url.protocol === "http:" && forwardedProto === "https") {
+    url.protocol = "https:";
+  }
+  return url.origin;
 }
 
 async function handleUpdateDownload(request, env, ctx, countAsFreeDownload = false) {

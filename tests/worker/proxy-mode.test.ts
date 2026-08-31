@@ -196,6 +196,41 @@ describe("proxy mode ON", () => {
     expect(String(fetchMock.mock.calls[0]?.[0])).toMatch(/^https:\/\/api\.github\.com\//);
   });
 
+  it("emits an HTTPS manifest URL behind the NAS tunnel without allowing downgrades", async () => {
+    stubFetch(
+      () =>
+        new Response("<item><url>https://github.com/x</url></item>", {
+          status: 200,
+          headers: { "content-type": "application/xml" },
+        }),
+    );
+    const harness = proxyHarness();
+
+    const tunneled = await dispatch(
+      harness,
+      new Request("http://api.test/update/update.xml", {
+        headers: { "x-forwarded-proto": "https" },
+      }),
+    );
+    expect(await tunneled.text()).toContain("<url>https://api.test/update/download</url>");
+
+    const invalid = await dispatch(
+      harness,
+      new Request("http://api.test/update/update.xml", {
+        headers: { "x-forwarded-proto": "garbage" },
+      }),
+    );
+    expect(await invalid.text()).toContain("<url>http://api.test/update/download</url>");
+
+    const noDowngrade = await dispatch(
+      harness,
+      new Request("https://api.test/update/update.xml", {
+        headers: { "x-forwarded-proto": "http" },
+      }),
+    );
+    expect(await noDowngrade.text()).toContain("<url>https://api.test/update/download</url>");
+  });
+
   it("answers OPTIONS, unknown paths and /summary locally", async () => {
     const fetchMock = stubFetch();
     const harness = proxyHarness();

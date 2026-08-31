@@ -8,6 +8,9 @@ services:
   # credentials JSON (created by `cloudflared tunnel create rr-nas`) in ${DATA_DIR}/cloudflared.
   cloudflared:
     image: cloudflare/cloudflared:latest
+    # SMB-synced configs are owned by the NAS source-share group (GID 10).
+    group_add:
+      - "10"
     restart: unless-stopped
     command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run
     volumes:
@@ -42,6 +45,7 @@ services:
   # rr-api (W3.5): Node 22 service running the Pages Functions + worker code on SQLite.
   # Tunnel hostname api.<domain> -> http://rr-api:8787 (no host port; reachable only via the tunnel).
   rr-api:
+    image: razorreaper-rr-api:free-downloads-66e226f
     build:
       context: ../..
       dockerfile: deploy/nas/rr-api/Dockerfile
@@ -59,6 +63,7 @@ services:
   # Admin SPA + same-origin API gateway. Cloudflare Access protects
   # admin.<domain>; Caddy forwards its JWT and browser Origin/Host to rr-api.
   admin:
+    image: razorreaper-admin:free-downloads-66e226f
     build:
       context: ../..
       dockerfile: deploy/nas/admin/Dockerfile

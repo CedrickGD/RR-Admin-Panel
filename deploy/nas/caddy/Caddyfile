@@ -2,13 +2,36 @@
 # on the docker network only. Directory listing is off; every object is immutable-by-convention
 # (new media ships under a new filename), so long cache headers are safe.
 :8080 {
-	root * /srv/media
-	@notfound not file
-	respond @notfound 404
-	header Cache-Control "public, max-age=86400, s-maxage=86400"
-	header Access-Control-Allow-Origin "*"
-	header -Server
-	file_server {
-		hide .*
+	# Stable public installer URL used by the website and Discord Rich Presence.
+	# rr-api resolves the current GitHub release and returns the short-lived asset redirect.
+	@download {
+		host dl.razorreaper.app
+		method GET
+		path /
 	}
+	handle @download {
+		header Cache-Control "no-store"
+		rewrite * /update/download
+		reverse_proxy rr-api:8787
+	}
+
+	# Do not expose the media origin through arbitrary paths or methods on the download host.
+	@downloadNotFound host dl.razorreaper.app
+	handle @downloadNotFound {
+		header Cache-Control "no-store"
+		respond 404
+	}
+
+	handle {
+		root * /srv/media
+		@notfound not file
+		respond @notfound 404
+		header Cache-Control "public, max-age=86400, s-maxage=86400"
+		header Access-Control-Allow-Origin "*"
+		file_server {
+			hide .*
+		}
+	}
+
+	header -Server
 }

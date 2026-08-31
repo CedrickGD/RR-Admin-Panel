@@ -11,6 +11,7 @@ admin.<domain>  -> admin           (Caddy; dashboard SPA + same-origin API gatew
 origin.<domain> -> rr-api          (same container; upstream of the worker/Pages proxy shells,
                                     key-gated via ORIGIN_KEY, not WAF-rate-limited)         [W3.7]
 media.<domain>  -> caddy           (static files from /volume1/docker/razorreaper/media)          [W3.3]
+dl.<domain>     -> caddy -> rr-api (stable URL redirect to the latest signed installer)
 bot.<domain>    -> razorreaper-bot (Discord bot + notifier SSE)                            [W3.4]
 ```
 
@@ -27,7 +28,7 @@ into the tunnel.
 2. NAS: `ssh <nas-user>@192.168.2.201`; create `/volume1/docker/razorreaper/{src,media,data/db,data/bot,backups}`;
    confirm `docker compose version` (UGOS Pro Docker app) and auto-power-on after outage.
 3. Zero Trust -> Networks -> Tunnels -> **Create tunnel** `rr-nas` (cloudflared) -> copy the token into
-   `.env` as `TUNNEL_TOKEN`. Public hostnames: `media.<domain>` -> `http://caddy:8080`,
+   `.env` as `TUNNEL_TOKEN`. Public hostnames: `media.<domain>` and `dl.<domain>` -> `http://caddy:8080`,
    `bot.<domain>` -> `http://bot:8080`, `api.<domain>` -> `http://rr-api:8787` (add when W3.5 is live),
    `origin.<domain>` -> `http://rr-api:8787` (W3.7; worker/Pages subrequests come from Cloudflare
    egress IPs, so this hostname must stay OUT of the `api.<domain>` WAF rate-limit rule — rr-api

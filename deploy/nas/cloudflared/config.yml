@@ -5,6 +5,8 @@ credentials-file: /etc/cloudflared/creds/5d1207af-345f-4713-87c4-c5dcc58a0ade.js
 ingress:
   - hostname: media.razorreaper.app
     service: http://caddy:8080
+  - hostname: dl.razorreaper.app
+    service: http://caddy:8080
   - hostname: bot.razorreaper.app
     service: http://bot:8080
   - hostname: api.razorreaper.app

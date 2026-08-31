@@ -53,4 +53,19 @@ describe("NAS admin deployment", () => {
     expect(tunnel).toContain("hostname: admin.razorreaper.app");
     expect(tunnel).toContain("service: http://admin:8080");
   });
+
+  it("keeps the stable download hostname routed to the latest installer", () => {
+    const caddyfile = repoFile("deploy/nas/caddy/Caddyfile");
+    const tunnel = repoFile("deploy/nas/cloudflared/config.yml");
+
+    expect(tunnel).toMatch(/hostname: dl\.razorreaper\.app\s+service: http:\/\/caddy:8080/);
+    expect(caddyfile).toMatch(
+      /@download \{[\s\S]*host dl\.razorreaper\.app[\s\S]*method GET[\s\S]*path \//,
+    );
+    expect(caddyfile).toMatch(
+      /handle @download \{[\s\S]*header Cache-Control "no-store"[\s\S]*rewrite \* \/update\/download[\s\S]*reverse_proxy rr-api:8787/,
+    );
+    expect(caddyfile).toContain("rewrite * /update/download");
+    expect(caddyfile).toContain("reverse_proxy rr-api:8787");
+  });
 });

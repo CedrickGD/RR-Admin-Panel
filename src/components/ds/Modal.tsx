@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 export interface ModalProps {
@@ -8,17 +8,43 @@ export interface ModalProps {
   /** Uppercase accent micro-label, e.g. the KPI label being drilled into. */
   kicker?: string;
   title?: string;
-  sub?: string;
+  sub?: ReactNode;
   children?: ReactNode;
+  /** Viewport keeps the familiar modal chrome but gives dense detail views their own full work area. */
+  size?: "default" | "viewport";
+  className?: string;
 }
+
+const FOCUSABLE_SELECTOR = [
+  "a[href]",
+  "button:not([disabled])",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  '[tabindex]:not([tabindex="-1"])',
+].join(",");
 
 /**
  * Drill-down modal — opaque dark floating surface over a blurred scrim.
  * Used by KPI tiles and any detail view. Escape / scrim click closes.
  */
-export function Modal({ open, onClose, kicker, title, sub, children }: ModalProps) {
+export function Modal({
+  open,
+  onClose,
+  kicker,
+  title,
+  sub,
+  children,
+  size = "default",
+  className = "",
+}: ModalProps) {
   const [exiting, setExiting] = useState(false);
   const wasOpen = useRef(false);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const restoreFocusRef = useRef<HTMLElement | null>(null);
+  const titleId = useId();
   // Snapshot of the last open render's content. Confirm-modal callers close by
   // nulling the state their content derives from (open={!!target} with
   // {target ? body : null}), which would blank the body/subtitle for the whole
@@ -44,11 +70,61 @@ export function Modal({ open, onClose, kicker, title, sub, children }: ModalProp
   useEffect(() => {
     if (!open) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && onClose) onClose();
+      const overlay = overlayRef.current;
+      const openOverlays = document.querySelectorAll<HTMLElement>('[data-modal-root="true"][data-state="open"]');
+      if (overlay && openOverlays.item(openOverlays.length - 1) !== overlay) return;
+
+      if (event.key === "Escape" && onClose) {
+        event.preventDefault();
+        event.stopPropagation();
+        onClose();
+        return;
+      }
+
+      if (event.key !== "Tab") return;
+      const dialog = dialogRef.current;
+      if (!dialog) return;
+      const focusable = [...dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)].filter(
+        (node) => node.getAttribute("aria-hidden") !== "true" && node.offsetParent !== null,
+      );
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    restoreFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const frame = window.requestAnimationFrame(() => {
+      (closeRef.current ?? dialogRef.current)?.focus();
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      document.body.style.overflow = previousOverflow;
+      const target = restoreFocusRef.current;
+      restoreFocusRef.current = null;
+      if (target?.isConnected) target.focus();
+    };
+  }, [open]);
 
   if (!open && !exiting) return null;
 
@@ -61,21 +137,38 @@ export function Modal({ open, onClose, kicker, title, sub, children }: ModalProp
   // never replays).
   return createPortal(
     <div
-      className="kpi-overlay"
+      ref={overlayRef}
+      className={`kpi-overlay${size === "viewport" ? " kpi-overlay-viewport" : ""}`}
+      data-modal-root="true"
       data-state={open ? "open" : "closed"}
-      onClick={open ? onClose : undefined}
+      onClick={
+        open && onClose
+          ? (event) => {
+              if (event.target === event.currentTarget) onClose();
+            }
+          : undefined
+      }
       onTransitionEnd={(event) => {
         if (!open && event.target === event.currentTarget && event.propertyName === "opacity") setExiting(false);
       }}
     >
-      <div className="kpi-modal" onClick={(event) => event.stopPropagation()}>
+      <div
+        ref={dialogRef}
+        className={`kpi-modal${size === "viewport" ? " kpi-modal-viewport" : ""}${className ? ` ${className}` : ""}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={shown.title ? titleId : undefined}
+        aria-label={shown.title ? undefined : shown.kicker ?? "Dialog"}
+        tabIndex={-1}
+        onClick={(event) => event.stopPropagation()}
+      >
         <div className="kpi-modal-head">
           <div>
             {shown.kicker ? <p className="kicker">{shown.kicker}</p> : null}
-            {shown.title ? <h2 className="section-title">{shown.title}</h2> : null}
+            {shown.title ? <h2 className="section-title" id={titleId}>{shown.title}</h2> : null}
             {shown.sub ? <p className="section-sub">{shown.sub}</p> : null}
           </div>
-          <button type="button" className="btn-icon" title="Close" onClick={onClose}>
+          <button ref={closeRef} type="button" className="btn-icon" title="Close" aria-label="Close dialog" onClick={onClose}>
             <X size={16} />
           </button>
         </div>

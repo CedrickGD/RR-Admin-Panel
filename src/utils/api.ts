@@ -10,6 +10,13 @@ import type {
   UserActivityPayload,
   UserRollupRecord,
 } from "../types/telemetry";
+import type {
+  Customer360Response,
+  Customer360Selector,
+  IssueLicenseInput,
+  LicenseOperationResponse,
+  LicenseSearchResponse,
+} from "../types/customer360";
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
 
@@ -368,6 +375,93 @@ export async function postLogout(): Promise<void> {
   } catch {
     // no-op
   }
+}
+
+export async function fetchCustomer360(
+  selector: Customer360Selector,
+  value: string,
+): Promise<{ ok: boolean; data?: Customer360Response; status: number }> {
+  const url = new URL(apiUrl("/api/admin/customer-360"), window.location.origin);
+  url.searchParams.set(selector, value);
+  const res = await fetchApi(url.toString(), {
+    method: "GET",
+    cache: "no-store",
+    credentials: "include",
+  });
+  const body = await parseJson<Customer360Response>(res);
+  return { ok: res.ok && body.ok === true && Boolean(body.customer), data: body, status: res.status };
+}
+
+export async function searchAdminLicenses(
+  selector: "order_id" | "customer",
+  value: string,
+): Promise<{ ok: boolean; data?: LicenseSearchResponse; status: number }> {
+  const url = new URL(apiUrl("/api/admin/licenses/search"), window.location.origin);
+  url.searchParams.set(selector, value);
+  const res = await fetchApi(url.toString(), {
+    method: "GET",
+    cache: "no-store",
+    credentials: "include",
+  });
+  const body = await parseJson<LicenseSearchResponse>(res);
+  return { ok: res.ok && body.ok === true && Array.isArray(body.licenses), data: body, status: res.status };
+}
+
+export async function issueAdminLicense(
+  input: IssueLicenseInput,
+): Promise<{ ok: boolean; data?: LicenseOperationResponse; status: number }> {
+  const res = await fetchApi(
+    apiUrl("/api/admin/licenses/issue"),
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "Idempotency-Key": input.idempotency_key,
+      },
+      body: JSON.stringify(input),
+      credentials: "include",
+    },
+    { retry: false },
+  );
+  const body = await parseJson<LicenseOperationResponse>(res);
+  return { ok: res.ok && body.ok === true, data: body, status: res.status };
+}
+
+export async function activateAdminLicense(
+  licenseKey: string,
+  input: { install_id: string; reason?: string; idempotency_key: string },
+): Promise<{ ok: boolean; data?: LicenseOperationResponse; status: number }> {
+  return postLicenseOperation(licenseKey, "activate", input);
+}
+
+export async function bindAdminLicense(
+  licenseKey: string,
+  input: { hwid: string; install_id?: string; reason?: string; idempotency_key: string },
+): Promise<{ ok: boolean; data?: LicenseOperationResponse; status: number }> {
+  return postLicenseOperation(licenseKey, "bind", input);
+}
+
+async function postLicenseOperation(
+  licenseKey: string,
+  action: "activate" | "bind",
+  input: Record<string, string | undefined>,
+): Promise<{ ok: boolean; data?: LicenseOperationResponse; status: number }> {
+  const idempotencyKey = input.idempotency_key;
+  const res = await fetchApi(
+    apiUrl(`/api/admin/licenses/${encodeURIComponent(licenseKey)}/${action}`),
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
+      },
+      body: JSON.stringify(input),
+      credentials: "include",
+    },
+    { retry: false },
+  );
+  const body = await parseJson<LicenseOperationResponse>(res);
+  return { ok: res.ok && body.ok === true, data: body, status: res.status };
 }
 
 export async function downloadSessionExport(): Promise<void> {

@@ -19,4 +19,11 @@ describe("Workers list layout", () => {
       2,
     );
   });
+
+  it("opens Customer 360 without replacing the existing session expansion", () => {
+    expect(workersPage).toContain("<Customer360Overlay");
+    expect(workersPage).toContain("setCustomer360Session(session)");
+    expect(workersPage).toContain("Open Customer 360 for ${displaySessionUser(session)}");
+    expect(workersPage).toContain("toggleSessionExpanded(session.id)");
+  });
 });

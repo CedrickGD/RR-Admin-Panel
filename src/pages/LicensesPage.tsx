@@ -1,16 +1,24 @@
-import { Key, Pencil, Plus, Trash2, ShoppingCart, User } from "lucide-react";
-import { useEffect, useState, useMemo, type ReactNode } from "react";
+import { Eye, EyeOff, Key, Link2, Pencil, PlayCircle, Plus, SearchCheck, Trash2, ShoppingCart, User } from "lucide-react";
+import { useEffect, useState, useMemo, type FormEvent, type ReactNode } from "react";
 import { Badge } from "../components/ds/Badge";
-import { Button } from "../components/ds/Button";
+import { Button, IconButton } from "../components/ds/Button";
 import { EmptyState } from "../components/ds/EmptyState";
 import { Modal } from "../components/ds/Modal";
 import { StatusBadge } from "../components/StatusBadge";
 import { PageHeader } from "../components/ds/PageHeader";
 import { SearchInput } from "../components/ds/SearchInput";
 import { timeAgo, formatDate } from "../utils/format";
-import { apiUrl, fetchApi } from "../utils/api";
+import {
+  activateAdminLicense,
+  apiUrl,
+  bindAdminLicense,
+  fetchApi,
+  issueAdminLicense,
+  searchAdminLicenses,
+} from "../utils/api";
 import { useRefreshSignal } from "../utils/refreshBus";
 import type { SummaryPayload } from "../types/telemetry";
+import type { LicenseOperationResponse } from "../types/customer360";
 
 interface LicenseRecord {
   id: number;
@@ -92,6 +100,42 @@ const EMPTY_ORDER_FORM: OrderEditForm = {
   order_note: "",
 };
 
+type LookupMode = "order_id" | "customer";
+type LicenseActionMode = "activate" | "bind";
+
+interface IssueForm {
+  order_id: string;
+  customer_name: string;
+  customer_email: string;
+  customer_discord: string;
+  order_note: string;
+  type: "lifetime" | "trial";
+  duration_days: number;
+  max_uses: number;
+  custom_key: string;
+}
+
+const EMPTY_ISSUE_FORM: IssueForm = {
+  order_id: "",
+  customer_name: "",
+  customer_email: "",
+  customer_discord: "",
+  order_note: "",
+  type: "lifetime",
+  duration_days: 30,
+  max_uses: 1,
+  custom_key: "",
+};
+
+function makeOperationKey(): string {
+  return `admin-${crypto.randomUUID()}`;
+}
+
+function maskLicenseKey(value: string): string {
+  if (value.length <= 8) return `••••${value.slice(-2)}`;
+  return `${value.slice(0, 4)}••••${value.slice(-4)}`;
+}
+
 interface LicensesPageProps {
   summary?: SummaryPayload | null;
   onOpenSession?: (sessionId: string) => void;
@@ -128,6 +172,31 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
   const [genCustomerEmail, setGenCustomerEmail] = useState("");
   const [genCustomerDiscord, setGenCustomerDiscord] = useState("");
 
+  // Deliberate server lookup and fulfilment workflow. It is separate from the
+  // table's instant local filter because order IDs must be exact and auditable.
+  const [lookupMode, setLookupMode] = useState<LookupMode>("order_id");
+  const [lookupValue, setLookupValue] = useState("");
+  const [lookupResults, setLookupResults] = useState<LicenseRecord[] | null>(null);
+  const [revealedLookupKeys, setRevealedLookupKeys] = useState<Set<string>>(new Set());
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [lookupError, setLookupError] = useState<string | null>(null);
+
+  const [issueOpen, setIssueOpen] = useState(false);
+  const [issueForm, setIssueForm] = useState<IssueForm>(EMPTY_ISSUE_FORM);
+  const [issueBusy, setIssueBusy] = useState(false);
+  const [issueError, setIssueError] = useState<string | null>(null);
+  const [issueResult, setIssueResult] = useState<LicenseOperationResponse | null>(null);
+  const [issueOperationKey, setIssueOperationKey] = useState(makeOperationKey);
+
+  const [licenseAction, setLicenseAction] = useState<{ mode: LicenseActionMode; license: LicenseRecord } | null>(null);
+  const [actionInstallId, setActionInstallId] = useState("");
+  const [actionHwid, setActionHwid] = useState("");
+  const [actionReason, setActionReason] = useState("");
+  const [actionBusy, setActionBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionResult, setActionResult] = useState<LicenseOperationResponse | null>(null);
+  const [actionOperationKey, setActionOperationKey] = useState(makeOperationKey);
+
   const fetchLicenses = async (silent = false) => {
     try {
       if (!silent) setLoading(true);
@@ -151,6 +220,153 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
 
   // Header refresh button: silent re-pull from the worker, no skeleton flash.
   useRefreshSignal(() => void fetchLicenses(true));
+
+  const performLookup = async (value = lookupValue, mode = lookupMode) => {
+    const query = value.trim();
+    if (!query || lookupLoading) return;
+    setLookupLoading(true);
+    setLookupError(null);
+    try {
+      const result = await searchAdminLicenses(mode, query);
+      if (!result.ok || !result.data?.licenses) {
+        throw new Error(result.data?.error ?? `Lookup failed (HTTP ${result.status}).`);
+      }
+      setLookupResults(result.data.licenses as LicenseRecord[]);
+      setRevealedLookupKeys(new Set());
+    } catch (error) {
+      setLookupResults(null);
+      setLookupError(error instanceof Error ? error.message : "Could not search licenses.");
+    } finally {
+      setLookupLoading(false);
+    }
+  };
+
+  const submitLookup = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    void performLookup();
+  };
+
+  const openIssueForLookup = () => {
+    setIssueForm({
+      ...EMPTY_ISSUE_FORM,
+      order_id: lookupMode === "order_id" ? lookupValue.trim() : "",
+      customer_name: lookupMode === "customer" ? lookupValue.trim() : "",
+    });
+    setIssueOperationKey(makeOperationKey());
+    setIssueError(null);
+    setIssueResult(null);
+    setIssueOpen(true);
+  };
+
+  const submitIssue = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (issueBusy) return;
+    if (!issueForm.order_id.trim()) {
+      setIssueError("Order ID is required so this issue can be found and audited later.");
+      return;
+    }
+    if (issueForm.type === "trial" && (!Number.isInteger(issueForm.duration_days) || issueForm.duration_days < 1 || issueForm.duration_days > 3650)) {
+      setIssueError("Trial duration must be a whole number from 1 to 3650 days.");
+      return;
+    }
+    if (!Number.isInteger(issueForm.max_uses) || issueForm.max_uses < 1 || issueForm.max_uses > 1000) {
+      setIssueError("Seats / maximum uses must be a whole number from 1 to 1000.");
+      return;
+    }
+    setIssueBusy(true);
+    setIssueError(null);
+    try {
+      const result = await issueAdminLicense({
+        order_id: issueForm.order_id.trim(),
+        customer_name: issueForm.customer_name.trim() || undefined,
+        customer_email: issueForm.customer_email.trim() || undefined,
+        customer_discord: issueForm.customer_discord.trim() || undefined,
+        order_note: issueForm.order_note.trim() || undefined,
+        type: issueForm.type,
+        duration_days: issueForm.type === "trial" ? issueForm.duration_days : undefined,
+        max_uses: issueForm.max_uses,
+        custom_key: issueForm.custom_key.trim() || undefined,
+        custom_options: { issued_from: "admin_customer_workflow" },
+        idempotency_key: issueOperationKey,
+      });
+      if (!result.ok || !result.data?.license) {
+        throw new Error(result.data?.error ?? `Could not issue license (HTTP ${result.status}).`);
+      }
+      setIssueResult(result.data);
+      await fetchLicenses(true);
+      if (lookupMode === "order_id" && lookupValue.trim() === issueForm.order_id.trim()) {
+        await performLookup(issueForm.order_id, "order_id");
+      }
+    } catch (error) {
+      setIssueError(error instanceof Error ? error.message : "Could not issue license.");
+    } finally {
+      setIssueBusy(false);
+    }
+  };
+
+  const openLicenseAction = (license: LicenseRecord, mode: LicenseActionMode) => {
+    const linkedSession = [...(summary?.activeSessions ?? []), ...(summary?.recentSessions ?? [])]
+      .find((session) => session.id === license.session_id || (license.hwid && session.hwid === license.hwid));
+    setLicenseAction({ license, mode });
+    setActionInstallId(linkedSession?.installId ?? "");
+    setActionHwid(license.hwid ?? linkedSession?.hwid ?? "");
+    setActionReason("");
+    setActionError(null);
+    setActionResult(null);
+    setActionOperationKey(makeOperationKey());
+  };
+
+  const submitLicenseAction = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!licenseAction || actionBusy) return;
+    if (licenseAction.mode === "activate" && !actionInstallId.trim()) {
+      setActionError("Install ID is required to activate this license.");
+      return;
+    }
+    if (licenseAction.mode === "bind" && !actionHwid.trim()) {
+      setActionError("Hardware ID is required to bind this license.");
+      return;
+    }
+    setActionBusy(true);
+    setActionError(null);
+    try {
+      const result = licenseAction.mode === "activate"
+        ? await activateAdminLicense(licenseAction.license.license_key, {
+            install_id: actionInstallId.trim(),
+            reason: actionReason.trim() || undefined,
+            idempotency_key: actionOperationKey,
+          })
+        : await bindAdminLicense(licenseAction.license.license_key, {
+            hwid: actionHwid.trim(),
+            install_id: actionInstallId.trim() || undefined,
+            reason: actionReason.trim() || undefined,
+            idempotency_key: actionOperationKey,
+          });
+      if (!result.ok || !result.data?.license) {
+        throw new Error(result.data?.error ?? `Could not ${licenseAction.mode} license (HTTP ${result.status}).`);
+      }
+      setActionResult(result.data);
+      await fetchLicenses(true);
+      if (lookupResults) await performLookup();
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : `Could not ${licenseAction.mode} license.`);
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const updateIssueForm = (patch: Partial<IssueForm>) => {
+    setIssueForm((current) => ({ ...current, ...patch }));
+    setIssueOperationKey(makeOperationKey());
+    setIssueError(null);
+    setIssueResult(null);
+  };
+
+  const touchLicenseAction = () => {
+    setActionOperationKey(makeOperationKey());
+    setActionError(null);
+    setActionResult(null);
+  };
 
   const handleGenerate = async () => {
     if (generating) return;
@@ -476,6 +692,20 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
                   </td>
                   <td>
                     <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <IconButton
+                        icon={<PlayCircle />}
+                        onClick={() => openLicenseAction(lic, "activate")}
+                        disabled={lic.status === "revoked"}
+                        title="Activate for a registered install"
+                        aria-label={`Activate ${lic.license_key} for an install`}
+                      />
+                      <IconButton
+                        icon={<Link2 />}
+                        onClick={() => openLicenseAction(lic, "bind")}
+                        disabled={lic.status === "revoked"}
+                        title="Bind another device"
+                        aria-label={`Bind ${lic.license_key} to a device`}
+                      />
                       <button
                         onClick={() => openEdit(lic)}
                         style={{
@@ -535,6 +765,109 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
         title="Licenses" 
         right={filterBar}
       />
+
+      <section className="panel license-lookup-panel" aria-labelledby="license-order-lookup-title">
+        <div className="panel-head">
+          <div className="panel-head-left">
+            <p className="kicker kicker-row"><SearchCheck size={12} /> Customer fulfilment</p>
+            <h2 className="section-title" id="license-order-lookup-title">Find a purchase and grant access</h2>
+            <p className="section-sub">Start with the order ID from the customer. Search by customer only when the order is unknown.</p>
+          </div>
+          <div className="panel-head-right">
+            <Badge tone="accent">Audited actions</Badge>
+          </div>
+        </div>
+        <div className="panel-body license-lookup-body">
+          <form className="license-lookup-form" onSubmit={submitLookup}>
+            <label>
+              <span className="label-sm">Search by</span>
+              <select
+                className="glass-input"
+                value={lookupMode}
+                onChange={(event) => {
+                  setLookupMode(event.target.value as LookupMode);
+                  setLookupResults(null);
+                  setRevealedLookupKeys(new Set());
+                  setLookupError(null);
+                }}
+              >
+                <option value="order_id">Exact order ID</option>
+                <option value="customer">Customer name, email or Discord</option>
+              </select>
+            </label>
+            <label className="license-lookup-query">
+              <span className="label-sm">{lookupMode === "order_id" ? "Customer order ID" : "Customer"}</span>
+              <input
+                className="glass-input"
+                value={lookupValue}
+                onChange={(event) => {
+                  setLookupValue(event.target.value);
+                  setLookupResults(null);
+                  setRevealedLookupKeys(new Set());
+                  setLookupError(null);
+                }}
+                placeholder={lookupMode === "order_id" ? "e.g. ORD-1042" : "Name, email or Discord"}
+                autoComplete="off"
+              />
+            </label>
+            <Button type="submit" variant="primary" icon={<SearchCheck />} disabled={!lookupValue.trim() || lookupLoading}>
+              {lookupLoading ? "Searching…" : "Search purchases"}
+            </Button>
+          </form>
+
+          {lookupError ? <p className="license-workflow-error" role="alert">{lookupError}</p> : null}
+
+          {lookupResults !== null ? (
+            <div className="license-lookup-results" aria-live="polite">
+              <div className="license-lookup-results-head">
+                <div>
+                  <strong>{lookupResults.length === 0 ? "No license found" : `${lookupResults.length} license${lookupResults.length === 1 ? "" : "s"} found`}</strong>
+                  <span>{lookupMode === "order_id" ? `Exact order ${lookupValue.trim()}` : `Customer match for “${lookupValue.trim()}”`}</span>
+                </div>
+                {lookupResults.length === 0 ? (
+                  <Button size="sm" icon={<Plus />} onClick={openIssueForLookup}>Issue purchased license</Button>
+                ) : null}
+              </div>
+              {lookupResults.length > 0 ? (
+                <div className="license-lookup-cards">
+                  {lookupResults.map((license) => (
+                    <article className="license-lookup-card" key={license.id || license.license_key}>
+                      <div className="license-lookup-card-main">
+                        <span className="license-lookup-key customer360-mono">
+                          {revealedLookupKeys.has(license.license_key) ? license.license_key : maskLicenseKey(license.license_key)}
+                          <IconButton
+                            icon={revealedLookupKeys.has(license.license_key) ? <EyeOff /> : <Eye />}
+                            size={12}
+                            title={revealedLookupKeys.has(license.license_key) ? "Hide license key" : "Reveal license key"}
+                            aria-label={revealedLookupKeys.has(license.license_key) ? "Hide license key" : "Reveal license key"}
+                            onClick={() => setRevealedLookupKeys((current) => {
+                              const next = new Set(current);
+                              if (!next.delete(license.license_key)) next.add(license.license_key);
+                              return next;
+                            })}
+                          />
+                        </span>
+                        <div>
+                          <Badge tone={license.status === "active" ? "success" : license.status === "revoked" ? "danger" : "warning"}>{license.status}</Badge>
+                          <span>{license.type === "lifetime" ? "Lifetime" : `${license.duration_days ?? "?"} days`}</span>
+                          <span>{license.customer_name ?? license.customer_email ?? license.customer_discord ?? "Customer not named"}</span>
+                          <span>{license.hwid ? `Bound · ${license.usage_count}/${license.max_uses === -1 ? "∞" : license.max_uses}` : "Not bound yet"}</span>
+                        </div>
+                      </div>
+                      <div className="license-lookup-card-actions">
+                        <Button size="sm" icon={<PlayCircle />} onClick={() => openLicenseAction(license, "activate")} disabled={license.status === "revoked"}>Activate install</Button>
+                        <Button size="sm" icon={<Link2 />} onClick={() => openLicenseAction(license, "bind")} disabled={license.status === "revoked"}>Bind device</Button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <p className="license-lookup-empty">Confirm the order details, then issue the license. The new key will stay tied to this order for future searches.</p>
+              )}
+            </div>
+          ) : null}
+        </div>
+      </section>
 
       {/* Generator spans the full row — the old two-col layout paired it with a
           search panel that was 90% dead space; search now lives in the All
@@ -680,6 +1013,148 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
       </section>
 
       {renderTable(sortedLicenses, "All Licenses")}
+
+      <Modal
+        open={issueOpen}
+        onClose={() => (issueBusy ? undefined : setIssueOpen(false))}
+        kicker="Customer fulfilment"
+        title={issueResult ? "License issued" : "Issue purchased license"}
+        sub={issueResult ? `Operation ${issueResult.operation_id ?? "completed"}` : "Creates one traceable license tied to the customer order."}
+      >
+        {issueResult?.license ? (
+          <div className="license-workflow-success" role="status">
+            <div className="license-workflow-success-icon"><Key /></div>
+            <p>The key is ready for the customer.</p>
+            <code>{issueResult.license.license_key}</code>
+            <div className="license-workflow-result-grid">
+              <span>Order<strong>{issueResult.license.order_id ?? issueForm.order_id}</strong></span>
+              <span>Status<strong>{issueResult.license.status}</strong></span>
+              <span>Replay-safe<strong>{issueResult.replayed ? "Replayed" : "New operation"}</strong></span>
+            </div>
+            <div className="license-workflow-actions">
+              <Button onClick={() => setIssueOpen(false)}>Done</Button>
+              <Button variant="primary" icon={<PlayCircle />} onClick={() => {
+                const issued = issueResult.license as LicenseRecord;
+                setIssueOpen(false);
+                openLicenseAction(issued, "activate");
+              }}>Activate for install</Button>
+            </div>
+          </div>
+        ) : (
+          <form className="license-workflow-form" onSubmit={submitIssue}>
+            <div className="license-workflow-grid">
+              <label>
+                <span className="label-sm">Order ID <em>required</em></span>
+                <input className="glass-input" required value={issueForm.order_id} onChange={(event) => updateIssueForm({ order_id: event.target.value })} placeholder="ORD-1042" autoFocus />
+              </label>
+              <label>
+                <span className="label-sm">Customer name</span>
+                <input className="glass-input" value={issueForm.customer_name} onChange={(event) => updateIssueForm({ customer_name: event.target.value })} placeholder="Buyer name" />
+              </label>
+              <label>
+                <span className="label-sm">Customer email</span>
+                <input type="email" className="glass-input" value={issueForm.customer_email} onChange={(event) => updateIssueForm({ customer_email: event.target.value })} placeholder="buyer@example.com" />
+              </label>
+              <label>
+                <span className="label-sm">Customer Discord</span>
+                <input className="glass-input" value={issueForm.customer_discord} onChange={(event) => updateIssueForm({ customer_discord: event.target.value })} placeholder="@buyer" />
+              </label>
+              <label>
+                <span className="label-sm">License plan</span>
+                <select className="glass-input" value={issueForm.type} onChange={(event) => updateIssueForm({ type: event.target.value as IssueForm["type"] })}>
+                  <option value="lifetime">Lifetime</option>
+                  <option value="trial">Trial</option>
+                </select>
+              </label>
+              {issueForm.type === "trial" ? (
+                <label>
+                  <span className="label-sm">Duration in days</span>
+                  <input type="number" min={1} max={3650} step={1} className="glass-input" value={issueForm.duration_days} onChange={(event) => updateIssueForm({ duration_days: Number(event.target.value) })} />
+                </label>
+              ) : null}
+              <label>
+                <span className="label-sm">Seats / maximum uses</span>
+                <input type="number" min={1} max={1000} step={1} className="glass-input" value={issueForm.max_uses} onChange={(event) => updateIssueForm({ max_uses: Number(event.target.value) })} />
+              </label>
+              <label>
+                <span className="label-sm">Custom key <em>optional</em></span>
+                <input className="glass-input customer360-mono" minLength={8} maxLength={128} value={issueForm.custom_key} onChange={(event) => updateIssueForm({ custom_key: event.target.value })} placeholder="Blank creates a secure random key" />
+              </label>
+            </div>
+            <label>
+              <span className="label-sm">Order note</span>
+              <textarea className="glass-input" rows={3} value={issueForm.order_note} onChange={(event) => updateIssueForm({ order_note: event.target.value })} placeholder="Purchase context or anything support should know" />
+            </label>
+            <p className="license-workflow-note">This action is protected by an idempotency key, so retrying the same submission cannot issue a duplicate license.</p>
+            {issueError ? <p className="license-workflow-error" role="alert">{issueError}</p> : null}
+            <div className="license-workflow-actions">
+              <Button onClick={() => setIssueOpen(false)} disabled={issueBusy}>Cancel</Button>
+              <Button type="submit" variant="primary" icon={<Key />} disabled={issueBusy}>{issueBusy ? "Issuing…" : "Issue license"}</Button>
+            </div>
+          </form>
+        )}
+      </Modal>
+
+      <Modal
+        open={licenseAction !== null}
+        onClose={() => (actionBusy ? undefined : setLicenseAction(null))}
+        kicker="Customer fulfilment"
+        title={actionResult ? "Access updated" : licenseAction?.mode === "activate" ? "Activate on an install" : "Bind a device"}
+        sub={licenseAction ? `License ${licenseAction.license.license_key}` : undefined}
+      >
+        {actionResult ? (
+          <div className="license-workflow-success" role="status">
+            <div className="license-workflow-success-icon"><Link2 /></div>
+            <p>{actionResult.changed ? "The license was updated successfully." : "The requested access was already in place; nothing was duplicated."}</p>
+            <div className="license-workflow-result-grid">
+              <span>Action<strong>{actionResult.action ?? licenseAction?.mode}</strong></span>
+              <span>Install<strong>{actionResult.target?.install_id ?? "—"}</strong></span>
+              <span>Hardware ID<strong>{actionResult.target?.hwid ?? "—"}</strong></span>
+              <span>Activated<strong>{actionResult.activated ? "Yes" : "No change"}</strong></span>
+              <span>Operation<strong>{actionResult.operation_id ?? "—"}</strong></span>
+              <span>Replay-safe<strong>{actionResult.replayed ? "Replayed" : "New operation"}</strong></span>
+            </div>
+            <div className="license-workflow-actions"><Button variant="primary" onClick={() => setLicenseAction(null)}>Done</Button></div>
+          </div>
+        ) : licenseAction ? (
+          <form className="license-workflow-form" onSubmit={submitLicenseAction}>
+            <div className="license-action-explainer">
+              {licenseAction.mode === "activate"
+                ? "Use the registered install ID from the customer's app. The server resolves and verifies its hardware ID, then performs the first binding if needed."
+                : "Bind an additional verified hardware ID. Add the install ID when you have it so the server can verify they match."}
+            </div>
+            <label>
+              <span className="label-sm">Install ID {licenseAction.mode === "activate" ? <em>required</em> : <em>recommended</em>}</span>
+              <input
+                className="glass-input customer360-mono"
+                required={licenseAction.mode === "activate"}
+                value={actionInstallId}
+                onChange={(event) => { setActionInstallId(event.target.value); touchLicenseAction(); }}
+                placeholder="Install ID from Customer 360 or the app"
+                autoFocus
+              />
+            </label>
+            {licenseAction.mode === "bind" ? (
+              <label>
+                <span className="label-sm">Hardware ID <em>required</em></span>
+                <input className="glass-input customer360-mono" required value={actionHwid} onChange={(event) => { setActionHwid(event.target.value); touchLicenseAction(); }} placeholder="Verified HWID" />
+              </label>
+            ) : null}
+            <label>
+              <span className="label-sm">Reason <em>optional, saved for audit</em></span>
+              <textarea className="glass-input" rows={3} value={actionReason} onChange={(event) => { setActionReason(event.target.value); touchLicenseAction(); }} placeholder="e.g. Paid order verified in support ticket" />
+            </label>
+            <p className="license-workflow-note">Only a registered, non-revoked install or a hardware ID already seen by telemetry can be used.</p>
+            {actionError ? <p className="license-workflow-error" role="alert">{actionError}</p> : null}
+            <div className="license-workflow-actions">
+              <Button onClick={() => setLicenseAction(null)} disabled={actionBusy}>Cancel</Button>
+              <Button type="submit" variant="primary" icon={licenseAction.mode === "activate" ? <PlayCircle /> : <Link2 />} disabled={actionBusy}>
+                {actionBusy ? "Saving…" : licenseAction.mode === "activate" ? "Activate license" : "Bind device"}
+              </Button>
+            </div>
+          </form>
+        ) : null}
+      </Modal>
 
       <Modal 
         open={!!deleteCandidate} 

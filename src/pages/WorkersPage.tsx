@@ -9,6 +9,7 @@ import {
   Globe2,
   History,
   RadioTower,
+  ScanSearch,
   Search,
   Users as UsersIcon,
 } from "lucide-react";
@@ -25,6 +26,7 @@ import {
   type ReactNode,
 } from "react";
 import { CollapsiblePanel } from "../components/CollapsiblePanel";
+import { Customer360Overlay } from "../components/Customer360Overlay";
 import { GlassDropdown } from "../components/GlassDropdown";
 import { RowExpandClip } from "../components/RowExpandClip";
 import { type KpiDrilldown, KpiStatCard } from "../components/KpiStatCard";
@@ -697,6 +699,7 @@ export function WorkersPage({
     country: null,
   });
   const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set());
+  const [customer360Session, setCustomer360Session] = useState<AppSessionRecord | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
 
@@ -1663,6 +1666,13 @@ export function WorkersPage({
                               <td>
                                 <div style={{ display: "flex", gap: 4 }}>
                                   <IconButton
+                                    icon={<ScanSearch />}
+                                    style={{ padding: 4 }}
+                                    title="Open Customer 360"
+                                    aria-label={`Open Customer 360 for ${displaySessionUser(session)}`}
+                                    onClick={() => setCustomer360Session(session)}
+                                  />
+                                  <IconButton
                                     icon={<Globe2 />}
                                     style={{ padding: 4 }}
                                     title="Show on map"
@@ -1810,6 +1820,11 @@ export function WorkersPage({
           </div>
         </CollapsiblePanel>
       )}
+      <Customer360Overlay
+        open={customer360Session !== null}
+        session={customer360Session}
+        onClose={() => setCustomer360Session(null)}
+      />
     </div>
   );
 }

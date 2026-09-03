@@ -22,6 +22,11 @@ import type { RuntimeEnv } from "./types";
  */
 export type InstallAuthMode = "required" | "optional";
 
+export interface InstallAuthOptions {
+  /** Route-specific transport ceiling; omitted routes retain the shared 16 KiB default. */
+  maxBodyBytes?: number;
+}
+
 export type InstallAuthResult =
   | { ok: true; installId: string | null; bodyText: string }
   | { ok: false; response: Response };
@@ -32,10 +37,11 @@ const SIGNATURE_INVALID = "Invalid install signature.";
 export async function requireInstallAuth(
   context: { request: Request; env: RuntimeEnv },
   mode: InstallAuthMode,
+  options: InstallAuthOptions = {},
 ): Promise<InstallAuthResult> {
   const { request, env } = context;
 
-  const body = await readBodyTextLimited(request, MAX_BODY_BYTES);
+  const body = await readBodyTextLimited(request, options.maxBodyBytes ?? MAX_BODY_BYTES);
   if (!body.ok) {
     return deny(error(body.status, body.message));
   }

@@ -375,6 +375,28 @@ describe("requireInstallAuth — body limits", () => {
     if (result.ok) return;
     expect(result.response.status).toBe(413);
   });
+
+  it("allows a route to opt into a larger ceiling without changing the default", async () => {
+    const mock = installsDb();
+    const roomy = JSON.stringify({ pad: "x".repeat(24 * 1024) });
+    const bytes = new TextEncoder().encode(roomy).byteLength;
+    expect(bytes).toBeGreaterThan(16 * 1024);
+    expect(bytes).toBeLessThan(48 * 1024);
+
+    const defaultResult = await requireInstallAuth(
+      { request: await signedRequest({ bodyText: roomy }), env: { DB: mock.db } },
+      "optional",
+    );
+    expect(defaultResult.ok).toBe(false);
+    if (!defaultResult.ok) expect(defaultResult.response.status).toBe(413);
+
+    const overrideResult = await requireInstallAuth(
+      { request: await signedRequest({ bodyText: roomy }), env: { DB: mock.db } },
+      "optional",
+      { maxBodyBytes: 48 * 1024 },
+    );
+    expect(overrideResult).toEqual({ ok: true, installId: INSTALL_ID, bodyText: roomy });
+  });
 });
 
 describe("parseJsonObject", () => {

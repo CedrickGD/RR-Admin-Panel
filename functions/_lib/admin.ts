@@ -22,6 +22,11 @@ export interface DashboardAccessContext {
   sessionExpiresAt: string | null;
 }
 
+/** Role guard for sensitive reads and state-changing operator workflows. */
+export function requireAdminRole(access: DashboardAccessContext): Response | null {
+  return access.user.role === "admin" ? null : error(403, "Administrator role required.");
+}
+
 /** Test seams for the Access JWT check (clock + JWKS source); production uses the defaults. */
 export type DashboardAccessDeps = AccessIdentityDeps;
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { AppSessionRecord } from "../src/types/telemetry";
 import {
@@ -140,5 +140,23 @@ describe("recent session directory", () => {
         "asc",
       ).map((entry) => entry.id),
     ).toEqual(["berlin"]);
+  });
+
+  it("matches uppercase-I machine names regardless of the browser casing locale", () => {
+    const sessions = [session("device-1", { userLabel: "MSI-CG-MAIN" })];
+    const originalToLocaleLowerCase = String.prototype.toLocaleLowerCase;
+    const localeLowerCase = vi
+      .spyOn(String.prototype, "toLocaleLowerCase")
+      .mockImplementation(function (this: string, locales?: Intl.LocalesArgument) {
+        return originalToLocaleLowerCase.call(this, locales ?? "tr-TR");
+      });
+
+    try {
+      for (const query of ["msi", "mSi", "MSI-CG-MAIN"]) {
+        expect(filterAndSortSessions(sessions, query, NO_FILTERS, "user", "asc")).toHaveLength(1);
+      }
+    } finally {
+      localeLowerCase.mockRestore();
+    }
   });
 });

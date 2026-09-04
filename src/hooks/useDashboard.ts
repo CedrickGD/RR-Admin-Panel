@@ -20,6 +20,7 @@ export function useDashboard(activePage: PageKey) {
   const [requiresBootstrap, setRequiresBootstrap] = useState(false);
   const [authBusy, setAuthBusy] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [sessionError, setSessionError] = useState<string | null>(null);
   const [summary, setSummary] = useState<SummaryPayload | null>(null);
   const [health, setHealth] = useState<HealthPayload | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -35,16 +36,25 @@ export function useDashboard(activePage: PageKey) {
         const { ok, data, status } = await fetchAdminData();
 
         if (status === 401) {
-          setUser(null);
-          setSummary(null);
-          setHealth(null);
           const session = await fetchSession();
           setAuthMode(session.authMode ?? "access");
           setRequiresBootstrap(!session.hasUsers);
-          setAuthError(
-            session.authMode === "app" ? "Session expired. Please sign in again." : null,
-          );
-          return;
+          if (!session.authenticated) {
+            // A dashboard 401 can be produced by an intermediary or a stale
+            // response. Only the session endpoint's explicit, valid verdict is
+            // allowed to replace the authenticated UI with the login gate.
+            setUser(null);
+            setSummary(null);
+            setHealth(null);
+            setAuthError(
+              session.authMode === "app" ? "Session expired. Please sign in again." : null,
+            );
+            return;
+          }
+
+          setUser(session.user ?? null);
+          setRequiresBootstrap(false);
+          throw new Error("Dashboard authorization could not be confirmed.");
         }
 
         if (!ok || !data?.summary || !data?.health || !data?.user) {
@@ -78,9 +88,11 @@ export function useDashboard(activePage: PageKey) {
     return request;
   }, []);
 
-  // Bootstrap auth session — runs once on mount
-  useEffect(() => {
-    void (async () => {
+  const verifySession = useCallback(async () => {
+    setReady(false);
+    setSessionError(null);
+
+    try {
       const session = await fetchSession();
       setAuthMode(session.authMode ?? "access");
       if (session.authenticated && session.user) {
@@ -88,12 +100,27 @@ export function useDashboard(activePage: PageKey) {
         setRequiresBootstrap(false);
         await loadDashboard(false);
       } else {
+        setUser(null);
+        setSummary(null);
+        setHealth(null);
         setRequiresBootstrap(!session.hasUsers);
       }
+    } catch {
+      // An unavailable verifier says nothing about authentication. Keep this
+      // state distinct from an explicit unauthenticated response so an outage
+      // can never render the login/bootstrap form as a false logout.
+      setSessionError(
+        "Session verification is temporarily unavailable. Your sign-in state has not been changed.",
+      );
+    } finally {
       setReady(true);
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    }
+  }, [loadDashboard]);
+
+  // Bootstrap auth session — runs once on mount
+  useEffect(() => {
+    void verifySession();
+  }, [verifySession]);
 
   useEffect(() => {
     if (!user) return;
@@ -167,13 +194,28 @@ export function useDashboard(activePage: PageKey) {
 
   const logout = async () => {
     await postLogout();
+    setReady(false);
     setUser(null);
     setSummary(null);
     setHealth(null);
     setAuthError(null);
-    const session = await fetchSession();
-    setAuthMode(session.authMode ?? "access");
-    setRequiresBootstrap(!session.hasUsers);
+    setSessionError(null);
+    try {
+      const session = await fetchSession();
+      setAuthMode(session.authMode ?? "access");
+      setRequiresBootstrap(!session.hasUsers);
+      if (session.authenticated && session.user) {
+        setUser(session.user);
+        setRequiresBootstrap(false);
+        await loadDashboard(false);
+      }
+    } catch {
+      setSessionError(
+        "Session verification is temporarily unavailable. Your sign-in state has not been changed.",
+      );
+    } finally {
+      setReady(true);
+    }
   };
 
   const refresh = async () => {
@@ -204,12 +246,14 @@ export function useDashboard(activePage: PageKey) {
     requiresBootstrap,
     authBusy,
     authError,
+    sessionError,
     summary,
     health,
     loadError,
     refreshing,
     authenticate,
     logout,
+    retrySession: verifySession,
     refresh,
   } as const;
 }

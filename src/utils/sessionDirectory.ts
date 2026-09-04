@@ -160,7 +160,7 @@ export function filterAndSortSessions(
   sortKey: SessionDirectorySortKey,
   sortDirection: DirectorySortDirection,
 ): AppSessionRecord[] {
-  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const normalizedQuery = query.trim().toLowerCase();
   const filtered = normalizeRecentSessions(sessions).filter((session) => {
     if (filters.version && versionName(session) !== filters.version) return false;
     if (filters.continent && getMacroRegion(session.clientCountry) !== filters.continent) {
@@ -186,7 +186,7 @@ export function filterAndSortSessions(
       session.lastEvent ?? "",
     ]
       .join(" ")
-      .toLocaleLowerCase()
+      .toLowerCase()
       .includes(normalizedQuery);
   });
 

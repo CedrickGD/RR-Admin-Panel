@@ -17,6 +17,7 @@ import type {
   Customer360Customer,
   Customer360DatabaseRow,
   CustomerConfidence,
+  Customer360Selector,
   DiagnosticBundle,
 } from "../types/customer360";
 import type { AppSessionRecord } from "../types/telemetry";
@@ -32,8 +33,16 @@ import { Badge, type BadgeProps } from "./ds/Badge";
 import { Button } from "./ds/Button";
 import { Modal } from "./ds/Modal";
 
+export interface Customer360Anchor {
+  selector: Customer360Selector;
+  value: string;
+  label?: string | null;
+  detail?: string | null;
+}
+
 interface Customer360OverlayProps {
   session: AppSessionRecord | null;
+  anchor?: Customer360Anchor | null;
   open: boolean;
   onClose: () => void;
 }
@@ -110,11 +119,16 @@ function maskLicenseKey(value: unknown): string {
   return `${key.slice(0, 4)}••••${key.slice(-4)}`;
 }
 
-function titleFor(customer: Customer360Customer | null, session: AppSessionRecord | null): string {
+function titleFor(
+  customer: Customer360Customer | null,
+  session: AppSessionRecord | null,
+  anchor: Customer360Anchor | null,
+): string {
   return (
     customer?.profile.customer_name ??
     customer?.profile.user_label ??
     session?.userLabel ??
+    anchor?.label ??
     customer?.profile.email ??
     "Customer 360"
   );
@@ -636,7 +650,12 @@ function SessionFallback({ session }: { session: AppSessionRecord }) {
   );
 }
 
-export function Customer360Overlay({ session, open, onClose }: Customer360OverlayProps) {
+export function Customer360Overlay({
+  session,
+  anchor = null,
+  open,
+  onClose,
+}: Customer360OverlayProps) {
   const [customer, setCustomer] = useState<Customer360Customer | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -645,15 +664,17 @@ export function Customer360Overlay({ session, open, onClose }: Customer360Overla
   const [copied, setCopied] = useState(false);
   const requestSeq = useRef(0);
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const selector: Customer360Selector | null = session ? "session_id" : (anchor?.selector ?? null);
+  const value = session?.id ?? anchor?.value?.trim() ?? "";
 
   useEffect(() => {
-    if (!open || !session) return;
+    if (!open || !selector || !value) return;
     const seq = ++requestSeq.current;
     setLoading(true);
     setError(null);
     setCustomer(null);
     setCopied(false);
-    void fetchCustomer360("session_id", session.id)
+    void fetchCustomer360(selector, value)
       .then((result) => {
         if (requestSeq.current !== seq) return;
         if (result.ok && result.data?.customer) {
@@ -672,11 +693,11 @@ export function Customer360Overlay({ session, open, onClose }: Customer360Overla
     return () => {
       if (requestSeq.current === seq) requestSeq.current += 1;
     };
-  }, [open, session, reloadKey]);
+  }, [open, selector, value, reloadKey]);
 
   useEffect(() => {
     if (open) setActiveTab("summary");
-  }, [open, session?.id]);
+  }, [open, selector, value]);
 
   function onTabKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
     let next = index;
@@ -817,11 +838,11 @@ export function Customer360Overlay({ session, open, onClose }: Customer360Overla
       size="viewport"
       className="customer-360-modal"
       kicker="Customer support workspace"
-      title={titleFor(customer, session)}
+      title={titleFor(customer, session, anchor)}
       sub={
         session
           ? `Session ${session.id} · ${session.displayVersion ?? session.appVersion ?? "version unknown"}`
-          : "Customer and device context"
+          : (anchor?.detail ?? "Customer and device context")
       }
     >
       <div className="customer360-shell">{body}</div>

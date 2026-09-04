@@ -15,6 +15,7 @@ import {
   Ban,
   Megaphone,
   MessageSquare,
+  UsersRound,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import type { AuthMode, AuthUser, HealthPayload, PageKey, SummaryPayload } from "../types/telemetry";
@@ -70,6 +71,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Users",
     items: [
+      { key: "customers", label: "Customers", icon: <UsersRound size={16} /> },
       { key: "licenses", label: "Licenses", icon: <Key size={16} /> },
       { key: "access",   label: "Access",   icon: <Ban size={16} /> },
       { key: "feedback", label: "Feedback", icon: <MessageSquare size={16} /> },

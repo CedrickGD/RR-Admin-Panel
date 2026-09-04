@@ -164,7 +164,7 @@ export function filterAndSortUsers(
     }
   }
 
-  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const normalizedQuery = query.trim().toLowerCase();
   const filtered = [...byIdentity.values()].filter((user) => {
     if (filters.version && versionName(user) !== filters.version) return false;
     if (filters.continent && getMacroRegion(user.country) !== filters.continent) {
@@ -187,7 +187,7 @@ export function filterAndSortUsers(
       getMacroRegion(user.country),
     ]
       .join(" ")
-      .toLocaleLowerCase()
+      .toLowerCase()
       .includes(normalizedQuery);
   });
 

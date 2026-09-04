@@ -8,6 +8,7 @@ export type PageKey =
   | "heatmap"
   | "live"
   | "workers"
+  | "customers"
   | "errors"
   | "settings"
   | "licenses"

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { UserRollupRecord } from "../src/types/telemetry";
 import { paginate } from "../src/utils/pagination";
@@ -135,6 +135,24 @@ describe("user directory filters and sorting", () => {
 
     for (const query of ["rpg_01", "germany", "europe", "abc-123"]) {
       expect(filterAndSortUsers(users, query, NO_FILTERS, "user", "asc")).toHaveLength(1);
+    }
+  });
+
+  it("matches uppercase-I machine names regardless of the browser casing locale", () => {
+    const users = [user("device-1", { userLabel: "MSI-CG-MAIN" })];
+    const originalToLocaleLowerCase = String.prototype.toLocaleLowerCase;
+    const localeLowerCase = vi
+      .spyOn(String.prototype, "toLocaleLowerCase")
+      .mockImplementation(function (this: string, locales?: Intl.LocalesArgument) {
+        return originalToLocaleLowerCase.call(this, locales ?? "tr-TR");
+      });
+
+    try {
+      for (const query of ["msi", "mSi", "MSI-CG-MAIN"]) {
+        expect(filterAndSortUsers(users, query, NO_FILTERS, "user", "asc")).toHaveLength(1);
+      }
+    } finally {
+      localeLowerCase.mockRestore();
     }
   });
 });

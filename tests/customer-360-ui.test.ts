@@ -23,8 +23,15 @@ describe("Customer 360 workspace", () => {
     ]) {
       expect(overlay).toContain(`label: "${label}"`);
     }
-    expect(overlay).toContain('fetchCustomer360("session_id", session.id)');
+    expect(overlay).toContain('session ? "session_id" : (anchor?.selector ?? null)');
+    expect(overlay).toContain("fetchCustomer360(selector, value)");
     expect(overlay).toContain("customer.section_errors[name]");
+  });
+
+  it("supports customer-directory anchors without changing the session lookup", () => {
+    expect(overlay).toContain("export interface Customer360Anchor");
+    expect(overlay).toContain('const value = session?.id ?? anchor?.value?.trim() ?? ""');
+    expect(overlay).toContain("selector: Customer360Selector");
   });
 
   it("uses an accessible viewport dialog with intentional close behavior", () => {

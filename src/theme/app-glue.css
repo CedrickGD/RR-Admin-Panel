@@ -1797,6 +1797,77 @@ select.glass-input {
   min-width: 116px;
   max-width: 170px;
 }
+.customer-directory-controls .search-wrap {
+  flex: 1 1 260px;
+  max-width: 330px;
+}
+.customer-directory-table {
+  min-width: 1040px;
+}
+.customer-directory-table .sort-th {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+.customer-directory-table .sort-th:hover,
+.customer-directory-table .sort-th-active {
+  color: var(--text-1);
+}
+.customer-directory-table .sort-th svg {
+  width: 12px;
+  height: 12px;
+  color: var(--accent);
+}
+.customer-directory-table .btn {
+  white-space: nowrap;
+}
+.customer-directory-identity,
+.customer-directory-stacked {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+.customer-directory-name {
+  max-width: 220px;
+  overflow: hidden;
+  color: var(--text-1);
+  font-family: var(--font-display);
+  font-size: var(--fs-body);
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.customer-directory-badges,
+.customer-directory-support {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.customer-directory-id,
+.customer-directory-stacked small {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-tiny);
+}
+.customer-directory-last-seen {
+  white-space: nowrap;
+}
+.customer-directory-last-seen .status-dot {
+  margin-right: 6px;
+}
+.customer-directory-skeleton {
+  height: 34px;
+}
 @media (max-width: 900px) {
   .user-directory-controls {
     justify-content: flex-start;

@@ -15,6 +15,9 @@ const AccessPage = lazy(() =>
 const AnnouncementsPage = lazy(() =>
   import("./pages/AnnouncementsPage").then((module) => ({ default: module.AnnouncementsPage })),
 );
+const CustomersPage = lazy(() =>
+  import("./pages/CustomersPage").then((module) => ({ default: module.CustomersPage })),
+);
 const ErrorsPage = lazy(() =>
   import("./pages/ErrorsPage").then((module) => ({ default: module.ErrorsPage })),
 );
@@ -74,6 +77,7 @@ const PAGE_KEYS: readonly PageKey[] = [
   "overview",
   "live",
   "workers",
+  "customers",
   "traffic",
   "versions",
   "heatmap",
@@ -86,7 +90,7 @@ const PAGE_KEYS: readonly PageKey[] = [
 ];
 const LAST_PAGE_STORAGE_KEY = "rr:last-page";
 const STATS_PAGES = new Set<PageKey>(["overview", "traffic", "versions", "workers"]);
-const USER_PAGES = new Set<PageKey>(["workers", "heatmap", "access"]);
+const USER_PAGES = new Set<PageKey>(["workers", "customers", "heatmap", "access"]);
 
 function isPageKey(value: string | null | undefined): value is PageKey {
   return typeof value === "string" && (PAGE_KEYS as readonly string[]).includes(value);
@@ -154,12 +158,14 @@ export default function App() {
     requiresBootstrap,
     authBusy,
     authError,
+    sessionError,
     summary,
     health,
     loadError,
     refreshing,
     authenticate,
     logout,
+    retrySession,
     refresh,
   } = useDashboard(page);
   const { stats, users } = useAdminStats(
@@ -243,6 +249,34 @@ export default function App() {
           <p style={{ fontSize: "0.875rem", color: "var(--text-2)", lineHeight: 1.7 }}>
             Loading auth state and session data…
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user && sessionError) {
+    return (
+      <div className="login-wrap">
+        <div className="login-card" style={{ textAlign: "center" }}>
+          <AlertTriangle
+            className="h-5 w-5"
+            style={{ color: "var(--danger)", margin: "0 auto 16px" }}
+          />
+          <p className="kicker" style={{ marginBottom: 8 }}>
+            Session check unavailable
+          </p>
+          <h1 style={{ fontSize: "1.5rem", marginBottom: 8 }}>Still checking your sign-in</h1>
+          <p style={{ fontSize: "0.875rem", color: "var(--text-2)", lineHeight: 1.7 }}>
+            {sessionError}
+          </p>
+          <button
+            type="button"
+            className="btn btn-primary"
+            style={{ marginTop: 20 }}
+            onClick={() => void retrySession()}
+          >
+            Retry session check
+          </button>
         </div>
       </div>
     );
@@ -389,6 +423,9 @@ export default function App() {
                   onOpenMapUser={handleOpenMapUser}
                   filterBar={filterBar}
                 />
+              ) : null}
+              {page === "customers" ? (
+                <CustomersPage users={users} filterBar={refreshButton} />
               ) : null}
               {page === "errors" ? <ErrorsPage /> : null}
               {page === "licenses" ? (

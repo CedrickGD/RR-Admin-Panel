@@ -144,21 +144,48 @@ export function apiUrl(path: string): string {
   return API_BASE ? `${API_BASE}${normalized}` : normalized;
 }
 
-export async function fetchSession(): Promise<SessionPayload> {
-  try {
-    const res = await fetchApi(apiUrl("/api/auth/session"), {
-      method: "GET",
-      cache: "no-store",
-      credentials: "include",
-    });
-    const body = await parseJson<SessionPayload>(res);
-    if (!res.ok || typeof body?.authenticated !== "boolean") {
-      return { authenticated: false, hasUsers: true, authMode: "access" };
-    }
-    return body;
-  } catch {
-    return { authenticated: false, hasUsers: true, authMode: "access" };
+function isSessionPayload(value: unknown): value is SessionPayload {
+  if (!value || typeof value !== "object") return false;
+
+  const session = value as Partial<SessionPayload>;
+  if (typeof session.authenticated !== "boolean" || typeof session.hasUsers !== "boolean") {
+    return false;
   }
+  if (
+    session.authMode !== undefined &&
+    session.authMode !== "access" &&
+    session.authMode !== "app"
+  ) {
+    return false;
+  }
+  if (!session.authenticated) return true;
+
+  return Boolean(
+    session.user &&
+    typeof session.user.email === "string" &&
+    (session.user.role === "admin" || session.user.role === "viewer"),
+  );
+}
+
+export async function fetchSession(): Promise<SessionPayload> {
+  const res = await fetchApi(apiUrl("/api/auth/session"), {
+    method: "GET",
+    cache: "no-store",
+    credentials: "include",
+  });
+  const body = await parseJson<unknown>(res);
+
+  // Only a successful, schema-valid response may make an authentication
+  // decision. Network failures, timeouts, edge/JWKS 5xx responses and invalid
+  // JSON are availability failures, not evidence that the user signed out.
+  if (!res.ok) {
+    throw new Error(`Session verification failed with status ${res.status}.`);
+  }
+  if (!isSessionPayload(body)) {
+    throw new Error("Session verification returned an invalid response.");
+  }
+
+  return body;
 }
 
 export async function fetchAdminData(): Promise<{

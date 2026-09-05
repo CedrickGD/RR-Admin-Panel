@@ -77,9 +77,9 @@ function cookie(request: Request): string {
 function setCookie(value: string, maxAge = LOGIN_SECONDS): string {
   return `${ACCOUNT_COOKIE}=${value}; HttpOnly; Secure; SameSite=Lax; Path=/api/discord; Max-Age=${maxAge}`;
 }
-function noStore(response: Response): Response {
+function noStore(response: Response, referrerPolicy = "no-referrer"): Response {
   response.headers.set("Cache-Control", "no-store");
-  response.headers.set("Referrer-Policy", "no-referrer");
+  response.headers.set("Referrer-Policy", referrerPolicy);
   return response;
 }
 export function accountProfile(account: CustomerAccount, admin = false) {
@@ -313,11 +313,13 @@ export async function accountAuthorize(context: {
           "Content-Type": "text/html; charset=utf-8",
           "Set-Cookie": setCookie(nonce),
           "Content-Security-Policy":
-            "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
+            "default-src 'none'; style-src 'unsafe-inline'; form-action 'self' https://discord.com; frame-ancestors 'none'; base-uri 'none'",
         },
       },
     );
-    return noStore(response);
+    // A no-referrer HTML form submits Origin: null, breaking the same-origin CSRF check.
+    // Keep the origin for this local POST without leaking the request URL to Discord.
+    return noStore(response, "same-origin");
   }
   const nonce = cookie(request);
   if (

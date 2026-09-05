@@ -81,6 +81,10 @@ async function beginBrowser() {
     userCode: string;
   };
   const landing = await accountAuthorize({ env, request: new Request(start.verificationUrl) });
+  expect(landing.headers.get("referrer-policy")).toBe("same-origin");
+  expect(landing.headers.get("content-security-policy")).toContain(
+    "form-action 'self' https://discord.com;",
+  );
   const cookie = landing.headers.get("set-cookie")!.split(";")[0];
   const nonce = cookie.split("=")[1];
   const redirect = await accountAuthorize({

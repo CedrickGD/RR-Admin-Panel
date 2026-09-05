@@ -14,6 +14,8 @@ describe("NAS admin deployment", () => {
     expect(dockerfile).toContain("RUN npx vite build");
     expect(dockerfile).toContain("FROM caddy:2-alpine AS runtime");
     expect(dockerfile).toContain("COPY --from=build /repo/dist /srv/admin");
+    expect(dockerfile).toContain("COPY shared ./shared");
+    expect(repoFile("deploy/nas/admin/Dockerfile.dockerignore")).not.toMatch(/^shared\/?$/m);
   });
 
   it("keeps APIs same-origin and forwards Access and CSRF identity headers", () => {

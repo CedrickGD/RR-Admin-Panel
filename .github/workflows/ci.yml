@@ -29,3 +29,5 @@ jobs:
       - run: npm run build
         working-directory: deploy/nas/rr-api
       - run: node --check backend-worker/index.js
+      - name: Build NAS admin image
+        run: docker build -f deploy/nas/admin/Dockerfile -t rr-admin-ci .

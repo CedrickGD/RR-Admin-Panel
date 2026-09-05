@@ -17,7 +17,6 @@ backend-worker
 docs
 functions
 plans
-shared
 tests
 tools
 README.md

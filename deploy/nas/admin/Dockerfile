@@ -7,6 +7,7 @@ RUN npm ci --no-audit --no-fund
 
 COPY public ./public
 COPY src ./src
+COPY shared ./shared
 COPY vite.config.ts ./vite.config.ts
 RUN npx vite build
 

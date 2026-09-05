@@ -37,6 +37,8 @@ export function CustomerWorkspaceRouter({ user }: { user: AuthUser }) {
     const url = new URL(location.href);
     url.searchParams.delete("customer");
     url.searchParams.delete("customerBy");
+    url.searchParams.delete("customerTab");
+    url.searchParams.delete("customerReturn");
     history.replaceState(null, "", url);
     setAnchor(null);
   }

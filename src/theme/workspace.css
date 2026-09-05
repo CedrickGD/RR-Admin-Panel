@@ -1557,31 +1557,31 @@ button:disabled {
 html[data-background="image"] .settings-controls,
 html[data-background="aurora"] .settings-controls {
   padding: 24px;
-  background: var(--surface-1);
+  background: var(--workspace-surface);
   border: 1px solid var(--line);
   border-radius: 14px;
 }
 html[data-background="image"] .page-header,
 html[data-background="aurora"] .page-header {
   padding: 18px 22px;
-  background: var(--surface-1) !important;
+  background: var(--workspace-surface) !important;
   border: 1px solid var(--line);
   border-radius: 12px;
 }
 html[data-background="image"] .workspace-tabs,
 html[data-background="aurora"] .workspace-tabs {
   padding: 0 18px;
-  background: var(--surface-1);
+  background: transparent;
   border-radius: 10px 10px 0 0;
 }
 html[data-background="image"] .team-summary,
 html[data-background="aurora"] .team-summary {
-  background: var(--surface-1);
+  background: transparent;
   padding: 14px 20px;
   border-radius: 10px;
 }
 html[data-background="image"] .settings-caption {
-  background: var(--surface-1);
+  background: transparent;
   padding: 10px;
   border-radius: 8px;
 }

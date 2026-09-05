@@ -23,6 +23,7 @@ import { EmptyState } from "../components/ds/EmptyState";
 import { Modal } from "../components/ds/Modal";
 import { StatusBadge } from "../components/StatusBadge";
 import { PageHeader } from "../components/ds/PageHeader";
+import { CustomerReturnLink } from "../components/CustomerReturnLink";
 import { useWorkspaceSearch } from "../hooks/useWorkspaceSearch";
 import { timeAgo, formatDate } from "../utils/format";
 import {
@@ -860,6 +861,7 @@ export function LicensesPage({
 
   return (
     <div className="page-content page-stack-lg">
+      <CustomerReturnLink />
       <PageHeader
         kicker="Access"
         title="Licenses & orders"

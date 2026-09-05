@@ -20,6 +20,9 @@ const AccessPage = lazy(() =>
 const TeamPage = lazy(() =>
   import("./pages/TeamPage").then((module) => ({ default: module.TeamPage })),
 );
+const SystemStatusPage = lazy(() =>
+  import("./pages/SystemStatusPage").then((module) => ({ default: module.SystemStatusPage })),
+);
 const AnnouncementsPage = lazy(() =>
   import("./pages/AnnouncementsPage").then((module) => ({ default: module.AnnouncementsPage })),
 );
@@ -95,6 +98,7 @@ const PAGE_KEYS: readonly PageKey[] = [
   "access",
   "feedback",
   "announcements",
+  "system",
   "settings",
 ];
 const LAST_PAGE_STORAGE_KEY = "rr:last-page";
@@ -366,7 +370,11 @@ export default function App() {
               </div>
             ) : null}
 
-            {summary && health && canVisit(page, user) ? (
+            {page === "system" && canVisit(page, user) ? (
+              <Suspense fallback={<div className="page-content">Loading backend status…</div>}>
+                <SystemStatusPage />
+              </Suspense>
+            ) : summary && health && canVisit(page, user) ? (
               <div key={`${page}:${JSON.stringify(user.permissions)}`} className="page-enter">
                 <Suspense
                   fallback={

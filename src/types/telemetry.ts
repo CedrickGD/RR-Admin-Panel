@@ -2,6 +2,7 @@ export type TelemetryStatus = "ok" | "degraded" | "down";
 export type AuthMode = "app" | "access";
 export type ThemeMode = "dark" | "light";
 export type PageKey =
+  | "system"
   | "team"
   | "overview"
   | "traffic"

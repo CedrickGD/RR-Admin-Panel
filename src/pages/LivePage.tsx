@@ -1,4 +1,5 @@
 import { TableFrame, RecordCell } from "../components/ds/TableFrame";
+import { LiveStatusDot } from "../components/LiveStatusDot";
 import { useWorkspaceSearch } from "../hooks/useWorkspaceSearch";
 import { CustomerAvatar, useCustomerProfiles } from "../components/CustomerProfiles";
 import {
@@ -359,21 +360,19 @@ export function LivePage({
                     <td>{resolveSessionDuration(session)}</td>
                     <td>{displayLocation(session)}</td>
                     <td>
-                      <RecordCell
-                        primary={
-                          <span className="live-online-status">
-                            <i className="live-online-dot" aria-hidden="true" />
-                            Online
-                          </span>
-                        }
-                        secondary={
-                          session.errorCount
-                            ? session.errorCount + " errors"
-                            : session.rpcEnabled
-                              ? "Discord RPC on"
-                              : "No errors"
-                        }
-                      />
+                      <div className="live-session-status">
+                        <LiveStatusDot />
+                        <RecordCell
+                          primary="Online"
+                          secondary={
+                            session.errorCount
+                              ? session.errorCount + " errors"
+                              : session.rpcEnabled
+                                ? "Discord RPC on"
+                                : "No errors"
+                          }
+                        />
+                      </div>
                     </td>
                     <td>
                       <div className="row-actions">

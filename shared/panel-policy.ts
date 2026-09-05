@@ -70,6 +70,7 @@ export const PAGE_PERMISSION: Record<string, Permission | "team.manage" | null> 
   feedback: "support.read",
   announcements: "announcements.read",
   team: "team.manage",
+  system: "monitoring.read",
   settings: null,
 };
 export function canVisit(

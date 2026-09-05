@@ -20,6 +20,7 @@ import {
   Radio,
   Search,
   Settings2,
+  Server,
   ShieldCheck,
   Sun,
   UsersRound,
@@ -83,6 +84,7 @@ const GROUPS: Array<{
     icon: <ShieldCheck />,
     items: [
       ["team", "Panel access", <ShieldCheck />],
+      ["system", "Backend status", <Server />],
       ["settings", "Settings", <Settings2 />],
     ],
   },
@@ -98,7 +100,7 @@ export interface NavbarProps {
   refreshing?: boolean;
   onLogout: () => void;
 }
-export function Navbar({ page, onNavigate, user, health, onLogout }: NavbarProps) {
+export function Navbar({ page, onNavigate, user, onLogout }: NavbarProps) {
   useChartColors();
   const [mobile, setMobile] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
@@ -207,10 +209,6 @@ export function Navbar({ page, onNavigate, user, health, onLogout }: NavbarProps
           })}
         </nav>
         <div className="sb-foot">
-          <span className="workspace-status">
-            <i className={health?.api === "alive" ? "online" : ""} />
-            {health?.api === "alive" ? "All systems connected" : "Connecting…"}
-          </span>
           <div className="account-row">
             <span className="account-avatar">{user.email.slice(0, 1).toUpperCase()}</span>
             <span className="account-text">

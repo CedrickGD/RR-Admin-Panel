@@ -1,5 +1,6 @@
 import {
   Activity,
+  ArrowLeft,
   AlertTriangle,
   Clipboard,
   KeyRound,
@@ -39,6 +40,7 @@ import { CustomerAvatar, useCustomerProfiles } from "./CustomerProfiles";
 import { resolveCountry } from "../utils/geography";
 import { setWorkspaceSearch } from "../hooks/useWorkspaceSearch";
 import { CustomerAccessDialog } from "./CustomerAccessDialog";
+import { customerActionUrl, navigateCustomerUrl } from "../utils/customerNavigation";
 
 export interface Customer360Anchor {
   selector: Customer360Selector;
@@ -195,7 +197,10 @@ function RecordDetails({ record }: { record: object }) {
   return (
     <dl className="customer360-record-fields">
       {Object.entries(record).map(([key, value]) => (
-        <div key={key}>
+        <div
+          key={key}
+          className={displayValue(value).length > 160 ? "customer360-field-wide" : undefined}
+        >
           <dt>{humanKey(key)}</dt>
           <dd
             className={key.includes("id") || key.includes("key") ? "customer360-mono" : undefined}
@@ -737,7 +742,10 @@ export function Customer360View({
   });
 
   useEffect(() => {
-    if (open) setActiveTab("summary");
+    if (open) {
+      const saved = new URLSearchParams(location.search).get("customerTab");
+      setActiveTab(visibleTabs.find((tab) => tab.key === saved)?.key ?? "summary");
+    }
   }, [open, selector, value]);
 
   function onTabKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
@@ -771,8 +779,10 @@ export function Customer360View({
         <div className="customer360-identity-main">
           {accountProfile && (
             <>
-              <CustomerAvatar profile={accountProfile} label={accountProfile.displayName} />
-              <strong>{accountProfile.displayName}</strong>
+              {!embedded && (
+                <CustomerAvatar profile={accountProfile} label={accountProfile.displayName} />
+              )}
+              {!embedded && <strong>{accountProfile.displayName}</strong>}
               <span title="Verified account link">@{accountProfile.discordUsername}</span>
             </>
           )}
@@ -904,12 +914,12 @@ export function Customer360View({
     </div>
   );
 
-  function openCustomerAction(page: "licenses" | "access") {
+  function openCustomerAction() {
     const value = customer?.anchor.hwid ?? customer?.anchor.identity ?? "";
-    if (page === "licenses") setWorkspaceSearch("licenses", value);
-    else sessionStorage.setItem("rr:access-search", value);
+    setWorkspaceSearch("licenses", value);
+    const destination = customerActionUrl(new URL(location.href), activeTab);
     onClose();
-    window.location.hash = `#/${page}`;
+    navigateCustomerUrl(destination);
   }
   if (embedded)
     return (
@@ -927,21 +937,24 @@ export function Customer360View({
       >
         <PanelBackground />
         <header className="customer-workspace-head">
-          <div>
-            <h1 tabIndex={-1}>
-              {accountProfile?.displayName ?? titleFor(customer, session, anchor)}
-            </h1>
-            <p>Customer workspace · 360</p>
+          <Button className="customer-back" icon={<ArrowLeft />} onClick={onClose}>
+            Back to workspace
+          </Button>
+          <div className="customer-heading-identity">
+            {accountProfile && (
+              <CustomerAvatar profile={accountProfile} label={accountProfile.displayName} />
+            )}
+            <div>
+              <h1 tabIndex={-1}>
+                {accountProfile?.displayName ?? titleFor(customer, session, anchor)}
+              </h1>
+              <p>Customer workspace · 360</p>
+            </div>
           </div>
-          <Button onClick={onClose}>Back to workspace</Button>
         </header>
         {customer && (
           <div className="customer-action-bar">
-            <Button
-              permission="licenses.read"
-              icon={<KeyRound />}
-              onClick={() => openCustomerAction("licenses")}
-            >
+            <Button permission="licenses.read" icon={<KeyRound />} onClick={openCustomerAction}>
               Manage licenses
             </Button>
             <Button

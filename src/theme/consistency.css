@@ -22,16 +22,14 @@ html[data-theme] .status-dot {
   background: var(--accent);
   box-shadow: none;
 }
-.live-online-status {
-  display: inline-flex;
+.live-session-status {
+  display: flex;
   align-items: center;
-  vertical-align: middle;
-  line-height: 1;
-  gap: 6px;
-  --live-online-color: #22c55e;
+  gap: 9px;
+  --live-online-color: #20b657;
 }
-html[data-theme="light"] .live-online-status {
-  --live-online-color: #16803c;
+html[data-theme="light"] .live-session-status {
+  --live-online-color: #157938;
 }
 .live-online-dot {
   position: relative;
@@ -429,13 +427,10 @@ html[data-theme] .license-table td:first-child .record-primary {
   white-space: nowrap;
 }
 html[data-theme] .record-table td:has(> .row-actions) {
-  position: sticky;
-  right: 0;
-  background: var(--surface-1);
-  z-index: 1;
+  background: transparent;
 }
 html[data-theme] .record-table tr:hover > td:has(> .row-actions) {
-  background: var(--surface-2);
+  background: transparent;
 }
 html[data-theme] .record-table .row-created > td:has(> .row-actions) {
   background: color-mix(in srgb, var(--accent) 12%, var(--surface-1));
@@ -466,13 +461,10 @@ html[data-theme] .feedback-card .badge {
   color: var(--text-3);
 }
 html[data-theme] .record-table td:has(> .btn-icon) {
-  position: sticky;
-  right: 0;
-  background: var(--surface-1);
-  z-index: 1;
+  background: transparent;
 }
 html[data-theme] .record-table tr:hover > td:has(> .btn-icon) {
-  background: var(--surface-2);
+  background: transparent;
 }
 
 /* Distinct neutral surfaces and readable secondary text in both themes. */
@@ -685,7 +677,7 @@ html[data-theme] .customer360-copy {
   line-height: 1.6;
 }
 html[data-theme] .customer360-info-grid {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
   gap: 8px;
   padding: 6px;
 }
@@ -785,8 +777,8 @@ html[data-theme] :is(.btn, .btn-icon, .gdrop-trigger, .filter-pill):hover:not(:d
   color: var(--accent-text);
   box-shadow: none;
 }
-html[data-theme] .record-table > tbody > tr:hover > td {
-  background: var(--workspace-hover);
+html[data-theme] :is(.record-table, .clean-table, .monitor-table) > tbody > tr:hover > td {
+  background: transparent;
 }
 html[data-theme] .record-table .history-expanded > td {
   background: transparent !important;
@@ -826,5 +818,268 @@ html[data-theme] .empty-ring {
 @media (max-width: 900px) {
   .customer-workspace > .panel-background {
     inset: 60px 0 0;
+  }
+}
+
+/* Embedded surfaces share the page background instead of stacking gray fills. */
+html[data-theme]
+  :is(.panel, .glass, .monitor-surface, .stat-card, .monitor-metric, .customer360-card) {
+  background: var(--workspace-surface);
+}
+html[data-theme]
+  :is(
+    .customer360-metrics > div,
+    .customer360-record,
+    .customer360-record[open] > summary,
+    .customer360-feedback,
+    .customer360-json,
+    .license-lookup-card,
+    .license-lookup-results,
+    .license-workflow-success > code,
+    .user-detail,
+    .row-detail,
+    .glass-inset,
+    .live-record-detail,
+    .history-detail,
+    .detail-grid,
+    .detail-facts
+  ) {
+  background: transparent;
+  box-shadow: none;
+}
+html[data-theme] :is(.data-table, .clean-table, .monitor-table) :is(thead, thead tr) {
+  background: transparent;
+}
+html[data-theme] :is(.data-table, .clean-table, .monitor-table) tbody > tr > td:has(> .row-actions),
+html[data-theme] .record-table tbody > tr > td:has(> .btn-icon) {
+  position: static;
+  background: transparent;
+}
+html[data-theme]
+  :is(
+    .monitor-scopes button,
+    .workspace-tabs button,
+    .customer360-tabs button,
+    .sb-item,
+    .person-cell,
+    .sort-th,
+    .team-tab,
+    .seg-btn
+  ):hover:not(:disabled) {
+  background: transparent;
+  color: var(--accent-text);
+  box-shadow: none;
+}
+html[data-theme] .customer360-tabs button.active {
+  background: transparent;
+}
+
+/* Customer content must shrink within the workspace, including long error records. */
+.customer-workspace .customer360-shell {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+}
+.customer360-shell {
+  grid-template-columns: minmax(0, 1fr);
+}
+.customer-workspace-head {
+  display: grid;
+  justify-items: start;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+.customer-workspace-head .customer-back {
+  margin-left: 0;
+}
+.customer-heading-identity {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  max-width: 100%;
+}
+.customer-heading-identity > div {
+  min-width: 0;
+}
+.customer-heading-identity .person-avatar {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+}
+.customer-workspace-head h1 {
+  overflow-wrap: anywhere;
+  line-height: 1.3;
+}
+.customer-action-bar {
+  margin-bottom: 8px;
+}
+html[data-theme] .customer-action-bar .btn {
+  font-size: 13px;
+}
+.customer360-identity-main {
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  line-height: 1.5;
+}
+html[data-theme] .customer360-identity-main :is(span, strong, .badge) {
+  font-size: 13px;
+  line-height: 1.5;
+}
+.customer360-identity-main > span:last-child {
+  flex: 0 1 auto;
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+}
+.customer360-identity-main .badge {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.customer-workspace .customer360-content {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 18px 0;
+}
+.customer360-content
+  :is(
+    .customer360-stack,
+    .customer360-two-col,
+    .customer360-three-col,
+    .customer360-card,
+    .customer360-record-list,
+    .customer360-record,
+    .customer360-feedback-list,
+    .customer360-feedback,
+    .customer360-record-fields,
+    .customer360-card-title,
+    .customer360-check,
+    .customer360-callout,
+    .customer-advanced
+  ) {
+  min-width: 0;
+  max-width: 100%;
+}
+html[data-theme] .customer360-card-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr));
+}
+html[data-theme] .customer360-record-fields {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+}
+.customer360-record-fields > .customer360-field-wide {
+  grid-column: 1 / -1;
+}
+html[data-theme] .customer360-record-fields dt {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+}
+.customer360-record > summary > span:first-child {
+  flex: 1;
+}
+.customer360-record > summary > .badge {
+  flex: none;
+}
+html[data-theme] .customer360-record > summary :is(strong, small) {
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+  font-size: 13px;
+}
+.customer360-content :is(p, pre, dd, dt, strong, small, summary, code) {
+  overflow-wrap: anywhere;
+}
+html[data-theme] .customer360-mono {
+  font-size: 12px !important;
+  line-height: 1.6;
+}
+.customer360-section-heading {
+  flex-wrap: wrap;
+}
+.customer360-section-heading h3 {
+  font-size: 15px;
+}
+html[data-theme] .customer360-metrics span {
+  font-size: 12px;
+  line-height: 1.5;
+}
+.customer-workspace .customer360-tabs {
+  flex-wrap: wrap;
+  gap: 0 22px;
+}
+html[data-theme] .customer360-tabs button {
+  font-size: 13px;
+}
+.customer-return-link {
+  margin-bottom: -8px;
+}
+.system-checks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 16px;
+}
+.system-check {
+  padding: 20px;
+  min-width: 0;
+}
+.system-check-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.system-check-title svg {
+  width: 20px;
+  height: 20px;
+  color: var(--accent-text);
+}
+.system-check-title h2 {
+  font-size: 15px;
+  margin: 0;
+}
+.system-check-state {
+  display: block;
+  font-size: 20px;
+  font-weight: 600;
+}
+.system-check-state.is-ok {
+  color: var(--accent-text);
+}
+.system-check p,
+.system-check-note {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-2);
+  margin: 8px 0 0;
+}
+.system-check-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 20px;
+  margin: 0;
+}
+.system-check-details > div {
+  min-width: 0;
+}
+.system-check-details dt {
+  font-size: 12px;
+  color: var(--text-3);
+  margin-bottom: 5px;
+}
+.system-check-details dd {
+  margin: 0;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 600px) {
+  .customer-workspace .customer360-tabs button span {
+    display: inline;
+  }
+  .customer360-card {
+    padding: 16px;
   }
 }

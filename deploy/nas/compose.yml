@@ -46,6 +46,7 @@ services:
   # Tunnel hostname api.<domain> -> http://rr-api:8787 (no host port; reachable only via the tunnel).
   rr-api:
     image: razorreaper-rr-api:release-hardening-20260831
+    pull_policy: build
     build:
       context: ../..
       dockerfile: deploy/nas/rr-api/Dockerfile
@@ -64,6 +65,7 @@ services:
   # admin.<domain>; Caddy forwards its JWT and browser Origin/Host to rr-api.
   admin:
     image: razorreaper-admin:release-hardening-20260831
+    pull_policy: build
     build:
       context: ../..
       dockerfile: deploy/nas/admin/Dockerfile

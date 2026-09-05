@@ -1,0 +1,8 @@
+.kpi-modal.feedback-reply-modal {
+  backdrop-filter: blur(18px) !important;
+  background: color-mix(in srgb, var(--bg) 90%, transparent) !important;
+}
+.feedback-reply-modal textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

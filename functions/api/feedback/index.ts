@@ -3,6 +3,7 @@ import { error, json, nowIso } from "../../_lib/http";
 import { internalError } from "../../_lib/responses";
 import { parseJsonObject, requireInstallAuth } from "../../_lib/install-auth";
 import { enforceRateLimit } from "../../_lib/ratelimit";
+import { ensureFeedbackReplies, saveFeedbackRecipient } from "../../_lib/feedback-replies";
 import {
   ensureFeedbackDiagnosticsSchema,
   fallbackFeedbackReportId,
@@ -75,6 +76,7 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
 
   try {
     await ensureFeedbackSchema(context.env);
+    if (auth.installId) await ensureFeedbackReplies(context.env);
 
     const createdAt = nowIso();
     const insert = await db
@@ -102,6 +104,15 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
     }
     const reportId = fallbackFeedbackReportId(feedbackId);
     const authMode = auth.installId ? "signed" : "legacy_unsigned";
+
+    if (auth.installId) {
+      try {
+        await saveFeedbackRecipient(db, feedbackId, auth.installId);
+      } catch (recipientError) {
+        await db.prepare(`DELETE FROM feedback WHERE id = ?`).bind(feedbackId).run();
+        throw recipientError;
+      }
+    }
 
     if (diagnosticsResult.value) {
       try {

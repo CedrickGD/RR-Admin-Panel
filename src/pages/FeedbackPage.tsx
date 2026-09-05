@@ -13,6 +13,7 @@ import { apiUrl, fetchApi } from "../utils/api";
 import { useRefreshSignal } from "../utils/refreshBus";
 import { navigateCustomerUrl } from "../utils/customerNavigation";
 import { usePanelPermission } from "../hooks/usePanelPermission";
+import { FeedbackReplies } from "../components/FeedbackReplies";
 
 type FeedbackStatus = "new" | "read" | "archived";
 
@@ -69,6 +70,7 @@ export function FeedbackPage({ summary, filterBar }: FeedbackPageProps) {
   const [tab, setTab] = useState<"all" | FeedbackStatus>("all");
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [deleteCandidate, setDeleteCandidate] = useState<FeedbackRecord | null>(null);
+  const [replyCandidate, setReplyCandidate] = useState<FeedbackRecord | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const requestVersion = useRef(0);
   const fetching = useRef(false);
@@ -288,6 +290,13 @@ export function FeedbackPage({ summary, filterBar }: FeedbackPageProps) {
                       </span>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                      <Button
+                        variant="ghost"
+                        icon={<MessageSquare size={16} />}
+                        onClick={() => setReplyCandidate(f)}
+                      >
+                        Replies
+                      </Button>
                       {f.status !== "read" ? (
                         <IconButton
                           icon={<Check />}
@@ -419,6 +428,13 @@ export function FeedbackPage({ summary, filterBar }: FeedbackPageProps) {
         )}
       </section>
 
+      {replyCandidate && (
+        <FeedbackReplies
+          key={replyCandidate.id}
+          report={replyCandidate}
+          onClose={() => setReplyCandidate(null)}
+        />
+      )}
       <Modal
         open={!!deleteCandidate}
         onClose={() => setDeleteCandidate(null)}

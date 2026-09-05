@@ -1,3 +1,4 @@
+import { TableFrame } from "../components/ds/TableFrame";
 import {
   AlertTriangle,
   ArrowDown,
@@ -585,334 +586,328 @@ export function ErrorsPage() {
       >
         {view === "users" ? (
           rows === null || rows.length > 0 ? (
-            <div className="data-table-wrap">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>User</th>
-                    <th className="col-lg">Discord</th>
-                    <th>Version</th>
-                    <th className="col-lg">Platform</th>
-                    <th className="col-md">Location</th>
-                    <SortableTh
-                      label="Errors"
-                      sortKey="errors"
-                      activeKey={sortKey}
-                      dir={sortDir}
-                      onSort={handleSort}
-                    />
-                    <th>Top Type</th>
-                    <SortableTh
-                      label="First Error"
-                      sortKey="firstError"
-                      activeKey={sortKey}
-                      dir={sortDir}
-                      onSort={handleSort}
-                      className="col-xl"
-                    />
-                    <SortableTh
-                      label="Last Error"
-                      sortKey="lastError"
-                      activeKey={sortKey}
-                      dir={sortDir}
-                      onSort={handleSort}
-                    />
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody
-                  key={rows === null ? "loading" : "loaded"}
-                  className={rows === null ? undefined : "dt-settle"}
-                >
-                  {rows === null ? (
-                    <SkeletonRows />
-                  ) : (
-                    rows.map((user) => {
-                      const isExpanded = expandedUsers.includes(user.identity);
-                      const top = topType(user);
-                      const showAll = showAllEvents.has(user.identity);
-                      const events = showAll
-                        ? user.visibleEvents
-                        : user.visibleEvents.slice(0, EVENTS_PREVIEW_COUNT);
-                      const hiddenBeyondCap = user.visibleCount - user.visibleEvents.length;
+            <TableFrame>
+              <thead>
+                <tr>
+                  <th>User</th>
+                  <th className="col-lg">Discord</th>
+                  <th>Version</th>
+                  <th className="col-lg">Platform</th>
+                  <th className="col-md">Location</th>
+                  <SortableTh
+                    label="Errors"
+                    sortKey="errors"
+                    activeKey={sortKey}
+                    dir={sortDir}
+                    onSort={handleSort}
+                  />
+                  <th>Top Type</th>
+                  <SortableTh
+                    label="First Error"
+                    sortKey="firstError"
+                    activeKey={sortKey}
+                    dir={sortDir}
+                    onSort={handleSort}
+                    className="col-xl"
+                  />
+                  <SortableTh
+                    label="Last Error"
+                    sortKey="lastError"
+                    activeKey={sortKey}
+                    dir={sortDir}
+                    onSort={handleSort}
+                  />
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody
+                key={rows === null ? "loading" : "loaded"}
+                className={rows === null ? undefined : "dt-settle"}
+              >
+                {rows === null ? (
+                  <SkeletonRows />
+                ) : (
+                  rows.map((user) => {
+                    const isExpanded = expandedUsers.includes(user.identity);
+                    const top = topType(user);
+                    const showAll = showAllEvents.has(user.identity);
+                    const events = showAll
+                      ? user.visibleEvents
+                      : user.visibleEvents.slice(0, EVENTS_PREVIEW_COUNT);
+                    const hiddenBeyondCap = user.visibleCount - user.visibleEvents.length;
 
-                      return (
-                        <Fragment key={user.identity}>
-                          <tr
-                            className={isExpanded ? "row-expanded" : ""}
-                            onClick={() => toggleUser(user.identity)}
-                            style={{ cursor: "pointer" }}
-                          >
-                            <td style={{ whiteSpace: "nowrap" }}>
-                              <span
-                                style={{
-                                  fontFamily: "var(--font-display)",
-                                  fontWeight: 600,
-                                  fontSize: "0.8125rem",
-                                  marginRight: 6,
-                                }}
-                              >
-                                {displayName(user)}
-                              </span>
-                              {!isUnattributed(user) ? (
-                                <>
-                                  {user.licenseTier === "premium" ? (
-                                    <span
-                                      style={{
-                                        fontSize: "0.625rem",
-                                        padding: "2px 6px",
-                                        borderRadius: "4px",
-                                        background: "var(--accent-subtle)",
-                                        color: "var(--accent-text)",
-                                        fontWeight: 700,
-                                        letterSpacing: "0.05em",
-                                        verticalAlign: "middle",
-                                      }}
-                                    >
-                                      PREMIUM
-                                    </span>
-                                  ) : (
-                                    <span
-                                      style={{
-                                        fontSize: "0.625rem",
-                                        padding: "2px 6px",
-                                        borderRadius: "4px",
-                                        background: "var(--bg-subtle)",
-                                        color: "var(--text-muted)",
-                                        fontWeight: 700,
-                                        letterSpacing: "0.05em",
-                                        verticalAlign: "middle",
-                                      }}
-                                    >
-                                      FREE
-                                    </span>
-                                  )}
+                    return (
+                      <Fragment key={user.identity}>
+                        <tr
+                          className={isExpanded ? "row-expanded" : ""}
+                          onClick={() => toggleUser(user.identity)}
+                          style={{ cursor: "pointer" }}
+                        >
+                          <td style={{ whiteSpace: "nowrap" }}>
+                            <span
+                              style={{
+                                fontFamily: "var(--font-display)",
+                                fontWeight: 600,
+                                fontSize: "0.8125rem",
+                                marginRight: 6,
+                              }}
+                            >
+                              {displayName(user)}
+                            </span>
+                            {!isUnattributed(user) ? (
+                              <>
+                                {user.licenseTier === "premium" ? (
                                   <span
                                     style={{
-                                      fontFamily: "var(--font-mono)",
-                                      fontSize: "0.6875rem",
-                                      color: "var(--text-3)",
-                                      marginLeft: 8,
+                                      fontSize: "0.625rem",
+                                      padding: "2px 6px",
+                                      borderRadius: "4px",
+                                      background: "var(--accent-subtle)",
+                                      color: "var(--accent-text)",
+                                      fontWeight: 700,
+                                      letterSpacing: "0.05em",
+                                      verticalAlign: "middle",
                                     }}
                                   >
-                                    {user.identity.slice(0, 8)}
+                                    PREMIUM
                                   </span>
-                                </>
-                              ) : (
+                                ) : (
+                                  <span
+                                    style={{
+                                      fontSize: "0.625rem",
+                                      padding: "2px 6px",
+                                      borderRadius: "4px",
+                                      background: "var(--bg-subtle)",
+                                      color: "var(--text-muted)",
+                                      fontWeight: 700,
+                                      letterSpacing: "0.05em",
+                                      verticalAlign: "middle",
+                                    }}
+                                  >
+                                    FREE
+                                  </span>
+                                )}
+                                <span
+                                  style={{
+                                    fontFamily: "var(--font-mono)",
+                                    fontSize: "0.6875rem",
+                                    color: "var(--text-3)",
+                                    marginLeft: 8,
+                                  }}
+                                >
+                                  {user.identity.slice(0, 8)}
+                                </span>
+                              </>
+                            ) : (
+                              <span
+                                style={{ fontSize: "0.6875rem", color: "var(--text-3)" }}
+                                title="These events carried no install id or hwid"
+                              >
+                                no identity in payload
+                              </span>
+                            )}
+                          </td>
+                          <td
+                            className="col-lg"
+                            style={{
+                              whiteSpace: "nowrap",
+                              maxWidth: 160,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          >
+                            {user.discordUser?.trim() ? (
+                              <span
+                                style={{ fontSize: "0.71875rem", color: "var(--text-2)" }}
+                                title={`Discord: ${user.discordUser}`}
+                              >
+                                {discordHandle(user.discordUser)}
+                              </span>
+                            ) : (
+                              <span style={{ color: "var(--text-3)", opacity: 0.55 }}>—</span>
+                            )}
+                          </td>
+                          <td>
+                            <Badge tone="muted" title={user.appVersion ?? undefined}>
+                              {versionLabel(user.displayVersion ?? user.appVersion)}
+                            </Badge>
+                          </td>
+                          <td className="muted col-lg">{user.platform ?? "—"}</td>
+                          <td
+                            className="muted col-md"
+                            style={{
+                              whiteSpace: "nowrap",
+                              maxWidth: 150,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                            title={userLocation(user) || undefined}
+                          >
+                            {userLocation(user) || "—"}
+                          </td>
+                          <td>
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                              <Badge tone="danger">{formatNumber(user.visibleCount)}</Badge>
+                              {showBackground && user.backgroundCount > 0 ? (
                                 <span
                                   style={{ fontSize: "0.6875rem", color: "var(--text-3)" }}
-                                  title="These events carried no install id or hwid"
+                                  title="Background task errors included in the count"
                                 >
-                                  no identity in payload
+                                  {formatNumber(user.backgroundCount)} bg
                                 </span>
-                              )}
-                            </td>
-                            <td
-                              className="col-lg"
-                              style={{
-                                whiteSpace: "nowrap",
-                                maxWidth: 160,
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                              }}
-                            >
-                              {user.discordUser?.trim() ? (
-                                <span
-                                  style={{ fontSize: "0.71875rem", color: "var(--text-2)" }}
-                                  title={`Discord: ${user.discordUser}`}
-                                >
-                                  {discordHandle(user.discordUser)}
-                                </span>
-                              ) : (
-                                <span style={{ color: "var(--text-3)", opacity: 0.55 }}>—</span>
-                              )}
-                            </td>
-                            <td>
-                              <Badge tone="muted" title={user.appVersion ?? undefined}>
-                                {versionLabel(user.displayVersion ?? user.appVersion)}
-                              </Badge>
-                            </td>
-                            <td className="muted col-lg">{user.platform ?? "—"}</td>
-                            <td
-                              className="muted col-md"
-                              style={{
-                                whiteSpace: "nowrap",
-                                maxWidth: 150,
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                              }}
-                              title={userLocation(user) || undefined}
-                            >
-                              {userLocation(user) || "—"}
-                            </td>
-                            <td>
+                              ) : null}
+                            </span>
+                          </td>
+                          <td
+                            style={{
+                              whiteSpace: "nowrap",
+                              maxWidth: 200,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          >
+                            {top ? (
                               <span
-                                style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+                                className="mono"
+                                style={{ fontSize: "0.71875rem", color: "var(--text-2)" }}
+                                title={top.type}
                               >
-                                <Badge tone="danger">{formatNumber(user.visibleCount)}</Badge>
-                                {showBackground && user.backgroundCount > 0 ? (
-                                  <span
-                                    style={{ fontSize: "0.6875rem", color: "var(--text-3)" }}
-                                    title="Background task errors included in the count"
+                                {top.type}
+                                {top.more > 0 ? (
+                                  <span style={{ color: "var(--text-3)" }}> +{top.more}</span>
+                                ) : null}
+                              </span>
+                            ) : (
+                              <span className="muted">—</span>
+                            )}
+                          </td>
+                          <td
+                            className="muted col-xl"
+                            style={{ whiteSpace: "nowrap" }}
+                            title={formatDate(user.firstAt)}
+                          >
+                            {timeAgo(user.firstAt)}
+                          </td>
+                          <td
+                            className="muted"
+                            style={{ whiteSpace: "nowrap" }}
+                            title={formatDate(user.lastAt)}
+                          >
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                              {user.isActive ? (
+                                <span className="status-dot" title="User is online right now" />
+                              ) : null}
+                              {timeAgo(user.lastAt)}
+                            </span>
+                          </td>
+                          <td>
+                            <IconButton
+                              icon={isExpanded ? <ChevronUp /> : <ChevronDown />}
+                              style={{ padding: 4 }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleUser(user.identity);
+                              }}
+                              aria-label={isExpanded ? "Collapse" : "Expand"}
+                            />
+                          </td>
+                        </tr>
+
+                        {/* Detail stays mounted once opened; the grid-rows clip animates the fold smoothly. */}
+                        {expandedEverUsers.has(user.identity) ? (
+                          <tr className={isExpanded ? undefined : "row-expand-collapsed"}>
+                            <td
+                              colSpan={USER_COLUMN_COUNT}
+                              className="row-expand-panel row-expand-td"
+                            >
+                              <RowExpandClip open={isExpanded}>
+                                <div style={{ marginBottom: 14 }}>
+                                  <DetailGrid
+                                    items={[
+                                      { k: "Identity", v: user.identity },
+                                      { k: "Hardware ID", v: user.hwid ?? "—" },
+                                      { k: "Install ID", v: user.installId ?? "—" },
+                                      {
+                                        k: "Discord",
+                                        v: user.discordUser?.trim()
+                                          ? discordHandle(user.discordUser)
+                                          : "—",
+                                      },
+                                      { k: "Device Model", v: user.deviceModel ?? "—" },
+                                      { k: "OS Version", v: user.osVersion ?? "—" },
+                                      { k: "Timezone", v: user.timezone ?? "—" },
+                                      {
+                                        k: "App Version",
+                                        v: user.displayVersion ?? user.appVersion ?? "—",
+                                      },
+                                      {
+                                        k: "Last Seen",
+                                        v: user.lastSeen ? formatDate(user.lastSeen) : "—",
+                                      },
+                                      {
+                                        k: "Errors in Range",
+                                        v: `${formatNumber(user.errorCount)} real · ${formatNumber(user.backgroundCount)} background`,
+                                      },
+                                      { k: "First Error", v: formatDate(user.firstAt) },
+                                      { k: "Last Error", v: formatDate(user.lastAt) },
+                                    ]}
+                                  />
+                                </div>
+
+                                <p className="label-sm" style={{ marginBottom: 8 }}>
+                                  Errors ({formatNumber(user.visibleEvents.length)}
+                                  {hiddenBeyondCap > 0
+                                    ? ` of ${formatNumber(user.visibleCount)}`
+                                    : ""}
+                                  )
+                                </p>
+                                <div style={{ display: "grid", gap: 8 }}>
+                                  {events.map((event) => (
+                                    <ErrorEventCard key={event.id} event={event} />
+                                  ))}
+                                </div>
+                                {user.visibleEvents.length > EVENTS_PREVIEW_COUNT ? (
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      justifyContent: "center",
+                                      marginTop: 10,
+                                    }}
                                   >
-                                    {formatNumber(user.backgroundCount)} bg
-                                  </span>
+                                    <Button
+                                      size="sm"
+                                      onClick={() => toggleShowAllEvents(user.identity)}
+                                    >
+                                      {showAll
+                                        ? "Show fewer"
+                                        : `Show all ${formatNumber(user.visibleEvents.length)} errors`}
+                                    </Button>
+                                  </div>
                                 ) : null}
-                              </span>
-                            </td>
-                            <td
-                              style={{
-                                whiteSpace: "nowrap",
-                                maxWidth: 200,
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                              }}
-                            >
-                              {top ? (
-                                <span
-                                  className="mono"
-                                  style={{ fontSize: "0.71875rem", color: "var(--text-2)" }}
-                                  title={top.type}
-                                >
-                                  {top.type}
-                                  {top.more > 0 ? (
-                                    <span style={{ color: "var(--text-3)" }}> +{top.more}</span>
-                                  ) : null}
-                                </span>
-                              ) : (
-                                <span className="muted">—</span>
-                              )}
-                            </td>
-                            <td
-                              className="muted col-xl"
-                              style={{ whiteSpace: "nowrap" }}
-                              title={formatDate(user.firstAt)}
-                            >
-                              {timeAgo(user.firstAt)}
-                            </td>
-                            <td
-                              className="muted"
-                              style={{ whiteSpace: "nowrap" }}
-                              title={formatDate(user.lastAt)}
-                            >
-                              <span
-                                style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
-                              >
-                                {user.isActive ? (
-                                  <span className="status-dot" title="User is online right now" />
+                                {hiddenBeyondCap > 0 ? (
+                                  <p
+                                    style={{
+                                      fontSize: "0.71875rem",
+                                      color: "var(--text-3)",
+                                      marginTop: 10,
+                                    }}
+                                  >
+                                    Only the latest {formatNumber(user.visibleEvents.length)}{" "}
+                                    occurrences ship to the dashboard —{" "}
+                                    {formatNumber(hiddenBeyondCap)} older ones in this range are
+                                    counted but not listed.
+                                  </p>
                                 ) : null}
-                                {timeAgo(user.lastAt)}
-                              </span>
-                            </td>
-                            <td>
-                              <IconButton
-                                icon={isExpanded ? <ChevronUp /> : <ChevronDown />}
-                                style={{ padding: 4 }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  toggleUser(user.identity);
-                                }}
-                                aria-label={isExpanded ? "Collapse" : "Expand"}
-                              />
+                              </RowExpandClip>
                             </td>
                           </tr>
-
-                          {/* Detail stays mounted once opened; the grid-rows clip animates the fold smoothly. */}
-                          {expandedEverUsers.has(user.identity) ? (
-                            <tr className={isExpanded ? undefined : "row-expand-collapsed"}>
-                              <td
-                                colSpan={USER_COLUMN_COUNT}
-                                className="row-expand-panel row-expand-td"
-                              >
-                                <RowExpandClip open={isExpanded}>
-                                  <div style={{ marginBottom: 14 }}>
-                                    <DetailGrid
-                                      items={[
-                                        { k: "Identity", v: user.identity },
-                                        { k: "Hardware ID", v: user.hwid ?? "—" },
-                                        { k: "Install ID", v: user.installId ?? "—" },
-                                        {
-                                          k: "Discord",
-                                          v: user.discordUser?.trim()
-                                            ? discordHandle(user.discordUser)
-                                            : "—",
-                                        },
-                                        { k: "Device Model", v: user.deviceModel ?? "—" },
-                                        { k: "OS Version", v: user.osVersion ?? "—" },
-                                        { k: "Timezone", v: user.timezone ?? "—" },
-                                        {
-                                          k: "App Version",
-                                          v: user.displayVersion ?? user.appVersion ?? "—",
-                                        },
-                                        {
-                                          k: "Last Seen",
-                                          v: user.lastSeen ? formatDate(user.lastSeen) : "—",
-                                        },
-                                        {
-                                          k: "Errors in Range",
-                                          v: `${formatNumber(user.errorCount)} real · ${formatNumber(user.backgroundCount)} background`,
-                                        },
-                                        { k: "First Error", v: formatDate(user.firstAt) },
-                                        { k: "Last Error", v: formatDate(user.lastAt) },
-                                      ]}
-                                    />
-                                  </div>
-
-                                  <p className="label-sm" style={{ marginBottom: 8 }}>
-                                    Errors ({formatNumber(user.visibleEvents.length)}
-                                    {hiddenBeyondCap > 0
-                                      ? ` of ${formatNumber(user.visibleCount)}`
-                                      : ""}
-                                    )
-                                  </p>
-                                  <div style={{ display: "grid", gap: 8 }}>
-                                    {events.map((event) => (
-                                      <ErrorEventCard key={event.id} event={event} />
-                                    ))}
-                                  </div>
-                                  {user.visibleEvents.length > EVENTS_PREVIEW_COUNT ? (
-                                    <div
-                                      style={{
-                                        display: "flex",
-                                        justifyContent: "center",
-                                        marginTop: 10,
-                                      }}
-                                    >
-                                      <Button
-                                        size="sm"
-                                        onClick={() => toggleShowAllEvents(user.identity)}
-                                      >
-                                        {showAll
-                                          ? "Show fewer"
-                                          : `Show all ${formatNumber(user.visibleEvents.length)} errors`}
-                                      </Button>
-                                    </div>
-                                  ) : null}
-                                  {hiddenBeyondCap > 0 ? (
-                                    <p
-                                      style={{
-                                        fontSize: "0.71875rem",
-                                        color: "var(--text-3)",
-                                        marginTop: 10,
-                                      }}
-                                    >
-                                      Only the latest {formatNumber(user.visibleEvents.length)}{" "}
-                                      occurrences ship to the dashboard —{" "}
-                                      {formatNumber(hiddenBeyondCap)} older ones in this range are
-                                      counted but not listed.
-                                    </p>
-                                  ) : null}
-                                </RowExpandClip>
-                              </td>
-                            </tr>
-                          ) : null}
-                        </Fragment>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
+                        ) : null}
+                      </Fragment>
+                    );
+                  })
+                )}
+              </tbody>
+            </TableFrame>
           ) : query ? (
             <EmptyState icon={<Search />} title="No users match">
               No affected user matches “{query}”. Clear the search to see everyone with errors in

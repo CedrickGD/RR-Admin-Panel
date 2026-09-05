@@ -26,17 +26,14 @@ export function RadialGauge({ ratio, title, sub, size = 64 }: RadialGaugeProps) 
   return (
     <div className="gauge">
       <svg className="gauge-svg" width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        <defs>
-          {/* Vivid pink->orange->yellow ring ramp; app-glue's .gauge-fill
-              stroke references this id (ambience, not data encoding).
-              Duplicate ids across gauge instances resolve to the first. */}
-          <linearGradient id="gauge-vivid-ramp" x1="0" y1="1" x2="1" y2="0">
-            <stop offset="0%" stopColor="hsl(330 90% 58%)" />
-            <stop offset="55%" stopColor="hsl(25 95% 58%)" />
-            <stop offset="100%" stopColor="hsl(55 95% 60%)" />
-          </linearGradient>
-        </defs>
-        <circle className="gauge-track" cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={stroke} />
+        <circle
+          className="gauge-track"
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          strokeWidth={stroke}
+        />
         <circle
           className="gauge-fill"
           cx={size / 2}

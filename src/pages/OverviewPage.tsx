@@ -360,7 +360,6 @@ export function OverviewPage({ summary, stats, filterBar }: OverviewPageProps) {
                       zoom.resetZoom();
                     }}
                     title="Reset zoom"
-                    style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 8px" }}
                   >
                     <RotateCcw size={12} /> Reset
                   </button>

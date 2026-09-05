@@ -1,3 +1,4 @@
+import { TableFrame, RecordCell } from "../components/ds/TableFrame";
 import { Select } from "../components/ds/Select";
 import { useEffect, useState } from "react";
 import { Check, Clock3, LogOut, Plus, Search, ShieldCheck, UsersRound, X } from "lucide-react";
@@ -222,7 +223,7 @@ export function TeamPage() {
             </label>
           </div>
           <div className="table-scroll">
-            <table className="clean-table">
+            <TableFrame>
               <thead>
                 <tr>
                   <th>Member</th>
@@ -238,8 +239,10 @@ export function TeamPage() {
                   return (
                     <tr key={m.email}>
                       <td>
-                        <strong>{m.display_name || m.email.split("@")[0]}</strong>
-                        <small>{m.email}</small>
+                        <RecordCell
+                          primary={m.display_name || m.email.split("@")[0]}
+                          secondary={m.email}
+                        />
                       </td>
                       <td>{ROLE_LABELS[m.role]}</td>
                       <td>
@@ -274,7 +277,7 @@ export function TeamPage() {
                   );
                 })}
               </tbody>
-            </table>
+            </TableFrame>
           </div>
           {!shown.length && (
             <p className="empty-copy">{data ? "No matching members." : "Loading panel members…"}</p>
@@ -287,7 +290,7 @@ export function TeamPage() {
             <h2 className="section-title">Signed-in devices</h2>
           </div>
           <div className="table-scroll">
-            <table className="clean-table">
+            <TableFrame>
               <thead>
                 <tr>
                   <th>Member / browser</th>
@@ -300,10 +303,7 @@ export function TeamPage() {
                 {data?.sessions.map((s) => (
                   <tr key={s.id}>
                     <td>
-                      <strong>{s.email}</strong>
-                      <small className="session-agent" title={s.user_agent}>
-                        {s.user_agent}
-                      </small>
+                      <RecordCell primary={s.email} secondary={s.user_agent} />
                     </td>
                     <td>{displayDate(s.last_seen_at)}</td>
                     <td>{displayDate(s.expires_at)}</td>
@@ -320,7 +320,7 @@ export function TeamPage() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </TableFrame>
           </div>
           {data && !data.sessions.length && <p className="empty-copy">No active sessions.</p>}
         </section>
@@ -464,7 +464,7 @@ export function TeamPage() {
               the role applies again afterward.
             </p>
             <div className="table-scroll">
-              <table className="clean-table permission-table">
+              <TableFrame className="clean-table permission-table">
                 <thead>
                   <tr>
                     <th>Permission</th>
@@ -533,7 +533,7 @@ export function TeamPage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </TableFrame>
             </div>
             <div className="form-footer">
               <button

@@ -98,15 +98,26 @@ export interface NavbarProps {
 export function Navbar({ page, onNavigate, user, health, onLogout }: NavbarProps) {
   useChartColors();
   const [mobile, setMobile] = useState(false);
-  const [expanded, setExpanded] = useState(
-    () => GROUPS.find((g) => g.items.some(([key]) => key === page))?.label ?? "Customers",
-  );
+  const expansionKey = `rr:navigation:${user.email}`;
+  const [expanded, setExpanded] = useState<string[]>(() => {
+    try {
+      const saved: unknown = JSON.parse(localStorage.getItem(expansionKey) ?? "null");
+      if (Array.isArray(saved))
+        return saved.filter((label) => GROUPS.some((g) => g.label === label));
+    } catch {
+      /* Navigation still works when storage is unavailable. */
+    }
+    return [GROUPS.find((g) => g.items.some(([key]) => key === page))?.label ?? "Customers"];
+  });
   const [search, setSearch] = useState("");
   const { appearance, updateAppearance } = useAppearance();
   useEffect(() => {
-    const group = GROUPS.find((g) => g.items.some(([key]) => key === page));
-    if (group) setExpanded(group.label);
-  }, [page]);
+    try {
+      localStorage.setItem(expansionKey, JSON.stringify(expanded));
+    } catch {
+      /* Optional cache. */
+    }
+  }, [expanded, expansionKey]);
   function navigate(key: PageKey) {
     window.dispatchEvent(new Event("rr:close-customer"));
     onNavigate(key);
@@ -152,13 +163,19 @@ export function Navbar({ page, onNavigate, user, health, onLogout }: NavbarProps
           {GROUPS.map((group) => {
             const items = group.items.filter(([key]) => canVisit(key, user));
             if (!items.length) return null;
-            const open = expanded === group.label;
+            const open = expanded.includes(group.label);
             const active = items.some(([key]) => key === page);
             return (
               <div className="nav-section" key={group.label}>
                 <button
                   className={`sb-item nav-parent ${active ? "has-active" : ""}`}
-                  onClick={() => setExpanded(open ? "" : group.label)}
+                  onClick={() =>
+                    setExpanded((current) =>
+                      current.includes(group.label)
+                        ? current.filter((label) => label !== group.label)
+                        : [...current, group.label],
+                    )
+                  }
                   aria-expanded={open}
                 >
                   {group.icon}

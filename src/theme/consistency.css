@@ -1,0 +1,596 @@
+/* One control geometry and one workspace accent on every page. */
+html[data-theme] {
+  --ui-violet: var(--accent-text);
+  --ui-blue: var(--accent-text);
+  --ui-green: var(--accent-text);
+  --ui-amber: var(--accent-text);
+  --ui-rose: var(--accent-text);
+  --success: var(--accent);
+  --warning: var(--accent);
+  --danger: var(--accent);
+  --info: var(--accent);
+  --success-text: var(--accent-text);
+  --warning-text: var(--accent-text);
+  --danger-text: var(--accent-text);
+  --info-text: var(--accent-text);
+  --success-sub: var(--accent-subtle);
+  --warning-sub: var(--accent-subtle);
+  --danger-sub: var(--accent-subtle);
+  --info-sub: var(--accent-subtle);
+}
+html[data-theme]
+  :is(
+    .btn,
+    .btn-sm,
+    .btn-xs,
+    .btn-icon,
+    .seg-btn,
+    .workspace-tabs button,
+    .monitor-scopes button,
+    .gdrop-trigger,
+    .filter-pill,
+    .customer360-tab,
+    .map-style-btn
+  ) {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  height: auto;
+  padding: 7px 11px;
+  border: 1px solid var(--line-hi);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: normal;
+  box-shadow: none;
+}
+html[data-theme] .btn-icon {
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  padding: 7px;
+}
+html[data-theme] .gdrop-trigger {
+  justify-content: space-between;
+}
+html[data-theme] :is(.seg-control, .monitor-scopes, .workspace-tabs) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  overflow: visible;
+}
+html[data-theme] .workspace-tabs {
+  margin-bottom: 20px;
+}
+html[data-theme] :is(.workspace-tabs button, .customer360-tab)::after {
+  display: none;
+}
+html[data-theme]
+  :is(
+    .btn,
+    .btn-icon,
+    .seg-btn,
+    .workspace-tabs button,
+    .monitor-scopes button,
+    .gdrop-trigger,
+    .customer360-tab
+  ):hover:not(:disabled) {
+  color: var(--text-1);
+  background: var(--surface-3);
+  border-color: var(--accent);
+}
+html[data-theme]
+  :is(
+    .btn-accent-ghost,
+    .seg-btn.active,
+    .workspace-tabs button.active,
+    .monitor-scopes button.selected,
+    .customer360-tab.active,
+    .map-style-btn.active
+  ) {
+  color: var(--accent-text);
+  background: var(--accent-subtle);
+  border-color: color-mix(in srgb, var(--accent) 60%, var(--line));
+}
+html[data-theme] .btn-primary {
+  color: white;
+  background: hsl(var(--ah) 65% 43%);
+  border-color: hsl(var(--ah) 65% 43%);
+}
+html[data-theme] .btn-primary:hover:not(:disabled) {
+  background: hsl(var(--ah) 65% 36%);
+  color: white;
+}
+html[data-theme] .btn-danger {
+  color: var(--text-1);
+  border-style: dashed;
+}
+html[data-theme] :is(.badge, .tag, .status-badge) {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  color: var(--text-2);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  box-shadow: none;
+  white-space: normal;
+}
+html[data-theme] .badge-accent {
+  color: var(--accent-text);
+}
+html[data-theme] .status-dot {
+  background: var(--accent);
+  box-shadow: none;
+}
+html[data-theme] .gauge-fill {
+  stroke: var(--accent);
+  filter: none;
+}
+html[data-theme] .nav-section .sb-item > svg {
+  color: var(--text-3);
+}
+html[data-theme] .sb-item:is(.active, .has-active) > svg {
+  color: var(--accent-text);
+}
+html[data-theme] :is(.person-avatar, .account-avatar) {
+  color: var(--accent-text);
+  background: var(--accent-subtle);
+}
+.sb-nav {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.sidebar {
+  min-height: 0;
+}
+.sb-brand,
+.sb-foot {
+  flex-shrink: 0;
+}
+.sb-item {
+  min-height: 34px;
+  height: auto;
+}
+.sb-item span {
+  white-space: normal;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+/* Compact metrics use the same readable two-column anatomy, without icon tiles. */
+html[data-theme] .stat-grid {
+  gap: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-1);
+  overflow: visible;
+}
+html[data-theme] .stat-grid .stat-card {
+  min-height: 0;
+  height: auto;
+  padding: 13px 16px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  overflow: visible;
+}
+html[data-theme] .stat-card::before {
+  display: none;
+}
+html[data-theme] .stat-card .tile-main {
+  min-width: 0;
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 12px;
+  row-gap: 4px;
+  align-items: baseline;
+}
+html[data-theme] .stat-card .stat-label {
+  font-size: 12px !important;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+html[data-theme] .stat-card .stat-value {
+  font-size: 19px !important;
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: -0.025em;
+  margin: 0;
+  color: var(--text-1);
+}
+html[data-theme] .stat-card .stat-sub {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  line-height: 1.5;
+  margin: 0;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  color: var(--text-3);
+}
+html[data-theme] .stat-sub:empty {
+  display: none;
+}
+html[data-theme] .kpi-card-clickable:hover {
+  background: var(--accent-subtle);
+}
+html[data-theme] .stat-card-delta {
+  color: var(--text-3);
+  font-weight: 400;
+}
+
+/* Shared table frame and record cell across all directories and live sessions. */
+html[data-theme] .data-table-wrap {
+  min-width: 0;
+  max-width: 100%;
+  overflow: auto;
+  border: 0;
+  border-radius: 0;
+}
+html[data-theme] .record-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+  table-layout: auto;
+  font-size: 12px;
+}
+html[data-theme] .record-table > thead > tr > th {
+  padding: 11px 16px;
+  height: 40px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line);
+  color: var(--text-3);
+  font-size: 11px;
+  line-height: 1.5;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+html[data-theme] .record-table > tbody > tr > td {
+  padding: 11px 16px;
+  height: 58px;
+  background: transparent;
+  border-bottom: 1px solid var(--line-row);
+  font-size: 12px;
+  line-height: 1.5;
+  vertical-align: middle;
+  color: var(--text-2);
+}
+html[data-theme] .record-table > tbody > tr:hover > td {
+  background: var(--surface-2);
+}
+html[data-theme] .record-table > tbody > tr:last-child > td {
+  border-bottom: 0;
+}
+html[data-theme] .record-table > tbody > tr.row-created > td {
+  background: var(--accent-subtle);
+}
+html[data-theme] .record-table > tbody > tr.row-created > td:first-child {
+  box-shadow: inset 3px 0 var(--accent);
+}
+html[data-theme] .record-table > tbody > tr > td.row-expand-panel,
+html[data-theme] .record-table > tbody > tr > td.live-detail-cell {
+  padding: 0;
+  white-space: normal;
+}
+.record-cell {
+  display: grid;
+  gap: 2px;
+  min-width: 130px;
+  max-width: 300px;
+}
+.record-primary {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-1);
+  line-height: 1.5;
+}
+.record-secondary {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-3);
+  line-height: 1.5;
+}
+.record-primary,
+.record-secondary {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.record-primary.mono,
+.record-primary .mono {
+  font-size: 11px;
+}
+.record-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.record-link:hover {
+  color: var(--accent-text);
+  text-decoration: underline;
+}
+html[data-theme] .person-cell {
+  min-width: 190px;
+  max-width: 310px;
+  padding: 0;
+}
+html[data-theme] .person-cell :is(strong, small) {
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  font-weight: 400;
+  line-height: 1.5;
+}
+html[data-theme] .person-cell strong {
+  font-weight: 500;
+  font-size: 12px;
+}
+html[data-theme] .record-table .customer-directory-stacked {
+  min-width: 120px;
+  white-space: normal;
+}
+html[data-theme] .record-table .row-actions {
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+}
+html[data-theme] .record-table .presence {
+  color: var(--text-2);
+  font-weight: 400;
+}
+html[data-theme] .record-table .presence i {
+  background: var(--accent);
+  box-shadow: none;
+}
+html[data-theme] .created-label {
+  color: var(--accent-text);
+  background: none;
+  padding: 0;
+}
+html[data-theme] .creation-notice {
+  background: var(--accent-subtle);
+  border-color: var(--accent);
+}
+html[data-theme] .creation-notice-icon {
+  color: var(--accent-text);
+  background: none;
+}
+
+/* Text should grow its container, never collide with a clipped widget edge. */
+.page-header,
+.panel-head,
+.monitor-toolbar,
+.monitor-filter-row {
+  overflow: visible;
+}
+.page-header > div,
+.panel-head > div,
+.panel-head-left > div,
+.panel-head-left,
+.panel-head-right,
+.panel-body,
+.panel-body-tight,
+.glass-inset,
+.settings-section,
+.preview-window,
+.detail-facts > div {
+  min-width: 0;
+}
+:is(
+  .panel-title,
+  .panel-sub,
+  .panel-subtitle,
+  .page-subtitle,
+  .glass-inset p,
+  .detail-facts strong,
+  .detail-facts span,
+  .setting-slider > span,
+  .toggle-row > span,
+  .settings-section p,
+  .inline-notice,
+  .creation-notice
+) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  line-height: 1.5;
+}
+:is(.panel-title, .panel-sub, .panel-subtitle, .detail-facts strong) {
+  overflow: visible;
+}
+.panel-head-left {
+  flex-shrink: 1;
+  flex-wrap: wrap;
+}
+.panel-head-right {
+  max-width: 100%;
+}
+.panel-body-tight {
+  padding: 18px;
+}
+html[data-theme] .panel-body-flush {
+  padding: 0;
+}
+html[data-theme] .record-table .btn-icon {
+  flex-shrink: 0;
+}
+html[data-theme] .live-update {
+  color: var(--text-3);
+  font-weight: 400;
+  white-space: normal;
+  line-height: 1.5;
+}
+@media (max-width: 1150px) {
+  html[data-theme] .stat-card .tile-main {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 600px) {
+  html[data-theme] .stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  html[data-theme] .stat-grid .stat-card {
+    padding: 12px;
+  }
+  .page-content {
+    padding-inline: 16px;
+  }
+  .panel-head {
+    padding: 14px 16px;
+  }
+  .panel-head-right {
+    width: 100%;
+  }
+  .kpi-modal-head,
+  .kpi-modal-content {
+    padding: 16px;
+  }
+}
+/* Page-sized tables keep a common row rhythm while wider data scrolls within the frame. */
+html[data-theme] .record-table > tbody > tr > td {
+  white-space: nowrap;
+}
+html[data-theme] .record-table > tbody > tr > td[colspan] {
+  white-space: normal;
+}
+html[data-theme] .record-table .person-cell,
+html[data-theme] .record-cell {
+  white-space: normal;
+}
+html[data-theme] .customer-directory-table {
+  min-width: 1100px;
+}
+html[data-theme] .kv-tag,
+html[data-theme] .kv-tag-accent,
+html[data-theme] .badge-live {
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--text-2);
+  font-weight: 400;
+  box-shadow: none;
+}
+html[data-theme] .workspace-bar .mobile-menu {
+  display: none;
+}
+.section-title,
+.section-sub {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  line-height: 1.5;
+}
+html[data-theme] .btn:focus-visible,
+html[data-theme] .btn-icon:focus-visible,
+html[data-theme] .seg-btn:focus-visible,
+html[data-theme] .record-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+@media (max-width: 900px) {
+  html[data-theme] .workspace-bar .mobile-menu {
+    display: inline-flex;
+  }
+}
+html[data-theme] .table-pagination {
+  background: var(--surface-1);
+  color: var(--text-2);
+  border-top: 1px solid var(--line);
+  padding: 12px 16px;
+  min-height: 56px;
+}
+html[data-theme] .table-pagination :is(.table-pagination-summary, .table-pagination-page) {
+  color: var(--text-3);
+  white-space: normal;
+  line-height: 1.5;
+}
+html[data-theme] .table-pagination button:disabled {
+  background: var(--surface-2);
+  color: var(--text-3);
+  opacity: 0.5;
+}
+html[data-theme] .license-table {
+  min-width: 1180px;
+}
+html[data-theme] .license-table .record-cell {
+  min-width: 180px;
+}
+html[data-theme] .license-table td:first-child .record-cell {
+  min-width: 225px;
+}
+html[data-theme] .license-table td:first-child .record-primary {
+  white-space: nowrap;
+}
+html[data-theme] .record-table td:has(> .row-actions) {
+  position: sticky;
+  right: 0;
+  background: var(--surface-1);
+  z-index: 1;
+}
+html[data-theme] .record-table tr:hover > td:has(> .row-actions) {
+  background: var(--surface-2);
+}
+html[data-theme] .record-table .row-created > td:has(> .row-actions) {
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-1));
+}
+html[data-theme] .record-table > thead > tr > th:last-child:empty {
+  right: 0;
+  z-index: 6;
+}
+html[data-theme] .stat-grid .stat-card {
+  align-items: flex-start;
+}
+@media (max-width: 600px) {
+  .panel-head-right {
+    width: auto;
+  }
+}
+html[data-theme] .record-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  line-height: 1.5;
+}
+html[data-theme] .record-link > svg {
+  flex: none;
+}
+html[data-theme] .feedback-card .badge {
+  background: none;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  color: var(--text-3);
+}
+html[data-theme] .record-table td:has(> .btn-icon) {
+  position: sticky;
+  right: 0;
+  background: var(--surface-1);
+  z-index: 1;
+}
+html[data-theme] .record-table tr:hover > td:has(> .btn-icon) {
+  background: var(--surface-2);
+}

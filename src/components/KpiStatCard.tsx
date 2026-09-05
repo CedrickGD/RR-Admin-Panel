@@ -1,23 +1,19 @@
-import { Activity, ChevronRight } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { useState, type ReactNode } from "react";
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { TelemetryChartTooltip } from "./charts/TelemetryChartTooltip";
 import { BreakdownList, Modal, TimespanGrid } from "./ds/Modal";
-import { Sparkline } from "./widgets";
 
 /** Legacy tone names (accent/amber/rose) kept for backward compatibility alongside the DS names. */
 type Tone = "primary" | "accent" | "amber" | "rose" | "success" | "warning" | "danger";
-
-// Tones recolor the tile's left-edge accent tick (DS .stat-card::before).
-const TONE_CARD_CLASS: Record<Tone, string> = {
-  primary: "",
-  accent: "",
-  amber: " tone-warning",
-  warning: " tone-warning",
-  rose: " tone-danger",
-  danger: " tone-danger",
-  success: " tone-success",
-};
 
 export interface KpiDrilldown {
   /** Side-by-side values across timespans, e.g. Today / 7 d / 30 d / Lifetime. */
@@ -53,19 +49,21 @@ interface KpiStatCardProps {
  * sparkline or icon well on the right, accent tick on the left edge.
  * Pass `drilldown` to make it clickable with a detail modal.
  */
-export function KpiStatCard({ label, value, sub, icon, tone = "primary", delta, drilldown, chartColor, spark }: KpiStatCardProps) {
+export function KpiStatCard({ label, value, sub, delta, drilldown, chartColor }: KpiStatCardProps) {
   const [open, setOpen] = useState(false);
-  const toneClass = TONE_CARD_CLASS[tone];
   // The series block only renders with 2+ points, so a 1-point series alone must not
   // make the card clickable (it would open an empty modal).
   const expandable = Boolean(
-    drilldown && ((drilldown.timespans?.length ?? 0) > 0 || (drilldown.series?.length ?? 0) > 1 || (drilldown.breakdown?.length ?? 0) > 0)
+    drilldown &&
+    ((drilldown.timespans?.length ?? 0) > 0 ||
+      (drilldown.series?.length ?? 0) > 1 ||
+      (drilldown.breakdown?.length ?? 0) > 0),
   );
 
   return (
     <>
       <article
-        className={`stat-card${toneClass}${expandable ? " kpi-card-clickable" : ""}`}
+        className={`stat-card${expandable ? " kpi-card-clickable" : ""}`}
         onClick={expandable ? () => setOpen(true) : undefined}
         role={expandable ? "button" : undefined}
         tabIndex={expandable ? 0 : undefined}
@@ -85,13 +83,15 @@ export function KpiStatCard({ label, value, sub, icon, tone = "primary", delta, 
           <strong className="stat-value tile-value-pop" key={value}>
             {value}
             {delta !== undefined && delta !== null ? (
-              <span className={`stat-card-delta ${Number(delta) >= 0 ? "stat-card-delta-positive" : "stat-card-delta-negative"}`}>
+              <span
+                className={`stat-card-delta ${Number(delta) >= 0 ? "stat-card-delta-positive" : "stat-card-delta-negative"}`}
+              >
                 {Number(delta) >= 0 ? "+" : ""}
                 {delta}%
               </span>
             ) : null}
           </strong>
-          <p className="stat-sub">
+          <p className="stat-sub" title={sub}>
             {sub}
             {expandable ? (
               <span className="kpi-card-chevron">
@@ -100,27 +100,33 @@ export function KpiStatCard({ label, value, sub, icon, tone = "primary", delta, 
             ) : null}
           </p>
         </div>
-        <div className="tile-side">
-          {spark && spark.length > 1 ? (
-            <Sparkline values={spark} color={chartColor ?? "var(--accent)"} />
-          ) : (
-            <span className="tile-icon">{icon ?? <Activity size={14} />}</span>
-          )}
-        </div>
       </article>
 
       {expandable && drilldown ? (
         <Modal open={open} onClose={() => setOpen(false)} kicker={label} title={value} sub={sub}>
-          {drilldown.timespans && drilldown.timespans.length > 0 ? <TimespanGrid spans={drilldown.timespans} /> : null}
+          {drilldown.timespans && drilldown.timespans.length > 0 ? (
+            <TimespanGrid spans={drilldown.timespans} />
+          ) : null}
 
           {drilldown.series && drilldown.series.length > 1 ? (
             <div className="kpi-modal-chart">
               <ResponsiveContainer width="100%" height={160}>
-                <AreaChart data={drilldown.series} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+                <AreaChart
+                  data={drilldown.series}
+                  margin={{ top: 8, right: 8, left: -18, bottom: 0 }}
+                >
                   <defs>
                     <linearGradient id="kpiDrillFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={chartColor ?? "var(--chart-users)"} stopOpacity={0.32} />
-                      <stop offset="100%" stopColor={chartColor ?? "var(--chart-users)"} stopOpacity={0.02} />
+                      <stop
+                        offset="0%"
+                        stopColor={chartColor ?? "var(--chart-users)"}
+                        stopOpacity={0.32}
+                      />
+                      <stop
+                        offset="100%"
+                        stopColor={chartColor ?? "var(--chart-users)"}
+                        stopOpacity={0.02}
+                      />
                     </linearGradient>
                   </defs>
                   <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
@@ -132,7 +138,12 @@ export function KpiStatCard({ label, value, sub, icon, tone = "primary", delta, 
                     tickFormatter={(day: string) => day.slice(5)}
                     minTickGap={28}
                   />
-                  <YAxis allowDecimals={false} tickLine={false} axisLine={false} tick={{ fill: "var(--chart-axis-soft)", fontSize: 10 }} />
+                  <YAxis
+                    allowDecimals={false}
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fill: "var(--chart-axis-soft)", fontSize: 10 }}
+                  />
                   <Tooltip
                     isAnimationActive={false}
                     cursor={{ stroke: "var(--chart-axis-soft)", strokeDasharray: "3 3" }}
@@ -143,7 +154,10 @@ export function KpiStatCard({ label, value, sub, icon, tone = "primary", delta, 
                         payload={
                           payload?.map((entry) => ({
                             name: String(entry.name ?? ""),
-                            value: typeof entry.value === "number" ? entry.value : Number(entry.value ?? 0),
+                            value:
+                              typeof entry.value === "number"
+                                ? entry.value
+                                : Number(entry.value ?? 0),
                             color: entry.color,
                           })) ?? []
                         }

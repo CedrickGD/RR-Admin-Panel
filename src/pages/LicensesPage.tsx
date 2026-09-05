@@ -1,3 +1,4 @@
+import { TableFrame, RecordCell } from "../components/ds/TableFrame";
 import { Select } from "../components/ds/Select";
 import { usePanelPermission } from "../hooks/usePanelPermission";
 import {
@@ -647,395 +648,211 @@ export function LicensesPage({
             : "No license keys generated yet."}
         </EmptyState>
       ) : (
-        <div className="data-table-wrap">
-          {/* DS .data-table — same anatomy as every other directory table so the
-              whole console reads as one system (uppercase hairline header,
-              sticky head, hover rows, density ladder, column priority). */}
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>License Key</th>
-                <th>Customer</th>
-                <th>Order</th>
-                <th>Duration</th>
-                <th className="col-md">Usage</th>
-                <th>Status</th>
-                <th className="col-lg">Linked Session</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {lics.map((lic) => {
-                const isMaster = isMasterLicense(lic);
-                return (
-                  <tr
-                    key={lic.id}
-                    className={[
-                      isMaster ? "row-master" : "",
-                      highlightCreated && createdKeys.includes(lic.license_key)
-                        ? "row-created"
-                        : "",
-                    ]
-                      .filter(Boolean)
-                      .join(" ")}
-                  >
-                    <td>
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                        <Key
-                          size={14}
-                          style={{
-                            color: isMaster ? "var(--warning)" : "var(--accent)",
-                            flex: "none",
-                          }}
-                        />
-                        <span
-                          style={{
-                            fontFamily: "var(--font-mono)",
-                            fontSize: "0.78125rem",
-                            fontWeight: 600,
-                            letterSpacing: "0.02em",
-                            color: isMaster ? "var(--warning)" : "var(--text-1)",
-                            whiteSpace: "nowrap",
-                            maxWidth: 210,
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                          }}
-                          title={lic.license_key}
-                        >
-                          {lic.license_key}
-                        </span>
-                        {highlightCreated && createdKeys.includes(lic.license_key) && (
-                          <span className="created-label">New</span>
-                        )}
-                        {isMaster && (
-                          <span
-                            style={{
-                              fontSize: "0.65rem",
-                              padding: "2px 6px",
-                              borderRadius: "4px",
-                              background: "var(--warning-sub)",
-                              color: "var(--warning)",
-                              fontWeight: 700,
-                              letterSpacing: "0.05em",
-                            }}
-                          >
-                            MASTER
-                          </span>
-                        )}
-                      </span>
-                    </td>
-                    <td style={{ maxWidth: 200 }}>
-                      {lic.customer_name ||
-                      lic.customer_email ||
-                      lic.customer_discord ||
-                      lic.verified_discord ? (
-                        <div
-                          style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}
-                        >
-                          {lic.customer_name ? (
-                            <span
-                              style={{
-                                color: "var(--text-1)",
-                                fontWeight: 600,
-                                fontSize: "0.8125rem",
-                                whiteSpace: "nowrap",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                              }}
-                              title={lic.customer_name}
-                            >
-                              {lic.customer_name}
-                            </span>
-                          ) : null}
-                          {lic.customer_email ? (
-                            <span
-                              style={{
-                                color: "var(--text-2)",
-                                fontSize: "0.71875rem",
-                                fontFamily: "var(--font-mono)",
-                                whiteSpace: "nowrap",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                              }}
-                              title={lic.customer_email}
-                            >
+        <TableFrame className="license-table">
+          <thead>
+            <tr>
+              <th>License Key</th>
+              <th>Customer</th>
+              <th>Order</th>
+              <th>Duration</th>
+              <th className="col-md">Usage</th>
+              <th>Status</th>
+              <th className="col-lg">Linked Session</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {lics.map((lic) => {
+              const isMaster = isMasterLicense(lic);
+              return (
+                <tr
+                  key={lic.id}
+                  className={[
+                    highlightCreated && createdKeys.includes(lic.license_key) ? "row-created" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                >
+                  <td>
+                    <RecordCell
+                      primary={<span className="mono">{lic.license_key}</span>}
+                      secondary={
+                        <>
+                          {isMaster ? "Master license" : "License"}
+                          {highlightCreated && createdKeys.includes(lic.license_key) && (
+                            <span className="created-label"> · New</span>
+                          )}
+                        </>
+                      }
+                    />
+                  </td>
+                  <td>
+                    <RecordCell
+                      primary={
+                        lic.customer_name ||
+                        lic.customer_email ||
+                        (lic.customer_discord || lic.verified_discord
+                          ? discordHandle((lic.customer_discord || lic.verified_discord)!)
+                          : "Unassigned")
+                      }
+                      secondary={
+                        <>
+                          {lic.customer_name && lic.customer_email ? (
+                            <span>
                               {lic.customer_email}
+                              <br />
                             </span>
                           ) : null}
                           {lic.customer_discord ? (
-                            <span
-                              style={{
-                                color: "var(--text-2)",
-                                fontSize: "0.71875rem",
-                                whiteSpace: "nowrap",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                              }}
-                              title={`Discord: ${lic.customer_discord}`}
-                            >
+                            <span>
                               {discordHandle(lic.customer_discord)}
+                              <br />
                             </span>
                           ) : null}
-                          {lic.verified_discord ? (
-                            <span
-                              style={{
-                                color: "var(--success-text)",
-                                fontSize: "0.71875rem",
-                                whiteSpace: "nowrap",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                              }}
-                              title="This Discord account verified with this key"
-                            >
-                              ✓ {discordHandle(lic.verified_discord)}
-                            </span>
+                          {lic.verified_discord && lic.verified_discord !== lic.customer_discord ? (
+                            <span>Verified: {discordHandle(lic.verified_discord)}</span>
                           ) : null}
-                        </div>
-                      ) : (
-                        <span
-                          style={{
-                            color: "var(--text-3)",
-                            fontStyle: "italic",
-                            fontSize: "0.8125rem",
-                          }}
-                        >
-                          No customer yet
-                        </span>
-                      )}
-                    </td>
-                    <td>
-                      {lic.order_id || lic.order_source ? (
-                        <div
-                          style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}
-                        >
-                          {lic.order_id ? (
-                            <span
-                              style={{
-                                fontFamily: "var(--font-mono)",
-                                fontSize: "0.78125rem",
-                                color: "var(--text-1)",
-                                fontWeight: 600,
-                                whiteSpace: "nowrap",
-                                maxWidth: 160,
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                              }}
-                              title={`Order ${lic.order_id}`}
-                            >
-                              {lic.order_id}
-                            </span>
-                          ) : null}
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-                            {lic.order_source ? (
-                              <span
-                                style={{
-                                  fontSize: "0.625rem",
-                                  padding: "1px 6px",
-                                  borderRadius: 4,
-                                  background:
-                                    lic.order_source === "store"
-                                      ? "var(--accent-subtle)"
-                                      : "var(--surface-3)",
-                                  color:
-                                    lic.order_source === "store"
-                                      ? "var(--accent-text)"
-                                      : "var(--text-2)",
-                                  fontWeight: 700,
-                                  letterSpacing: "0.05em",
-                                  textTransform: "uppercase",
-                                }}
-                                title={
-                                  lic.order_source === "store"
-                                    ? "Issued by the storefront delivery API"
-                                    : "Attributed by an admin"
-                                }
-                              >
-                                {lic.order_source}
-                              </span>
-                            ) : null}
-                            {lic.purchased_at ? (
-                              <span
-                                style={{ fontSize: "0.6875rem", color: "var(--text-3)" }}
-                                title={formatDate(lic.purchased_at)}
-                              >
-                                {timeAgo(lic.purchased_at)}
-                              </span>
-                            ) : null}
-                          </span>
-                        </div>
-                      ) : (
-                        <span style={{ color: "var(--text-3)", fontSize: "0.8125rem" }}>—</span>
-                      )}
-                    </td>
-                    <td style={{ whiteSpace: "nowrap" }}>
-                      <span style={{ color: "var(--text-1)", fontWeight: 500 }}>
-                        {lic.type === "lifetime"
-                          ? "Lifetime"
-                          : lic.duration_days && lic.duration_days < 1 / 24
-                            ? `${Math.round(lic.duration_days * 1440)} Mins`
-                            : lic.duration_days && lic.duration_days < 1
-                              ? `${Math.round(lic.duration_days * 24)} Hours`
-                              : lic.duration_days && lic.duration_days % 365 === 0
-                                ? `${lic.duration_days / 365} Years`
-                                : lic.duration_days && lic.duration_days % 30 === 0
-                                  ? `${lic.duration_days / 30} Months`
-                                  : lic.duration_days && lic.duration_days % 7 === 0
-                                    ? `${lic.duration_days / 7} Weeks`
-                                    : `${Math.round(lic.duration_days || 0)} Days`}
-                      </span>
-                    </td>
-                    <td className="col-md">
+                        </>
+                      }
+                    />
+                  </td>
+                  <td>
+                    <RecordCell
+                      primary={lic.order_id || "—"}
+                      secondary={[
+                        lic.order_source,
+                        lic.purchased_at ? timeAgo(lic.purchased_at) : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    />
+                  </td>
+                  <td style={{ whiteSpace: "nowrap" }}>
+                    <span style={{ color: "var(--text-1)", fontWeight: 500 }}>
+                      {lic.type === "lifetime"
+                        ? "Lifetime"
+                        : lic.duration_days && lic.duration_days < 1 / 24
+                          ? `${Math.round(lic.duration_days * 1440)} Mins`
+                          : lic.duration_days && lic.duration_days < 1
+                            ? `${Math.round(lic.duration_days * 24)} Hours`
+                            : lic.duration_days && lic.duration_days % 365 === 0
+                              ? `${lic.duration_days / 365} Years`
+                              : lic.duration_days && lic.duration_days % 30 === 0
+                                ? `${lic.duration_days / 30} Months`
+                                : lic.duration_days && lic.duration_days % 7 === 0
+                                  ? `${lic.duration_days / 7} Weeks`
+                                  : `${Math.round(lic.duration_days || 0)} Days`}
+                    </span>
+                  </td>
+                  <td className="col-md">
+                    {lic.usage_count} / {lic.max_uses === -1 ? "Unlimited" : lic.max_uses}
+                  </td>
+                  <td>
+                    <StatusBadge
+                      presence={
+                        lic.status === "active"
+                          ? "online"
+                          : lic.status === "revoked"
+                            ? "unreachable"
+                            : "idle"
+                      }
+                      label={lic.status[0].toUpperCase() + lic.status.slice(1)}
+                    />
+                  </td>
+                  <td className="col-lg">
+                    {lic.hwid ? (
                       <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                        <div
-                          style={{
-                            width: "60px",
-                            height: "6px",
-                            background: "var(--line)",
-                            borderRadius: "3px",
-                            overflow: "hidden",
-                          }}
-                        >
-                          <div
+                        <User size={12} style={{ color: "var(--text-2)" }} />
+                        {lic.session_id || lic.hwid ? (
+                          (() => {
+                            const isLive =
+                              lic.session_id &&
+                              summary?.activeSessions.some((s) => s.id === lic.session_id);
+                            return (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (isLive && onOpenSession && lic.session_id) {
+                                    onOpenSession(lic.session_id);
+                                  } else if (onOpenWorker && lic.hwid) {
+                                    onOpenWorker(lic.hwid);
+                                  }
+                                }}
+                                className="record-link"
+                                title={isLive ? "View Live Session" : "View User Sessions"}
+                              >
+                                {lic.user_label || "Unknown User"}
+                              </button>
+                            );
+                          })()
+                        ) : (
+                          <strong
                             style={{
-                              height: "100%",
-                              width: "100%",
-                              transformOrigin: "left",
-                              transform: `scaleX(${lic.max_uses === -1 ? 1 : Math.min(1, lic.usage_count / Math.max(1, lic.max_uses))})`,
-                              background: "var(--accent)",
-                              transition: "transform var(--t-fill) var(--ease-out)",
+                              color: "var(--text-1)",
+                              fontSize: "0.8125rem",
+                              maxWidth: "120px",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
                             }}
-                          />
-                        </div>
+                            title={lic.user_label || "Unknown User"}
+                          >
+                            {lic.user_label || "Unknown User"}
+                          </strong>
+                        )}
                       </div>
-                      <div
-                        style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}
+                    ) : (
+                      <span
+                        style={{
+                          color: "var(--text-2)",
+                          fontStyle: "italic",
+                          fontSize: "0.8125rem",
+                        }}
                       >
-                        <span style={{ fontSize: "0.75rem", color: "var(--text-2)" }}>
-                          {lic.usage_count} / {lic.max_uses === -1 ? "Infinite" : lic.max_uses}
-                        </span>
-                      </div>
-                    </td>
-                    <td>
-                      <StatusBadge
-                        presence={
-                          lic.status === "active"
-                            ? "online"
-                            : lic.status === "revoked"
-                              ? "unreachable"
-                              : "idle"
-                        }
-                        label={lic.status.toUpperCase()}
+                        Unbound
+                      </span>
+                    )}
+                  </td>
+                  <td>
+                    <div className="row-actions">
+                      <IconButton
+                        icon={<PlayCircle />}
+                        permission="licenses.write"
+                        onClick={() => openLicenseAction(lic, "activate")}
+                        disabled={lic.status === "revoked"}
+                        title="Activate for a registered install"
+                        aria-label={`Activate ${lic.license_key} for an install`}
                       />
-                    </td>
-                    <td className="col-lg">
-                      {lic.hwid ? (
-                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                          <User size={12} style={{ color: "var(--text-2)" }} />
-                          {lic.session_id || lic.hwid ? (
-                            (() => {
-                              const isLive =
-                                lic.session_id &&
-                                summary?.activeSessions.some((s) => s.id === lic.session_id);
-                              return (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    if (isLive && onOpenSession && lic.session_id) {
-                                      onOpenSession(lic.session_id);
-                                    } else if (onOpenWorker && lic.hwid) {
-                                      onOpenWorker(lic.hwid);
-                                    }
-                                  }}
-                                  style={{
-                                    background: "transparent",
-                                    border: "none",
-                                    cursor: "pointer",
-                                    color: "var(--accent)",
-                                    padding: 0,
-                                    fontSize: "0.8125rem",
-                                    fontWeight: 600,
-                                    maxWidth: "120px",
-                                    whiteSpace: "nowrap",
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                    textDecoration: "underline",
-                                    textDecorationStyle: "dotted",
-                                  }}
-                                  title={isLive ? "View Live Session" : "View User Sessions"}
-                                >
-                                  {lic.user_label || "Unknown User"}
-                                </button>
-                              );
-                            })()
-                          ) : (
-                            <strong
-                              style={{
-                                color: "var(--text-1)",
-                                fontSize: "0.8125rem",
-                                maxWidth: "120px",
-                                whiteSpace: "nowrap",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                              }}
-                              title={lic.user_label || "Unknown User"}
-                            >
-                              {lic.user_label || "Unknown User"}
-                            </strong>
-                          )}
-                        </div>
-                      ) : (
-                        <span
-                          style={{
-                            color: "var(--text-2)",
-                            fontStyle: "italic",
-                            fontSize: "0.8125rem",
-                          }}
-                        >
-                          Unbound
-                        </span>
-                      )}
-                    </td>
-                    <td>
-                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                        <IconButton
-                          icon={<PlayCircle />}
-                          permission="licenses.write"
-                          onClick={() => openLicenseAction(lic, "activate")}
-                          disabled={lic.status === "revoked"}
-                          title="Activate for a registered install"
-                          aria-label={`Activate ${lic.license_key} for an install`}
-                        />
-                        <IconButton
-                          icon={<Link2 />}
-                          permission="licenses.write"
-                          onClick={() => openLicenseAction(lic, "bind")}
-                          disabled={lic.status === "revoked"}
-                          title="Bind another device"
-                          aria-label={`Bind ${lic.license_key} to a device`}
-                        />
-                        <IconButton
-                          permission="licenses.write"
-                          icon={<Pencil />}
-                          onClick={() => openEdit(lic)}
-                          title="Edit customer / order info"
-                          aria-label="Edit customer / order info"
-                        />
-                        <IconButton
-                          permission="licenses.write"
-                          icon={<Trash2 />}
-                          className="danger-action"
-                          onClick={() => setDeleteCandidate(lic)}
-                          title="Permanently delete license"
-                          aria-label="Permanently delete license"
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                      <IconButton
+                        icon={<Link2 />}
+                        permission="licenses.write"
+                        onClick={() => openLicenseAction(lic, "bind")}
+                        disabled={lic.status === "revoked"}
+                        title="Bind another device"
+                        aria-label={`Bind ${lic.license_key} to a device`}
+                      />
+                      <IconButton
+                        permission="licenses.write"
+                        icon={<Pencil />}
+                        onClick={() => openEdit(lic)}
+                        title="Edit customer / order info"
+                        aria-label="Edit customer / order info"
+                      />
+                      <IconButton
+                        permission="licenses.write"
+                        icon={<Trash2 />}
+                        className="danger-action"
+                        onClick={() => setDeleteCandidate(lic)}
+                        title="Permanently delete license"
+                        aria-label="Permanently delete license"
+                      />
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </TableFrame>
       )}
     </section>
   );
@@ -1322,50 +1139,16 @@ export function LicensesPage({
               <p className="section-sub">Create standard or custom master licenses</p>
             </div>
             <div className="panel-head-right">
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "4px",
-                  background: "var(--surface-2)",
-                  padding: "4px",
-                  borderRadius: "8px",
-                  border: "1px solid var(--line)",
-                }}
-              >
+              <div className="seg-control">
                 <button
                   onClick={() => setIsMaster(false)}
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: "6px",
-                    fontSize: "0.75rem",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    border: "none",
-                    background: !isMaster ? "var(--surface-2)" : "transparent",
-                    color: !isMaster ? "var(--text-1)" : "var(--text-2)",
-                    boxShadow: !isMaster ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
-                    transition:
-                      "background var(--t-med) var(--ease-smooth), color var(--t-med) var(--ease-smooth), box-shadow var(--t-med) var(--ease-smooth)",
-                  }}
+                  className={"seg-btn" + (!isMaster ? " active" : "")}
                 >
                   Standard
                 </button>
                 <button
                   onClick={() => setIsMaster(true)}
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: "6px",
-                    fontSize: "0.75rem",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    border: "none",
-                    background: isMaster ? "var(--surface-2)" : "transparent",
-                    color: isMaster ? "var(--accent)" : "var(--text-2)",
-                    boxShadow: isMaster ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
-                    transition:
-                      "background var(--t-med) var(--ease-smooth), color var(--t-med) var(--ease-smooth), box-shadow var(--t-med) var(--ease-smooth)",
-                  }}
+                  className={"seg-btn" + (isMaster ? " active" : "")}
                 >
                   Master Key
                 </button>
@@ -2010,7 +1793,7 @@ export function LicensesPage({
                   style={{
                     marginTop: 8,
                     padding: "10px 12px",
-                    background: "rgba(3, 5, 12, 0.4)",
+                    background: "var(--surface-2)",
                     border: "1px solid var(--line)",
                     borderRadius: 10,
                     fontSize: "0.6875rem",

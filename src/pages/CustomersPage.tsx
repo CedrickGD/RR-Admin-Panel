@@ -1,3 +1,4 @@
+import { TableFrame, RecordCell } from "../components/ds/TableFrame";
 import {
   AlertTriangle,
   ArrowDown,
@@ -14,7 +15,7 @@ import { Customer360Overlay, type Customer360Anchor } from "../components/Custom
 import { GlassDropdown } from "../components/GlassDropdown";
 import { KpiStatCard } from "../components/KpiStatCard";
 import { Badge } from "../components/ds/Badge";
-import { Button } from "../components/ds/Button";
+import { IconButton } from "../components/ds/Button";
 import { EmptyState } from "../components/ds/EmptyState";
 import { PageHeader } from "../components/ds/PageHeader";
 import { SearchInput } from "../components/ds/SearchInput";
@@ -315,159 +316,142 @@ export function CustomersPage({ users, filterBar }: CustomersPageProps) {
         <div className="panel-body-flush">
           {directoryUsers === null || directoryUsers.length > 0 ? (
             <>
-              <div className="data-table-wrap data-table-wrap-paginated">
-                <table className="data-table customer-directory-table">
-                  <thead>
-                    <tr>
-                      <SortableTh
-                        label="Customer"
-                        sortKey="user"
-                        activeKey={sortKey}
-                        direction={sortDirection}
-                        onSort={changeSort}
-                      />
-                      <SortableTh
-                        label="Contact"
-                        sortKey="discord"
-                        activeKey={sortKey}
-                        direction={sortDirection}
-                        onSort={changeSort}
-                        className="col-md"
-                      />
-                      <SortableTh
-                        label="Version"
-                        sortKey="version"
-                        activeKey={sortKey}
-                        direction={sortDirection}
-                        onSort={changeSort}
-                      />
-                      <th className="col-lg">Device / OS</th>
-                      <SortableTh
-                        label="Location"
-                        sortKey="location"
-                        activeKey={sortKey}
-                        direction={sortDirection}
-                        onSort={changeSort}
-                        className="col-xl"
-                      />
-                      <SortableTh
-                        label="Sessions"
-                        sortKey="sessions"
-                        activeKey={sortKey}
-                        direction={sortDirection}
-                        onSort={changeSort}
-                      />
-                      <SortableTh
-                        label="Total time"
-                        sortKey="totalTime"
-                        activeKey={sortKey}
-                        direction={sortDirection}
-                        onSort={changeSort}
-                        className="col-lg"
-                      />
-                      <SortableTh
-                        label="Support"
-                        sortKey="errors"
-                        activeKey={sortKey}
-                        direction={sortDirection}
-                        onSort={changeSort}
-                      />
-                      <SortableTh
-                        label="Last seen"
-                        sortKey="lastSeen"
-                        activeKey={sortKey}
-                        direction={sortDirection}
-                        onSort={changeSort}
-                      />
-                      <th aria-label="Customer actions" />
-                    </tr>
-                  </thead>
-                  <tbody className={directoryUsers === null ? undefined : "dt-settle"}>
-                    {directoryUsers === null ? (
-                      <LoadingRows />
-                    ) : (
-                      (paginated?.items ?? []).map((user) => (
-                        <tr key={user.identity}>
-                          <td>
-                            <div className="customer-directory-identity">
-                              <span className="customer-directory-name" title={displayName(user)}>
-                                {displayName(user)}
-                              </span>
-                              <span className="customer-directory-badges">
-                                <Badge tone={user.licenseTier === "premium" ? "accent" : "muted"}>
-                                  {user.licenseTier === "premium" ? "Premium" : "Free"}
-                                </Badge>
-                                {user.isActive ? <Badge tone="success">Online</Badge> : null}
-                              </span>
-                              <span className="customer-directory-id" title={user.identity}>
-                                {user.identity.slice(0, 12)}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="muted col-md" title={user.discordUser ?? undefined}>
-                            {discordHandle(user.discordUser)}
-                          </td>
-                          <td>
-                            <Badge tone="muted">{versionLabel(user)}</Badge>
-                          </td>
-                          <td className="muted col-lg">
-                            <div className="customer-directory-stacked">
-                              <span>
-                                {user.deviceModel?.trim() || user.platform?.trim() || "—"}
-                              </span>
-                              <small>{user.osVersion?.trim() || "OS not reported"}</small>
-                            </div>
-                          </td>
-                          <td className="muted col-xl" title={locationLabel(user)}>
-                            {locationLabel(user)}
-                          </td>
-                          <td className="muted">{formatNumber(user.sessions)}</td>
-                          <td className="muted col-lg">
-                            {user.totalDurationSeconds > 0
-                              ? formatDuration(user.totalDurationSeconds)
-                              : "—"}
-                          </td>
-                          <td>
-                            <div className="customer-directory-support">
-                              {user.suspension ? (
-                                <Badge tone="danger">
-                                  {user.suspension.mode === "ban" ? "Banned" : "Suspended"}
-                                </Badge>
-                              ) : null}
-                              {user.errors > 0 ? (
-                                <Badge tone="warning">{formatNumber(user.errors)} errors</Badge>
-                              ) : null}
-                              {user.errors === 0 &&
-                              !user.suspension &&
-                              (user.lastStatus === "degraded" || user.lastStatus === "down") ? (
-                                <Badge tone={user.lastStatus === "down" ? "danger" : "warning"}>
-                                  {user.lastStatus === "down" ? "Down" : "Degraded"}
-                                </Badge>
-                              ) : null}
-                              {!needsAttention(user) ? <Badge tone="success">Clear</Badge> : null}
-                            </div>
-                          </td>
-                          <td className="muted customer-directory-last-seen">
-                            {user.isActive ? <span className="status-dot" /> : null}
-                            {timeAgo(user.lastSeen)}
-                          </td>
-                          <td>
-                            <Button
-                              variant="accent"
-                              size="xs"
-                              icon={<ScanSearch />}
-                              aria-label={`Open Customer 360 for ${displayName(user)}`}
-                              onClick={() => setSelectedUser(user)}
-                            >
-                              Open 360
-                            </Button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+              <TableFrame className="data-table customer-directory-table" paginated>
+                <thead>
+                  <tr>
+                    <SortableTh
+                      label="Customer"
+                      sortKey="user"
+                      activeKey={sortKey}
+                      direction={sortDirection}
+                      onSort={changeSort}
+                    />
+                    <SortableTh
+                      label="Contact"
+                      sortKey="discord"
+                      activeKey={sortKey}
+                      direction={sortDirection}
+                      onSort={changeSort}
+                      className="col-md"
+                    />
+                    <SortableTh
+                      label="Version"
+                      sortKey="version"
+                      activeKey={sortKey}
+                      direction={sortDirection}
+                      onSort={changeSort}
+                    />
+                    <th className="col-lg">Device / OS</th>
+                    <SortableTh
+                      label="Location"
+                      sortKey="location"
+                      activeKey={sortKey}
+                      direction={sortDirection}
+                      onSort={changeSort}
+                      className="col-xl"
+                    />
+                    <SortableTh
+                      label="Sessions"
+                      sortKey="sessions"
+                      activeKey={sortKey}
+                      direction={sortDirection}
+                      onSort={changeSort}
+                    />
+                    <SortableTh
+                      label="Total time"
+                      sortKey="totalTime"
+                      activeKey={sortKey}
+                      direction={sortDirection}
+                      onSort={changeSort}
+                      className="col-lg"
+                    />
+                    <SortableTh
+                      label="Support"
+                      sortKey="errors"
+                      activeKey={sortKey}
+                      direction={sortDirection}
+                      onSort={changeSort}
+                    />
+                    <SortableTh
+                      label="Last seen"
+                      sortKey="lastSeen"
+                      activeKey={sortKey}
+                      direction={sortDirection}
+                      onSort={changeSort}
+                    />
+                    <th aria-label="Customer actions" />
+                  </tr>
+                </thead>
+                <tbody className={directoryUsers === null ? undefined : "dt-settle"}>
+                  {directoryUsers === null ? (
+                    <LoadingRows />
+                  ) : (
+                    (paginated?.items ?? []).map((user) => (
+                      <tr key={user.identity}>
+                        <td>
+                          <RecordCell
+                            primary={displayName(user)}
+                            secondary={user.licenseTier === "premium" ? "Premium" : "Free"}
+                          />
+                        </td>
+                        <td className="muted col-md" title={user.discordUser ?? undefined}>
+                          {discordHandle(user.discordUser)}
+                        </td>
+                        <td>
+                          <Badge tone="muted">{versionLabel(user)}</Badge>
+                        </td>
+                        <td className="muted col-lg">
+                          <div className="customer-directory-stacked">
+                            <span>{user.deviceModel?.trim() || user.platform?.trim() || "—"}</span>
+                            <small>{user.osVersion?.trim() || "OS not reported"}</small>
+                          </div>
+                        </td>
+                        <td className="muted col-xl" title={locationLabel(user)}>
+                          {locationLabel(user)}
+                        </td>
+                        <td className="muted">{formatNumber(user.sessions)}</td>
+                        <td className="muted col-lg">
+                          {user.totalDurationSeconds > 0
+                            ? formatDuration(user.totalDurationSeconds)
+                            : "—"}
+                        </td>
+                        <td>
+                          <div className="customer-directory-support">
+                            {user.suspension ? (
+                              <Badge tone="danger">
+                                {user.suspension.mode === "ban" ? "Banned" : "Suspended"}
+                              </Badge>
+                            ) : null}
+                            {user.errors > 0 ? (
+                              <Badge tone="warning">{formatNumber(user.errors)} errors</Badge>
+                            ) : null}
+                            {user.errors === 0 &&
+                            !user.suspension &&
+                            (user.lastStatus === "degraded" || user.lastStatus === "down") ? (
+                              <Badge tone={user.lastStatus === "down" ? "danger" : "warning"}>
+                                {user.lastStatus === "down" ? "Down" : "Degraded"}
+                              </Badge>
+                            ) : null}
+                            {!needsAttention(user) ? <Badge tone="success">Clear</Badge> : null}
+                          </div>
+                        </td>
+                        <td className="muted customer-directory-last-seen">
+                          {user.isActive ? <span className="status-dot" /> : null}
+                          {timeAgo(user.lastSeen)}
+                        </td>
+                        <td>
+                          <IconButton
+                            title="Open customer workspace"
+                            icon={<ScanSearch />}
+                            aria-label={`Open Customer 360 for ${displayName(user)}`}
+                            onClick={() => setSelectedUser(user)}
+                          />
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </TableFrame>
               {paginated ? (
                 <TablePagination
                   page={paginated.page}

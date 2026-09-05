@@ -1,6 +1,5 @@
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
-import { FilterBar } from "./components/FilterBar";
 import { LoginForm } from "./components/LoginForm";
 import { Navbar } from "./components/Navbar";
 import { useAdminStats, DEFAULT_STATS_FILTERS } from "./hooks/useAdminStats";
@@ -11,7 +10,7 @@ import { CustomerWorkspaceRouter } from "./components/CustomerWorkspaceRouter";
 import { canVisit } from "../shared/panel-policy";
 import { PanelIdentity } from "./hooks/usePanelPermission";
 import type { MapFocusTarget } from "./pages/HeatmapPage";
-import type { PageKey, StatsFilters } from "./types/telemetry";
+import type { PageKey } from "./types/telemetry";
 
 const AccessPage = lazy(() =>
   import("./pages/AccessPage").then((module) => ({ default: module.AccessPage })),
@@ -159,7 +158,7 @@ export default function App() {
   // reports back via onFocusConsumed, so nothing here can lock the map onto a user.
   const [mapFocusTarget, setMapFocusTarget] = useState<MapFocusTarget | null>(null);
   const [focusedWorkerId, setFocusedWorkerId] = useState<string | null>(null);
-  const [filters, setFilters] = useState<StatsFilters>(DEFAULT_STATS_FILTERS);
+
   const {
     authMode,
     ready,
@@ -188,21 +187,14 @@ export default function App() {
       users: Boolean(user && canVisit(page, user)) && USER_PAGES.has(page),
       userScope: "all",
     },
-    page === "overview"
-      ? { range: "today", version: null, country: null, platform: null }
-      : filters,
+    page === "overview" ? { ...DEFAULT_STATS_FILTERS, range: "today" } : DEFAULT_STATS_FILTERS,
     JSON.stringify([user?.email, user?.role, user?.panelRole, user?.permissions]),
   );
 
-  // Dimension filters remain on analytical views; operational lists filter their own rows.
+  // Data refreshes automatically; page-specific lists own their search filters.
   const refreshButton = null;
 
-  const filterBar = (
-    <div className="header-tools">
-      <FilterBar filters={filters} stats={stats} onChange={setFilters} />
-      {refreshButton}
-    </div>
-  );
+  const filterBar = null;
 
   function nextFocusedSession(current: FocusedSession, sessionId: string): FocusedSession {
     return { id: sessionId, token: current?.id === sessionId ? current.token + 1 : 1 };

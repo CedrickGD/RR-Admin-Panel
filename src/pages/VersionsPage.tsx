@@ -91,7 +91,11 @@ function formatDay(value: string | null): string {
   if (!value) return "—";
   const ts = Date.parse(value);
   if (!Number.isFinite(ts)) return value;
-  return new Date(ts).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  return new Date(ts).toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
 }
 
 function statusBadge(row: VersionRow) {
@@ -102,11 +106,24 @@ function statusBadge(row: VersionRow) {
 }
 
 const RELEASE_COLUMNS: Array<DataTableColumn<VersionRow>> = [
-  { key: "version", header: "Version", render: (row) => <Tag accent={row.isLatest}>{row.label}</Tag> },
+  {
+    key: "version",
+    header: "Version",
+    render: (row) => <Tag accent={row.isLatest}>{row.label}</Tag>,
+  },
   { key: "currentUsers", header: "Current Users", render: (row) => formatNumber(row.currentUsers) },
-  { key: "allTimeUsers", header: "All-Time Users", render: (row) => formatNumber(row.allTimeUsers) },
+  {
+    key: "allTimeUsers",
+    header: "All-Time Users",
+    render: (row) => formatNumber(row.allTimeUsers),
+  },
   { key: "sessions", header: "Sessions", muted: true, render: (row) => formatNumber(row.sessions) },
-  { key: "firstSeen", header: "First Seen", muted: true, render: (row) => formatDay(row.firstSeen) },
+  {
+    key: "firstSeen",
+    header: "First Seen",
+    muted: true,
+    render: (row) => formatDay(row.firstSeen),
+  },
   { key: "lastSeen", header: "Last Seen", muted: true, render: (row) => formatDay(row.lastSeen) },
   { key: "status", header: "Status", render: (row) => statusBadge(row) },
 ];
@@ -118,9 +135,15 @@ export function VersionsPage({ stats, theme, accentHue = 217, filterBar }: Versi
 
   const latestKey = useMemo(() => normalizeVersionKey(latestVersion), [latestVersion]);
 
-  const basePalette = useMemo(() => buildDashboardChartPalette(theme, accentHue), [theme, accentHue]);
+  const basePalette = useMemo(
+    () => buildDashboardChartPalette(theme, accentHue),
+    [theme, accentHue],
+  );
   const { override: colorOverride } = useChartColors();
-  const chartPalette = useMemo(() => applyChartColorOverride(basePalette, colorOverride), [basePalette, colorOverride]);
+  const chartPalette = useMemo(
+    () => applyChartColorOverride(basePalette, colorOverride),
+    [basePalette, colorOverride],
+  );
 
   // Merge server telemetry (all-time + current adoption) with every GitHub release,
   // so versions with zero telemetry (e.g. brand-new or skipped builds) still appear.
@@ -178,13 +201,18 @@ export function VersionsPage({ stats, theme, accentHue = 217, filterBar }: Versi
     [versionRows, view],
   );
 
-  const totalCurrentKnown = useMemo(() => versionRows.reduce((sum, row) => sum + row.currentUsers, 0), [versionRows]);
+  const totalCurrentKnown = useMemo(
+    () => versionRows.reduce((sum, row) => sum + row.currentUsers, 0),
+    [versionRows],
+  );
   const latestRow = useMemo(() => versionRows.find((row) => row.isLatest) ?? null, [versionRows]);
   const onLatestUsers = latestRow?.currentUsers ?? 0;
-  const onLatestSharePct = totalCurrentKnown > 0 ? Math.round((onLatestUsers / totalCurrentKnown) * 100) : 0;
+  const onLatestSharePct =
+    totalCurrentKnown > 0 ? Math.round((onLatestUsers / totalCurrentKnown) * 100) : 0;
   // Version-specific: known current users whose latest session is NOT on the latest release.
   const outdatedUsers = Math.max(0, totalCurrentKnown - onLatestUsers);
-  const outdatedSharePct = totalCurrentKnown > 0 ? Math.round((outdatedUsers / totalCurrentKnown) * 100) : 0;
+  const outdatedSharePct =
+    totalCurrentKnown > 0 ? Math.round((outdatedUsers / totalCurrentKnown) * 100) : 0;
   const topVersion = useMemo(() => {
     let best: ChartRow | null = null;
     for (const row of chartRows) {
@@ -235,8 +263,12 @@ export function VersionsPage({ stats, theme, accentHue = 217, filterBar }: Versi
   const trackedDrilldown = useMemo<KpiDrilldown | null>(() => {
     if (versionRows.length === 0) return null;
     const active = versionRows.filter((row) => !row.isLatest && row.currentUsers > 0).length;
-    const retired = versionRows.filter((row) => !row.isLatest && row.currentUsers === 0 && row.allTimeUsers > 0).length;
-    const silent = versionRows.filter((row) => !row.isLatest && row.currentUsers === 0 && row.allTimeUsers === 0).length;
+    const retired = versionRows.filter(
+      (row) => !row.isLatest && row.currentUsers === 0 && row.allTimeUsers > 0,
+    ).length;
+    const silent = versionRows.filter(
+      (row) => !row.isLatest && row.currentUsers === 0 && row.allTimeUsers === 0,
+    ).length;
     const total = versionRows.length;
     return {
       breakdown: [
@@ -259,12 +291,18 @@ export function VersionsPage({ stats, theme, accentHue = 217, filterBar }: Versi
         { label: "Sessions", value: formatNumber(topVersion.sessions) },
         { label: "Last seen", value: formatDay(topVersion.lastSeen) },
       ],
-      note: view === "current" ? "Ranked by users currently on the version." : "Ranked by distinct users who ever ran the version.",
+      note:
+        view === "current"
+          ? "Ranked by users currently on the version."
+          : "Ranked by distinct users who ever ran the version.",
     };
   }, [topVersion, view]);
 
   // Rank bars: share is normalized against the largest bucket in the active view.
-  const maxChartValue = useMemo(() => chartRows.reduce((max, row) => Math.max(max, row.value), 0), [chartRows]);
+  const maxChartValue = useMemo(
+    () => chartRows.reduce((max, row) => Math.max(max, row.value), 0),
+    [chartRows],
+  );
   const rankItems = useMemo(
     () =>
       chartRows.map((row) => ({
@@ -278,7 +316,16 @@ export function VersionsPage({ stats, theme, accentHue = 217, filterBar }: Versi
   const downloadCsv = useCallback(() => {
     const header = "version,currentUsers,allTimeUsers,sessions,firstSeen,lastSeen\n";
     const rows = versionRows
-      .map((row) => [row.key, row.currentUsers, row.allTimeUsers, row.sessions, row.firstSeen ?? "", row.lastSeen ?? ""].join(","))
+      .map((row) =>
+        [
+          row.key,
+          row.currentUsers,
+          row.allTimeUsers,
+          row.sessions,
+          row.firstSeen ?? "",
+          row.lastSeen ?? "",
+        ].join(","),
+      )
       .join("\n");
     const blob = new Blob([header + rows], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -329,7 +376,6 @@ export function VersionsPage({ stats, theme, accentHue = 217, filterBar }: Versi
         title="Versions"
         right={
           <>
-            <Badge tone="accent" title="Latest GitHub release">Latest · {latestVersion}</Badge>
             <div className="seg-control">
               <button
                 type="button"
@@ -385,7 +431,11 @@ export function VersionsPage({ stats, theme, accentHue = 217, filterBar }: Versi
         <KpiStatCard
           label="Top Version"
           value={topVersion?.label ?? "—"}
-          sub={topVersion ? `${formatNumber(topVersion.value)} ${view === "current" ? "current" : "all-time"} users` : "No data"}
+          sub={
+            topVersion
+              ? `${formatNumber(topVersion.value)} ${view === "current" ? "current" : "all-time"} users`
+              : "No data"
+          }
           icon={<Crown size={14} />}
           tone="primary"
           drilldown={topVersionDrilldown}
@@ -398,9 +448,11 @@ export function VersionsPage({ stats, theme, accentHue = 217, filterBar }: Versi
         <CollapsiblePanel
           kicker="Distribution"
           title="Users by Version"
-          sub={view === "current"
-            ? "Users whose latest session ran each version — adoption right now."
-            : "Distinct users who ever ran each version — all-time."}
+          sub={
+            view === "current"
+              ? "Users whose latest session ran each version — adoption right now."
+              : "Distinct users who ever ran each version — all-time."
+          }
           padding="body"
         >
           {rankItems.length > 0 ? (
@@ -421,7 +473,11 @@ export function VersionsPage({ stats, theme, accentHue = 217, filterBar }: Versi
                 sub={`${formatNumber(onLatestUsers)} of ${formatNumber(totalCurrentKnown)} known current`}
               />
               <RadialGauge
-                ratio={stats.totals.rpcKnownUsers > 0 ? stats.totals.rpcEnabledUsers / stats.totals.rpcKnownUsers : 0}
+                ratio={
+                  stats.totals.rpcKnownUsers > 0
+                    ? stats.totals.rpcEnabledUsers / stats.totals.rpcKnownUsers
+                    : 0
+                }
                 title="Discord RPC On"
                 sub={`${formatNumber(stats.totals.rpcEnabledUsers)} of ${formatNumber(stats.totals.rpcKnownUsers)} reporting`}
               />

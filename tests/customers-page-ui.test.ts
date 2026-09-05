@@ -38,6 +38,6 @@ describe("Customers CRM page", () => {
     expect(page).toContain('selector: hwid ? "hwid" : "install_id"');
     expect(page).toContain("<Customer360Overlay");
     expect(page).toContain("anchor={selectedAnchor}");
-    expect(page).toContain("Open 360");
+    expect(page).toContain("Open Customer 360 for");
   });
 });

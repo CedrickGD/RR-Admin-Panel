@@ -1,3 +1,4 @@
+import { TableFrame, RecordCell } from "../components/ds/TableFrame";
 import { Ban, ShieldAlert, ShieldCheck, Clock, User, RotateCcw } from "lucide-react";
 import { useDeferredValue, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Badge } from "../components/ds/Badge";
@@ -224,7 +225,7 @@ export function AccessPage({ users = null, onOpenWorker, filterBar }: AccessPage
 
   return (
     <div className="page-content page-stack-lg">
-      <PageHeader kicker="Access" title="Access Control" right={filterBar} />
+      <PageHeader kicker="Access" title="App suspensions" right={filterBar} />
 
       {/* ── Users ── */}
       <section className="panel" style={{ marginBottom: 24 }}>
@@ -239,16 +240,7 @@ export function AccessPage({ users = null, onOpenWorker, filterBar }: AccessPage
             className="panel-head-right"
             style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}
           >
-            <div
-              style={{
-                display: "flex",
-                gap: 4,
-                background: "var(--surface-2)",
-                padding: 4,
-                borderRadius: 8,
-                border: "1px solid var(--line)",
-              }}
-            >
+            <div className="seg-control">
               {(
                 [
                   ["all", "All"],
@@ -263,19 +255,7 @@ export function AccessPage({ users = null, onOpenWorker, filterBar }: AccessPage
                     setTierFilter(key);
                     setUserPage(1);
                   }}
-                  style={{
-                    padding: "5px 12px",
-                    borderRadius: 6,
-                    fontSize: "0.75rem",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    border: "none",
-                    background:
-                      tierFilter === key
-                        ? "var(--surface-1, rgba(255,255,255,0.06))"
-                        : "transparent",
-                    color: tierFilter === key ? "var(--text-1)" : "var(--text-2)",
-                  }}
+                  className={"seg-btn" + (tierFilter === key ? " active" : "")}
                 >
                   {label}
                 </button>
@@ -313,99 +293,75 @@ export function AccessPage({ users = null, onOpenWorker, filterBar }: AccessPage
           </EmptyState>
         ) : (
           <>
-            <div className="data-table-wrap data-table-wrap-paginated">
-              {/* DS .data-table — one table anatomy console-wide. */}
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>User</th>
-                    <th>{sortMode === "first_seen" ? "First seen" : "Last seen"}</th>
-                    <th style={{ textAlign: "right" }}>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginatedUsers.items.map((u) => {
-                    const susp = suspensionForUser(u);
-                    const paid = paidKeysOf(u).length > 0;
-                    return (
-                      <tr key={u.identity}>
-                        <td>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            {/* Plain-text name; hover reveals the link affordance. Click opens the
-                            user's detail view (Sessions). */}
+            <TableFrame paginated>
+              <thead>
+                <tr>
+                  <th>User</th>
+                  <th>Access</th>
+                  <th>{sortMode === "first_seen" ? "First seen" : "Last seen"}</th>
+                  <th style={{ textAlign: "right" }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedUsers.items.map((u) => {
+                  const susp = suspensionForUser(u);
+                  const paid = paidKeysOf(u).length > 0;
+                  return (
+                    <tr key={u.identity}>
+                      <td>
+                        <RecordCell
+                          primary={
                             <button
+                              className="record-link"
                               type="button"
                               onClick={() => onOpenWorker?.(u.identity)}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.textDecoration = "underline";
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.textDecoration = "none";
-                              }}
-                              style={{
-                                background: "transparent",
-                                border: "none",
-                                cursor: onOpenWorker ? "pointer" : "default",
-                                color: "var(--text-1)",
-                                padding: 0,
-                                fontSize: "0.8125rem",
-                                fontWeight: 600,
-                                textAlign: "left",
-                              }}
                               title="View user details"
                             >
                               {u.userLabel || "Unknown user"}
                             </button>
-                            {paid ? <Badge tone="warning">Paid</Badge> : null}
-                            {susp ? (
-                              <Badge tone="danger">
-                                {susp.mode === "ban" ? "Banned" : "Suspended"}
-                              </Badge>
-                            ) : null}
-                          </div>
-                          {u.discordUser ? (
-                            <div style={{ fontSize: "0.72rem", color: "var(--text-3)" }}>
-                              {u.discordUser}
-                            </div>
-                          ) : null}
-                        </td>
-                        <td className="muted" style={{ whiteSpace: "nowrap" }}>
-                          {timeAgo(sortMode === "first_seen" ? u.firstSeen : u.lastSeen)}
-                        </td>
-                        <td style={{ textAlign: "right" }}>
-                          {susp ? (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              permission="access.write"
-                              icon={<RotateCcw size={14} />}
-                              onClick={() =>
-                                setLiftTarget({
-                                  identity: susp.identity,
-                                  label: u.userLabel || susp.identity,
-                                })
-                              }
-                            >
-                              Lift
-                            </Button>
-                          ) : (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              icon={<Ban size={14} />}
-                              permission="access.write"
-                              onClick={() => openSuspend(u)}
-                            >
-                              Suspend
-                            </Button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                          }
+                          secondary={[u.discordUser, paid ? "Premium" : "Free"]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        />
+                      </td>
+                      <td>{susp ? (susp.mode === "ban" ? "Banned" : "Suspended") : "Allowed"}</td>
+                      <td className="muted" style={{ whiteSpace: "nowrap" }}>
+                        {timeAgo(sortMode === "first_seen" ? u.firstSeen : u.lastSeen)}
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        {susp ? (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            permission="access.write"
+                            icon={<RotateCcw size={14} />}
+                            onClick={() =>
+                              setLiftTarget({
+                                identity: susp.identity,
+                                label: u.userLabel || susp.identity,
+                              })
+                            }
+                          >
+                            Lift
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            icon={<Ban size={14} />}
+                            permission="access.write"
+                            onClick={() => openSuspend(u)}
+                          >
+                            Suspend
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </TableFrame>
             <TablePagination
               page={paginatedUsers.page}
               pageCount={paginatedUsers.pageCount}
@@ -443,135 +399,123 @@ export function AccessPage({ users = null, onOpenWorker, filterBar }: AccessPage
             Every user currently has access.
           </EmptyState>
         ) : (
-          <div className="data-table-wrap">
-            {/* DS .data-table — one table anatomy console-wide. */}
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>User</th>
-                  <th>Type</th>
-                  <th className="col-md">Reason</th>
-                  <th className="col-lg">By</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {activeSuspensions.map((row) => (
-                  <tr key={row.id}>
-                    <td>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <button
-                          type="button"
-                          onClick={() => onOpenWorker?.(row.identity)}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.textDecoration = "underline";
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.textDecoration = "none";
-                          }}
-                          style={{
-                            background: "transparent",
-                            border: "none",
-                            cursor: onOpenWorker ? "pointer" : "default",
-                            color: "var(--text-1)",
-                            padding: 0,
-                            fontSize: "0.8125rem",
-                            fontWeight: 600,
-                            textAlign: "left",
-                          }}
-                          title="View user details"
-                        >
-                          {row.user_label || "Unknown user"}
-                        </button>
-                        {row.had_paid_license === 1 ? (
-                          <Badge tone="warning" title="Had an active paid license when suspended">
-                            Paid
-                          </Badge>
-                        ) : null}
-                      </div>
-                      <div
-                        style={{
-                          fontFamily: "var(--font-mono)",
-                          fontSize: "0.72rem",
-                          color: "var(--text-3)",
+          <TableFrame>
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Type</th>
+                <th className="col-md">Reason</th>
+                <th className="col-lg">By</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {activeSuspensions.map((row) => (
+                <tr key={row.id}>
+                  <td>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <button
+                        type="button"
+                        onClick={() => onOpenWorker?.(row.identity)}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.textDecoration = "underline";
                         }}
-                        title={row.hwid ?? row.identity}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.textDecoration = "none";
+                        }}
+                        className="record-link"
+                        title="View user details"
                       >
-                        {(row.hwid ?? row.identity).slice(0, 16)}…
-                      </div>
-                    </td>
-                    <td style={{ whiteSpace: "nowrap" }}>
-                      {row.mode === "ban" ? (
-                        <span
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 6,
-                            color: "var(--danger)",
-                          }}
-                        >
-                          <Ban size={13} /> Permanent
-                        </span>
-                      ) : (
-                        <span
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 6,
-                            color: "var(--warning)",
-                          }}
-                        >
-                          <Clock size={13} /> Until {formatDate(row.banned_until ?? "")}
-                        </span>
-                      )}
-                    </td>
-                    <td
-                      className="muted col-md"
+                        {row.user_label || "Unknown user"}
+                      </button>
+                      {row.had_paid_license === 1 ? (
+                        <Badge tone="warning" title="Had an active paid license when suspended">
+                          Paid
+                        </Badge>
+                      ) : null}
+                    </div>
+                    <div
                       style={{
-                        maxWidth: 260,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
+                        fontFamily: "var(--font-mono)",
+                        fontSize: "0.72rem",
+                        color: "var(--text-3)",
                       }}
-                      title={row.reason ?? undefined}
+                      title={row.hwid ?? row.identity}
                     >
-                      {row.reason || (
-                        <span style={{ color: "var(--text-3)", fontStyle: "italic" }}>—</span>
-                      )}
-                    </td>
-                    <td
-                      className="muted col-lg"
-                      style={{
-                        maxWidth: 180,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                      title={row.created_by ?? undefined}
-                    >
-                      {row.created_by || "—"}
-                    </td>
-                    <td>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        permission="access.write"
-                        icon={<RotateCcw size={14} />}
-                        onClick={() =>
-                          setLiftTarget({
-                            identity: row.identity,
-                            label: row.user_label || row.identity,
-                          })
-                        }
+                      {(row.hwid ?? row.identity).slice(0, 16)}…
+                    </div>
+                  </td>
+                  <td style={{ whiteSpace: "nowrap" }}>
+                    {row.mode === "ban" ? (
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                          color: "var(--danger)",
+                        }}
                       >
-                        Lift
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                        <Ban size={13} /> Permanent
+                      </span>
+                    ) : (
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                          color: "var(--warning)",
+                        }}
+                      >
+                        <Clock size={13} /> Until {formatDate(row.banned_until ?? "")}
+                      </span>
+                    )}
+                  </td>
+                  <td
+                    className="muted col-md"
+                    style={{
+                      maxWidth: 260,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                    title={row.reason ?? undefined}
+                  >
+                    {row.reason || (
+                      <span style={{ color: "var(--text-3)", fontStyle: "italic" }}>—</span>
+                    )}
+                  </td>
+                  <td
+                    className="muted col-lg"
+                    style={{
+                      maxWidth: 180,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                    title={row.created_by ?? undefined}
+                  >
+                    {row.created_by || "—"}
+                  </td>
+                  <td>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      permission="access.write"
+                      icon={<RotateCcw size={14} />}
+                      onClick={() =>
+                        setLiftTarget({
+                          identity: row.identity,
+                          label: row.user_label || row.identity,
+                        })
+                      }
+                    >
+                      Lift
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </TableFrame>
         )}
       </section>
 
@@ -632,33 +576,13 @@ export function AccessPage({ users = null, onOpenWorker, filterBar }: AccessPage
             )}
 
             {/* mode toggle */}
-            <div
-              style={{
-                display: "flex",
-                gap: 6,
-                background: "var(--surface-2)",
-                padding: 4,
-                borderRadius: 8,
-                border: "1px solid var(--line)",
-                width: "fit-content",
-              }}
-            >
+            <div className="seg-control">
               {(["ban", "suspend"] as const).map((m) => (
                 <button
                   key={m}
                   type="button"
                   onClick={() => setMode(m)}
-                  style={{
-                    padding: "6px 14px",
-                    borderRadius: 6,
-                    fontSize: "0.75rem",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    border: "none",
-                    background: mode === m ? "var(--surface-1, var(--surface-2))" : "transparent",
-                    color: mode === m ? "var(--text-1)" : "var(--text-2)",
-                    boxShadow: mode === m ? "0 1px 3px rgba(0,0,0,0.25)" : "none",
-                  }}
+                  className={"seg-btn" + (mode === m ? " active" : "")}
                 >
                   {m === "ban" ? "Permanent ban" : "Timed suspend"}
                 </button>

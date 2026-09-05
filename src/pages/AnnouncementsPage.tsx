@@ -1,3 +1,4 @@
+import { TableFrame } from "../components/ds/TableFrame";
 import { Select } from "../components/ds/Select";
 import { Megaphone, Plus, Trash2, Pencil } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
@@ -290,87 +291,85 @@ export function AnnouncementsPage({ filterBar }: AnnouncementsPageProps) {
             Create one to broadcast a message to everyone using the app.
           </EmptyState>
         ) : (
-          <div className="data-table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Announcement</th>
-                  <th>Level</th>
-                  <th>Status</th>
-                  <th>Window</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {sorted.map((a) => {
-                  const status = displayStatus(a);
-                  return (
-                    <tr key={a.id}>
-                      <td style={{ maxWidth: 380 }}>
-                        <div style={{ fontWeight: 600, color: "var(--text-1)", marginBottom: 2 }}>
-                          {a.title}
-                        </div>
-                        <div
-                          style={{
-                            fontSize: "var(--fs-small)",
-                            color: "var(--text-3)",
-                            whiteSpace: "nowrap",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            maxWidth: 360,
-                          }}
-                          title={a.body}
-                        >
-                          {a.body}
-                        </div>
-                      </td>
-                      <td>
-                        <Badge tone={LEVEL_TONE[a.level]}>{a.level.toUpperCase()}</Badge>
-                      </td>
-                      <td>
-                        <Badge tone={status.tone}>{status.label}</Badge>
-                      </td>
-                      <td
-                        className="muted"
-                        style={{ whiteSpace: "nowrap", fontSize: "var(--fs-small)" }}
+          <TableFrame>
+            <thead>
+              <tr>
+                <th>Announcement</th>
+                <th>Level</th>
+                <th>Status</th>
+                <th>Window</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((a) => {
+                const status = displayStatus(a);
+                return (
+                  <tr key={a.id}>
+                    <td style={{ maxWidth: 380 }}>
+                      <div style={{ fontWeight: 600, color: "var(--text-1)", marginBottom: 2 }}>
+                        {a.title}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "var(--fs-small)",
+                          color: "var(--text-3)",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          maxWidth: 360,
+                        }}
+                        title={a.body}
                       >
-                        <div>From: {a.starts_at ? formatDate(a.starts_at) : "immediately"}</div>
-                        <div>Until: {a.expires_at ? formatDate(a.expires_at) : "no end"}</div>
-                      </td>
-                      <td>
-                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                          <Button
-                            size="xs"
-                            variant="ghost"
-                            permission="announcements.write"
-                            onClick={() => toggleActive(a)}
-                            style={{ minWidth: 62, justifyContent: "center" }}
-                          >
-                            {a.is_active === 1 ? "Turn off" : "Turn on"}
-                          </Button>
-                          <IconButton
-                            icon={<Pencil />}
-                            size={16}
-                            title="Edit"
-                            permission="announcements.write"
-                            onClick={() => openEdit(a)}
-                          />
-                          <IconButton
-                            icon={<Trash2 />}
-                            size={16}
-                            title="Delete"
-                            style={{ color: "var(--danger)" }}
-                            permission="announcements.write"
-                            onClick={() => setDeleteCandidate(a)}
-                          />
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        {a.body}
+                      </div>
+                    </td>
+                    <td>
+                      <Badge tone={LEVEL_TONE[a.level]}>{a.level.toUpperCase()}</Badge>
+                    </td>
+                    <td>
+                      <Badge tone={status.tone}>{status.label}</Badge>
+                    </td>
+                    <td
+                      className="muted"
+                      style={{ whiteSpace: "nowrap", fontSize: "var(--fs-small)" }}
+                    >
+                      <div>From: {a.starts_at ? formatDate(a.starts_at) : "immediately"}</div>
+                      <div>Until: {a.expires_at ? formatDate(a.expires_at) : "no end"}</div>
+                    </td>
+                    <td>
+                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <Button
+                          size="xs"
+                          variant="ghost"
+                          permission="announcements.write"
+                          onClick={() => toggleActive(a)}
+                          style={{ minWidth: 62, justifyContent: "center" }}
+                        >
+                          {a.is_active === 1 ? "Turn off" : "Turn on"}
+                        </Button>
+                        <IconButton
+                          icon={<Pencil />}
+                          size={16}
+                          title="Edit"
+                          permission="announcements.write"
+                          onClick={() => openEdit(a)}
+                        />
+                        <IconButton
+                          icon={<Trash2 />}
+                          size={16}
+                          title="Delete"
+                          style={{ color: "var(--danger)" }}
+                          permission="announcements.write"
+                          onClick={() => setDeleteCandidate(a)}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </TableFrame>
         )}
       </section>
 

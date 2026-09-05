@@ -1,3 +1,4 @@
+import { TableFrame, RecordCell } from "../components/ds/TableFrame";
 import {
   Activity,
   AlertTriangle,
@@ -285,7 +286,6 @@ export function LivePage({
         </div>
         <div className="monitor-filter-row">
           <div className="monitor-filter">
-            <span>Version</span>
             <GlassDropdown
               placeholder="All versions"
               options={[...options.versions].sort(compareVersionsNewestFirst)}
@@ -295,7 +295,6 @@ export function LivePage({
             />
           </div>
           <div className="monitor-filter">
-            <span>Country</span>
             <GlassDropdown
               placeholder="All countries"
               options={options.countries.map((c) => c.value)}
@@ -312,174 +311,183 @@ export function LivePage({
           )}
           <span className="monitor-results">{rows.length} live · stable alphabetical order</span>
         </div>
-        <div className="live-list">
-          {rows.map((session) => {
-            const open = expanded === session.id,
-              label = displayUser(session),
-              timeline = buildLiveSessionTimeline(session, summary.recentEvents);
-            return (
-              <article
-                key={session.id}
-                ref={(el) => {
-                  if (el) rowRefs.current.set(session.id, el);
-                  else rowRefs.current.delete(session.id);
-                }}
-                tabIndex={-1}
-                className={`live-record ${open ? "is-expanded" : ""} ${highlightedId === session.id ? "row-focused" : ""}`}
-              >
-                <div className="live-record-row">
-                  <button
-                    className="person-cell"
-                    onClick={() => setExpanded(open ? null : session.id)}
-                    aria-expanded={open}
+        <TableFrame>
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Version</th>
+              <th>Session time</th>
+              <th>Location</th>
+              <th>Status</th>
+              <th aria-label="Session actions" />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((session) => {
+              const open = expanded === session.id,
+                label = displayUser(session),
+                timeline = buildLiveSessionTimeline(session, summary.recentEvents);
+              return (
+                <Fragment key={session.id}>
+                  <tr
+                    ref={(el) => {
+                      if (el) rowRefs.current.set(session.id, el);
+                      else rowRefs.current.delete(session.id);
+                    }}
+                    tabIndex={-1}
+                    className={highlightedId === session.id ? "row-focused" : undefined}
                   >
-                    <span className="person-avatar live-avatar">
-                      {label.slice(0, 2).toUpperCase()}
-                    </span>
-                    <span>
-                      <strong title={label}>{label}</strong>
-                      <small>
-                        {session.discordUser
-                          ? `@${session.discordUser.replace(/^@/, "")}`
-                          : displayLocation(session)}
-                      </small>
-                    </span>
-                  </button>
-                  <div className="live-field">
-                    <span>Version</span>
-                    <strong>{session.displayVersion || session.appVersion || "Unknown"}</strong>
-                  </div>
-                  <div className="live-field">
-                    <span>Session time</span>
-                    <strong>{resolveSessionDuration(session)}</strong>
-                  </div>
-                  <div className="live-field live-location">
-                    <span>Location</span>
-                    <strong title={displayLocation(session)}>{displayLocation(session)}</strong>
-                  </div>
-                  <div className="live-state">
-                    <span className="presence online">
-                      <i />
-                      Online
-                    </span>
-                    <small className={session.errorCount ? "row-error" : ""}>
-                      {session.errorCount
-                        ? `${session.errorCount} errors`
-                        : session.rpcEnabled
-                          ? "Discord RPC on"
-                          : "No errors"}
-                    </small>
-                  </div>
-                  <div className="row-actions">
-                    {resolveCountry(session.clientCountry) && (
-                      <IconButton
-                        icon={<Globe2 />}
-                        title="View on map"
-                        aria-label={`View ${label} on map`}
-                        onClick={() => onOpenMapSession(session.id)}
-                      />
-                    )}
-                    <IconButton
-                      icon={open ? <ChevronUp /> : <ChevronDown />}
-                      aria-expanded={open}
-                      aria-label={`${open ? "Collapse" : "Expand"} session for ${label}`}
-                      onClick={() => setExpanded(open ? null : session.id)}
-                    />
-                  </div>
-                </div>
-                {open && (
-                  <div className="live-record-detail">
-                    <div className="history-detail-head">
-                      <div>
-                        <Activity />
-                        <strong>Current session</strong>
-                      </div>
-                      <Button
-                        permission="customers.read"
-                        size="sm"
-                        variant="accent"
-                        icon={<ArrowUpRight />}
-                        onClick={() =>
-                          window.dispatchEvent(
-                            new CustomEvent("rr:open-customer", {
-                              detail: { selector: "session_id", value: session.id },
-                            }),
-                          )
-                        }
+                    <td>
+                      <button
+                        className="person-cell"
+                        onClick={() => setExpanded(open ? null : session.id)}
+                        aria-expanded={open}
                       >
-                        Customer workspace
-                      </Button>
-                    </div>
-                    <div className="detail-facts">
-                      <div>
-                        <span>Started</span>
-                        <strong>{formatDate(session.startedAt)}</strong>
-                      </div>
-                      <div>
-                        <span>Last seen</span>
-                        <strong>{timeAgo(session.lastSeenAt)}</strong>
-                      </div>
-                      <div>
-                        <span>Latest event</span>
-                        <strong>
-                          {session.lastEvent ? formatEventName(session.lastEvent) : "None"}
-                        </strong>
-                      </div>
-                      <div>
-                        <span>Device</span>
-                        <strong>
-                          {session.deviceModel ||
-                            session.osVersion ||
-                            session.platform ||
-                            "Unknown"}
-                        </strong>
-                      </div>
-                    </div>
-                    <div className="timeline-track">
-                      <div className="timeline-fill" style={{ width: "100%" }} />
-                      {timeline.markers.map((marker) => (
-                        <div
-                          key={marker.id}
-                          className="timeline-marker is-error"
-                          style={{ left: `${marker.position}%` }}
-                          title={`${marker.label} at ${marker.timeLabel}`}
-                        />
-                      ))}
-                    </div>
-                    <div className="live-timeline-caption">
-                      <span>{formatDate(session.startedAt)}</span>
-                      <span>
-                        {timeline.hiddenErrorCount > 0
-                          ? `${timeline.hiddenErrorCount} additional errors`
-                          : "Now"}
-                      </span>
-                    </div>
-                    <details className="history-device-details">
-                      <summary>Connection & device details</summary>
-                      <DetailGrid
-                        items={[
-                          { k: "Install ID", v: session.installId },
-                          { k: "Session ID", v: session.id },
-                          { k: "Hardware ID", v: session.hwid || "Not reported" },
-                          { k: "Client IP", v: session.clientIp || "Unknown" },
-                          { k: "Timezone", v: session.clientTimezone || "Unknown" },
-                          {
-                            k: "Geo source",
-                            v: formatGeoSource(
-                              session.clientGeoSource,
-                              session.clientGeoSignalSource,
-                            ),
-                          },
-                          { k: "Accuracy", v: formatAccuracy(session.clientAccuracyMeters) },
-                        ]}
+                        <span className="person-avatar live-avatar">
+                          {label.slice(0, 2).toUpperCase()}
+                        </span>
+                        <span>
+                          <strong title={label}>{label}</strong>
+                          <small>
+                            {session.discordUser
+                              ? `@${session.discordUser.replace(/^@/, "")}`
+                              : displayLocation(session)}
+                          </small>
+                        </span>
+                      </button>
+                    </td>
+                    <td>{session.displayVersion || session.appVersion || "Unknown"}</td>
+                    <td>{resolveSessionDuration(session)}</td>
+                    <td>{displayLocation(session)}</td>
+                    <td>
+                      <RecordCell
+                        primary="Online"
+                        secondary={
+                          session.errorCount
+                            ? session.errorCount + " errors"
+                            : session.rpcEnabled
+                              ? "Discord RPC on"
+                              : "No errors"
+                        }
                       />
-                    </details>
-                  </div>
-                )}
-              </article>
-            );
-          })}
-        </div>
+                    </td>
+                    <td>
+                      <div className="row-actions">
+                        {resolveCountry(session.clientCountry) && (
+                          <IconButton
+                            icon={<Globe2 />}
+                            title="View on map"
+                            aria-label={`View ${label} on map`}
+                            onClick={() => onOpenMapSession(session.id)}
+                          />
+                        )}
+                        <IconButton
+                          icon={open ? <ChevronUp /> : <ChevronDown />}
+                          aria-expanded={open}
+                          aria-label={`${open ? "Collapse" : "Expand"} session for ${label}`}
+                          onClick={() => setExpanded(open ? null : session.id)}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                  {open && (
+                    <tr>
+                      <td colSpan={6} className="live-detail-cell">
+                        <div className="live-record-detail">
+                          <div className="history-detail-head">
+                            <div>
+                              <Activity />
+                              <strong>Current session</strong>
+                            </div>
+                            <Button
+                              permission="customers.read"
+                              size="sm"
+                              variant="accent"
+                              icon={<ArrowUpRight />}
+                              onClick={() =>
+                                window.dispatchEvent(
+                                  new CustomEvent("rr:open-customer", {
+                                    detail: { selector: "session_id", value: session.id },
+                                  }),
+                                )
+                              }
+                            >
+                              Customer workspace
+                            </Button>
+                          </div>
+                          <div className="detail-facts">
+                            <div>
+                              <span>Started</span>
+                              <strong>{formatDate(session.startedAt)}</strong>
+                            </div>
+                            <div>
+                              <span>Last seen</span>
+                              <strong>{timeAgo(session.lastSeenAt)}</strong>
+                            </div>
+                            <div>
+                              <span>Latest event</span>
+                              <strong>
+                                {session.lastEvent ? formatEventName(session.lastEvent) : "None"}
+                              </strong>
+                            </div>
+                            <div>
+                              <span>Device</span>
+                              <strong>
+                                {session.deviceModel ||
+                                  session.osVersion ||
+                                  session.platform ||
+                                  "Unknown"}
+                              </strong>
+                            </div>
+                          </div>
+                          <div className="timeline-track">
+                            <div className="timeline-fill" style={{ width: "100%" }} />
+                            {timeline.markers.map((marker) => (
+                              <div
+                                key={marker.id}
+                                className="timeline-marker is-error"
+                                style={{ left: `${marker.position}%` }}
+                                title={`${marker.label} at ${marker.timeLabel}`}
+                              />
+                            ))}
+                          </div>
+                          <div className="live-timeline-caption">
+                            <span>{formatDate(session.startedAt)}</span>
+                            <span>
+                              {timeline.hiddenErrorCount > 0
+                                ? `${timeline.hiddenErrorCount} additional errors`
+                                : "Now"}
+                            </span>
+                          </div>
+                          <details className="history-device-details">
+                            <summary>Connection & device details</summary>
+                            <DetailGrid
+                              items={[
+                                { k: "Install ID", v: session.installId },
+                                { k: "Session ID", v: session.id },
+                                { k: "Hardware ID", v: session.hwid || "Not reported" },
+                                { k: "Client IP", v: session.clientIp || "Unknown" },
+                                { k: "Timezone", v: session.clientTimezone || "Unknown" },
+                                {
+                                  k: "Geo source",
+                                  v: formatGeoSource(
+                                    session.clientGeoSource,
+                                    session.clientGeoSignalSource,
+                                  ),
+                                },
+                                { k: "Accuracy", v: formatAccuracy(session.clientAccuracyMeters) },
+                              ]}
+                            />
+                          </details>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </TableFrame>
         {rows.length === 0 && (
           <EmptyState
             icon={<Radio />}

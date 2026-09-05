@@ -352,16 +352,7 @@ export function FeedbackPage({
                     <button
                       type="button"
                       onClick={() => toggleExpand(f.id)}
-                      style={{
-                        background: "transparent",
-                        border: "none",
-                        color: "var(--accent-text)",
-                        cursor: "pointer",
-                        padding: 0,
-                        fontSize: "var(--fs-small)",
-                        fontWeight: 600,
-                        marginBottom: 10,
-                      }}
+                      className="btn btn-ghost"
                     >
                       {isExpanded ? "Show less" : "Show more"}
                     </button>
@@ -383,20 +374,7 @@ export function FeedbackPage({
                         type="button"
                         onClick={() => openAuthor(f)}
                         title={liveSession ? "View live session" : "View this user's sessions"}
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 5,
-                          background: "transparent",
-                          border: "none",
-                          cursor: "pointer",
-                          padding: 0,
-                          color: "var(--accent-text)",
-                          fontSize: "var(--fs-small)",
-                          fontWeight: 600,
-                          textDecoration: "underline",
-                          textDecorationStyle: "dotted",
-                        }}
+                        className="record-link"
                       >
                         <User size={12} />
                         {f.machine_name || "Unknown user"}

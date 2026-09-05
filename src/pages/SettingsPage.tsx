@@ -10,8 +10,6 @@ import {
   Upload,
 } from "lucide-react";
 import { useAppearance, DEFAULT_APPEARANCE, type Appearance } from "../hooks/useAppearance";
-import { useChartColors } from "../hooks/useChartColors";
-import { useDonutColors } from "../hooks/useDonutColors";
 import { ACCENT_PRESETS } from "../hooks/useAccent";
 import type { AuthMode, AuthUser, HealthPayload, SummaryPayload } from "../types/telemetry";
 import { PageHeader } from "../components/ds/PageHeader";
@@ -28,8 +26,6 @@ export function SettingsPage({ user, authMode, summary, health, onLogout }: Prop
   const [tab, setTab] = useState("appearance"),
     [error, setError] = useState(""),
     [uploading, setUploading] = useState(false);
-  const charts = useChartColors(),
-    donuts = useDonutColors();
   const save = (value: Partial<Appearance>) => {
     try {
       update(value);
@@ -242,33 +238,7 @@ export function SettingsPage({ user, authMode, summary, health, onLogout }: Prop
                 </div>
               )}
             </section>
-            <section className="settings-section">
-              <h2>Chart palettes</h2>
-              <div className="palette-row">
-                {charts.presets.map((p) => (
-                  <button
-                    className={`palette-chip ${charts.activeLabel === p.label ? "selected" : ""}`}
-                    key={p.label}
-                    onClick={() => charts.setPreset(p)}
-                  >
-                    <i style={{ background: p.users }} />
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-              <div className="palette-row">
-                {donuts.presets.map((p) => (
-                  <button
-                    className={`palette-chip ${donuts.activeLabel === p.label ? "selected" : ""}`}
-                    key={p.label}
-                    onClick={() => donuts.setPreset(p)}
-                  >
-                    <i style={{ background: p.colors[0] }} />
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-            </section>
+
             <button
               className="btn btn-ghost"
               onClick={() => save({ ...DEFAULT_APPEARANCE, image: "" })}

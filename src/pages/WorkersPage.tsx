@@ -1,3 +1,4 @@
+import { TableFrame } from "../components/ds/TableFrame";
 import {
   ArrowDown,
   ArrowUp,
@@ -104,7 +105,6 @@ export function WorkersPage({
   const [scope, setScope] = useState<Scope>("all");
   const [version, setVersion] = useState<string | null>(null);
   const [country, setCountry] = useState<string | null>(null);
-  const [lastActive, setLastActive] = useState<string | null>(null);
   const [sort, setSort] = useState<UserDirectorySortKey>("lastSeen");
   const [direction, setDirection] = useState<DirectorySortDirection>("desc");
   const [page, setPage] = useState(1);
@@ -123,7 +123,7 @@ export function WorkersPage({
       setPage(1);
     }
   }, [focusedWorkerId]);
-  useEffect(() => setPage(1), [search, scope, version, country, lastActive, sort, direction]);
+  useEffect(() => setPage(1), [search, scope, version, country, sort, direction]);
   const sessions = useMemo(
     () => [
       ...new Map(
@@ -139,14 +139,12 @@ export function WorkersPage({
   );
   const options = useMemo(() => buildUserDirectoryOptions(directory, null), [directory]);
   const rows = useMemo(() => {
-    const cutoff = lastActive ? now - Number(lastActive) * 86400000 : 0;
     const eligible = directory.filter(
       (u) =>
-        (!cutoff || Date.parse(u.lastSeen) >= cutoff) &&
-        (scope === "all" ||
-          (scope === "online" && u.isActive) ||
-          (scope === "offline" && !u.isActive) ||
-          (scope === "errors" && u.errors > 0)),
+        scope === "all" ||
+        (scope === "online" && u.isActive) ||
+        (scope === "offline" && !u.isActive) ||
+        (scope === "errors" && u.errors > 0),
     );
     const filtered = filterAndSortUsers(
       eligible,
@@ -161,7 +159,7 @@ export function WorkersPage({
           (direction === "desc" ? 1 : -1) * compareVersionsNewestFirst(versionOf(a), versionOf(b)),
       );
     return filtered;
-  }, [directory, search, scope, version, country, lastActive, sort, direction, now]);
+  }, [directory, search, scope, version, country, sort, direction]);
   const visible = paginate(rows, page, 50);
   const totals = rows.reduce(
     (t, u) => ({
@@ -171,13 +169,12 @@ export function WorkersPage({
     }),
     { sessions: 0, online: 0, seconds: 0 },
   );
-  const filtered = Boolean(query || scope !== "all" || version || country || lastActive);
+  const filtered = Boolean(query || scope !== "all" || version || country);
   function clear() {
     setQuery("");
     setScope("all");
     setVersion(null);
     setCountry(null);
-    setLastActive(null);
     setPage(1);
   }
   function changeSort(key: UserDirectorySortKey) {
@@ -288,7 +285,6 @@ export function WorkersPage({
         </div>
         <div className="monitor-filter-row">
           <div className="monitor-filter">
-            <span>Version</span>
             <GlassDropdown
               placeholder="All versions"
               options={[...options.versions].sort(compareVersionsNewestFirst)}
@@ -298,24 +294,12 @@ export function WorkersPage({
             />
           </div>
           <div className="monitor-filter">
-            <span>Country</span>
             <GlassDropdown
               placeholder="All countries"
               options={options.countries.map((c) => c.value)}
               renderOption={(key) => options.countries.find((c) => c.value === key)?.label ?? key}
               value={country}
               onChange={setCountry}
-              align="left"
-            />
-          </div>
-          <div className="monitor-filter">
-            <span>Last active</span>
-            <GlassDropdown
-              placeholder="Any time"
-              options={["1", "7", "30", "90"]}
-              renderOption={(v) => (v === "1" ? "Last 24 hours" : `Last ${v} days`)}
-              value={lastActive}
-              onChange={setLastActive}
               align="left"
             />
           </div>
@@ -342,169 +326,163 @@ export function WorkersPage({
             <Button onClick={clear}>Clear filters</Button>
           </EmptyState>
         ) : (
-          <div className="monitor-table-scroll">
-            <table className="monitor-table">
-              <thead>
-                <tr>
-                  {heading("Person", "user")}
-                  <th>Status</th>
-                  {heading("Version", "version")}
-                  {heading("Sessions", "sessions")}
-                  {heading("Time in app", "totalTime")}
-                  {heading("Last active", "lastSeen")}
-                  {heading("Location", "location")}
-                  <th>
-                    <span className="sr-only">Actions</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {visible.items.map((user) => {
-                  const isExpanded = expanded === user.identity;
-                  const session = latest.get((user.hwid?.trim() || user.identity).toLowerCase());
-                  const label = nameOf(user);
-                  return (
-                    <Fragment key={user.identity}>
-                      <tr className={isExpanded ? "is-expanded" : ""}>
-                        <td>
-                          <button
-                            className="person-cell"
-                            onClick={() => setExpanded(isExpanded ? null : user.identity)}
-                            aria-expanded={isExpanded}
-                            aria-label={`Show session history for ${label}`}
-                          >
-                            <span className="person-avatar">{label.slice(0, 2).toUpperCase()}</span>
-                            <span>
-                              <strong title={label}>{label}</strong>
-                              <small>
-                                {user.discordUser
-                                  ? `@${user.discordUser.replace(/^@/, "")}`
-                                  : "No Discord linked"}
-                              </small>
-                            </span>
-                          </button>
-                        </td>
-                        <td>
-                          <span className={`presence ${user.isActive ? "online" : "offline"}`}>
-                            <i />
-                            {user.isActive ? "Online" : "Offline"}
-                          </span>
-                        </td>
-                        <td>
-                          <span className="version-text">{versionOf(user)}</span>
-                          {user.rpcEnabled && (
-                            <Radio
-                              className="rpc-icon"
-                              size={13}
-                              aria-label="Discord RPC enabled"
-                            />
-                          )}
-                        </td>
-                        <td>
-                          <strong className="table-number">{formatNumber(user.sessions)}</strong>
-                        </td>
-                        <td>{formatDuration(user.totalDurationSeconds)}</td>
-                        <td title={formatDate(user.lastSeen)}>
-                          {timeAgo(user.lastSeen)}
-                          {user.errors > 0 && (
-                            <small className="row-error">
-                              {formatNumber(user.errors)} errors recorded
+          <TableFrame>
+            <thead>
+              <tr>
+                {heading("Person", "user")}
+                <th>Status</th>
+                {heading("Version", "version")}
+                {heading("Sessions", "sessions")}
+                {heading("Time in app", "totalTime")}
+                {heading("Last active", "lastSeen")}
+                {heading("Location", "location")}
+                <th>
+                  <span className="sr-only">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {visible.items.map((user) => {
+                const isExpanded = expanded === user.identity;
+                const session = latest.get((user.hwid?.trim() || user.identity).toLowerCase());
+                const label = nameOf(user);
+                return (
+                  <Fragment key={user.identity}>
+                    <tr className={isExpanded ? "is-expanded" : ""}>
+                      <td>
+                        <button
+                          className="person-cell"
+                          onClick={() => setExpanded(isExpanded ? null : user.identity)}
+                          aria-expanded={isExpanded}
+                          aria-label={`Show session history for ${label}`}
+                        >
+                          <span className="person-avatar">{label.slice(0, 2).toUpperCase()}</span>
+                          <span>
+                            <strong title={label}>{label}</strong>
+                            <small>
+                              {user.discordUser
+                                ? `@${user.discordUser.replace(/^@/, "")}`
+                                : "No Discord linked"}
                             </small>
-                          )}
-                        </td>
-                        <td>
-                          <span
-                            className="cell-location"
-                            title={[user.city, user.country].filter(Boolean).join(", ")}
-                          >
-                            {[user.city, user.country].filter(Boolean).join(", ") || "Unknown"}
                           </span>
-                        </td>
-                        <td>
-                          <IconButton
-                            icon={isExpanded ? <ChevronUp /> : <ChevronDown />}
-                            aria-expanded={isExpanded}
-                            aria-label={`${isExpanded ? "Collapse" : "Expand"} history for ${label}`}
-                            onClick={() => setExpanded(isExpanded ? null : user.identity)}
-                          />
-                        </td>
-                      </tr>
-                      {isExpanded && (
-                        <tr className="history-expanded">
-                          <td colSpan={8}>
-                            <div className="history-detail-head">
-                              <div>
-                                <History />
-                                <strong>{label} · session timeline</strong>
-                              </div>
-                              <div className="row-actions">
-                                {resolveCountry(user.country) && (
-                                  <Button
-                                    size="sm"
-                                    icon={<Globe2 />}
-                                    onClick={() =>
-                                      session
-                                        ? onOpenMapSession(session.id)
-                                        : onOpenMapUser(user.identity)
-                                    }
-                                  >
-                                    Map
-                                  </Button>
-                                )}
+                        </button>
+                      </td>
+                      <td>
+                        <span className={`presence ${user.isActive ? "online" : "offline"}`}>
+                          <i />
+                          {user.isActive ? "Online" : "Offline"}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="version-text">{versionOf(user)}</span>
+                        {user.rpcEnabled && (
+                          <Radio className="rpc-icon" size={13} aria-label="Discord RPC enabled" />
+                        )}
+                      </td>
+                      <td>
+                        <strong className="table-number">{formatNumber(user.sessions)}</strong>
+                      </td>
+                      <td>{formatDuration(user.totalDurationSeconds)}</td>
+                      <td title={formatDate(user.lastSeen)}>
+                        {timeAgo(user.lastSeen)}
+                        {user.errors > 0 && (
+                          <small className="row-error">
+                            {formatNumber(user.errors)} errors recorded
+                          </small>
+                        )}
+                      </td>
+                      <td>
+                        <span
+                          className="cell-location"
+                          title={[user.city, user.country].filter(Boolean).join(", ")}
+                        >
+                          {[user.city, user.country].filter(Boolean).join(", ") || "Unknown"}
+                        </span>
+                      </td>
+                      <td>
+                        <IconButton
+                          icon={isExpanded ? <ChevronUp /> : <ChevronDown />}
+                          aria-expanded={isExpanded}
+                          aria-label={`${isExpanded ? "Collapse" : "Expand"} history for ${label}`}
+                          onClick={() => setExpanded(isExpanded ? null : user.identity)}
+                        />
+                      </td>
+                    </tr>
+                    {isExpanded && (
+                      <tr className="history-expanded">
+                        <td colSpan={8}>
+                          <div className="history-detail-head">
+                            <div>
+                              <History />
+                              <strong>{label} · session timeline</strong>
+                            </div>
+                            <div className="row-actions">
+                              {resolveCountry(user.country) && (
                                 <Button
-                                  permission="customers.read"
                                   size="sm"
-                                  variant="accent"
-                                  icon={<ArrowUpRight />}
+                                  icon={<Globe2 />}
                                   onClick={() =>
-                                    window.dispatchEvent(
-                                      new CustomEvent("rr:open-customer", {
-                                        detail: {
-                                          selector: user.hwid ? "hwid" : "install_id",
-                                          value: user.hwid || session?.installId || user.identity,
-                                        },
-                                      }),
-                                    )
+                                    session
+                                      ? onOpenMapSession(session.id)
+                                      : onOpenMapUser(user.identity)
                                   }
                                 >
-                                  Customer workspace
+                                  Map
                                 </Button>
+                              )}
+                              <Button
+                                permission="customers.read"
+                                size="sm"
+                                variant="accent"
+                                icon={<ArrowUpRight />}
+                                onClick={() =>
+                                  window.dispatchEvent(
+                                    new CustomEvent("rr:open-customer", {
+                                      detail: {
+                                        selector: user.hwid ? "hwid" : "install_id",
+                                        value: user.hwid || session?.installId || user.identity,
+                                      },
+                                    }),
+                                  )
+                                }
+                              >
+                                Customer workspace
+                              </Button>
+                            </div>
+                          </div>
+                          <Suspense
+                            fallback={
+                              <div className="monitor-loading">Loading session timeline…</div>
+                            }
+                          >
+                            <UserActivityPanel identity={user.identity} />
+                          </Suspense>
+                          <details className="history-device-details">
+                            <summary>Device & installation details</summary>
+                            <div className="detail-facts">
+                              <div>
+                                <span>Device</span>
+                                <strong>{user.deviceModel || user.platform || "Unknown"}</strong>
+                              </div>
+                              <div>
+                                <span>First seen</span>
+                                <strong>{formatDate(user.firstSeen)}</strong>
+                              </div>
+                              <div>
+                                <span>Hardware ID</span>
+                                <code>{user.hwid || "Not reported"}</code>
                               </div>
                             </div>
-                            <Suspense
-                              fallback={
-                                <div className="monitor-loading">Loading session timeline…</div>
-                              }
-                            >
-                              <UserActivityPanel identity={user.identity} />
-                            </Suspense>
-                            <details className="history-device-details">
-                              <summary>Device & installation details</summary>
-                              <div className="detail-facts">
-                                <div>
-                                  <span>Device</span>
-                                  <strong>{user.deviceModel || user.platform || "Unknown"}</strong>
-                                </div>
-                                <div>
-                                  <span>First seen</span>
-                                  <strong>{formatDate(user.firstSeen)}</strong>
-                                </div>
-                                <div>
-                                  <span>Hardware ID</span>
-                                  <code>{user.hwid || "Not reported"}</code>
-                                </div>
-                              </div>
-                              <InstallsPanel hwid={user.hwid} />
-                            </details>
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                            <InstallsPanel hwid={user.hwid} />
+                          </details>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </TableFrame>
         )}
         <TablePagination
           {...visible}

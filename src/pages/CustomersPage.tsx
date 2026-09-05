@@ -1,5 +1,10 @@
 import { TableFrame, RecordCell } from "../components/ds/TableFrame";
 import {
+  CustomerAvatar,
+  useCustomerDirectory,
+  useCustomerProfiles,
+} from "../components/CustomerProfiles";
+import {
   AlertTriangle,
   ArrowDown,
   ArrowUp,
@@ -152,7 +157,9 @@ function LoadingRows() {
   ));
 }
 
-export function CustomersPage({ users, filterBar }: CustomersPageProps) {
+export function CustomersPage({ users: sourceUsers, filterBar }: CustomersPageProps) {
+  const users = useCustomerDirectory(sourceUsers);
+  const findProfile = useCustomerProfiles();
   const [query] = useWorkspaceSearch("customers");
   useEffect(() => {
     setPage(1);
@@ -383,10 +390,16 @@ export function CustomersPage({ users, filterBar }: CustomersPageProps) {
                     (paginated?.items ?? []).map((user) => (
                       <tr key={user.identity}>
                         <td>
-                          <RecordCell
-                            primary={displayName(user)}
-                            secondary={user.licenseTier === "premium" ? "Premium" : "Free"}
-                          />
+                          <div className="person-cell">
+                            <CustomerAvatar
+                              profile={findProfile(user.identity, user.hwid)}
+                              label={displayName(user)}
+                            />
+                            <RecordCell
+                              primary={displayName(user)}
+                              secondary={user.licenseTier === "premium" ? "Premium" : "Free"}
+                            />
+                          </div>
                         </td>
                         <td className="muted col-md" title={user.discordUser ?? undefined}>
                           {discordHandle(user.discordUser)}

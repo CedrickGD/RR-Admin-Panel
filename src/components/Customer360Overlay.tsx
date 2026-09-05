@@ -35,6 +35,7 @@ import { Button } from "./ds/Button";
 import { Modal } from "./ds/Modal";
 import { usePanelPermission } from "../hooks/usePanelPermission";
 import { PanelBackground } from "./PanelBackground";
+import { CustomerAvatar, useCustomerProfiles } from "./CustomerProfiles";
 import { resolveCountry } from "../utils/geography";
 import { setWorkspaceSearch } from "../hooks/useWorkspaceSearch";
 import { CustomerAccessDialog } from "./CustomerAccessDialog";
@@ -681,6 +682,8 @@ export function Customer360View({
   const [reloadKey, setReloadKey] = useState(0);
   const [copied, setCopied] = useState(false);
   const [accessOpen, setAccessOpen] = useState(false);
+  const findProfile = useCustomerProfiles();
+  const accountProfile = findProfile(customer?.anchor.install_id, customer?.anchor.hwid);
   useEffect(() => {
     if (embedded && open)
       (document.querySelector(".customer-workspace h1") as HTMLElement | null)?.focus();
@@ -766,6 +769,13 @@ export function Customer360View({
     <>
       <div className="customer360-identity-bar">
         <div className="customer360-identity-main">
+          {accountProfile && (
+            <>
+              <CustomerAvatar profile={accountProfile} label={accountProfile.displayName} />
+              <strong>{accountProfile.displayName}</strong>
+              <span title="Verified account link">@{accountProfile.discordUsername}</span>
+            </>
+          )}
           <Badge tone={customer.summary.is_active ? "success" : "muted"}>
             {customer.summary.is_active ? "Online" : "Offline"}
           </Badge>
@@ -918,7 +928,9 @@ export function Customer360View({
         <PanelBackground />
         <header className="customer-workspace-head">
           <div>
-            <h1 tabIndex={-1}>{titleFor(customer, session, anchor)}</h1>
+            <h1 tabIndex={-1}>
+              {accountProfile?.displayName ?? titleFor(customer, session, anchor)}
+            </h1>
             <p>Customer workspace · 360</p>
           </div>
           <Button onClick={onClose}>Back to workspace</Button>

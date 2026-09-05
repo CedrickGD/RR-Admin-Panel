@@ -94,6 +94,8 @@ export async function requireDashboardAccess(
     const alternativeRead =
       request.method === "GET" &&
       ((path === "/api/admin/stats" && permissions.includes("overview.read")) ||
+        (["/api/admin/customer-profiles", "/api/admin/customer-avatar"].includes(path) &&
+          permissions.includes("monitoring.read")) ||
         (path === "/api/admin/users" &&
           (permissions.includes("monitoring.read") || permissions.includes("access.read"))) ||
         (path === "/api/admin/user-activity" && permissions.includes("customers.read")));

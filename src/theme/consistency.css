@@ -407,10 +407,10 @@ html[data-theme] .record-table tr:hover > td:has(> .btn-icon) {
 /* Distinct neutral surfaces and readable secondary text in both themes. */
 html[data-theme="dark"] {
   --bg: #050505;
-  --surface-1: #111111;
-  --surface-2: #1a1a1a;
-  --surface-3: #252525;
-  --surface-float: #181818;
+  --surface-1: #09090b;
+  --surface-2: #0d0d10;
+  --surface-3: #17171b;
+  --surface-float: #0c0c0f;
   --line: #303030;
   --line-hi: #484848;
   --line-row: #292929;
@@ -477,9 +477,32 @@ html[data-theme] .nav-children .sb-item > svg {
   width: 16px;
   height: 16px;
   flex: 0 0 16px;
+  color: var(--text-3);
+}
+html[data-theme] .nav-section .nav-parent > svg:first-child,
+html[data-theme] .sb-nav > .sb-item > svg:first-child {
+  color: var(--accent-text);
 }
 html[data-theme] .stat-card {
   --tile-color: var(--accent-text);
+}
+html[data-theme] .stat-card,
+html[data-theme] .monitor-metric {
+  background: var(--surface-1);
+  border-color: var(--line);
+}
+html[data-theme] .stat-grid .stat-card {
+  min-height: 0;
+  padding: 9px 16px;
+}
+html[data-theme] .stat-card .stat-value {
+  margin: 2px 0;
+}
+html[data-theme] .monitor-metric {
+  padding: 10px 16px;
+}
+html[data-theme] .sb-brand-text small {
+  color: var(--accent-text);
 }
 html[data-theme] .stat-card::before {
   background: var(--accent);
@@ -496,6 +519,29 @@ html[data-theme] .stat-card .stat-sub {
 }
 html[data-theme] .monitor-metric {
   --metric-color: var(--accent-text);
+}
+html[data-theme="dark"] {
+  --workspace-surface: rgb(6 6 8 / 72%);
+}
+html[data-theme="light"] {
+  --workspace-surface: rgb(255 255 255 / 82%);
+}
+html[data-background]:not([data-background="plain"])
+  :is(.panel, .monitor-surface, .customer360-card) {
+  background: var(--workspace-surface);
+}
+html[data-background]:not([data-background="plain"]) :is(.stat-card, .monitor-metric) {
+  background: var(--workspace-surface);
+}
+html[data-theme="dark"] {
+  --workspace-chrome: rgb(5 5 7 / 92%);
+}
+html[data-theme="light"] {
+  --workspace-chrome: rgb(255 255 255 / 94%);
+}
+html[data-theme] :is(.panel-head, .table-pagination),
+html[data-theme] .record-table > thead > tr > th {
+  background: var(--workspace-chrome);
 }
 html[data-theme] .monitor-metric :is(span, small) {
   white-space: normal;
@@ -612,6 +658,15 @@ html[data-theme] .world-heatmap-hovbar-trigger > svg {
 .customer-access-form label {
   display: grid;
   gap: 12px;
+}
+.person-avatar {
+  overflow: hidden;
+}
+.person-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 .customer-access-form label {
   gap: 6px;

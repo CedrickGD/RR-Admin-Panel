@@ -1,5 +1,10 @@
 import { TableFrame } from "../components/ds/TableFrame";
 import {
+  CustomerAvatar,
+  useCustomerDirectory,
+  useCustomerProfiles,
+} from "../components/CustomerProfiles";
+import {
   ArrowDown,
   ArrowUp,
   ArrowUpRight,
@@ -94,12 +99,14 @@ async function exportHistory(users: UserRollupRecord[]) {
 }
 export function WorkersPage({
   summary,
-  users,
+  users: sourceUsers,
   focusedWorkerId,
   onOpenMapSession,
   onOpenMapUser,
   filterBar,
 }: WorkersPageProps) {
+  const users = useCustomerDirectory(sourceUsers);
+  const findProfile = useCustomerProfiles();
   const [query, setQuery] = useState("");
   const search = useDeferredValue(query);
   const [scope, setScope] = useState<Scope>("all");
@@ -356,7 +363,10 @@ export function WorkersPage({
                           aria-expanded={isExpanded}
                           aria-label={`Show session history for ${label}`}
                         >
-                          <span className="person-avatar">{label.slice(0, 2).toUpperCase()}</span>
+                          <CustomerAvatar
+                            profile={findProfile(session?.installId, user.hwid ?? user.identity)}
+                            label={label}
+                          />
                           <span>
                             <strong title={label}>{label}</strong>
                             <small>

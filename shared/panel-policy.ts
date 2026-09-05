@@ -105,5 +105,7 @@ export function routePermissions(
     return [write ? "announcements.write" : "announcements.read"];
   if (["/api/admin/stats", "/api/admin/user-activity"].includes(path)) return ["monitoring.read"];
   if (path === "/api/admin/users") return ["customers.read"];
+  if (["/api/admin/customer-profiles", "/api/admin/customer-avatar"].includes(path) && !write)
+    return ["customers.read"];
   return null;
 }

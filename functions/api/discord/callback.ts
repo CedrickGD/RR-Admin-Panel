@@ -10,6 +10,7 @@ import {
   verifyState,
 } from "../../_lib/discord";
 import type { RuntimeEnv } from "../../_lib/types";
+import { accountCallback } from "../../_lib/customer-accounts";
 
 type HandlerContext = {
   request: Request;
@@ -24,6 +25,9 @@ type HandlerContext = {
  * (Access-bypassed) path.
  */
 export async function onRequestGet(context: HandlerContext): Promise<Response> {
+  if (new URL(context.request.url).searchParams.get("state")?.startsWith("account.")) {
+    return accountCallback(context);
+  }
   const env = context.env;
   if (!env.VERIFY_SHARED_SECRET || !env.DISCORD_BOT_TOKEN || !env.DISCORD_GUILD_ID) {
     return verifyHtmlPage(

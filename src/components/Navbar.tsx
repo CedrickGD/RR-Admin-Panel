@@ -57,6 +57,7 @@ const GROUPS: Array<{
     label: "Monitoring",
     icon: <Activity />,
     items: [
+      ["overview", "Overview", <LayoutDashboard />],
       ["live", "Live sessions", <Radio />],
       ["workers", "Session history", <History />],
       ["traffic", "Traffic", <BarChart3 />],
@@ -153,17 +154,6 @@ export function Navbar({ page, onNavigate, user, health, onLogout }: NavbarProps
           </span>
         </button>
         <nav className="sb-nav" aria-label="Main">
-          {canVisit("overview", user) && (
-            <button
-              className={`sb-item ${page === "overview" ? "active" : ""}`}
-              onClick={() => navigate("overview")}
-              aria-current={page === "overview" ? "page" : undefined}
-            >
-              <LayoutDashboard />
-              <span>Overview</span>
-            </button>
-          )}
-          <div className="nav-divider" />
           {GROUPS.map((group) => {
             const items = group.items.filter(([key]) => canVisit(key, user));
             if (!items.length) return null;

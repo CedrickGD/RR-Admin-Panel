@@ -1,4 +1,5 @@
 import { TableFrame, RecordCell } from "../components/ds/TableFrame";
+import { CustomerAvatar, useCustomerProfiles } from "../components/CustomerProfiles";
 import {
   Activity,
   AlertTriangle,
@@ -160,6 +161,7 @@ export function LivePage({
   onFocusConsumed,
   onOpenMapSession,
 }: LivePageProps) {
+  const findProfile = useCustomerProfiles();
   const [now, setNow] = useState(Date.now);
   const [query, setQuery] = useState("");
   const [version, setVersion] = useState<string | null>(null);
@@ -174,10 +176,15 @@ export function LivePage({
   }, []);
   const active = useMemo(
     () =>
-      [
-        ...latestSessions(summary.activeSessions.filter((s) => isSessionLive(s, now))).values(),
-      ].sort((a, b) => displayUser(a).localeCompare(displayUser(b))),
-    [summary.activeSessions, now],
+      [...latestSessions(summary.activeSessions.filter((s) => isSessionLive(s, now))).values()]
+        .map((session) => {
+          const profile = findProfile(session.installId, session.hwid);
+          return profile
+            ? { ...session, userLabel: profile.displayName, discordUser: profile.discordUsername }
+            : session;
+        })
+        .sort((a, b) => displayUser(a).localeCompare(displayUser(b))),
+    [summary.activeSessions, now, findProfile],
   );
   const options = useMemo(() => buildSessionDirectoryOptions(active, null, true), [active]);
   const rows = useMemo(
@@ -343,9 +350,10 @@ export function LivePage({
                         onClick={() => setExpanded(open ? null : session.id)}
                         aria-expanded={open}
                       >
-                        <span className="person-avatar live-avatar">
-                          {label.slice(0, 2).toUpperCase()}
-                        </span>
+                        <CustomerAvatar
+                          profile={findProfile(session.installId, session.hwid)}
+                          label={label}
+                        />
                         <span>
                           <strong title={label}>{label}</strong>
                           <small>

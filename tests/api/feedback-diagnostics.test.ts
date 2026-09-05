@@ -196,6 +196,23 @@ describe("POST /api/feedback diagnostics compatibility", () => {
     return new Request("https://admin.test/api/feedback", { method: "POST", headers, body });
   }
 
+  it.each([undefined, null, "", "  \t\n", "Automatic diagnostics report (no message supplied)."])(
+    "rejects reports without a written description (%s) before storing feedback or diagnostics",
+    async (message) => {
+      const mock = mockDatabase();
+      const response = await submitFeedback({
+        request: await signedRequest({ message, diagnostics: diagnostics() }),
+        env: { DB: mock.db },
+      });
+      expect(response.status).toBe(400);
+      expect(
+        mock.operations.some((operation) =>
+          operation.normalizedSql.startsWith("INSERT INTO feedback"),
+        ),
+      ).toBe(false);
+    },
+  );
+
   it("keeps the existing feedback INSERT fields and adds a report id response", async () => {
     const mock = mockDatabase();
     const response = await submitFeedback({

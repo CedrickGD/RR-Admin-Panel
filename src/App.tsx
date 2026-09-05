@@ -467,12 +467,7 @@ export default function App() {
                     <AnnouncementsPage filterBar={refreshButton} />
                   ) : null}
                   {page === "feedback" ? (
-                    <FeedbackPage
-                      summary={summary}
-                      onOpenSession={handleOpenLiveSession}
-                      onOpenWorker={handleOpenWorker}
-                      filterBar={refreshButton}
-                    />
+                    <FeedbackPage summary={summary} filterBar={refreshButton} />
                   ) : null}
                   {page === "settings" ? (
                     <SettingsPage

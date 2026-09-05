@@ -56,6 +56,14 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
   const body = parseJsonObject(auth.bodyText);
   if (!body) return error(400, "Request body must be a JSON object.");
 
+  const message = typeof body.message === "string" ? body.message.trim() : "";
+  if (!message || message.toLowerCase() === "automatic diagnostics report (no message supplied).") {
+    return error(400, "Please describe the issue in the Feedback form before sending diagnostics.");
+  }
+  if (message.length > MAX_MESSAGE_LENGTH) {
+    return error(400, `Feedback must be <= ${MAX_MESSAGE_LENGTH} characters.`);
+  }
+
   const diagnosticsResult = validateFeedbackDiagnostics(body.diagnostics);
   if (!diagnosticsResult.ok) return error(400, diagnosticsResult.message);
   // Rich diagnostics are a modern-client feature. Requiring the already-deployed install
@@ -67,12 +75,6 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
 
   try {
     await ensureFeedbackSchema(context.env);
-
-    const message = typeof body.message === "string" ? body.message.trim() : "";
-    if (!message) return error(400, "Feedback message is required.");
-    if (message.length > MAX_MESSAGE_LENGTH) {
-      return error(400, `Feedback must be <= ${MAX_MESSAGE_LENGTH} characters.`);
-    }
 
     const createdAt = nowIso();
     const insert = await db

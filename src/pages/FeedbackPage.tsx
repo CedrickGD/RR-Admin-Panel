@@ -11,6 +11,8 @@ import type { SummaryPayload } from "../types/telemetry";
 import { formatDate, timeAgo } from "../utils/format";
 import { apiUrl, fetchApi } from "../utils/api";
 import { useRefreshSignal } from "../utils/refreshBus";
+import { navigateCustomerUrl } from "../utils/customerNavigation";
+import { usePanelPermission } from "../hooks/usePanelPermission";
 
 type FeedbackStatus = "new" | "read" | "archived";
 
@@ -30,10 +32,6 @@ interface FeedbackRecord {
 
 interface FeedbackPageProps {
   summary?: SummaryPayload | null;
-  /** Jump to a live session (Live page) — used when the author is online right now. */
-  onOpenSession?: (sessionId: string) => void;
-  /** Jump to a user's sessions (Sessions page), keyed by hwid — same as Licenses. */
-  onOpenWorker?: (hwid: string) => void;
   filterBar?: ReactNode;
 }
 
@@ -63,12 +61,8 @@ function isLongMessage(message: string): boolean {
   return message.length > 240 || (message.match(/\n/g)?.length ?? 0) >= 4;
 }
 
-export function FeedbackPage({
-  summary,
-  onOpenSession,
-  onOpenWorker,
-  filterBar,
-}: FeedbackPageProps) {
+export function FeedbackPage({ summary, filterBar }: FeedbackPageProps) {
+  const canOpenCustomer = usePanelPermission("customers.read");
   const [feedback, setFeedback] = useState<FeedbackRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -165,17 +159,6 @@ export function FeedbackPage({
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
-  };
-
-  /** Resolve a feedback row to its author account — a live session if online, else the Sessions view. */
-  const openAuthor = (f: FeedbackRecord) => {
-    if (!f.hwid) return;
-    const hwid = f.hwid;
-    const liveSession = summary?.activeSessions.find(
-      (s) => (s.hwid ?? "").toLowerCase() === hwid.toLowerCase(),
-    );
-    if (liveSession && onOpenSession) onOpenSession(liveSession.id);
-    else if (onOpenWorker) onOpenWorker(hwid);
   };
 
   const newCount = useMemo(() => feedback.filter((f) => f.status === "new").length, [feedback]);
@@ -369,17 +352,28 @@ export function FeedbackPage({
                       color: "var(--text-3)",
                     }}
                   >
-                    {f.hwid ? (
-                      <button
-                        type="button"
-                        onClick={() => openAuthor(f)}
-                        title={liveSession ? "View live session" : "View this user's sessions"}
+                    {canOpenCustomer ? (
+                      <a
+                        href={`?customerBy=feedback_id&customer=${f.id}#/feedback`}
+                        onClick={(event) => {
+                          if (
+                            event.button !== 0 ||
+                            event.ctrlKey ||
+                            event.metaKey ||
+                            event.shiftKey ||
+                            event.altKey
+                          )
+                            return;
+                          event.preventDefault();
+                          navigateCustomerUrl(new URL(event.currentTarget.href));
+                        }}
+                        title="Open this customer's 360 view"
                         className="record-link"
                       >
-                        <User size={12} />
-                        {f.machine_name || "Unknown user"}
+                        <User size={16} />
+                        Customer 360 · {f.machine_name || "Report author"}
                         {liveSession ? <span className="status-dot" title="Online now" /> : null}
-                      </button>
+                      </a>
                     ) : f.machine_name ? (
                       <span
                         style={{

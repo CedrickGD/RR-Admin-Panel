@@ -1432,7 +1432,7 @@ html[data-theme="light"] .recharts-default-tooltip {
   font-weight: 500;
 }
 .kpi-modal {
-  background: var(--surface-float) !important;
+  background: var(--surface-float);
   color: var(--text-1);
   border-color: var(--line-hi);
 }

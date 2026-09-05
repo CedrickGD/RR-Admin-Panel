@@ -521,10 +521,16 @@ html[data-theme] .monitor-metric {
   --metric-color: var(--accent-text);
 }
 html[data-theme="dark"] {
-  --workspace-surface: rgb(6 6 8 / 72%);
+  --workspace-surface: rgb(0 0 0 / 32%);
+  --sidebar-bg: rgb(0 0 0 / var(--sidebar-opacity, 0.75));
+  --workspace-dialog: rgb(0 0 0 / 78%);
+  --workspace-hover: rgb(0 0 0 / 18%);
 }
 html[data-theme="light"] {
-  --workspace-surface: rgb(255 255 255 / 82%);
+  --workspace-surface: rgb(255 255 255 / 60%);
+  --sidebar-bg: rgb(255 255 255 / var(--sidebar-opacity, 0.75));
+  --workspace-dialog: rgb(255 255 255 / 88%);
+  --workspace-hover: rgb(255 255 255 / 35%);
 }
 html[data-background]:not([data-background="plain"])
   :is(.panel, .monitor-surface, .customer360-card) {
@@ -534,10 +540,10 @@ html[data-background]:not([data-background="plain"]) :is(.stat-card, .monitor-me
   background: var(--workspace-surface);
 }
 html[data-theme="dark"] {
-  --workspace-chrome: rgb(5 5 7 / 92%);
+  --workspace-chrome: rgb(0 0 0 / 48%);
 }
 html[data-theme="light"] {
-  --workspace-chrome: rgb(255 255 255 / 94%);
+  --workspace-chrome: rgb(255 255 255 / 76%);
 }
 html[data-theme] :is(.panel-head, .table-pagination),
 html[data-theme] .record-table > thead > tr > th {
@@ -670,6 +676,69 @@ html[data-theme] .world-heatmap-hovbar-trigger > svg {
 }
 .customer-access-form label {
   gap: 6px;
+}
+/* Keep related KPI content together instead of stretching it across the whole tile. */
+html[data-theme] .stat-card.has-icon {
+  justify-content: flex-start;
+  gap: 14px;
+  padding-inline: 20px;
+}
+html[data-theme] .stat-card.has-icon .tile-side {
+  order: -1;
+}
+html[data-theme] .stat-card .tile-icon {
+  width: 36px;
+  height: 36px;
+  background: transparent;
+  border-color: var(--line);
+}
+html[data-theme] .stat-card .tile-icon svg {
+  width: 20px;
+  height: 20px;
+}
+html[data-theme] .sidebar {
+  backdrop-filter: blur(8px);
+}
+html[data-theme] :is(.btn, .btn-icon, .gdrop-trigger, .filter-pill, .monitor-search) {
+  background: transparent;
+  color: var(--text-1);
+  border-color: var(--line-hi);
+}
+html[data-theme] :is(.btn-primary, .btn-danger) {
+  color: var(--accent-text);
+  border: 1px solid var(--accent);
+}
+html[data-theme] :is(.btn, .btn-icon, .gdrop-trigger, .filter-pill):hover:not(:disabled) {
+  background: transparent;
+  border-color: var(--accent);
+  color: var(--accent-text);
+  box-shadow: none;
+}
+html[data-theme] .record-table > tbody > tr:hover > td {
+  background: var(--workspace-hover);
+}
+html[data-theme] .record-table .history-expanded > td {
+  background: transparent !important;
+}
+html[data-theme] :is(.kpi-modal, .modal-dialog, .modal-box) {
+  background: var(--workspace-dialog);
+  backdrop-filter: blur(12px);
+}
+html[data-theme] .kpi-modal :is(.kpi-timespan-cell, .glass-inset) {
+  background: transparent;
+  color: var(--text-1);
+}
+html[data-theme] .kpi-overlay {
+  background: rgb(0 0 0 / 38%);
+  backdrop-filter: blur(2px);
+}
+html[data-theme] :is(.panel-head, .table-pagination),
+html[data-theme] .record-table > thead > tr > th {
+  backdrop-filter: blur(8px);
+}
+html[data-background]:not([data-background="plain"]) .stat-card:hover {
+  background: var(--workspace-surface);
+  border-color: var(--accent);
 }
 .customer-access-form .row-actions {
   margin-top: 10px;

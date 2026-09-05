@@ -50,6 +50,10 @@ function apply() {
   if (typeof document === "undefined") return;
   document.documentElement.dataset.theme = state.theme;
   document.documentElement.dataset.background = state.background;
+  document.documentElement.style.setProperty(
+    "--sidebar-opacity",
+    String(1 - state.sidebarTransparency / 100),
+  );
   document.documentElement.style.setProperty("--ah", String(state.hue));
   document.documentElement.style.setProperty("--ah-secondary", String((state.hue + 65) % 360));
   document.documentElement.style.setProperty("--ah-tertiary", String((state.hue + 180) % 360));

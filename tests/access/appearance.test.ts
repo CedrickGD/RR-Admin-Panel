@@ -38,7 +38,13 @@ beforeEach(async () => {
 afterEach(() => db.close());
 describe("account appearance storage on the NAS", () => {
   it("persists the image and theme for the authenticated account across sessions", async () => {
-    const appearance = { ...DEFAULT_APPEARANCE, theme: "light", background: "image", image: IMAGE };
+    const appearance = {
+      ...DEFAULT_APPEARANCE,
+      theme: "light",
+      background: "image",
+      image: IMAGE,
+      sidebarTransparency: 55,
+    };
     expect((await onRequest({ env, request: req(one, appearance) })).status).toBe(200);
     const newSession = (await createAppSessionToken(SECRET, "one@example.test", "admin")).token;
     expect((await (await onRequest({ env, request: req(newSession) })).json()).appearance).toEqual(
@@ -59,6 +65,7 @@ describe("account appearance storage on the NAS", () => {
       { ...DEFAULT_APPEARANCE, image: "data:image/svg+xml;base64,PHN2Zz4=" },
       { ...DEFAULT_APPEARANCE, image: "data:image/png;base64,aGVsbG8=" },
       { ...DEFAULT_APPEARANCE, hue: 999 },
+      { ...DEFAULT_APPEARANCE, sidebarTransparency: 101 },
     ]) {
       expect((await onRequest({ env, request: req(one, body) })).status).toBe(400);
     }

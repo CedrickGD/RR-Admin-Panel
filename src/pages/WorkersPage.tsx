@@ -1,4 +1,5 @@
 import { TableFrame } from "../components/ds/TableFrame";
+import { useWorkspaceSearch } from "../hooks/useWorkspaceSearch";
 import {
   CustomerAvatar,
   useCustomerDirectory,
@@ -107,7 +108,7 @@ export function WorkersPage({
 }: WorkersPageProps) {
   const users = useCustomerDirectory(sourceUsers);
   const findProfile = useCustomerProfiles();
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useWorkspaceSearch("workers");
   const search = useDeferredValue(query);
   const [scope, setScope] = useState<Scope>("all");
   const [version, setVersion] = useState<string | null>(null);
@@ -264,18 +265,6 @@ export function WorkersPage({
       />
       <section className="monitor-surface" aria-label="People and session history">
         <div className="monitor-toolbar">
-          <label className="monitor-search">
-            <Search aria-hidden="true" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Find a person, Discord name or device…"
-              aria-label="Search session history"
-            />
-            {query && (
-              <IconButton icon={<X />} aria-label="Clear search" onClick={() => setQuery("")} />
-            )}
-          </label>
           <div className="monitor-scopes" aria-label="Activity filter">
             {SCOPES.map(([key, label]) => (
               <button

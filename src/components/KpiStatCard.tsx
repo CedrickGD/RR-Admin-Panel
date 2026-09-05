@@ -73,7 +73,7 @@ export function KpiStatCard({
   return (
     <>
       <article
-        className={`stat-card${expandable ? " kpi-card-clickable" : ""}`}
+        className={`stat-card${spark && spark.length > 1 ? " has-spark" : " has-icon"}${expandable ? " kpi-card-clickable" : ""}`}
         onClick={expandable ? () => setOpen(true) : undefined}
         role={expandable ? "button" : undefined}
         tabIndex={expandable ? 0 : undefined}

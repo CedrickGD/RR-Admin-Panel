@@ -113,7 +113,14 @@ export function Navbar({ page, onNavigate, user, health, onLogout }: NavbarProps
     }
     return [GROUPS.find((g) => g.items.some(([key]) => key === page))?.label ?? "Customers"];
   });
-  const searchScope = page === "licenses" ? "licenses" : "customers";
+  const searchScope =
+    page === "licenses" || page === "workers" || page === "live" ? page : "customers";
+  const searchLabel = {
+    customers: "Search customers",
+    licenses: "Search licenses",
+    workers: "Search session history",
+    live: "Search live sessions",
+  }[searchScope];
   const [search, setSearch] = useWorkspaceSearch(searchScope);
   const { appearance, updateAppearance } = useAppearance();
   useEffect(() => {
@@ -245,7 +252,7 @@ export function Navbar({ page, onNavigate, user, health, onLogout }: NavbarProps
           >
             <Search size={16} />
             <input
-              aria-label={searchScope === "licenses" ? "Search licenses" : "Search customers"}
+              aria-label={searchLabel}
               placeholder={
                 searchScope === "licenses"
                   ? "Search licenses, customers, orders…"

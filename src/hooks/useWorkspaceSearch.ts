@@ -1,7 +1,12 @@
 import { useCallback, useSyncExternalStore } from "react";
 
-export type SearchScope = "customers" | "licenses";
-const keys = { customers: "rr:customer-search", licenses: "rr:license-search" };
+export type SearchScope = "customers" | "licenses" | "workers" | "live";
+const keys = {
+  customers: "rr:customer-search",
+  licenses: "rr:license-search",
+  workers: "rr:history-search",
+  live: "rr:live-search",
+};
 const fallback: Partial<Record<SearchScope, string>> = {};
 
 function readSearch(scope: SearchScope): string {

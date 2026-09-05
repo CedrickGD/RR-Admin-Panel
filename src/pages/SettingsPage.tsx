@@ -150,6 +150,13 @@ export function SettingsPage({ user, authMode, summary, health, onLogout }: Prop
               {slider("hue", "Custom hue", 0, 360, "°")}
             </section>
             <section className="settings-section">
+              <h2>Navigation</h2>
+              <p>
+                Let your background show through the sidebar. Text and icons keep their contrast.
+              </p>
+              {slider("sidebarTransparency", "Sidebar transparency", 0, 90, "%")}
+            </section>
+            <section className="settings-section">
               <h2>Background</h2>
               <p>Your content stays readable above every background.</p>
               <div className="background-options">

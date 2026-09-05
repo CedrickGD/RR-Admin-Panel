@@ -10,6 +10,7 @@ export interface Appearance {
   offsetY: number;
   blur: number;
   dim: number;
+  sidebarTransparency: number;
   motion: boolean;
   image: string;
   chartPreset: string;
@@ -27,6 +28,7 @@ export const DEFAULT_APPEARANCE: Appearance = {
   offsetY: 0,
   blur: 0,
   dim: 35,
+  sidebarTransparency: 25,
   motion: true,
   image: "",
   chartPreset: "Default",
@@ -42,6 +44,7 @@ const ranges = {
   offsetY: [-100, 100],
   blur: [0, 30],
   dim: [0, 90],
+  sidebarTransparency: [0, 90],
 } as const;
 export function validateAppearance(input: unknown): Appearance {
   if (!input || typeof input !== "object" || Array.isArray(input))

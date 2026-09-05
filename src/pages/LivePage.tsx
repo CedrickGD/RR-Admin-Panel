@@ -1,4 +1,5 @@
 import { TableFrame, RecordCell } from "../components/ds/TableFrame";
+import { useWorkspaceSearch } from "../hooks/useWorkspaceSearch";
 import { CustomerAvatar, useCustomerProfiles } from "../components/CustomerProfiles";
 import {
   Activity,
@@ -9,7 +10,6 @@ import {
   Globe2,
   Radio,
   RadioTower,
-  Search,
   X,
 } from "lucide-react";
 import { GlassDropdown } from "../components/GlassDropdown";
@@ -163,7 +163,7 @@ export function LivePage({
 }: LivePageProps) {
   const findProfile = useCustomerProfiles();
   const [now, setNow] = useState(Date.now);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useWorkspaceSearch("live");
   const [version, setVersion] = useState<string | null>(null);
   const [country, setCountry] = useState<string | null>(null);
   const [onlyErrors, setOnlyErrors] = useState(false);
@@ -265,15 +265,6 @@ export function LivePage({
       />
       <section className="monitor-surface" aria-label="Live activity">
         <div className="monitor-toolbar">
-          <label className="monitor-search">
-            <Search aria-hidden="true" />
-            <input
-              aria-label="Search live sessions"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Find a person, Discord name or device…"
-            />
-          </label>
           <div className="monitor-scopes">
             <button
               className={!onlyErrors ? "selected" : ""}

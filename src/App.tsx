@@ -9,6 +9,7 @@ import { PanelBackground } from "./components/PanelBackground";
 import { CustomerWorkspaceRouter } from "./components/CustomerWorkspaceRouter";
 import { canVisit } from "../shared/panel-policy";
 import { PanelIdentity } from "./hooks/usePanelPermission";
+import { setWorkspaceSearch } from "./hooks/useWorkspaceSearch";
 import type { MapFocusTarget } from "./pages/HeatmapPage";
 import type { PageKey } from "./types/telemetry";
 
@@ -124,6 +125,18 @@ export default function App() {
   const { appearance } = useAppearance();
   const accentHue = appearance.hue;
   const [page, setPage] = useState<PageKey>(readInitialPage);
+  useEffect(() => {
+    if (page !== "access") return;
+    const search = sessionStorage.getItem("rr:access-search");
+    if (search) {
+      setWorkspaceSearch("customers", search);
+      sessionStorage.removeItem("rr:access-search");
+    }
+    setPage("customers");
+  }, [page]);
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0 });
+  }, [page]);
 
   // Keep URL hash + storage in sync with the active page. The very first
   // normalization (no valid hash yet) replaces instead of pushing so the

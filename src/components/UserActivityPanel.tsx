@@ -1,3 +1,4 @@
+import { Select } from "./ds/Select";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { UserActivityDay, UserActivityPayload } from "../types/telemetry";
 import { buildActivityTimelineRows, type ActivityTimelineSegment } from "../utils/activityTimeline";
@@ -204,18 +205,20 @@ export function UserActivityPanel({ identity }: UserActivityPanelProps) {
             Exact dates and local clock times from recorded sessions
           </p>
         </div>
-        <div className="seg-control">
+        <Select
+          aria-label="Time window"
+          value={range}
+          onValueChange={(value) => {
+            const selected = RANGE_OPTIONS.find((option) => String(option.key) === value);
+            if (selected) selectRange(selected.key);
+          }}
+        >
           {RANGE_OPTIONS.map((option) => (
-            <button
-              key={option.key}
-              type="button"
-              className={`seg-btn${range === option.key ? " active" : ""}`}
-              onClick={() => selectRange(option.key)}
-            >
+            <option key={option.key} value={option.key}>
               {option.label}
-            </button>
+            </option>
           ))}
-        </div>
+        </Select>
       </div>
 
       {loading ? (

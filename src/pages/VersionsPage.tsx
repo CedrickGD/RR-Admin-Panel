@@ -1,3 +1,4 @@
+import { Select } from "../components/ds/Select";
 import { CircleCheck, Crown, Download, History, Layers, Package } from "lucide-react";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { CollapsiblePanel } from "../components/CollapsiblePanel";
@@ -376,24 +377,14 @@ export function VersionsPage({ stats, theme, accentHue = 217, filterBar }: Versi
         title="Versions"
         right={
           <>
-            <div className="seg-control">
-              <button
-                type="button"
-                className={`seg-btn${view === "current" ? " active" : ""}`}
-                onClick={() => setView("current")}
-                title="Users currently on each version (latest session per user)"
-              >
-                Current
-              </button>
-              <button
-                type="button"
-                className={`seg-btn${view === "alltime" ? " active" : ""}`}
-                onClick={() => setView("alltime")}
-                title="Distinct users who ever ran each version"
-              >
-                All-time
-              </button>
-            </div>
+            <Select
+              aria-label="Time window"
+              value={view}
+              onValueChange={(value) => setView(value as "current" | "alltime")}
+            >
+              <option value="current">Current</option>
+              <option value="alltime">All time</option>
+            </Select>
             {filterBar}
           </>
         }

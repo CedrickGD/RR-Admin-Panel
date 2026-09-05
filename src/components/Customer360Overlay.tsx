@@ -34,6 +34,10 @@ import { Badge, type BadgeProps } from "./ds/Badge";
 import { Button } from "./ds/Button";
 import { Modal } from "./ds/Modal";
 import { usePanelPermission } from "../hooks/usePanelPermission";
+import { PanelBackground } from "./PanelBackground";
+import { resolveCountry } from "../utils/geography";
+import { setWorkspaceSearch } from "../hooks/useWorkspaceSearch";
+import { CustomerAccessDialog } from "./CustomerAccessDialog";
 
 export interface Customer360Anchor {
   selector: Customer360Selector;
@@ -333,7 +337,10 @@ function SummaryTab({ customer }: { customer: Customer360Customer }) {
               { label: "Platform", value: summary.platform },
               { label: "OS", value: summary.os_version },
               { label: "Device", value: summary.device_model },
-              { label: "Country", value: summary.country },
+              {
+                label: "Country",
+                value: resolveCountry(summary.country)?.label ?? summary.country,
+              },
               {
                 label: "City / region",
                 value: [summary.city, summary.region].filter(Boolean).join(", "),
@@ -673,6 +680,7 @@ export function Customer360View({
   const [activeTab, setActiveTab] = useState<TabKey>("summary");
   const [reloadKey, setReloadKey] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [accessOpen, setAccessOpen] = useState(false);
   useEffect(() => {
     if (embedded && open)
       (document.querySelector(".customer-workspace h1") as HTMLElement | null)?.focus();
@@ -888,7 +896,8 @@ export function Customer360View({
 
   function openCustomerAction(page: "licenses" | "access") {
     const value = customer?.anchor.hwid ?? customer?.anchor.identity ?? "";
-    sessionStorage.setItem(page === "licenses" ? "rr:license-search" : "rr:access-search", value);
+    if (page === "licenses") setWorkspaceSearch("licenses", value);
+    else sessionStorage.setItem("rr:access-search", value);
     onClose();
     window.location.hash = `#/${page}`;
   }
@@ -898,9 +907,15 @@ export function Customer360View({
         className="customer-workspace"
         aria-label="Customer 360"
         onKeyDown={(event) => {
-          if (event.key === "Escape") onClose();
+          if (
+            event.key === "Escape" &&
+            !event.defaultPrevented &&
+            !document.querySelector('[data-modal-root="true"][data-state="open"]')
+          )
+            onClose();
         }}
       >
+        <PanelBackground />
         <header className="customer-workspace-head">
           <div>
             <h1 tabIndex={-1}>{titleFor(customer, session, anchor)}</h1>
@@ -920,7 +935,7 @@ export function Customer360View({
             <Button
               permission="access.read"
               icon={<ShieldCheck />}
-              onClick={() => openCustomerAction("access")}
+              onClick={() => setAccessOpen(true)}
             >
               Manage app access
             </Button>
@@ -934,6 +949,9 @@ export function Customer360View({
           </div>
         )}
         <div className="customer360-shell">{body}</div>
+        {accessOpen && customer && (
+          <CustomerAccessDialog customer={customer} onClose={() => setAccessOpen(false)} />
+        )}
       </section>
     );
   return (

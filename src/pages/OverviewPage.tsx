@@ -1,3 +1,4 @@
+import { Select } from "../components/ds/Select";
 import {
   Activity,
   AlertTriangle,
@@ -339,19 +340,20 @@ export function OverviewPage({ summary, stats, filterBar }: OverviewPageProps) {
                   paddingBottom: 6,
                 }}
               >
-                <div className="seg-control">
+                <Select
+                  aria-label="Time window"
+                  value={activeWindow}
+                  onValueChange={(value) => handleTimeWindow(Number(value))}
+                >
+                  {!TIME_WINDOWS.some((tw) => tw.hours === activeWindow) && (
+                    <option value={activeWindow}>{activeWindow} hours</option>
+                  )}
                   {TIME_WINDOWS.map((tw) => (
-                    <button
-                      key={tw.label}
-                      type="button"
-                      className={`seg-btn${activeWindow === tw.hours ? " active" : ""}`}
-                      aria-pressed={activeWindow === tw.hours}
-                      onClick={() => handleTimeWindow(tw.hours)}
-                    >
+                    <option key={tw.hours} value={tw.hours}>
                       {tw.label}
-                    </button>
+                    </option>
                   ))}
-                </div>
+                </Select>
                 {zoom.isZoomed && (
                   <button
                     type="button"
@@ -374,7 +376,7 @@ export function OverviewPage({ summary, stats, filterBar }: OverviewPageProps) {
                 <ResponsiveContainer width="100%" height={300}>
                   <ComposedChart
                     data={visibleTraffic}
-                    margin={{ top: 16, right: 8, left: -14, bottom: 0 }}
+                    margin={{ top: 16, right: 8, left: 0, bottom: 0 }}
                   >
                     <defs>
                       {/* Series colors come from the user-preset chart tokens — never the accent. */}

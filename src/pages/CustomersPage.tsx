@@ -18,7 +18,8 @@ import { Badge } from "../components/ds/Badge";
 import { IconButton } from "../components/ds/Button";
 import { EmptyState } from "../components/ds/EmptyState";
 import { PageHeader } from "../components/ds/PageHeader";
-import { SearchInput } from "../components/ds/SearchInput";
+import { useWorkspaceSearch } from "../hooks/useWorkspaceSearch";
+import { resolveCountry } from "../utils/geography";
 import { TablePagination } from "../components/ds/TablePagination";
 import type { UserRollupRecord } from "../types/telemetry";
 import { formatDuration, formatNumber, timeAgo } from "../utils/format";
@@ -37,7 +38,7 @@ interface CustomersPageProps {
   filterBar?: ReactNode;
 }
 
-type CustomerScope = "premium" | "free" | "online" | "attention";
+type CustomerScope = "premium" | "free" | "online" | "attention" | "restricted";
 
 const PAGE_SIZE = 75;
 const EMPTY_FILTERS: UserDirectoryFilters = {
@@ -45,12 +46,13 @@ const EMPTY_FILTERS: UserDirectoryFilters = {
   continent: null,
   country: null,
 };
-const CUSTOMER_SCOPES: CustomerScope[] = ["premium", "free", "online", "attention"];
+const CUSTOMER_SCOPES: CustomerScope[] = ["premium", "free", "online", "attention", "restricted"];
 const SCOPE_LABELS: Record<CustomerScope, string> = {
   premium: "Premium",
   free: "Free",
   online: "Online now",
   attention: "Needs attention",
+  restricted: "Suspended or banned",
 };
 
 function displayName(user: UserRollupRecord): string {
@@ -69,7 +71,11 @@ function discordHandle(value: string | null): string {
 }
 
 function locationLabel(user: UserRollupRecord): string {
-  return [user.city, user.country].filter((value) => Boolean(value?.trim())).join(", ") || "—";
+  return (
+    [user.city, resolveCountry(user.country)?.label ?? user.country]
+      .filter((value) => Boolean(value?.trim()))
+      .join(", ") || "—"
+  );
 }
 
 function needsAttention(user: UserRollupRecord): boolean {
@@ -91,6 +97,8 @@ function matchesScope(user: UserRollupRecord, scope: CustomerScope | null): bool
       return user.isActive;
     case "attention":
       return needsAttention(user);
+    case "restricted":
+      return Boolean(user.suspension);
     default:
       return true;
   }
@@ -145,15 +153,10 @@ function LoadingRows() {
 }
 
 export function CustomersPage({ users, filterBar }: CustomersPageProps) {
-  const [query, setQuery] = useState(() => sessionStorage.getItem("rr:customer-search") ?? "");
+  const [query] = useWorkspaceSearch("customers");
   useEffect(() => {
-    const search = (event: Event) => {
-      setQuery((event as CustomEvent<string>).detail);
-      setPage(1);
-    };
-    window.addEventListener("rr:customer-search", search);
-    return () => window.removeEventListener("rr:customer-search", search);
-  }, []);
+    setPage(1);
+  }, [query]);
   const deferredQuery = useDeferredValue(query);
   const [filters, setFilters] = useState<UserDirectoryFilters>(EMPTY_FILTERS);
   const [scope, setScope] = useState<CustomerScope | null>(null);
@@ -271,15 +274,6 @@ export function CustomersPage({ users, filterBar }: CustomersPageProps) {
         }
         right={
           <div className="user-directory-controls customer-directory-controls">
-            <SearchInput
-              value={query}
-              onChange={(value) => {
-                setQuery(value);
-                resetToFirstPage();
-              }}
-              placeholder="Search customer, PC, Discord or HWID…"
-              style={{ width: "min(330px,100%)" }}
-            />
             <GlassDropdown
               placeholder="All customers"
               options={CUSTOMER_SCOPES}

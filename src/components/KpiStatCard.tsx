@@ -1,4 +1,4 @@
-import { ChevronRight } from "lucide-react";
+import { Activity, ChevronRight } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import {
   Area,
@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import { TelemetryChartTooltip } from "./charts/TelemetryChartTooltip";
 import { BreakdownList, Modal, TimespanGrid } from "./ds/Modal";
+import { Sparkline } from "./widgets";
 
 /** Legacy tone names (accent/amber/rose) kept for backward compatibility alongside the DS names. */
 type Tone = "primary" | "accent" | "amber" | "rose" | "success" | "warning" | "danger";
@@ -38,7 +39,7 @@ interface KpiStatCardProps {
   delta?: string | number | null;
   /** When provided the card becomes clickable and opens a detail view. */
   drilldown?: KpiDrilldown | null;
-  /** Colors the spark and the drill-down series. Charts fall back to --chart-users, never the accent. */
+  /** Optional chart shade within the workspace accent palette. */
   chartColor?: string;
   /** Optional mini trend rendered on the tile's right side (replaces the icon well). */
   spark?: number[];
@@ -49,7 +50,16 @@ interface KpiStatCardProps {
  * sparkline or icon well on the right, accent tick on the left edge.
  * Pass `drilldown` to make it clickable with a detail modal.
  */
-export function KpiStatCard({ label, value, sub, delta, drilldown, chartColor }: KpiStatCardProps) {
+export function KpiStatCard({
+  label,
+  value,
+  sub,
+  icon,
+  delta,
+  drilldown,
+  chartColor,
+  spark,
+}: KpiStatCardProps) {
   const [open, setOpen] = useState(false);
   // The series block only renders with 2+ points, so a 1-point series alone must not
   // make the card clickable (it would open an empty modal).
@@ -99,6 +109,13 @@ export function KpiStatCard({ label, value, sub, delta, drilldown, chartColor }:
               </span>
             ) : null}
           </p>
+        </div>
+        <div className="tile-side" aria-hidden="true">
+          {spark && spark.length > 1 ? (
+            <Sparkline values={spark} color={chartColor ?? "var(--accent)"} />
+          ) : (
+            <span className="tile-icon">{icon ?? <Activity size={14} />}</span>
+          )}
         </div>
       </article>
 

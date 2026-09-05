@@ -1,5 +1,4 @@
-import { ChevronDown } from "lucide-react";
-import { useState, type CSSProperties, type ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 interface CollapsiblePanelProps {
   /** Uppercase accent micro-label above the title, e.g. "Traffic", "Failures". */
@@ -10,9 +9,9 @@ interface CollapsiblePanelProps {
   sub?: string;
   /** Header-right slot: badges, meta items, controls (kept clickable). */
   right?: ReactNode;
-  /** Click the head to collapse/expand (animated). On by default — this is the app's collapsible Panel. */
+  /** Legacy compatibility; panels always stay open. */
   collapsible?: boolean;
-  /** DS-aligned initial state. Wins over `defaultOpen` when both are provided. */
+  /** Legacy compatibility; panels always stay open. */
   defaultCollapsed?: boolean;
   /** Legacy initial state (kept for existing call sites). */
   defaultOpen?: boolean;
@@ -29,81 +28,43 @@ interface CollapsiblePanelProps {
 
 /**
  * Core surface: flat panel with hairline border, kicker + section title head.
- * Optional collapse (animated grid-template-rows technique — children stay
- * mounted) and header-right slot. Mirrors the design-system Panel contract.
+ * Content always stays visible, with a header-right slot for controls.
  */
 export function CollapsiblePanel({
   kicker,
   title,
   sub,
   right,
-  collapsible = true,
-  defaultCollapsed,
-  defaultOpen = true,
   padding = "flush",
   children,
   style,
   className = "",
 }: CollapsiblePanelProps) {
-  const [collapsed, setCollapsed] = useState(defaultCollapsed ?? !defaultOpen);
-  const hasHead = Boolean(kicker || title || sub || right || collapsible);
-  const bodyClass = padding === "body" ? "panel-body" : padding === "tight" ? "panel-body-tight" : "panel-body-flush";
-  const toggle = () => setCollapsed((current) => !current);
+  const hasHead = Boolean(kicker || title || sub || right);
+  const bodyClass =
+    padding === "body"
+      ? "panel-body"
+      : padding === "tight"
+        ? "panel-body-tight"
+        : "panel-body-flush";
 
   const body = <div className={bodyClass}>{children}</div>;
 
   return (
-    <section
-      className={`panel${collapsible && collapsed ? " panel-collapsed" : ""}${className ? ` ${className}` : ""}`}
-      style={style}
-    >
+    <section className={`panel${className ? ` ${className}` : ""}`} style={style}>
       {hasHead ? (
-        <div
-          className={`panel-head${collapsible ? " panel-head-clickable" : ""}`}
-          onClick={collapsible ? toggle : undefined}
-          role={collapsible ? "button" : undefined}
-          tabIndex={collapsible ? 0 : undefined}
-          onKeyDown={
-            collapsible
-              ? (event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    toggle();
-                  }
-                }
-              : undefined
-          }
-        >
+        <div className="panel-head">
           <div className="panel-head-left">
             {kicker ? <p className="kicker">{kicker}</p> : null}
             {title ? <h2 className="section-title">{title}</h2> : null}
             {sub ? <p className="section-sub">{sub}</p> : null}
           </div>
-          <div
-            className="panel-head-right"
-            // Controls in the right slot stay usable without toggling the fold.
-            onClick={(event) => event.stopPropagation()}
-          >
+          <div className="panel-head-right" onClick={(event) => event.stopPropagation()}>
             {right}
-            {collapsible ? (
-              <span
-                className={`panel-collapse-chevron${collapsed ? " panel-collapse-chevron-closed" : ""}`}
-                onClick={toggle}
-              >
-                <ChevronDown size={15} />
-              </span>
-            ) : null}
           </div>
         </div>
       ) : null}
-      {collapsible ? (
-        // Children stay mounted; grid-template-rows animates the fold smoothly.
-        <div className="panel-body-clip" aria-hidden={collapsed}>
-          <div className="panel-body-inner">{body}</div>
-        </div>
-      ) : (
-        body
-      )}
+      {body}
     </section>
   );
 }

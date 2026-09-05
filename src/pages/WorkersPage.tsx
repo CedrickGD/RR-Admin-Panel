@@ -394,9 +394,13 @@ export function WorkersPage({
                       <td>
                         <span
                           className="cell-location"
-                          title={[user.city, user.country].filter(Boolean).join(", ")}
+                          title={[user.city, resolveCountry(user.country)?.label ?? user.country]
+                            .filter(Boolean)
+                            .join(", ")}
                         >
-                          {[user.city, user.country].filter(Boolean).join(", ") || "Unknown"}
+                          {[user.city, resolveCountry(user.country)?.label ?? user.country]
+                            .filter(Boolean)
+                            .join(", ") || "Unknown"}
                         </span>
                       </td>
                       <td>

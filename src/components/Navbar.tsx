@@ -36,6 +36,9 @@ import type {
 import { canVisit } from "../../shared/panel-policy";
 import { useAppearance } from "../hooks/useAppearance";
 import { useChartColors } from "../hooks/useChartColors";
+import { useWorkspaceSearch } from "../hooks/useWorkspaceSearch";
+import { Modal } from "./ds/Modal";
+import { Button } from "./ds/Button";
 const logo = new URL("../img/logo.ico", import.meta.url).href;
 const GROUPS: Array<{
   label: string;
@@ -48,7 +51,6 @@ const GROUPS: Array<{
     items: [
       ["customers", "Customer directory", <UsersRound />],
       ["licenses", "Licenses & orders", <KeyRound />],
-      ["access", "App suspensions", <Ban />],
     ],
   },
   {
@@ -98,6 +100,7 @@ export interface NavbarProps {
 export function Navbar({ page, onNavigate, user, health, onLogout }: NavbarProps) {
   useChartColors();
   const [mobile, setMobile] = useState(false);
+  const [confirmLogout, setConfirmLogout] = useState(false);
   const expansionKey = `rr:navigation:${user.email}`;
   const [expanded, setExpanded] = useState<string[]>(() => {
     try {
@@ -109,7 +112,8 @@ export function Navbar({ page, onNavigate, user, health, onLogout }: NavbarProps
     }
     return [GROUPS.find((g) => g.items.some(([key]) => key === page))?.label ?? "Customers"];
   });
-  const [search, setSearch] = useState("");
+  const searchScope = page === "licenses" ? "licenses" : "customers";
+  const [search, setSearch] = useWorkspaceSearch(searchScope);
   const { appearance, updateAppearance } = useAppearance();
   useEffect(() => {
     try {
@@ -216,7 +220,12 @@ export function Navbar({ page, onNavigate, user, health, onLogout }: NavbarProps
               <strong>{user.email.split("@")[0]}</strong>
               <small>{user.panelRole ?? user.role}</small>
             </span>
-            <button className="btn-icon" onClick={onLogout} title="Sign out" aria-label="Sign out">
+            <button
+              className="btn-icon"
+              onClick={() => setConfirmLogout(true)}
+              title="Sign out"
+              aria-label="Sign out"
+            >
               <LogOut size={16} />
             </button>
           </div>
@@ -235,24 +244,28 @@ export function Navbar({ page, onNavigate, user, health, onLogout }: NavbarProps
           <ChevronRight size={13} />
           <strong>{title}</strong>
         </div>
-        {canVisit("customers", user) && (
+        {canVisit(searchScope, user) && (
           <form
             className="workspace-search"
             onSubmit={(e) => {
               e.preventDefault();
-              sessionStorage.setItem("rr:customer-search", search);
-              navigate("customers");
-              window.dispatchEvent(new CustomEvent("rr:customer-search", { detail: search }));
+              setSearch(search);
+              if (page !== searchScope) navigate(searchScope);
             }}
           >
             <Search size={16} />
             <input
-              aria-label="Search customers"
-              placeholder="Search customers, Discord, devices…"
+              aria-label={searchScope === "licenses" ? "Search licenses" : "Search customers"}
+              placeholder={
+                searchScope === "licenses"
+                  ? "Search licenses, customers, orders…"
+                  : "Search customer, PC, Discord or HWID…"
+              }
+              type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
-            <kbd>↵</kbd>
+            {page !== searchScope && <kbd>↵</kbd>}
           </form>
         )}
         <button
@@ -266,6 +279,25 @@ export function Navbar({ page, onNavigate, user, health, onLogout }: NavbarProps
           {appearance.theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
         </button>
       </header>
+      <Modal
+        open={confirmLogout}
+        onClose={() => setConfirmLogout(false)}
+        title="Sign out?"
+        sub="You will need to sign in again to access the panel."
+      >
+        <div className="row-actions">
+          <Button onClick={() => setConfirmLogout(false)}>Stay signed in</Button>
+          <Button
+            variant="primary"
+            onClick={() => {
+              setConfirmLogout(false);
+              onLogout();
+            }}
+          >
+            Sign out
+          </Button>
+        </div>
+      </Modal>
     </>
   );
 }

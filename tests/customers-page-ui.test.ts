@@ -25,7 +25,8 @@ describe("Customers CRM page", () => {
   });
 
   it("provides support-focused search, filters, and summaries", () => {
-    expect(page).toContain('placeholder="Search customer, PC, Discord or HWID…"');
+    expect(nav).toContain("Search customer, PC, Discord or HWID…");
+    expect(page).toContain('useWorkspaceSearch("customers")');
     for (const label of ["All-time customers", "Online now", "Premium", "Needs attention"]) {
       expect(page).toContain(`label="${label}"`);
     }

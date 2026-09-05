@@ -1,4 +1,4 @@
-/* One control geometry and one workspace accent on every page. */
+/* Preserve the established design; share the accent and repair readability. */
 html[data-theme] {
   --ui-violet: var(--accent-text);
   --ui-blue: var(--accent-text);
@@ -17,122 +17,6 @@ html[data-theme] {
   --warning-sub: var(--accent-subtle);
   --danger-sub: var(--accent-subtle);
   --info-sub: var(--accent-subtle);
-}
-html[data-theme]
-  :is(
-    .btn,
-    .btn-sm,
-    .btn-xs,
-    .btn-icon,
-    .seg-btn,
-    .workspace-tabs button,
-    .monitor-scopes button,
-    .gdrop-trigger,
-    .filter-pill,
-    .customer360-tab,
-    .map-style-btn
-  ) {
-  box-sizing: border-box;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-height: 32px;
-  height: auto;
-  padding: 7px 11px;
-  border: 1px solid var(--line-hi);
-  border-radius: 6px;
-  background: var(--surface-2);
-  color: var(--text-2);
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 16px;
-  letter-spacing: 0;
-  text-transform: none;
-  white-space: normal;
-  box-shadow: none;
-}
-html[data-theme] .btn-icon {
-  width: 32px;
-  min-width: 32px;
-  height: 32px;
-  padding: 7px;
-}
-html[data-theme] .gdrop-trigger {
-  justify-content: space-between;
-}
-html[data-theme] :is(.seg-control, .monitor-scopes, .workspace-tabs) {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: none;
-  box-shadow: none;
-  overflow: visible;
-}
-html[data-theme] .workspace-tabs {
-  margin-bottom: 20px;
-}
-html[data-theme] :is(.workspace-tabs button, .customer360-tab)::after {
-  display: none;
-}
-html[data-theme]
-  :is(
-    .btn,
-    .btn-icon,
-    .seg-btn,
-    .workspace-tabs button,
-    .monitor-scopes button,
-    .gdrop-trigger,
-    .customer360-tab
-  ):hover:not(:disabled) {
-  color: var(--text-1);
-  background: var(--surface-3);
-  border-color: var(--accent);
-}
-html[data-theme]
-  :is(
-    .btn-accent-ghost,
-    .seg-btn.active,
-    .workspace-tabs button.active,
-    .monitor-scopes button.selected,
-    .customer360-tab.active,
-    .map-style-btn.active
-  ) {
-  color: var(--accent-text);
-  background: var(--accent-subtle);
-  border-color: color-mix(in srgb, var(--accent) 60%, var(--line));
-}
-html[data-theme] .btn-primary {
-  color: white;
-  background: hsl(var(--ah) 65% 43%);
-  border-color: hsl(var(--ah) 65% 43%);
-}
-html[data-theme] .btn-primary:hover:not(:disabled) {
-  background: hsl(var(--ah) 65% 36%);
-  color: white;
-}
-html[data-theme] .btn-danger {
-  color: var(--text-1);
-  border-style: dashed;
-}
-html[data-theme] :is(.badge, .tag, .status-badge) {
-  background: none;
-  border: 0;
-  border-radius: 0;
-  padding: 0;
-  color: var(--text-2);
-  font-size: 11px;
-  font-weight: 400;
-  letter-spacing: 0;
-  text-transform: none;
-  box-shadow: none;
-  white-space: normal;
-}
-html[data-theme] .badge-accent {
-  color: var(--accent-text);
 }
 html[data-theme] .status-dot {
   background: var(--accent);
@@ -172,71 +56,6 @@ html[data-theme] :is(.person-avatar, .account-avatar) {
   white-space: normal;
   line-height: 1.4;
   overflow-wrap: anywhere;
-}
-
-/* Compact metrics use the same readable two-column anatomy, without icon tiles. */
-html[data-theme] .stat-grid {
-  gap: 0;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface-1);
-  overflow: visible;
-}
-html[data-theme] .stat-grid .stat-card {
-  min-height: 0;
-  height: auto;
-  padding: 13px 16px;
-  border: 0;
-  border-radius: 0;
-  background: none;
-  box-shadow: none;
-  overflow: visible;
-}
-html[data-theme] .stat-card::before {
-  display: none;
-}
-html[data-theme] .stat-card .tile-main {
-  min-width: 0;
-  width: 100%;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  column-gap: 12px;
-  row-gap: 4px;
-  align-items: baseline;
-}
-html[data-theme] .stat-card .stat-label {
-  font-size: 12px !important;
-  font-weight: 400;
-  line-height: 1.5;
-  color: var(--text-2);
-}
-html[data-theme] .stat-card .stat-value {
-  font-size: 19px !important;
-  font-weight: 500;
-  line-height: 1.35;
-  letter-spacing: -0.025em;
-  margin: 0;
-  color: var(--text-1);
-}
-html[data-theme] .stat-card .stat-sub {
-  grid-column: 1 / -1;
-  font-size: 11px;
-  line-height: 1.5;
-  margin: 0;
-  min-width: 0;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  color: var(--text-3);
-}
-html[data-theme] .stat-sub:empty {
-  display: none;
-}
-html[data-theme] .kpi-card-clickable:hover {
-  background: var(--accent-subtle);
-}
-html[data-theme] .stat-card-delta {
-  color: var(--text-3);
-  font-weight: 400;
 }
 
 /* Shared table frame and record cell across all directories and live sessions. */
@@ -444,18 +263,11 @@ html[data-theme] .live-update {
   white-space: normal;
   line-height: 1.5;
 }
-@media (max-width: 1150px) {
-  html[data-theme] .stat-card .tile-main {
-    grid-template-columns: 1fr;
-  }
-}
 @media (max-width: 600px) {
   html[data-theme] .stat-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  html[data-theme] .stat-grid .stat-card {
-    padding: 12px;
-  }
+
   .page-content {
     padding-inline: 16px;
   }
@@ -561,9 +373,6 @@ html[data-theme] .record-table > thead > tr > th:last-child:empty {
   right: 0;
   z-index: 6;
 }
-html[data-theme] .stat-grid .stat-card {
-  align-items: flex-start;
-}
 @media (max-width: 600px) {
   .panel-head-right {
     width: auto;
@@ -593,4 +402,234 @@ html[data-theme] .record-table td:has(> .btn-icon) {
 }
 html[data-theme] .record-table tr:hover > td:has(> .btn-icon) {
   background: var(--surface-2);
+}
+
+/* Distinct neutral surfaces and readable secondary text in both themes. */
+html[data-theme="dark"] {
+  --bg: #050505;
+  --surface-1: #111111;
+  --surface-2: #1a1a1a;
+  --surface-3: #252525;
+  --surface-float: #181818;
+  --line: #303030;
+  --line-hi: #484848;
+  --line-row: #292929;
+  --text-1: #f5f5f5;
+  --text-2: #d2d2d2;
+  --text-3: #adadad;
+  --text-4: #a0a0a0;
+  --scroll-thumb: #777;
+  --map-space: #090b10;
+}
+html[data-theme="light"] {
+  --bg: #f5f5f5;
+  --surface-1: #fff;
+  --surface-2: #f5f5f5;
+  --surface-3: #e9e9e9;
+  --line: #d4d4d4;
+  --line-hi: #bcbcbc;
+  --line-row: #e4e4e4;
+  --text-1: #141414;
+  --text-2: #383838;
+  --text-3: #595959;
+  --text-4: #666;
+  --scroll-thumb: #aaa;
+  --map-space: #edf0f3;
+}
+html[data-theme] * {
+  scrollbar-color: var(--scroll-thumb) transparent;
+}
+html[data-theme] *::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+}
+/* Prevent flex layout from crushing icons inside padded controls. */
+html[data-theme] .btn-icon {
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  padding: 8px;
+  color: var(--text-1);
+}
+html[data-theme] :is(.btn, .btn-icon) > svg {
+  width: 18px;
+  min-width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  padding: 0;
+}
+html[data-theme] .btn {
+  font-size: 13px;
+}
+html[data-theme] .btn-danger {
+  color: var(--accent-text);
+  background: var(--accent-subtle);
+  border: 1px solid var(--accent);
+}
+html[data-theme] .btn-danger:hover:not(:disabled) {
+  color: var(--text-1);
+  background: var(--surface-3);
+  box-shadow: none;
+}
+html[data-theme] .workspace-search input {
+  font-size: 13px;
+}
+html[data-theme] .nav-children .sb-item > svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+}
+html[data-theme] .stat-card {
+  --tile-color: var(--accent-text);
+}
+html[data-theme] .stat-card::before {
+  background: var(--accent);
+}
+html[data-theme] .stat-card .tile-icon {
+  color: var(--accent-text);
+  background: var(--accent-subtle);
+}
+html[data-theme] .stat-card .stat-sub {
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+html[data-theme] .monitor-metric {
+  --metric-color: var(--accent-text);
+}
+html[data-theme] .monitor-metric :is(span, small) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+html[data-theme] .monitor-metric > div > span {
+  font-size: 12px;
+}
+html[data-theme] .monitor-metric > small {
+  font-size: 12px;
+}
+html[data-theme] .record-table > thead > tr > th {
+  font-size: 12px;
+  padding: 12px 16px;
+}
+html[data-theme] .record-table > tbody > tr > td {
+  font-size: 13px;
+  padding: 12px 16px;
+}
+html[data-theme] .record-table td.row-expand-panel,
+html[data-theme] .record-table td.live-detail-cell {
+  padding: 0;
+}
+html[data-theme] .record-primary,
+html[data-theme] .person-cell strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+html[data-theme] .record-secondary {
+  font-size: 12px;
+}
+html[data-theme] .record-table .row-actions .btn {
+  white-space: nowrap;
+}
+html[data-theme] .license-table {
+  min-width: 1350px;
+}
+html[data-theme] .table-pagination :is(.table-pagination-summary, .table-pagination-page) {
+  font-size: 12px;
+  color: var(--text-2);
+}
+/* The customer workspace used to cover the selected account background. */
+.customer-workspace {
+  isolation: isolate;
+}
+.customer-workspace > .panel-background {
+  inset: 68px 0 0 var(--sb-w);
+}
+html[data-theme] .customer360-info dt,
+html[data-theme] .customer360-record-fields dt,
+html[data-theme] .customer360-card-title small,
+html[data-theme] .customer360-check small {
+  font-size: 12px;
+  color: var(--text-3);
+  line-height: 1.5;
+}
+html[data-theme] .customer360-info dd,
+html[data-theme] .customer360-record-fields dd,
+html[data-theme] .customer360-card-title strong,
+html[data-theme] .customer360-copy {
+  font-size: 14px;
+  color: var(--text-1);
+  line-height: 1.6;
+}
+html[data-theme] .customer360-info-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
+  gap: 8px;
+  padding: 6px;
+}
+html[data-theme] .customer360-info {
+  padding: 8px 10px;
+}
+html[data-theme] .world-heatmap,
+html[data-theme] .world-heatmap-map,
+html[data-theme] .world-heatmap-map-shell {
+  background: var(--map-space);
+}
+html[data-theme] .world-heatmap-hovbar,
+html[data-theme] .world-heatmap-hovbar-trigger,
+html[data-theme] .world-heatmap-hovbar-items,
+html[data-theme] .world-heatmap-floating-panel,
+html[data-theme] .world-heatmap-clear-chip,
+html[data-theme] .world-heatmap-map .maplibregl-ctrl-attrib,
+html[data-theme] .world-heatmap-map .maplibregl-ctrl-group {
+  background: var(--surface-float);
+  color: var(--text-1);
+  border-color: var(--line);
+}
+html[data-theme] .world-heatmap-map .maplibregl-ctrl-attrib a {
+  color: var(--text-2);
+}
+html[data-theme="light"] .world-heatmap-map .maplibregl-ctrl button .maplibregl-ctrl-icon {
+  filter: none;
+}
+html[data-theme="light"] .world-heatmap-overlay {
+  background: none;
+}
+html[data-theme] .world-heatmap-floating-panel p {
+  color: var(--text-2);
+}
+html[data-theme] .world-heatmap-hovbar-trigger > svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+.page-content:has(.data-table-wrap) {
+  padding-bottom: 16px;
+}
+.page-content:has(.data-table-wrap) > .panel:last-of-type {
+  margin-bottom: 0 !important;
+}
+.customer-access-form,
+.customer-access-form label {
+  display: grid;
+  gap: 12px;
+}
+.customer-access-form label {
+  gap: 6px;
+}
+.customer-access-form .row-actions {
+  margin-top: 10px;
+}
+html[data-theme] .world-heatmap-hovbar-sep {
+  background: var(--line);
+}
+html[data-theme] .empty-ring {
+  color: var(--accent-text);
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+  box-shadow: none;
+}
+@media (max-width: 900px) {
+  .customer-workspace > .panel-background {
+    inset: 60px 0 0;
+  }
 }

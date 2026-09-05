@@ -1,3 +1,4 @@
+import { Select } from "../components/ds/Select";
 import { TableFrame } from "../components/ds/TableFrame";
 import {
   AlertTriangle,
@@ -459,19 +460,17 @@ export function ErrorsPage() {
         sub="Every collected error, linked to the user it came from."
         right={
           <>
-            <div className="seg-control" title="Timespan">
+            <Select
+              aria-label="Time window"
+              value={range}
+              onValueChange={(value) => setRange(value as ErrorsRangeKey)}
+            >
               {RANGES.map((r) => (
-                <button
-                  key={r.key}
-                  type="button"
-                  className={`seg-btn${range === r.key ? " active" : ""}`}
-                  onClick={() => setRange(r.key)}
-                  title={r.title}
-                >
-                  {r.label}
-                </button>
+                <option key={r.key} value={r.key}>
+                  {r.title}
+                </option>
               ))}
-            </div>
+            </Select>
             <div className="seg-control">
               {(
                 [

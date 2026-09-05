@@ -1,4 +1,13 @@
-import { Activity, AlertTriangle, Earth, Map as MapIcon, MapPin, MapPinOff, Users } from "lucide-react";
+import { Select } from "../components/ds/Select";
+import {
+  Activity,
+  AlertTriangle,
+  Earth,
+  Map as MapIcon,
+  MapPin,
+  MapPinOff,
+  Users,
+} from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { WorldHeatmap } from "../components/charts/WorldHeatmap";
 import { EmptyState } from "../components/ds/EmptyState";
@@ -15,7 +24,6 @@ import {
   type CountryGeo,
   formatCountryLabel,
   getMacroRegion,
-  getRegionColor,
   resolveCountry,
 } from "../utils/geography";
 import {
@@ -147,7 +155,11 @@ export function HeatmapPage({
   const liveSessions = useMemo(() => dedupeSessionsByUser(summary.activeSessions), [summary]);
 
   const liveMappedCount = useMemo(
-    () => liveSessions.reduce((count, session) => count + (resolveCountry(session.clientCountry) ? 1 : 0), 0),
+    () =>
+      liveSessions.reduce(
+        (count, session) => count + (resolveCountry(session.clientCountry) ? 1 : 0),
+        0,
+      ),
     [liveSessions],
   );
 
@@ -157,7 +169,8 @@ export function HeatmapPage({
         if (!regionFilter && !countryCode) return true;
         const country = resolveCountry(session.clientCountry);
         if (countryCode && country?.code !== countryCode) return false;
-        if (regionFilter && (country ? getMacroRegion(country) : "Unknown") !== regionFilter) return false;
+        if (regionFilter && (country ? getMacroRegion(country) : "Unknown") !== regionFilter)
+          return false;
         return true;
       }),
     [liveSessions, regionFilter, countryCode],
@@ -316,8 +329,8 @@ export function HeatmapPage({
     const hasExact =
       Number.isFinite(session.clientLatitude ?? Number.NaN) &&
       Number.isFinite(session.clientLongitude ?? Number.NaN);
-    const latitude = hasExact ? Number(session.clientLatitude) : country?.latitude ?? null;
-    const longitude = hasExact ? Number(session.clientLongitude) : country?.longitude ?? null;
+    const latitude = hasExact ? Number(session.clientLatitude) : (country?.latitude ?? null);
+    const longitude = hasExact ? Number(session.clientLongitude) : (country?.longitude ?? null);
     if (latitude === null || longitude === null) return null;
 
     const countryLabel = country?.label ?? formatCountryLabel(session.clientCountry);
@@ -352,10 +365,7 @@ export function HeatmapPage({
     };
   }, [pinnedSessionId, view, livePoints, alltimePoints, summary]);
 
-  const mapDots = useMemo(
-    () => (focusPoint ? [...dots, focusPoint] : dots),
-    [dots, focusPoint],
-  );
+  const mapDots = useMemo(() => (focusPoint ? [...dots, focusPoint] : dots), [dots, focusPoint]);
 
   /* ── Regional load follows the selected view + filters ── */
   const regionRows = useMemo(() => {
@@ -364,9 +374,12 @@ export function HeatmapPage({
     for (const market of markets) {
       counts.set(market.region, (counts.get(market.region) ?? 0) + market.value);
     }
-    const total = Math.max(1, Array.from(counts.values()).reduce((sum, value) => sum + value, 0));
+    const total = Math.max(
+      1,
+      Array.from(counts.values()).reduce((sum, value) => sum + value, 0),
+    );
     return Array.from(counts.entries())
-      .map(([label, value]) => ({ label, value, share: value / total, color: getRegionColor(label) }))
+      .map(([label, value]) => ({ label, value, share: value / total, color: "var(--accent)" }))
       .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label));
   }, [markets]);
 
@@ -413,20 +426,82 @@ export function HeatmapPage({
   const statCards: StatChip[] =
     view === "live"
       ? [
-          { label: "Active Users", val: formatNumber(liveSessions.length), sub: "Online right now", icon: <Activity size={14} /> },
-          { label: "Mapped Dots", val: formatNumber(dots.length), sub: filtersActive ? "Matching filters" : "With geo data", icon: <MapPin size={14} /> },
-          { label: "Regions Online", val: `${regionsActive} / ${regionRows.length}`, sub: "Macro regions active", icon: <Earth size={14} /> },
-          { label: "Countries Live", val: formatNumber(markets.length), sub: topMarket ? `Top: ${topMarket.label}` : "No data", icon: <MapIcon size={14} /> },
-          { label: "Active Errors", val: formatNumber(errorTotal), sub: "Across live sessions", icon: <AlertTriangle size={14} />, tone: errorTotal > 0 ? "danger" : undefined },
-          { label: "Unmapped", val: formatNumber(Math.max(0, liveSessions.length - liveMappedCount)), sub: "No geo data", icon: <MapPinOff size={14} /> },
+          {
+            label: "Active Users",
+            val: formatNumber(liveSessions.length),
+            sub: "Online right now",
+            icon: <Activity size={14} />,
+          },
+          {
+            label: "Mapped Dots",
+            val: formatNumber(dots.length),
+            sub: filtersActive ? "Matching filters" : "With geo data",
+            icon: <MapPin size={14} />,
+          },
+          {
+            label: "Regions Online",
+            val: `${regionsActive} / ${regionRows.length}`,
+            sub: "Macro regions active",
+            icon: <Earth size={14} />,
+          },
+          {
+            label: "Countries Live",
+            val: formatNumber(markets.length),
+            sub: topMarket ? `Top: ${topMarket.label}` : "No data",
+            icon: <MapIcon size={14} />,
+          },
+          {
+            label: "Active Errors",
+            val: formatNumber(errorTotal),
+            sub: "Across live sessions",
+            icon: <AlertTriangle size={14} />,
+            tone: errorTotal > 0 ? "danger" : undefined,
+          },
+          {
+            label: "Unmapped",
+            val: formatNumber(Math.max(0, liveSessions.length - liveMappedCount)),
+            sub: "No geo data",
+            icon: <MapPinOff size={14} />,
+          },
         ]
       : [
-          { label: "Total Users", val: formatNumber(totalUsers), sub: users ? "All-time rollup" : "Rollup loading…", icon: <Users size={14} /> },
-          { label: "Mapped Users", val: formatNumber(dots.length), sub: filtersActive ? "Matching filters" : "With coordinates", icon: <MapPin size={14} /> },
-          { label: "Regions Reached", val: `${regionsActive} / ${regionRows.length}`, sub: "Macro regions ever", icon: <Earth size={14} /> },
-          { label: "Countries", val: formatNumber(markets.length), sub: topMarket ? `Top: ${topMarket.label}` : "No data", icon: <MapIcon size={14} /> },
-          { label: "Lifetime Errors", val: formatNumber(errorTotal), sub: "Across mapped users", icon: <AlertTriangle size={14} />, tone: errorTotal > 0 ? "danger" : undefined },
-          { label: "Unmapped", val: formatNumber(Math.max(0, totalUsers - mappedUsers.length)), sub: "No coordinates", icon: <MapPinOff size={14} /> },
+          {
+            label: "Total Users",
+            val: formatNumber(totalUsers),
+            sub: users ? "All-time rollup" : "Rollup loading…",
+            icon: <Users size={14} />,
+          },
+          {
+            label: "Mapped Users",
+            val: formatNumber(dots.length),
+            sub: filtersActive ? "Matching filters" : "With coordinates",
+            icon: <MapPin size={14} />,
+          },
+          {
+            label: "Regions Reached",
+            val: `${regionsActive} / ${regionRows.length}`,
+            sub: "Macro regions ever",
+            icon: <Earth size={14} />,
+          },
+          {
+            label: "Countries",
+            val: formatNumber(markets.length),
+            sub: topMarket ? `Top: ${topMarket.label}` : "No data",
+            icon: <MapIcon size={14} />,
+          },
+          {
+            label: "Lifetime Errors",
+            val: formatNumber(errorTotal),
+            sub: "Across mapped users",
+            icon: <AlertTriangle size={14} />,
+            tone: errorTotal > 0 ? "danger" : undefined,
+          },
+          {
+            label: "Unmapped",
+            val: formatNumber(Math.max(0, totalUsers - mappedUsers.length)),
+            sub: "No coordinates",
+            icon: <MapPinOff size={14} />,
+          },
         ];
 
   return (
@@ -439,14 +514,14 @@ export function HeatmapPage({
           <>
             {filterBar}
             {/* View mode */}
-            <div className="seg-control">
-              <button type="button" className={`seg-btn${view === "live" ? " active" : ""}`} onClick={() => setView("live")}>
-                Live
-              </button>
-              <button type="button" className={`seg-btn${view === "alltime" ? " active" : ""}`} onClick={() => setView("alltime")}>
-                All time
-              </button>
-            </div>
+            <Select
+              aria-label="Time window"
+              value={view}
+              onValueChange={(value) => setView(value as "live" | "alltime")}
+            >
+              <option value="live">Live</option>
+              <option value="alltime">All time</option>
+            </Select>
             {/* Country filter */}
             <GlassDropdown
               placeholder="All countries"
@@ -458,7 +533,12 @@ export function HeatmapPage({
             <MetaRow
               items={[
                 { label: "Errors", value: formatNumber(errorTotal) },
-                { label: "Ingest", value: summary.stats.lastIngestAt ? timeAgo(summary.stats.lastIngestAt) : "Waiting" },
+                {
+                  label: "Ingest",
+                  value: summary.stats.lastIngestAt
+                    ? timeAgo(summary.stats.lastIngestAt)
+                    : "Waiting",
+                },
               ]}
             />
           </>
@@ -493,7 +573,14 @@ export function HeatmapPage({
       {/* KPI row */}
       <div className="stat-grid stat-grid-6">
         {statCards.map((s) => (
-          <KpiStatCard key={s.label} label={s.label} value={s.val} sub={s.sub} icon={s.icon} tone={s.tone} />
+          <KpiStatCard
+            key={s.label}
+            label={s.label}
+            value={s.val}
+            sub={s.sub}
+            icon={s.icon}
+            tone={s.tone}
+          />
         ))}
       </div>
 
@@ -524,7 +611,9 @@ export function HeatmapPage({
               onActiveKeyChange={(key) => {
                 // Deselecting (or selecting a different dot) releases the pin, which
                 // also retires any synthesized offline dot on the next render.
-                setPinned((current) => (key === null || (current && key !== current.id) ? null : current));
+                setPinned((current) =>
+                  key === null || (current && key !== current.id) ? null : current,
+                );
               }}
             />
           </div>
@@ -538,7 +627,9 @@ export function HeatmapPage({
               <h2 className="section-title">Regional Load</h2>
             </div>
             <div className="panel-head-right">
-              <span className="section-sub">{view === "live" ? "Live sessions" : "All-time users"}</span>
+              <span className="section-sub">
+                {view === "live" ? "Live sessions" : "All-time users"}
+              </span>
             </div>
           </div>
           <div className="panel-body-tight">
@@ -547,8 +638,20 @@ export function HeatmapPage({
                 {regionRows.map((row) => (
                   <div className="progress-row" key={row.label}>
                     <div className="progress-head">
-                      <span className="progress-label" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <span style={{ width: 8, height: 8, borderRadius: 50, background: row.color, display: "inline-block", flexShrink: 0 }} />
+                      <span
+                        className="progress-label"
+                        style={{ display: "flex", alignItems: "center", gap: 6 }}
+                      >
+                        <span
+                          style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: 50,
+                            background: row.color,
+                            display: "inline-block",
+                            flexShrink: 0,
+                          }}
+                        />
                         {row.label}
                       </span>
                       <span className="progress-val">{formatNumber(row.value)}</span>
@@ -556,7 +659,13 @@ export function HeatmapPage({
                     <div className="progress-track">
                       {/* Zero-traffic regions get scaleX(0) (no bar) — the 0.02 legibility floor
                           only applies to regions that actually have data. */}
-                      <div className="progress-fill" style={{ transform: `scaleX(${row.share > 0 ? Math.min(1, Math.max(0.02, row.share)) : 0})`, background: row.color }} />
+                      <div
+                        className="progress-fill"
+                        style={{
+                          transform: `scaleX(${row.share > 0 ? Math.min(1, Math.max(0.02, row.share)) : 0})`,
+                          background: row.color,
+                        }}
+                      />
                     </div>
                   </div>
                 ))}
@@ -564,7 +673,13 @@ export function HeatmapPage({
             ) : (
               <EmptyState
                 icon={<Earth />}
-                title={filtersActive ? "No matching data" : view === "live" ? "No live geography" : "No mapped users"}
+                title={
+                  filtersActive
+                    ? "No matching data"
+                    : view === "live"
+                      ? "No live geography"
+                      : "No mapped users"
+                }
               >
                 {filtersActive
                   ? "No geographic data matches the active filters."

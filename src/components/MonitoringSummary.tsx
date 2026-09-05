@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { KpiStatCard } from "./KpiStatCard";
 
 export function MonitoringSummary({
   items,
@@ -7,9 +6,18 @@ export function MonitoringSummary({
   items: Array<{ label: string; value: string; icon: ReactNode; tone: string; note?: string }>;
 }) {
   return (
-    <div className="stat-grid monitor-metrics">
+    <div className="monitor-metrics">
       {items.map((item) => (
-        <KpiStatCard key={item.label} label={item.label} value={item.value} sub={item.note ?? ""} />
+        <div className="monitor-metric" key={item.label}>
+          <span className="monitor-metric-icon" aria-hidden="true">
+            {item.icon}
+          </span>
+          <div>
+            <span>{item.label}</span>
+            <strong>{item.value}</strong>
+          </div>
+          {item.note && <small>{item.note}</small>}
+        </div>
       ))}
     </div>
   );

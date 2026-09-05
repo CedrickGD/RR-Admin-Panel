@@ -23,7 +23,7 @@ import { EmptyState } from "../components/ds/EmptyState";
 import { Modal } from "../components/ds/Modal";
 import { StatusBadge } from "../components/StatusBadge";
 import { PageHeader } from "../components/ds/PageHeader";
-import { SearchInput } from "../components/ds/SearchInput";
+import { useWorkspaceSearch } from "../hooks/useWorkspaceSearch";
 import { timeAgo, formatDate } from "../utils/format";
 import {
   activateAdminLicense,
@@ -182,11 +182,10 @@ export function LicensesPage({
     return () => window.clearTimeout(timer);
   }, [createdKeys, workspaceTab]);
   const [generating, setGenerating] = useState(false);
-  const [searchQuery, setSearchQuery] = useState(() => {
-    const value = sessionStorage.getItem("rr:license-search") ?? "";
-    sessionStorage.removeItem("rr:license-search");
-    return value;
-  });
+  const [searchQuery, setSearchQuery] = useWorkspaceSearch("licenses");
+  useEffect(() => {
+    if (searchQuery.trim()) setWorkspaceTab("inventory");
+  }, [searchQuery]);
 
   const [genType, setGenType] = useState("lifetime");
   const [genDuration, setGenDuration] = useState(30);
@@ -616,13 +615,7 @@ export function LicensesPage({
           <h2 className="section-title">{title}</h2>
         </div>
         <div className="panel-head-right">
-          <SearchInput
-            value={searchQuery}
-            onChange={setSearchQuery}
-            placeholder="Search key, user, customer, order…"
-            style={{ width: 280, maxWidth: "100%" }}
-          />
-          <Badge tone="muted">{lics.length}</Badge>
+          <span className="text-muted">{lics.length} licenses</span>
         </div>
       </div>
 
@@ -815,37 +808,45 @@ export function LicensesPage({
                   </td>
                   <td>
                     <div className="row-actions">
-                      <IconButton
+                      <Button
                         icon={<PlayCircle />}
                         permission="licenses.write"
                         onClick={() => openLicenseAction(lic, "activate")}
                         disabled={lic.status === "revoked"}
                         title="Activate for a registered install"
                         aria-label={`Activate ${lic.license_key} for an install`}
-                      />
-                      <IconButton
+                      >
+                        Activate
+                      </Button>
+                      <Button
                         icon={<Link2 />}
                         permission="licenses.write"
                         onClick={() => openLicenseAction(lic, "bind")}
                         disabled={lic.status === "revoked"}
                         title="Bind another device"
                         aria-label={`Bind ${lic.license_key} to a device`}
-                      />
-                      <IconButton
+                      >
+                        Bind device
+                      </Button>
+                      <Button
                         permission="licenses.write"
                         icon={<Pencil />}
                         onClick={() => openEdit(lic)}
                         title="Edit customer / order info"
                         aria-label="Edit customer / order info"
-                      />
-                      <IconButton
+                      >
+                        Edit
+                      </Button>
+                      <Button
                         permission="licenses.write"
                         icon={<Trash2 />}
-                        className="danger-action"
+                        variant="danger"
                         onClick={() => setDeleteCandidate(lic)}
                         title="Permanently delete license"
                         aria-label="Permanently delete license"
-                      />
+                      >
+                        Delete
+                      </Button>
                     </div>
                   </td>
                 </tr>

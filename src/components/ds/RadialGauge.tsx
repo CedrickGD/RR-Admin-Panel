@@ -6,6 +6,7 @@
  * (var(--t-fill) ease-out) on mount/update. Track is --surface-3; the number is
  * Space Grotesk.
  */
+import { useId } from "react";
 export interface RadialGaugeProps {
   /** 0–1 fill ratio */
   ratio: number;
@@ -18,6 +19,7 @@ export interface RadialGaugeProps {
 }
 
 export function RadialGauge({ ratio, title, sub, size = 64 }: RadialGaugeProps) {
+  const gradientId = useId();
   const clamped = Math.max(0, Math.min(1, ratio));
   const stroke = 6;
   const r = (size - stroke) / 2;
@@ -26,6 +28,12 @@ export function RadialGauge({ ratio, title, sub, size = 64 }: RadialGaugeProps) 
   return (
     <div className="gauge">
       <svg className="gauge-svg" width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <defs>
+          <linearGradient id={gradientId} x1="0" y1="1" x2="1" y2="0">
+            <stop offset="0%" stopColor="var(--accent)" />
+            <stop offset="100%" stopColor="hsl(calc(var(--ah) + 35) 65% 58%)" />
+          </linearGradient>
+        </defs>
         <circle
           className="gauge-track"
           cx={size / 2}
@@ -36,6 +44,7 @@ export function RadialGauge({ ratio, title, sub, size = 64 }: RadialGaugeProps) 
         />
         <circle
           className="gauge-fill"
+          style={{ stroke: `url(#${gradientId})` }}
           cx={size / 2}
           cy={size / 2}
           r={r}

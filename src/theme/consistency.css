@@ -39,6 +39,7 @@ html[data-theme="light"] .live-online-status {
   height: 8px;
   border-radius: 50%;
   background: var(--live-online-color);
+  animation: live-online-breathe 2.4s ease-in-out infinite;
 }
 .live-online-dot::after {
   content: "";
@@ -46,21 +47,34 @@ html[data-theme="light"] .live-online-status {
   inset: -3px;
   border: 1px solid var(--live-online-color);
   border-radius: 50%;
-  animation: live-online-pulse 2.8s ease-out infinite;
+  animation: live-online-halo 2.4s ease-in-out infinite;
 }
-@keyframes live-online-pulse {
+@keyframes live-online-breathe {
   0%,
-  30% {
-    transform: scale(0.65);
-    opacity: 0.5;
-  }
-  85%,
   100% {
+    transform: scale(0.85);
+    opacity: 0.65;
+  }
+  50% {
     transform: scale(1.15);
-    opacity: 0;
+    opacity: 1;
+  }
+}
+@keyframes live-online-halo {
+  0%,
+  100% {
+    transform: scale(0.7);
+    opacity: 0.15;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.45;
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .live-online-dot {
+    animation: none;
+  }
   .live-online-dot::after {
     animation: none;
     opacity: 0;

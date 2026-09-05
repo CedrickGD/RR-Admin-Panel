@@ -192,6 +192,21 @@ describe("rr-api app", () => {
     expect((await call("/healthz")).status).toBe(200);
   });
 
+  it("keeps detailed database health behind dashboard authentication on the NAS", async () => {
+    const denied = await call("/api/admin/health");
+    expect(denied.status).toBe(401);
+    const health = await call("/api/admin/health", {
+      headers: await accessIdentityHeaders(ADMIN_EMAIL),
+    });
+    expect(health.status).toBe(200);
+    expect(await health.json()).toMatchObject({
+      ok: true,
+      api: "alive",
+      storage: { available: true },
+      count: expect.any(Number),
+    });
+  });
+
   it("classifies worker-owned paths", () => {
     expect(isWorkerPath("/api/ingest")).toBe(true);
     expect(isWorkerPath("/v1/telemetry/event")).toBe(true);

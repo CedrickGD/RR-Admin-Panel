@@ -36,24 +36,25 @@ import * as m30 from "../../../../functions/api/usage/consume";
 import * as m31 from "../../../../functions/api/usage/status";
 import * as m32 from "../../../../functions/api/admin/data";
 import * as m33 from "../../../../functions/api/admin/errors";
-import * as m34 from "../../../../functions/api/admin/sessions-export";
-import * as m35 from "../../../../functions/api/admin/stats";
-import * as m36 from "../../../../functions/api/admin/team";
-import * as m37 from "../../../../functions/api/admin/user-activity";
-import * as m38 from "../../../../functions/api/admin/users";
-import * as m39 from "../../../../functions/api/admin/verify";
-import * as m40 from "../../../../functions/api/auth/appearance";
-import * as m41 from "../../../../functions/api/auth/bootstrap";
-import * as m42 from "../../../../functions/api/auth/change-password";
-import * as m43 from "../../../../functions/api/auth/login";
-import * as m44 from "../../../../functions/api/auth/logout";
-import * as m45 from "../../../../functions/api/auth/session";
-import * as m46 from "../../../../functions/api/auth/watch";
-import * as m47 from "../../../../functions/v1/telemetry/event";
-import * as m48 from "../../../../functions/api/feedback/index";
-import * as m49 from "../../../../functions/api/health";
-import * as m50 from "../../../../functions/api/ingest";
-import * as m51 from "../../../../functions/api/summary";
+import * as m34 from "../../../../functions/api/admin/health";
+import * as m35 from "../../../../functions/api/admin/sessions-export";
+import * as m36 from "../../../../functions/api/admin/stats";
+import * as m37 from "../../../../functions/api/admin/team";
+import * as m38 from "../../../../functions/api/admin/user-activity";
+import * as m39 from "../../../../functions/api/admin/users";
+import * as m40 from "../../../../functions/api/admin/verify";
+import * as m41 from "../../../../functions/api/auth/appearance";
+import * as m42 from "../../../../functions/api/auth/bootstrap";
+import * as m43 from "../../../../functions/api/auth/change-password";
+import * as m44 from "../../../../functions/api/auth/login";
+import * as m45 from "../../../../functions/api/auth/logout";
+import * as m46 from "../../../../functions/api/auth/session";
+import * as m47 from "../../../../functions/api/auth/watch";
+import * as m48 from "../../../../functions/v1/telemetry/event";
+import * as m49 from "../../../../functions/api/feedback/index";
+import * as m50 from "../../../../functions/api/health";
+import * as m51 from "../../../../functions/api/ingest";
+import * as m52 from "../../../../functions/api/summary";
 
 export const routes: GeneratedRoute[] = [
   { method: "POST", pattern: "/api/admin/installs/:id/revoke", handler: m0.onRequestPost },
@@ -97,22 +98,23 @@ export const routes: GeneratedRoute[] = [
   { method: null, pattern: "/api/access/status", handler: m13.onRequest },
   { method: null, pattern: "/api/admin/data", handler: m32.onRequest },
   { method: null, pattern: "/api/admin/errors", handler: m33.onRequest },
-  { method: null, pattern: "/api/admin/sessions-export", handler: m34.onRequest },
-  { method: null, pattern: "/api/admin/stats", handler: m35.onRequest },
-  { method: null, pattern: "/api/admin/team", handler: m36.onRequest },
-  { method: null, pattern: "/api/admin/user-activity", handler: m37.onRequest },
-  { method: null, pattern: "/api/admin/users", handler: m38.onRequest },
-  { method: null, pattern: "/api/admin/verify", handler: m39.onRequest },
-  { method: null, pattern: "/api/auth/appearance", handler: m40.onRequest },
-  { method: null, pattern: "/api/auth/bootstrap", handler: m41.onRequest },
-  { method: null, pattern: "/api/auth/change-password", handler: m42.onRequest },
-  { method: null, pattern: "/api/auth/login", handler: m43.onRequest },
-  { method: null, pattern: "/api/auth/logout", handler: m44.onRequest },
-  { method: null, pattern: "/api/auth/session", handler: m45.onRequest },
-  { method: null, pattern: "/api/auth/watch", handler: m46.onRequest },
-  { method: null, pattern: "/v1/telemetry/event", handler: m47.onRequest },
-  { method: "POST", pattern: "/api/feedback", handler: m48.onRequestPost },
-  { method: null, pattern: "/api/health", handler: m49.onRequest },
-  { method: null, pattern: "/api/ingest", handler: m50.onRequest },
-  { method: null, pattern: "/api/summary", handler: m51.onRequest },
+  { method: null, pattern: "/api/admin/health", handler: m34.onRequest },
+  { method: null, pattern: "/api/admin/sessions-export", handler: m35.onRequest },
+  { method: null, pattern: "/api/admin/stats", handler: m36.onRequest },
+  { method: null, pattern: "/api/admin/team", handler: m37.onRequest },
+  { method: null, pattern: "/api/admin/user-activity", handler: m38.onRequest },
+  { method: null, pattern: "/api/admin/users", handler: m39.onRequest },
+  { method: null, pattern: "/api/admin/verify", handler: m40.onRequest },
+  { method: null, pattern: "/api/auth/appearance", handler: m41.onRequest },
+  { method: null, pattern: "/api/auth/bootstrap", handler: m42.onRequest },
+  { method: null, pattern: "/api/auth/change-password", handler: m43.onRequest },
+  { method: null, pattern: "/api/auth/login", handler: m44.onRequest },
+  { method: null, pattern: "/api/auth/logout", handler: m45.onRequest },
+  { method: null, pattern: "/api/auth/session", handler: m46.onRequest },
+  { method: null, pattern: "/api/auth/watch", handler: m47.onRequest },
+  { method: null, pattern: "/v1/telemetry/event", handler: m48.onRequest },
+  { method: "POST", pattern: "/api/feedback", handler: m49.onRequestPost },
+  { method: null, pattern: "/api/health", handler: m50.onRequest },
+  { method: null, pattern: "/api/ingest", handler: m51.onRequest },
+  { method: null, pattern: "/api/summary", handler: m52.onRequest },
 ];

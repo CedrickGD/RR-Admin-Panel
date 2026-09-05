@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { systemChecks } from "../src/utils/systemStatus";
 import type { HealthPayload } from "../src/types/telemetry";
+import { routePermissions } from "../shared/panel-policy";
 
 const now = Date.parse("2026-09-05T12:00:00Z");
 const health: HealthPayload = {
@@ -13,6 +14,9 @@ const health: HealthPayload = {
 };
 
 describe("backend health reporting", () => {
+  it("requires monitoring access for the detailed health endpoint", () => {
+    expect(routePermissions("/api/admin/health", "GET")).toEqual(["monitoring.read"]);
+  });
   it("only reports a verified database read and recent ingest as healthy", () => {
     expect(systemChecks(health, false, now, now).map((check) => check.tone)).toEqual([
       "ok",

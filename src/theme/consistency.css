@@ -777,7 +777,8 @@ html[data-theme] :is(.btn, .btn-icon, .gdrop-trigger, .filter-pill):hover:not(:d
   color: var(--accent-text);
   box-shadow: none;
 }
-html[data-theme] :is(.record-table, .clean-table, .monitor-table) > tbody > tr:hover > td {
+html[data-theme] :is(.data-table, .record-table, .clean-table, .monitor-table) > tbody > tr:hover,
+html[data-theme] :is(.data-table, .record-table, .clean-table, .monitor-table) > tbody > tr:hover > td {
   background: transparent;
 }
 html[data-theme] .record-table .history-expanded > td {

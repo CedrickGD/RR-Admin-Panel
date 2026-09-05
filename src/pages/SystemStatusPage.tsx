@@ -22,7 +22,7 @@ export function SystemStatusPage() {
       const started = performance.now();
       try {
         const response = await fetchApi(
-          apiUrl("/api/health"),
+          apiUrl("/api/admin/health"),
           { method: "GET", credentials: "include", cache: "no-store" },
           { retry: false },
         );

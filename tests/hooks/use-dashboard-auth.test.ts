@@ -78,9 +78,10 @@ function renderDashboard() {
 }
 
 async function runBootstrapEffect(): Promise<void> {
-  const bootstrapEffect = hookHarness.effects[0];
-  if (!bootstrapEffect) throw new Error("Dashboard bootstrap effect was not registered.");
-  bootstrapEffect();
+  if (!hookHarness.effects.length) throw new Error("Dashboard mount effects were not registered.");
+  // Mount all effects with the initial signed-out state, as React does. Their
+  // order can change when the hook adds synchronization effects.
+  for (const effect of hookHarness.effects) effect();
 
   // The effect deliberately starts an async task with `void`; give its nested
   // session and dashboard promises enough microtask turns to settle.

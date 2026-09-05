@@ -62,7 +62,12 @@ function isLongMessage(message: string): boolean {
   return message.length > 240 || (message.match(/\n/g)?.length ?? 0) >= 4;
 }
 
-export function FeedbackPage({ summary, onOpenSession, onOpenWorker, filterBar }: FeedbackPageProps) {
+export function FeedbackPage({
+  summary,
+  onOpenSession,
+  onOpenWorker,
+  filterBar,
+}: FeedbackPageProps) {
   const [feedback, setFeedback] = useState<FeedbackRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -104,7 +109,7 @@ export function FeedbackPage({ summary, onOpenSession, onOpenWorker, filterBar }
           body: JSON.stringify({ status }),
           credentials: "include",
         },
-        { retry: false }
+        { retry: false },
       );
       const data = await res.json();
       if (data.ok) {
@@ -122,8 +127,15 @@ export function FeedbackPage({ summary, onOpenSession, onOpenWorker, filterBar }
     if (!deleteCandidate) return;
     setIsDeleting(true);
     try {
-      const url = new URL(apiUrl(`/api/admin/feedback/${deleteCandidate.id}`), window.location.origin);
-      const res = await fetchApi(url.toString(), { method: "DELETE", credentials: "include" }, { retry: false });
+      const url = new URL(
+        apiUrl(`/api/admin/feedback/${deleteCandidate.id}`),
+        window.location.origin,
+      );
+      const res = await fetchApi(
+        url.toString(),
+        { method: "DELETE", credentials: "include" },
+        { retry: false },
+      );
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
         throw new Error(`Failed to delete: ${errData.error || res.statusText}`);
@@ -150,7 +162,9 @@ export function FeedbackPage({ summary, onOpenSession, onOpenWorker, filterBar }
   const openAuthor = (f: FeedbackRecord) => {
     if (!f.hwid) return;
     const hwid = f.hwid;
-    const liveSession = summary?.activeSessions.find((s) => (s.hwid ?? "").toLowerCase() === hwid.toLowerCase());
+    const liveSession = summary?.activeSessions.find(
+      (s) => (s.hwid ?? "").toLowerCase() === hwid.toLowerCase(),
+    );
     if (liveSession && onOpenSession) onOpenSession(liveSession.id);
     else if (onOpenWorker) onOpenWorker(hwid);
   };
@@ -215,13 +229,25 @@ export function FeedbackPage({ summary, onOpenSession, onOpenWorker, filterBar }
         </div>
 
         {loading ? (
-          <div className="panel-body" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "60px 16px", color: "var(--text-3)" }}>
+          <div
+            className="panel-body"
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 12,
+              padding: "60px 16px",
+              color: "var(--text-3)",
+            }}
+          >
             <div className="spinner spinner-md" />
             <span>Loading feedback…</span>
           </div>
         ) : filtered.length === 0 ? (
           <EmptyState icon={<MessageSquare />} title="No Feedback">
-            {searchQuery || tab !== "all" ? "Nothing matches the current filter." : "Feedback submitted from the app will show up here."}
+            {searchQuery || tab !== "all"
+              ? "Nothing matches the current filter."
+              : "Feedback submitted from the app will show up here."}
           </EmptyState>
         ) : (
           <div className="panel-body" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -229,31 +255,73 @@ export function FeedbackPage({ summary, onOpenSession, onOpenWorker, filterBar }
               const isNew = f.status === "new";
               const long = isLongMessage(f.message);
               const isExpanded = expanded.has(f.id);
-              const liveSession =
-                f.hwid ? summary?.activeSessions.find((s) => (s.hwid ?? "").toLowerCase() === f.hwid!.toLowerCase()) : undefined;
+              const liveSession = f.hwid
+                ? summary?.activeSessions.find(
+                    (s) => (s.hwid ?? "").toLowerCase() === f.hwid!.toLowerCase(),
+                  )
+                : undefined;
 
               return (
                 <div
                   key={f.id}
                   className="glass-inset"
-                  style={{ padding: "14px 16px", boxShadow: isNew ? "inset 2px 0 0 0 var(--accent)" : undefined }}
+                  style={{
+                    padding: "14px 16px",
+                    boxShadow: isNew ? "inset 2px 0 0 0 var(--accent)" : undefined,
+                  }}
                 >
                   {/* header: status + time · actions */}
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: 10,
+                      marginBottom: 8,
+                    }}
+                  >
+                    <div
+                      style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}
+                    >
                       <Badge tone={STATUS_TONE[f.status]}>{f.status.toUpperCase()}</Badge>
-                      <span style={{ fontSize: "var(--fs-tiny)", color: "var(--text-3)", fontFamily: "var(--font-mono)" }} title={formatDate(f.created_at)}>
+                      <span
+                        style={{
+                          fontSize: "var(--fs-tiny)",
+                          color: "var(--text-3)",
+                          fontFamily: "var(--font-mono)",
+                        }}
+                        title={formatDate(f.created_at)}
+                      >
                         {timeAgo(f.created_at)}
                       </span>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
                       {f.status !== "read" ? (
-                        <IconButton icon={<Check />} size={16} title="Mark read" onClick={() => setStatus(f, "read")} />
+                        <IconButton
+                          icon={<Check />}
+                          size={16}
+                          title="Mark read"
+                          permission="support.write"
+                          onClick={() => setStatus(f, "read")}
+                        />
                       ) : null}
                       {f.status !== "archived" ? (
-                        <IconButton icon={<Archive />} size={16} title="Archive" onClick={() => setStatus(f, "archived")} />
+                        <IconButton
+                          icon={<Archive />}
+                          size={16}
+                          title="Archive"
+                          permission="support.write"
+                          onClick={() => setStatus(f, "archived")}
+                        />
                       ) : null}
-                      <IconButton icon={<Trash2 />} size={16} title="Delete" style={{ color: "var(--danger)" }} onClick={() => setDeleteCandidate(f)} />
+                      <IconButton
+                        icon={<Trash2 />}
+                        size={16}
+                        title="Delete"
+                        style={{ color: "var(--danger)" }}
+                        permission="support.write"
+                        onClick={() => setDeleteCandidate(f)}
+                      />
                     </div>
                   </div>
 
@@ -275,14 +343,32 @@ export function FeedbackPage({ summary, onOpenSession, onOpenWorker, filterBar }
                     <button
                       type="button"
                       onClick={() => toggleExpand(f.id)}
-                      style={{ background: "transparent", border: "none", color: "var(--accent-text)", cursor: "pointer", padding: 0, fontSize: "var(--fs-small)", fontWeight: 600, marginBottom: 10 }}
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        color: "var(--accent-text)",
+                        cursor: "pointer",
+                        padding: 0,
+                        fontSize: "var(--fs-small)",
+                        fontWeight: 600,
+                        marginBottom: 10,
+                      }}
                     >
                       {isExpanded ? "Show less" : "Show more"}
                     </button>
                   ) : null}
 
                   {/* meta: author link + context */}
-                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "6px 14px", fontSize: "var(--fs-small)", color: "var(--text-3)" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      alignItems: "center",
+                      gap: "6px 14px",
+                      fontSize: "var(--fs-small)",
+                      color: "var(--text-3)",
+                    }}
+                  >
                     {f.hwid ? (
                       <button
                         type="button"
@@ -308,20 +394,37 @@ export function FeedbackPage({ summary, onOpenSession, onOpenWorker, filterBar }
                         {liveSession ? <span className="status-dot" title="Online now" /> : null}
                       </button>
                     ) : f.machine_name ? (
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "var(--text-2)" }}>
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 5,
+                          color: "var(--text-2)",
+                        }}
+                      >
                         <User size={12} />
                         {f.machine_name}
                       </span>
                     ) : null}
                     {f.contact ? (
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "var(--text-2)" }} title="Contact for a reply">
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 5,
+                          color: "var(--text-2)",
+                        }}
+                        title="Contact for a reply"
+                      >
                         <Mail size={12} />
                         {f.contact}
                       </span>
                     ) : null}
                     {f.app_version ? <span>v{f.app_version}</span> : null}
                     {f.platform ? <span>{f.platform}</span> : null}
-                    {f.license_key ? <span style={{ fontFamily: "var(--font-mono)" }}>{f.license_key}</span> : null}
+                    {f.license_key ? (
+                      <span style={{ fontFamily: "var(--font-mono)" }}>{f.license_key}</span>
+                    ) : null}
                     {f.hwid ? (
                       <span style={{ fontFamily: "var(--font-mono)" }} title={f.hwid}>
                         HWID {f.hwid.slice(0, 10)}…
@@ -343,8 +446,19 @@ export function FeedbackPage({ summary, onOpenSession, onOpenWorker, filterBar }
         sub="This permanently removes this feedback entry. It cannot be recovered."
       >
         <div style={{ marginTop: 24, display: "flex", justifyContent: "flex-end", gap: 12 }}>
-          <Button variant="ghost" onClick={() => setDeleteCandidate(null)}>Cancel</Button>
-          <Button variant="danger" onClick={confirmDelete} disabled={isDeleting}>
+          <Button
+            variant="ghost"
+            permission="support.write"
+            onClick={() => setDeleteCandidate(null)}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="danger"
+            permission="support.write"
+            onClick={confirmDelete}
+            disabled={isDeleting}
+          >
             {isDeleting ? "Processing…" : "Confirm"}
           </Button>
         </div>

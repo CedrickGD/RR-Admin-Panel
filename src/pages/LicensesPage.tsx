@@ -1,4 +1,17 @@
-import { Eye, EyeOff, Key, Link2, Pencil, PlayCircle, Plus, SearchCheck, Trash2, ShoppingCart, User } from "lucide-react";
+import { usePanelPermission } from "../hooks/usePanelPermission";
+import {
+  Eye,
+  EyeOff,
+  Key,
+  Link2,
+  Pencil,
+  PlayCircle,
+  Plus,
+  SearchCheck,
+  Trash2,
+  ShoppingCart,
+  User,
+} from "lucide-react";
 import { useEffect, useState, useMemo, type FormEvent, type ReactNode } from "react";
 import { Badge } from "../components/ds/Badge";
 import { Button, IconButton } from "../components/ds/Button";
@@ -44,11 +57,11 @@ interface LicenseRecord {
   customer_name?: string | null;
   customer_email?: string | null;
   customer_discord?: string | null;
-  order_source?: string | null;      // 'store' | 'admin'
+  order_source?: string | null; // 'store' | 'admin'
   order_note?: string | null;
-  order_meta?: string | null;        // sanitized storefront payload snapshot
+  order_meta?: string | null; // sanitized storefront payload snapshot
   purchased_at?: string | null;
-  verified_discord?: string | null;  // Discord tag verified against this key
+  verified_discord?: string | null; // Discord tag verified against this key
 }
 
 /** Discord handles render as `@name` — strip a stored leading @ so it never doubles. */
@@ -143,11 +156,24 @@ interface LicensesPageProps {
   filterBar?: ReactNode;
 }
 
-export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }: LicensesPageProps) {
+export function LicensesPage({
+  summary,
+  onOpenSession,
+  onOpenWorker,
+  filterBar,
+}: LicensesPageProps) {
+  const canWrite = usePanelPermission("licenses.write");
   const [licenses, setLicenses] = useState<LicenseRecord[]>([]);
+  const [workspaceTab, setWorkspaceTab] = useState<"inventory" | "lookup" | "generate">(
+    "inventory",
+  );
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(() => {
+    const value = sessionStorage.getItem("rr:license-search") ?? "";
+    sessionStorage.removeItem("rr:license-search");
+    return value;
+  });
 
   const [genType, setGenType] = useState("lifetime");
   const [genDuration, setGenDuration] = useState(30);
@@ -156,7 +182,7 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
   const [customKey, setCustomKey] = useState("");
   const [maxUses, setMaxUses] = useState(1);
   const [isInfiniteUses, setIsInfiniteUses] = useState(false);
-  
+
   const [deleteCandidate, setDeleteCandidate] = useState<LicenseRecord | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -188,7 +214,10 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
   const [issueResult, setIssueResult] = useState<LicenseOperationResponse | null>(null);
   const [issueOperationKey, setIssueOperationKey] = useState(makeOperationKey);
 
-  const [licenseAction, setLicenseAction] = useState<{ mode: LicenseActionMode; license: LicenseRecord } | null>(null);
+  const [licenseAction, setLicenseAction] = useState<{
+    mode: LicenseActionMode;
+    license: LicenseRecord;
+  } | null>(null);
   const [actionInstallId, setActionInstallId] = useState("");
   const [actionHwid, setActionHwid] = useState("");
   const [actionReason, setActionReason] = useState("");
@@ -265,11 +294,20 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
       setIssueError("Order ID is required so this issue can be found and audited later.");
       return;
     }
-    if (issueForm.type === "trial" && (!Number.isInteger(issueForm.duration_days) || issueForm.duration_days < 1 || issueForm.duration_days > 3650)) {
+    if (
+      issueForm.type === "trial" &&
+      (!Number.isInteger(issueForm.duration_days) ||
+        issueForm.duration_days < 1 ||
+        issueForm.duration_days > 3650)
+    ) {
       setIssueError("Trial duration must be a whole number from 1 to 3650 days.");
       return;
     }
-    if (!Number.isInteger(issueForm.max_uses) || issueForm.max_uses < 1 || issueForm.max_uses > 1000) {
+    if (
+      !Number.isInteger(issueForm.max_uses) ||
+      issueForm.max_uses < 1 ||
+      issueForm.max_uses > 1000
+    ) {
       setIssueError("Seats / maximum uses must be a whole number from 1 to 1000.");
       return;
     }
@@ -305,8 +343,13 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
   };
 
   const openLicenseAction = (license: LicenseRecord, mode: LicenseActionMode) => {
-    const linkedSession = [...(summary?.activeSessions ?? []), ...(summary?.recentSessions ?? [])]
-      .find((session) => session.id === license.session_id || (license.hwid && session.hwid === license.hwid));
+    const linkedSession = [
+      ...(summary?.activeSessions ?? []),
+      ...(summary?.recentSessions ?? []),
+    ].find(
+      (session) =>
+        session.id === license.session_id || (license.hwid && session.hwid === license.hwid),
+    );
     setLicenseAction({ license, mode });
     setActionInstallId(linkedSession?.installId ?? "");
     setActionHwid(license.hwid ?? linkedSession?.hwid ?? "");
@@ -330,26 +373,31 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
     setActionBusy(true);
     setActionError(null);
     try {
-      const result = licenseAction.mode === "activate"
-        ? await activateAdminLicense(licenseAction.license.license_key, {
-            install_id: actionInstallId.trim(),
-            reason: actionReason.trim() || undefined,
-            idempotency_key: actionOperationKey,
-          })
-        : await bindAdminLicense(licenseAction.license.license_key, {
-            hwid: actionHwid.trim(),
-            install_id: actionInstallId.trim() || undefined,
-            reason: actionReason.trim() || undefined,
-            idempotency_key: actionOperationKey,
-          });
+      const result =
+        licenseAction.mode === "activate"
+          ? await activateAdminLicense(licenseAction.license.license_key, {
+              install_id: actionInstallId.trim(),
+              reason: actionReason.trim() || undefined,
+              idempotency_key: actionOperationKey,
+            })
+          : await bindAdminLicense(licenseAction.license.license_key, {
+              hwid: actionHwid.trim(),
+              install_id: actionInstallId.trim() || undefined,
+              reason: actionReason.trim() || undefined,
+              idempotency_key: actionOperationKey,
+            });
       if (!result.ok || !result.data?.license) {
-        throw new Error(result.data?.error ?? `Could not ${licenseAction.mode} license (HTTP ${result.status}).`);
+        throw new Error(
+          result.data?.error ?? `Could not ${licenseAction.mode} license (HTTP ${result.status}).`,
+        );
       }
       setActionResult(result.data);
       await fetchLicenses(true);
       if (lookupResults) await performLookup();
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : `Could not ${licenseAction.mode} license.`);
+      setActionError(
+        error instanceof Error ? error.message : `Could not ${licenseAction.mode} license.`,
+      );
     } finally {
       setActionBusy(false);
     }
@@ -374,15 +422,15 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
     try {
       const url = new URL(apiUrl("/api/admin/licenses"), window.location.origin);
       let calculatedDays: number | null = null;
-      if (genType === 'days') calculatedDays = genDuration;
-      else if (genType === 'weeks') calculatedDays = genDuration * 7;
-      else if (genType === 'months') calculatedDays = genDuration * 30;
-      else if (genType === 'years') calculatedDays = genDuration * 365;
-      else if (genType === 'hours') calculatedDays = genDuration / 24;
-      else if (genType === 'minutes') calculatedDays = genDuration / 1440;
+      if (genType === "days") calculatedDays = genDuration;
+      else if (genType === "weeks") calculatedDays = genDuration * 7;
+      else if (genType === "months") calculatedDays = genDuration * 30;
+      else if (genType === "years") calculatedDays = genDuration * 365;
+      else if (genType === "hours") calculatedDays = genDuration / 24;
+      else if (genType === "minutes") calculatedDays = genDuration / 1440;
 
       const payload = {
-        type: genType === 'lifetime' ? 'lifetime' : 'trial',
+        type: genType === "lifetime" ? "lifetime" : "trial",
         count: isMaster ? 1 : genCount,
         duration_days: calculatedDays,
         // Optional for master keys: blank means "give it a random key like a
@@ -400,12 +448,16 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
         customer_discord: genCustomerDiscord.trim() || undefined,
       };
       // No retry: generating keys is not idempotent.
-      const res = await fetchApi(url.toString(), {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload),
-        credentials: "include"
-      }, { retry: false });
+      const res = await fetchApi(
+        url.toString(),
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payload),
+          credentials: "include",
+        },
+        { retry: false },
+      );
       const data = await res.json();
       if (data.ok) {
         await fetchLicenses();
@@ -438,10 +490,14 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
       const encodedKey = encodeURIComponent(deleteCandidate.license_key);
       const url = new URL(apiUrl(`/api/admin/licenses/${encodedKey}`), window.location.origin);
 
-      const res = await fetchApi(url.toString(), {
-        method: "DELETE",
-        credentials: "include"
-      }, { retry: false });
+      const res = await fetchApi(
+        url.toString(),
+        {
+          method: "DELETE",
+          credentials: "include",
+        },
+        { retry: false },
+      );
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
@@ -478,12 +534,16 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
       const encodedKey = encodeURIComponent(editCandidate.license_key);
       const url = new URL(apiUrl(`/api/admin/licenses/${encodedKey}`), window.location.origin);
       // All five fields are sent every save: present-but-empty clears a value.
-      const res = await fetchApi(url.toString(), {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(editForm),
-        credentials: "include"
-      }, { retry: false });
+      const res = await fetchApi(
+        url.toString(),
+        {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(editForm),
+          credentials: "include",
+        },
+        { retry: false },
+      );
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) {
         throw new Error(data.error || res.statusText || "Failed to save.");
@@ -498,19 +558,23 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
   };
 
   const sortedLicenses = useMemo(() => {
-    return [...licenses.filter(lic => {
-      const lowerQuery = searchQuery.toLowerCase();
-      return !searchQuery.trim() ||
-             lic.license_key.toLowerCase().includes(lowerQuery) ||
-             lic.hwid?.toLowerCase().includes(lowerQuery) ||
-             lic.user_label?.toLowerCase().includes(lowerQuery) ||
-             lic.client_ip?.toLowerCase().includes(lowerQuery) ||
-             lic.order_id?.toLowerCase().includes(lowerQuery) ||
-             lic.customer_name?.toLowerCase().includes(lowerQuery) ||
-             lic.customer_email?.toLowerCase().includes(lowerQuery) ||
-             lic.customer_discord?.toLowerCase().includes(lowerQuery) ||
-             lic.verified_discord?.toLowerCase().includes(lowerQuery);
-    })].sort((a, b) => {
+    return [
+      ...licenses.filter((lic) => {
+        const lowerQuery = searchQuery.toLowerCase();
+        return (
+          !searchQuery.trim() ||
+          lic.license_key.toLowerCase().includes(lowerQuery) ||
+          lic.hwid?.toLowerCase().includes(lowerQuery) ||
+          lic.user_label?.toLowerCase().includes(lowerQuery) ||
+          lic.client_ip?.toLowerCase().includes(lowerQuery) ||
+          lic.order_id?.toLowerCase().includes(lowerQuery) ||
+          lic.customer_name?.toLowerCase().includes(lowerQuery) ||
+          lic.customer_email?.toLowerCase().includes(lowerQuery) ||
+          lic.customer_discord?.toLowerCase().includes(lowerQuery) ||
+          lic.verified_discord?.toLowerCase().includes(lowerQuery)
+        );
+      }),
+    ].sort((a, b) => {
       const aIsMaster = isMasterLicense(a);
       const bIsMaster = isMasterLicense(b);
       if (aIsMaster && !bIsMaster) return -1;
@@ -537,13 +601,25 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
       </div>
 
       {loading ? (
-        <div style={{ padding: "60px", textAlign: "center", color: "var(--text-2)", display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>
-           <div className="spinner spinner-md" />
-           <span>Loading licenses...</span>
+        <div
+          style={{
+            padding: "60px",
+            textAlign: "center",
+            color: "var(--text-2)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: "12px",
+          }}
+        >
+          <div className="spinner spinner-md" />
+          <span>Loading licenses...</span>
         </div>
       ) : lics.length === 0 ? (
         <EmptyState icon={<Key />} title="No Licenses Found">
-          {searchQuery ? "No licenses match your current search filter." : "No license keys generated yet."}
+          {searchQuery
+            ? "No licenses match your current search filter."
+            : "No license keys generated yet."}
         </EmptyState>
       ) : (
         <div className="data-table-wrap">
@@ -564,191 +640,396 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
               </tr>
             </thead>
             <tbody>
-              {lics.map(lic => {
+              {lics.map((lic) => {
                 const isMaster = isMasterLicense(lic);
                 return (
-                <tr key={lic.id} className={isMaster ? "row-master" : undefined}>
-                  <td>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                      <Key size={14} style={{ color: isMaster ? "var(--warning)" : "var(--accent)", flex: "none" }} />
-                      <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.78125rem", fontWeight: 600, letterSpacing: "0.02em", color: isMaster ? "var(--warning)" : "var(--text-1)", whiteSpace: "nowrap", maxWidth: 210, overflow: "hidden", textOverflow: "ellipsis" }} title={lic.license_key}>{lic.license_key}</span>
-                      {isMaster && (
-                        <span style={{ fontSize: "0.65rem", padding: "2px 6px", borderRadius: "4px", background: "var(--warning-sub)", color: "var(--warning)", fontWeight: 700, letterSpacing: "0.05em" }}>MASTER</span>
+                  <tr key={lic.id} className={isMaster ? "row-master" : undefined}>
+                    <td>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                        <Key
+                          size={14}
+                          style={{
+                            color: isMaster ? "var(--warning)" : "var(--accent)",
+                            flex: "none",
+                          }}
+                        />
+                        <span
+                          style={{
+                            fontFamily: "var(--font-mono)",
+                            fontSize: "0.78125rem",
+                            fontWeight: 600,
+                            letterSpacing: "0.02em",
+                            color: isMaster ? "var(--warning)" : "var(--text-1)",
+                            whiteSpace: "nowrap",
+                            maxWidth: 210,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                          title={lic.license_key}
+                        >
+                          {lic.license_key}
+                        </span>
+                        {isMaster && (
+                          <span
+                            style={{
+                              fontSize: "0.65rem",
+                              padding: "2px 6px",
+                              borderRadius: "4px",
+                              background: "var(--warning-sub)",
+                              color: "var(--warning)",
+                              fontWeight: 700,
+                              letterSpacing: "0.05em",
+                            }}
+                          >
+                            MASTER
+                          </span>
+                        )}
+                      </span>
+                    </td>
+                    <td style={{ maxWidth: 200 }}>
+                      {lic.customer_name ||
+                      lic.customer_email ||
+                      lic.customer_discord ||
+                      lic.verified_discord ? (
+                        <div
+                          style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}
+                        >
+                          {lic.customer_name ? (
+                            <span
+                              style={{
+                                color: "var(--text-1)",
+                                fontWeight: 600,
+                                fontSize: "0.8125rem",
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                              }}
+                              title={lic.customer_name}
+                            >
+                              {lic.customer_name}
+                            </span>
+                          ) : null}
+                          {lic.customer_email ? (
+                            <span
+                              style={{
+                                color: "var(--text-2)",
+                                fontSize: "0.71875rem",
+                                fontFamily: "var(--font-mono)",
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                              }}
+                              title={lic.customer_email}
+                            >
+                              {lic.customer_email}
+                            </span>
+                          ) : null}
+                          {lic.customer_discord ? (
+                            <span
+                              style={{
+                                color: "var(--text-2)",
+                                fontSize: "0.71875rem",
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                              }}
+                              title={`Discord: ${lic.customer_discord}`}
+                            >
+                              {discordHandle(lic.customer_discord)}
+                            </span>
+                          ) : null}
+                          {lic.verified_discord ? (
+                            <span
+                              style={{
+                                color: "var(--success-text)",
+                                fontSize: "0.71875rem",
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                              }}
+                              title="This Discord account verified with this key"
+                            >
+                              ✓ {discordHandle(lic.verified_discord)}
+                            </span>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <span
+                          style={{
+                            color: "var(--text-3)",
+                            fontStyle: "italic",
+                            fontSize: "0.8125rem",
+                          }}
+                        >
+                          No customer yet
+                        </span>
                       )}
-                    </span>
-                  </td>
-                  <td style={{ maxWidth: 200 }}>
-                    {(lic.customer_name || lic.customer_email || lic.customer_discord || lic.verified_discord) ? (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-                        {lic.customer_name ? (
-                          <span style={{ color: "var(--text-1)", fontWeight: 600, fontSize: "0.8125rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={lic.customer_name}>
-                            {lic.customer_name}
+                    </td>
+                    <td>
+                      {lic.order_id || lic.order_source ? (
+                        <div
+                          style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}
+                        >
+                          {lic.order_id ? (
+                            <span
+                              style={{
+                                fontFamily: "var(--font-mono)",
+                                fontSize: "0.78125rem",
+                                color: "var(--text-1)",
+                                fontWeight: 600,
+                                whiteSpace: "nowrap",
+                                maxWidth: 160,
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                              }}
+                              title={`Order ${lic.order_id}`}
+                            >
+                              {lic.order_id}
+                            </span>
+                          ) : null}
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                            {lic.order_source ? (
+                              <span
+                                style={{
+                                  fontSize: "0.625rem",
+                                  padding: "1px 6px",
+                                  borderRadius: 4,
+                                  background:
+                                    lic.order_source === "store"
+                                      ? "var(--accent-subtle)"
+                                      : "var(--surface-3)",
+                                  color:
+                                    lic.order_source === "store"
+                                      ? "var(--accent-text)"
+                                      : "var(--text-2)",
+                                  fontWeight: 700,
+                                  letterSpacing: "0.05em",
+                                  textTransform: "uppercase",
+                                }}
+                                title={
+                                  lic.order_source === "store"
+                                    ? "Issued by the storefront delivery API"
+                                    : "Attributed by an admin"
+                                }
+                              >
+                                {lic.order_source}
+                              </span>
+                            ) : null}
+                            {lic.purchased_at ? (
+                              <span
+                                style={{ fontSize: "0.6875rem", color: "var(--text-3)" }}
+                                title={formatDate(lic.purchased_at)}
+                              >
+                                {timeAgo(lic.purchased_at)}
+                              </span>
+                            ) : null}
                           </span>
-                        ) : null}
-                        {lic.customer_email ? (
-                          <span style={{ color: "var(--text-2)", fontSize: "0.71875rem", fontFamily: "var(--font-mono)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={lic.customer_email}>
-                            {lic.customer_email}
-                          </span>
-                        ) : null}
-                        {lic.customer_discord ? (
-                          <span style={{ color: "var(--text-2)", fontSize: "0.71875rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={`Discord: ${lic.customer_discord}`}>
-                            {discordHandle(lic.customer_discord)}
-                          </span>
-                        ) : null}
-                        {lic.verified_discord ? (
-                          <span style={{ color: "var(--success-text)", fontSize: "0.71875rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title="This Discord account verified with this key">
-                            ✓ {discordHandle(lic.verified_discord)}
-                          </span>
-                        ) : null}
+                        </div>
+                      ) : (
+                        <span style={{ color: "var(--text-3)", fontSize: "0.8125rem" }}>—</span>
+                      )}
+                    </td>
+                    <td style={{ whiteSpace: "nowrap" }}>
+                      <span style={{ color: "var(--text-1)", fontWeight: 500 }}>
+                        {lic.type === "lifetime"
+                          ? "Lifetime"
+                          : lic.duration_days && lic.duration_days < 1 / 24
+                            ? `${Math.round(lic.duration_days * 1440)} Mins`
+                            : lic.duration_days && lic.duration_days < 1
+                              ? `${Math.round(lic.duration_days * 24)} Hours`
+                              : lic.duration_days && lic.duration_days % 365 === 0
+                                ? `${lic.duration_days / 365} Years`
+                                : lic.duration_days && lic.duration_days % 30 === 0
+                                  ? `${lic.duration_days / 30} Months`
+                                  : lic.duration_days && lic.duration_days % 7 === 0
+                                    ? `${lic.duration_days / 7} Weeks`
+                                    : `${Math.round(lic.duration_days || 0)} Days`}
+                      </span>
+                    </td>
+                    <td className="col-md">
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <div
+                          style={{
+                            width: "60px",
+                            height: "6px",
+                            background: "var(--line)",
+                            borderRadius: "3px",
+                            overflow: "hidden",
+                          }}
+                        >
+                          <div
+                            style={{
+                              height: "100%",
+                              width: "100%",
+                              transformOrigin: "left",
+                              transform: `scaleX(${lic.max_uses === -1 ? 1 : Math.min(1, lic.usage_count / Math.max(1, lic.max_uses))})`,
+                              background: "var(--accent)",
+                              transition: "transform var(--t-fill) var(--ease-out)",
+                            }}
+                          />
+                        </div>
                       </div>
-                    ) : (
-                      <span style={{ color: "var(--text-3)", fontStyle: "italic", fontSize: "0.8125rem" }}>No customer yet</span>
-                    )}
-                  </td>
-                  <td>
-                    {(lic.order_id || lic.order_source) ? (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
-                        {lic.order_id ? (
-                          <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.78125rem", color: "var(--text-1)", fontWeight: 600, whiteSpace: "nowrap", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis" }} title={`Order ${lic.order_id}`}>
-                            {lic.order_id}
-                          </span>
-                        ) : null}
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-                          {lic.order_source ? (
-                            <span style={{ fontSize: "0.625rem", padding: "1px 6px", borderRadius: 4, background: lic.order_source === "store" ? "var(--accent-subtle)" : "var(--surface-3)", color: lic.order_source === "store" ? "var(--accent-text)" : "var(--text-2)", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase" }} title={lic.order_source === "store" ? "Issued by the storefront delivery API" : "Attributed by an admin"}>
-                              {lic.order_source}
-                            </span>
-                          ) : null}
-                          {lic.purchased_at ? (
-                            <span style={{ fontSize: "0.6875rem", color: "var(--text-3)" }} title={formatDate(lic.purchased_at)}>
-                              {timeAgo(lic.purchased_at)}
-                            </span>
-                          ) : null}
+                      <div
+                        style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}
+                      >
+                        <span style={{ fontSize: "0.75rem", color: "var(--text-2)" }}>
+                          {lic.usage_count} / {lic.max_uses === -1 ? "Infinite" : lic.max_uses}
                         </span>
                       </div>
-                    ) : (
-                      <span style={{ color: "var(--text-3)", fontSize: "0.8125rem" }}>—</span>
-                    )}
-                  </td>
-                  <td style={{ whiteSpace: "nowrap" }}>
-                    <span style={{ color: "var(--text-1)", fontWeight: 500 }}>
-                      {lic.type === "lifetime" ? "Lifetime" : (
-                        lic.duration_days && lic.duration_days < 1 / 24 ? `${Math.round(lic.duration_days * 1440)} Mins` :
-                        lic.duration_days && lic.duration_days < 1 ? `${Math.round(lic.duration_days * 24)} Hours` :
-                        lic.duration_days && lic.duration_days % 365 === 0 ? `${lic.duration_days / 365} Years` :
-                        lic.duration_days && lic.duration_days % 30 === 0 ? `${lic.duration_days / 30} Months` :
-                        lic.duration_days && lic.duration_days % 7 === 0 ? `${lic.duration_days / 7} Weeks` :
-                        `${Math.round(lic.duration_days || 0)} Days`
-                      )}
-                    </span>
-                  </td>
-                  <td className="col-md">
-                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                      <div style={{ width: "60px", height: "6px", background: "var(--line)", borderRadius: "3px", overflow: "hidden" }}>
-                        <div style={{ height: "100%", width: "100%", transformOrigin: "left", transform: `scaleX(${lic.max_uses === -1 ? 1 : Math.min(1, lic.usage_count / Math.max(1, lic.max_uses))})`, background: "var(--accent)", transition: "transform var(--t-fill) var(--ease-out)" }} />
-                      </div>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
-                      <span style={{ fontSize: "0.75rem", color: "var(--text-2)" }}>{lic.usage_count} / {lic.max_uses === -1 ? "Infinite" : lic.max_uses}</span>
-                    </div>
-                  </td>
-                  <td>
-                    <StatusBadge
-                      presence={lic.status === "active" ? "online" : lic.status === "revoked" ? "unreachable" : "idle"} 
-                      label={lic.status.toUpperCase()} 
-                    />
-                  </td>
-                  <td className="col-lg">
-                    {lic.hwid ? (
-                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                        <User size={12} style={{ color: "var(--text-2)" }} />
-                        {lic.session_id || lic.hwid ? (() => {
-                          const isLive = lic.session_id && summary?.activeSessions.some(s => s.id === lic.session_id);
-                          return (
-                            <button 
-                              type="button"
-                              onClick={() => {
-                                if (isLive && onOpenSession && lic.session_id) {
-                                  onOpenSession(lic.session_id);
-                                } else if (onOpenWorker && lic.hwid) {
-                                  onOpenWorker(lic.hwid);
-                                }
+                    </td>
+                    <td>
+                      <StatusBadge
+                        presence={
+                          lic.status === "active"
+                            ? "online"
+                            : lic.status === "revoked"
+                              ? "unreachable"
+                              : "idle"
+                        }
+                        label={lic.status.toUpperCase()}
+                      />
+                    </td>
+                    <td className="col-lg">
+                      {lic.hwid ? (
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                          <User size={12} style={{ color: "var(--text-2)" }} />
+                          {lic.session_id || lic.hwid ? (
+                            (() => {
+                              const isLive =
+                                lic.session_id &&
+                                summary?.activeSessions.some((s) => s.id === lic.session_id);
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (isLive && onOpenSession && lic.session_id) {
+                                      onOpenSession(lic.session_id);
+                                    } else if (onOpenWorker && lic.hwid) {
+                                      onOpenWorker(lic.hwid);
+                                    }
+                                  }}
+                                  style={{
+                                    background: "transparent",
+                                    border: "none",
+                                    cursor: "pointer",
+                                    color: "var(--accent)",
+                                    padding: 0,
+                                    fontSize: "0.8125rem",
+                                    fontWeight: 600,
+                                    maxWidth: "120px",
+                                    whiteSpace: "nowrap",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    textDecoration: "underline",
+                                    textDecorationStyle: "dotted",
+                                  }}
+                                  title={isLive ? "View Live Session" : "View User Sessions"}
+                                >
+                                  {lic.user_label || "Unknown User"}
+                                </button>
+                              );
+                            })()
+                          ) : (
+                            <strong
+                              style={{
+                                color: "var(--text-1)",
+                                fontSize: "0.8125rem",
+                                maxWidth: "120px",
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
                               }}
-                              style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--accent)", padding: 0, fontSize: "0.8125rem", fontWeight: 600, maxWidth: "120px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textDecoration: "underline", textDecorationStyle: "dotted" }}
-                              title={isLive ? "View Live Session" : "View User Sessions"}
+                              title={lic.user_label || "Unknown User"}
                             >
                               {lic.user_label || "Unknown User"}
-                            </button>
-                          );
-                        })() : (
-                          <strong style={{ color: "var(--text-1)", fontSize: "0.8125rem", maxWidth: "120px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={lic.user_label || "Unknown User"}>
-                            {lic.user_label || "Unknown User"}
-                          </strong>
-                        )}
+                            </strong>
+                          )}
+                        </div>
+                      ) : (
+                        <span
+                          style={{
+                            color: "var(--text-2)",
+                            fontStyle: "italic",
+                            fontSize: "0.8125rem",
+                          }}
+                        >
+                          Unbound
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <IconButton
+                          icon={<PlayCircle />}
+                          permission="licenses.write"
+                          onClick={() => openLicenseAction(lic, "activate")}
+                          disabled={lic.status === "revoked"}
+                          title="Activate for a registered install"
+                          aria-label={`Activate ${lic.license_key} for an install`}
+                        />
+                        <IconButton
+                          icon={<Link2 />}
+                          permission="licenses.write"
+                          onClick={() => openLicenseAction(lic, "bind")}
+                          disabled={lic.status === "revoked"}
+                          title="Bind another device"
+                          aria-label={`Bind ${lic.license_key} to a device`}
+                        />
+                        <button
+                          disabled={!canWrite}
+                          onClick={() => openEdit(lic)}
+                          style={{
+                            background: "transparent",
+                            border: "1px solid transparent",
+                            color: "var(--accent-text)",
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            padding: "6px",
+                            borderRadius: "6px",
+                            transition:
+                              "background var(--t-med) var(--ease-smooth), color var(--t-med) var(--ease-smooth)",
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = "var(--accent-subtle)";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = "transparent";
+                          }}
+                          title="Edit customer / order info"
+                        >
+                          <Pencil size={15} />
+                        </button>
+                        <button
+                          disabled={!canWrite}
+                          onClick={() => setDeleteCandidate(lic)}
+                          style={{
+                            background: "transparent",
+                            border: "1px solid transparent",
+                            color: "var(--danger)",
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            padding: "6px",
+                            borderRadius: "6px",
+                            transition:
+                              "background var(--t-med) var(--ease-smooth), color var(--t-med) var(--ease-smooth)",
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = "var(--danger-sub)";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = "transparent";
+                          }}
+                          title="Permanently Delete License"
+                        >
+                          <Trash2 size={16} />
+                        </button>
                       </div>
-                    ) : (
-                      <span style={{ color: "var(--text-2)", fontStyle: "italic", fontSize: "0.8125rem" }}>Unbound</span>
-                    )}
-                  </td>
-                  <td>
-                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                      <IconButton
-                        icon={<PlayCircle />}
-                        onClick={() => openLicenseAction(lic, "activate")}
-                        disabled={lic.status === "revoked"}
-                        title="Activate for a registered install"
-                        aria-label={`Activate ${lic.license_key} for an install`}
-                      />
-                      <IconButton
-                        icon={<Link2 />}
-                        onClick={() => openLicenseAction(lic, "bind")}
-                        disabled={lic.status === "revoked"}
-                        title="Bind another device"
-                        aria-label={`Bind ${lic.license_key} to a device`}
-                      />
-                      <button
-                        onClick={() => openEdit(lic)}
-                        style={{
-                          background: "transparent",
-                          border: "1px solid transparent",
-                          color: "var(--accent-text)",
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          padding: "6px",
-                          borderRadius: "6px",
-                          transition: "background var(--t-med) var(--ease-smooth), color var(--t-med) var(--ease-smooth)"
-                        }}
-                        onMouseEnter={e => { e.currentTarget.style.background = "var(--accent-subtle)"; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
-                        title="Edit customer / order info"
-                      >
-                        <Pencil size={15} />
-                      </button>
-                      <button
-                        onClick={() => setDeleteCandidate(lic)}
-                        style={{
-                          background: "transparent",
-                          border: "1px solid transparent",
-                          color: "var(--danger)",
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          padding: "6px",
-                          borderRadius: "6px",
-                          transition: "background var(--t-med) var(--ease-smooth), color var(--t-med) var(--ease-smooth)"
-                        }}
-                        onMouseEnter={e => { e.currentTarget.style.background = "var(--danger-sub)"; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
-                        title="Permanently Delete License"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
+                    </td>
+                  </tr>
                 );
               })}
             </tbody>
@@ -760,119 +1041,242 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
 
   return (
     <div className="page-content page-stack-lg">
-      <PageHeader 
-        kicker="Access" 
-        title="Licenses" 
-        right={filterBar}
+      <PageHeader
+        kicker="Access"
+        title="Licenses"
+        right={workspaceTab === "inventory" ? filterBar : undefined}
       />
-
-      <section className="panel license-lookup-panel" aria-labelledby="license-order-lookup-title">
-        <div className="panel-head">
-          <div className="panel-head-left">
-            <p className="kicker kicker-row"><SearchCheck size={12} /> Customer fulfilment</p>
-            <h2 className="section-title" id="license-order-lookup-title">Find a purchase and grant access</h2>
-            <p className="section-sub">Start with the order ID from the customer. Search by customer only when the order is unknown.</p>
-          </div>
-          <div className="panel-head-right">
-            <Badge tone="accent">Audited actions</Badge>
-          </div>
-        </div>
-        <div className="panel-body license-lookup-body">
-          <form className="license-lookup-form" onSubmit={submitLookup}>
-            <label>
-              <span className="label-sm">Search by</span>
-              <select
-                className="glass-input"
-                value={lookupMode}
-                onChange={(event) => {
-                  setLookupMode(event.target.value as LookupMode);
-                  setLookupResults(null);
-                  setRevealedLookupKeys(new Set());
-                  setLookupError(null);
-                }}
-              >
-                <option value="order_id">Exact order ID</option>
-                <option value="customer">Customer name, email or Discord</option>
-              </select>
-            </label>
-            <label className="license-lookup-query">
-              <span className="label-sm">{lookupMode === "order_id" ? "Customer order ID" : "Customer"}</span>
-              <input
-                className="glass-input"
-                value={lookupValue}
-                onChange={(event) => {
-                  setLookupValue(event.target.value);
-                  setLookupResults(null);
-                  setRevealedLookupKeys(new Set());
-                  setLookupError(null);
-                }}
-                placeholder={lookupMode === "order_id" ? "e.g. ORD-1042" : "Name, email or Discord"}
-                autoComplete="off"
-              />
-            </label>
-            <Button type="submit" variant="primary" icon={<SearchCheck />} disabled={!lookupValue.trim() || lookupLoading}>
-              {lookupLoading ? "Searching…" : "Search purchases"}
-            </Button>
-          </form>
-
-          {lookupError ? <p className="license-workflow-error" role="alert">{lookupError}</p> : null}
-
-          {lookupResults !== null ? (
-            <div className="license-lookup-results" aria-live="polite">
-              <div className="license-lookup-results-head">
-                <div>
-                  <strong>{lookupResults.length === 0 ? "No license found" : `${lookupResults.length} license${lookupResults.length === 1 ? "" : "s"} found`}</strong>
-                  <span>{lookupMode === "order_id" ? `Exact order ${lookupValue.trim()}` : `Customer match for “${lookupValue.trim()}”`}</span>
-                </div>
-                {lookupResults.length === 0 ? (
-                  <Button size="sm" icon={<Plus />} onClick={openIssueForLookup}>Issue purchased license</Button>
-                ) : null}
-              </div>
-              {lookupResults.length > 0 ? (
-                <div className="license-lookup-cards">
-                  {lookupResults.map((license) => (
-                    <article className="license-lookup-card" key={license.id || license.license_key}>
-                      <div className="license-lookup-card-main">
-                        <span className="license-lookup-key customer360-mono">
-                          {revealedLookupKeys.has(license.license_key) ? license.license_key : maskLicenseKey(license.license_key)}
-                          <IconButton
-                            icon={revealedLookupKeys.has(license.license_key) ? <EyeOff /> : <Eye />}
-                            size={12}
-                            title={revealedLookupKeys.has(license.license_key) ? "Hide license key" : "Reveal license key"}
-                            aria-label={revealedLookupKeys.has(license.license_key) ? "Hide license key" : "Reveal license key"}
-                            onClick={() => setRevealedLookupKeys((current) => {
-                              const next = new Set(current);
-                              if (!next.delete(license.license_key)) next.add(license.license_key);
-                              return next;
-                            })}
-                          />
-                        </span>
-                        <div>
-                          <Badge tone={license.status === "active" ? "success" : license.status === "revoked" ? "danger" : "warning"}>{license.status}</Badge>
-                          <span>{license.type === "lifetime" ? "Lifetime" : `${license.duration_days ?? "?"} days`}</span>
-                          <span>{license.customer_name ?? license.customer_email ?? license.customer_discord ?? "Customer not named"}</span>
-                          <span>{license.hwid ? `Bound · ${license.usage_count}/${license.max_uses === -1 ? "∞" : license.max_uses}` : "Not bound yet"}</span>
-                        </div>
-                      </div>
-                      <div className="license-lookup-card-actions">
-                        <Button size="sm" icon={<PlayCircle />} onClick={() => openLicenseAction(license, "activate")} disabled={license.status === "revoked"}>Activate install</Button>
-                        <Button size="sm" icon={<Link2 />} onClick={() => openLicenseAction(license, "bind")} disabled={license.status === "revoked"}>Bind device</Button>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              ) : (
-                <p className="license-lookup-empty">Confirm the order details, then issue the license. The new key will stay tied to this order for future searches.</p>
-              )}
+      <div className="workspace-tabs" role="tablist" aria-label="License workspace">
+        <button
+          role="tab"
+          aria-selected={workspaceTab === "inventory"}
+          className={workspaceTab === "inventory" ? "active" : ""}
+          onClick={() => setWorkspaceTab("inventory")}
+        >
+          All licenses
+        </button>
+        <button
+          role="tab"
+          aria-selected={workspaceTab === "lookup"}
+          className={workspaceTab === "lookup" ? "active" : ""}
+          onClick={() => setWorkspaceTab("lookup")}
+        >
+          Find a purchase
+        </button>
+        {canWrite && (
+          <button
+            role="tab"
+            aria-selected={workspaceTab === "generate"}
+            className={workspaceTab === "generate" ? "active" : ""}
+            onClick={() => setWorkspaceTab("generate")}
+          >
+            Create licenses
+          </button>
+        )}
+      </div>
+      {workspaceTab === "inventory" && renderTable(sortedLicenses, "All Licenses")}
+      {workspaceTab === "lookup" && (
+        <section
+          className="panel license-lookup-panel"
+          aria-labelledby="license-order-lookup-title"
+        >
+          <div className="panel-head">
+            <div className="panel-head-left">
+              <p className="kicker kicker-row">
+                <SearchCheck size={12} /> Customer fulfilment
+              </p>
+              <h2 className="section-title" id="license-order-lookup-title">
+                Find a purchase and grant access
+              </h2>
+              <p className="section-sub">
+                Start with the order ID from the customer. Search by customer only when the order is
+                unknown.
+              </p>
             </div>
-          ) : null}
-        </div>
-      </section>
+          </div>
+          <div className="panel-body license-lookup-body">
+            <form className="license-lookup-form" onSubmit={submitLookup}>
+              <label>
+                <span className="label-sm">Search by</span>
+                <select
+                  className="glass-input"
+                  value={lookupMode}
+                  onChange={(event) => {
+                    setLookupMode(event.target.value as LookupMode);
+                    setLookupResults(null);
+                    setRevealedLookupKeys(new Set());
+                    setLookupError(null);
+                  }}
+                >
+                  <option value="order_id">Exact order ID</option>
+                  <option value="customer">Customer name, email or Discord</option>
+                </select>
+              </label>
+              <label className="license-lookup-query">
+                <span className="label-sm">
+                  {lookupMode === "order_id" ? "Customer order ID" : "Customer"}
+                </span>
+                <input
+                  className="glass-input"
+                  value={lookupValue}
+                  onChange={(event) => {
+                    setLookupValue(event.target.value);
+                    setLookupResults(null);
+                    setRevealedLookupKeys(new Set());
+                    setLookupError(null);
+                  }}
+                  placeholder={
+                    lookupMode === "order_id" ? "e.g. ORD-1042" : "Name, email or Discord"
+                  }
+                  autoComplete="off"
+                />
+              </label>
+              <Button
+                type="submit"
+                variant="primary"
+                icon={<SearchCheck />}
+                disabled={!lookupValue.trim() || lookupLoading}
+              >
+                {lookupLoading ? "Searching…" : "Search purchases"}
+              </Button>
+            </form>
 
-      {/* Generator spans the full row — the old two-col layout paired it with a
-          search panel that was 90% dead space; search now lives in the All
-          Licenses table head like every other directory page. */}
-      <section className="panel">
+            {lookupError ? (
+              <p className="license-workflow-error" role="alert">
+                {lookupError}
+              </p>
+            ) : null}
+
+            {lookupResults !== null ? (
+              <div className="license-lookup-results" aria-live="polite">
+                <div className="license-lookup-results-head">
+                  <div>
+                    <strong>
+                      {lookupResults.length === 0
+                        ? "No license found"
+                        : `${lookupResults.length} license${lookupResults.length === 1 ? "" : "s"} found`}
+                    </strong>
+                    <span>
+                      {lookupMode === "order_id"
+                        ? `Exact order ${lookupValue.trim()}`
+                        : `Customer match for “${lookupValue.trim()}”`}
+                    </span>
+                  </div>
+                  {lookupResults.length === 0 ? (
+                    <Button
+                      size="sm"
+                      icon={<Plus />}
+                      permission="licenses.write"
+                      onClick={openIssueForLookup}
+                    >
+                      Issue purchased license
+                    </Button>
+                  ) : null}
+                </div>
+                {lookupResults.length > 0 ? (
+                  <div className="license-lookup-cards">
+                    {lookupResults.map((license) => (
+                      <article
+                        className="license-lookup-card"
+                        key={license.id || license.license_key}
+                      >
+                        <div className="license-lookup-card-main">
+                          <span className="license-lookup-key customer360-mono">
+                            {revealedLookupKeys.has(license.license_key)
+                              ? license.license_key
+                              : maskLicenseKey(license.license_key)}
+                            <IconButton
+                              icon={
+                                revealedLookupKeys.has(license.license_key) ? <EyeOff /> : <Eye />
+                              }
+                              size={12}
+                              title={
+                                revealedLookupKeys.has(license.license_key)
+                                  ? "Hide license key"
+                                  : "Reveal license key"
+                              }
+                              aria-label={
+                                revealedLookupKeys.has(license.license_key)
+                                  ? "Hide license key"
+                                  : "Reveal license key"
+                              }
+                              onClick={() =>
+                                setRevealedLookupKeys((current) => {
+                                  const next = new Set(current);
+                                  if (!next.delete(license.license_key))
+                                    next.add(license.license_key);
+                                  return next;
+                                })
+                              }
+                            />
+                          </span>
+                          <div>
+                            <Badge
+                              tone={
+                                license.status === "active"
+                                  ? "success"
+                                  : license.status === "revoked"
+                                    ? "danger"
+                                    : "warning"
+                              }
+                            >
+                              {license.status}
+                            </Badge>
+                            <span>
+                              {license.type === "lifetime"
+                                ? "Lifetime"
+                                : `${license.duration_days ?? "?"} days`}
+                            </span>
+                            <span>
+                              {license.customer_name ??
+                                license.customer_email ??
+                                license.customer_discord ??
+                                "Customer not named"}
+                            </span>
+                            <span>
+                              {license.hwid
+                                ? `Bound · ${license.usage_count}/${license.max_uses === -1 ? "∞" : license.max_uses}`
+                                : "Not bound yet"}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="license-lookup-card-actions">
+                          <Button
+                            size="sm"
+                            icon={<PlayCircle />}
+                            permission="licenses.write"
+                            onClick={() => openLicenseAction(license, "activate")}
+                            disabled={license.status === "revoked"}
+                          >
+                            Activate install
+                          </Button>
+                          <Button
+                            size="sm"
+                            icon={<Link2 />}
+                            permission="licenses.write"
+                            onClick={() => openLicenseAction(license, "bind")}
+                            disabled={license.status === "revoked"}
+                          >
+                            Bind device
+                          </Button>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="license-lookup-empty">
+                    Confirm the order details, then issue the license. The new key will stay tied to
+                    this order for future searches.
+                  </p>
+                )}
+              </div>
+            ) : null}
+          </div>
+        </section>
+      )}
+
+      {workspaceTab === "generate" && canWrite && (
+        <section className="panel">
           <div className="panel-head">
             <div className="panel-head-left">
               <p className="kicker kicker-row">
@@ -882,16 +1286,50 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
               <p className="section-sub">Create standard or custom master licenses</p>
             </div>
             <div className="panel-head-right">
-              <div style={{ display: "flex", alignItems: "center", gap: "4px", background: "var(--surface-2)", padding: "4px", borderRadius: "8px", border: "1px solid var(--line)" }}>
-                <button 
-                  onClick={() => setIsMaster(false)} 
-                  style={{ padding: "6px 12px", borderRadius: "6px", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer", border: "none", background: !isMaster ? "var(--surface-2)" : "transparent", color: !isMaster ? "var(--text-1)" : "var(--text-2)", boxShadow: !isMaster ? "0 1px 3px rgba(0,0,0,0.1)" : "none", transition: "background var(--t-med) var(--ease-smooth), color var(--t-med) var(--ease-smooth), box-shadow var(--t-med) var(--ease-smooth)" }}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "4px",
+                  background: "var(--surface-2)",
+                  padding: "4px",
+                  borderRadius: "8px",
+                  border: "1px solid var(--line)",
+                }}
+              >
+                <button
+                  onClick={() => setIsMaster(false)}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: "6px",
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    border: "none",
+                    background: !isMaster ? "var(--surface-2)" : "transparent",
+                    color: !isMaster ? "var(--text-1)" : "var(--text-2)",
+                    boxShadow: !isMaster ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                    transition:
+                      "background var(--t-med) var(--ease-smooth), color var(--t-med) var(--ease-smooth), box-shadow var(--t-med) var(--ease-smooth)",
+                  }}
                 >
                   Standard
                 </button>
-                <button 
-                  onClick={() => setIsMaster(true)} 
-                  style={{ padding: "6px 12px", borderRadius: "6px", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer", border: "none", background: isMaster ? "var(--surface-2)" : "transparent", color: isMaster ? "var(--accent)" : "var(--text-2)", boxShadow: isMaster ? "0 1px 3px rgba(0,0,0,0.1)" : "none", transition: "background var(--t-med) var(--ease-smooth), color var(--t-med) var(--ease-smooth), box-shadow var(--t-med) var(--ease-smooth)" }}
+                <button
+                  onClick={() => setIsMaster(true)}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: "6px",
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    border: "none",
+                    background: isMaster ? "var(--surface-2)" : "transparent",
+                    color: isMaster ? "var(--accent)" : "var(--text-2)",
+                    boxShadow: isMaster ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                    transition:
+                      "background var(--t-med) var(--ease-smooth), color var(--t-med) var(--ease-smooth), box-shadow var(--t-med) var(--ease-smooth)",
+                  }}
                 >
                   Master Key
                 </button>
@@ -900,7 +1338,14 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
           </div>
 
           <div className="panel-body">
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "16px", marginBottom: "16px" }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+                gap: "16px",
+                marginBottom: "16px",
+              }}
+            >
               {isMaster ? (
                 <>
                   <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
@@ -910,25 +1355,44 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
                       className="glass-input"
                       placeholder="Blank = random key"
                       value={customKey}
-                      onChange={e => setCustomKey(e.target.value)}
+                      onChange={(e) => setCustomKey(e.target.value)}
                       style={{ fontFamily: "monospace" }}
                     />
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                      }}
+                    >
                       <label className="label-sm">Max Uses (Usability)</label>
-                      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.8rem", color: "var(--text-1)", cursor: "pointer" }}>
-                        <input type="checkbox" checked={isInfiniteUses} onChange={e => setIsInfiniteUses(e.target.checked)} />
+                      <label
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                          fontSize: "0.8rem",
+                          color: "var(--text-1)",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isInfiniteUses}
+                          onChange={(e) => setIsInfiniteUses(e.target.checked)}
+                        />
                         Infinite
                       </label>
                     </div>
                     {!isInfiniteUses && (
-                      <input 
-                        type="number" 
+                      <input
+                        type="number"
                         className="glass-input"
                         min={1}
                         value={maxUses}
-                        onChange={e => setMaxUses(Number(e.target.value))}
+                        onChange={(e) => setMaxUses(Number(e.target.value))}
                       />
                     )}
                   </div>
@@ -936,23 +1400,23 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                   <label className="label-sm">Quantity to Gen</label>
-                  <input 
-                    type="number" 
+                  <input
+                    type="number"
                     className="glass-input"
-                    value={genCount} 
-                    min={1} 
-                    max={50} 
-                    onChange={e => setGenCount(Number(e.target.value))}
+                    value={genCount}
+                    min={1}
+                    max={50}
+                    onChange={(e) => setGenCount(Number(e.target.value))}
                   />
                 </div>
               )}
 
               <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                 <label className="label-sm">Duration Type</label>
-                <select 
-                  className="glass-input" 
-                  value={genType} 
-                  onChange={e => setGenType(e.target.value)}
+                <select
+                  className="glass-input"
+                  value={genType}
+                  onChange={(e) => setGenType(e.target.value)}
                   style={{ cursor: "pointer" }}
                 >
                   <option value="lifetime">Lifetime</option>
@@ -968,11 +1432,11 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
               {genType !== "lifetime" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                   <label className="label-sm">Duration Value</label>
-                  <input 
-                    type="number" 
+                  <input
+                    type="number"
                     className="glass-input"
-                    value={genDuration} 
-                    onChange={e => setGenDuration(Number(e.target.value))}
+                    value={genDuration}
+                    onChange={(e) => setGenDuration(Number(e.target.value))}
                   />
                 </div>
               )}
@@ -981,87 +1445,180 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
             {/* Optional buyer attribution for manual sales — stamped on every
                 generated key so the directory shows who it was sold to. */}
             <div style={{ borderTop: "1px solid var(--line)", paddingTop: 14, marginBottom: 16 }}>
-              <p className="label-sm" style={{ marginBottom: 10, display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <p
+                className="label-sm"
+                style={{ marginBottom: 10, display: "inline-flex", alignItems: "center", gap: 6 }}
+              >
                 <ShoppingCart size={12} /> Customer / Order (optional — for manual sales)
               </p>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "16px" }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+                  gap: "16px",
+                }}
+              >
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                   <label className="label-sm">Order No.</label>
-                  <input type="text" className="glass-input" placeholder="e.g. ORD-1042" value={genOrderId} onChange={e => setGenOrderId(e.target.value)} style={{ fontFamily: "monospace" }} />
+                  <input
+                    type="text"
+                    className="glass-input"
+                    placeholder="e.g. ORD-1042"
+                    value={genOrderId}
+                    onChange={(e) => setGenOrderId(e.target.value)}
+                    style={{ fontFamily: "monospace" }}
+                  />
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                   <label className="label-sm">Customer Name</label>
-                  <input type="text" className="glass-input" placeholder="Buyer name" value={genCustomerName} onChange={e => setGenCustomerName(e.target.value)} />
+                  <input
+                    type="text"
+                    className="glass-input"
+                    placeholder="Buyer name"
+                    value={genCustomerName}
+                    onChange={(e) => setGenCustomerName(e.target.value)}
+                  />
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                   <label className="label-sm">Customer Email</label>
-                  <input type="email" className="glass-input" placeholder="buyer@mail.com" value={genCustomerEmail} onChange={e => setGenCustomerEmail(e.target.value)} />
+                  <input
+                    type="email"
+                    className="glass-input"
+                    placeholder="buyer@mail.com"
+                    value={genCustomerEmail}
+                    onChange={(e) => setGenCustomerEmail(e.target.value)}
+                  />
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                   <label className="label-sm">Discord</label>
-                  <input type="text" className="glass-input" placeholder="@buyer" value={genCustomerDiscord} onChange={e => setGenCustomerDiscord(e.target.value)} />
+                  <input
+                    type="text"
+                    className="glass-input"
+                    placeholder="@buyer"
+                    value={genCustomerDiscord}
+                    onChange={(e) => setGenCustomerDiscord(e.target.value)}
+                  />
                 </div>
               </div>
             </div>
 
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
-              <Button size="md" icon={<Plus size={16} />} onClick={handleGenerate} disabled={generating} variant="primary">
-                {generating ? "Generating..." : isMaster ? "Create Master Key" : "Generate Standard Keys"}
+              <Button
+                size="md"
+                icon={<Plus size={16} />}
+                permission="licenses.write"
+                onClick={handleGenerate}
+                disabled={generating}
+                variant="primary"
+              >
+                {generating
+                  ? "Generating..."
+                  : isMaster
+                    ? "Create Master Key"
+                    : "Generate Standard Keys"}
               </Button>
             </div>
           </div>
-      </section>
-
-      {renderTable(sortedLicenses, "All Licenses")}
+        </section>
+      )}
 
       <Modal
         open={issueOpen}
         onClose={() => (issueBusy ? undefined : setIssueOpen(false))}
         kicker="Customer fulfilment"
         title={issueResult ? "License issued" : "Issue purchased license"}
-        sub={issueResult ? `Operation ${issueResult.operation_id ?? "completed"}` : "Creates one traceable license tied to the customer order."}
+        sub={
+          issueResult
+            ? `Operation ${issueResult.operation_id ?? "completed"}`
+            : "Creates one traceable license tied to the customer order."
+        }
       >
         {issueResult?.license ? (
           <div className="license-workflow-success" role="status">
-            <div className="license-workflow-success-icon"><Key /></div>
+            <div className="license-workflow-success-icon">
+              <Key />
+            </div>
             <p>The key is ready for the customer.</p>
             <code>{issueResult.license.license_key}</code>
             <div className="license-workflow-result-grid">
-              <span>Order<strong>{issueResult.license.order_id ?? issueForm.order_id}</strong></span>
-              <span>Status<strong>{issueResult.license.status}</strong></span>
-              <span>Replay-safe<strong>{issueResult.replayed ? "Replayed" : "New operation"}</strong></span>
+              <span>
+                Order<strong>{issueResult.license.order_id ?? issueForm.order_id}</strong>
+              </span>
+              <span>
+                Status<strong>{issueResult.license.status}</strong>
+              </span>
+              <span>
+                Replay-safe<strong>{issueResult.replayed ? "Replayed" : "New operation"}</strong>
+              </span>
             </div>
             <div className="license-workflow-actions">
               <Button onClick={() => setIssueOpen(false)}>Done</Button>
-              <Button variant="primary" icon={<PlayCircle />} onClick={() => {
-                const issued = issueResult.license as LicenseRecord;
-                setIssueOpen(false);
-                openLicenseAction(issued, "activate");
-              }}>Activate for install</Button>
+              <Button
+                variant="primary"
+                icon={<PlayCircle />}
+                onClick={() => {
+                  const issued = issueResult.license as LicenseRecord;
+                  setIssueOpen(false);
+                  openLicenseAction(issued, "activate");
+                }}
+              >
+                Activate for install
+              </Button>
             </div>
           </div>
         ) : (
           <form className="license-workflow-form" onSubmit={submitIssue}>
             <div className="license-workflow-grid">
               <label>
-                <span className="label-sm">Order ID <em>required</em></span>
-                <input className="glass-input" required value={issueForm.order_id} onChange={(event) => updateIssueForm({ order_id: event.target.value })} placeholder="ORD-1042" autoFocus />
+                <span className="label-sm">
+                  Order ID <em>required</em>
+                </span>
+                <input
+                  className="glass-input"
+                  required
+                  value={issueForm.order_id}
+                  onChange={(event) => updateIssueForm({ order_id: event.target.value })}
+                  placeholder="ORD-1042"
+                  autoFocus
+                />
               </label>
               <label>
                 <span className="label-sm">Customer name</span>
-                <input className="glass-input" value={issueForm.customer_name} onChange={(event) => updateIssueForm({ customer_name: event.target.value })} placeholder="Buyer name" />
+                <input
+                  className="glass-input"
+                  value={issueForm.customer_name}
+                  onChange={(event) => updateIssueForm({ customer_name: event.target.value })}
+                  placeholder="Buyer name"
+                />
               </label>
               <label>
                 <span className="label-sm">Customer email</span>
-                <input type="email" className="glass-input" value={issueForm.customer_email} onChange={(event) => updateIssueForm({ customer_email: event.target.value })} placeholder="buyer@example.com" />
+                <input
+                  type="email"
+                  className="glass-input"
+                  value={issueForm.customer_email}
+                  onChange={(event) => updateIssueForm({ customer_email: event.target.value })}
+                  placeholder="buyer@example.com"
+                />
               </label>
               <label>
                 <span className="label-sm">Customer Discord</span>
-                <input className="glass-input" value={issueForm.customer_discord} onChange={(event) => updateIssueForm({ customer_discord: event.target.value })} placeholder="@buyer" />
+                <input
+                  className="glass-input"
+                  value={issueForm.customer_discord}
+                  onChange={(event) => updateIssueForm({ customer_discord: event.target.value })}
+                  placeholder="@buyer"
+                />
               </label>
               <label>
                 <span className="label-sm">License plan</span>
-                <select className="glass-input" value={issueForm.type} onChange={(event) => updateIssueForm({ type: event.target.value as IssueForm["type"] })}>
+                <select
+                  className="glass-input"
+                  value={issueForm.type}
+                  onChange={(event) =>
+                    updateIssueForm({ type: event.target.value as IssueForm["type"] })
+                  }
+                >
                   <option value="lifetime">Lifetime</option>
                   <option value="trial">Trial</option>
                 </select>
@@ -1069,27 +1626,71 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
               {issueForm.type === "trial" ? (
                 <label>
                   <span className="label-sm">Duration in days</span>
-                  <input type="number" min={1} max={3650} step={1} className="glass-input" value={issueForm.duration_days} onChange={(event) => updateIssueForm({ duration_days: Number(event.target.value) })} />
+                  <input
+                    type="number"
+                    min={1}
+                    max={3650}
+                    step={1}
+                    className="glass-input"
+                    value={issueForm.duration_days}
+                    onChange={(event) =>
+                      updateIssueForm({ duration_days: Number(event.target.value) })
+                    }
+                  />
                 </label>
               ) : null}
               <label>
                 <span className="label-sm">Seats / maximum uses</span>
-                <input type="number" min={1} max={1000} step={1} className="glass-input" value={issueForm.max_uses} onChange={(event) => updateIssueForm({ max_uses: Number(event.target.value) })} />
+                <input
+                  type="number"
+                  min={1}
+                  max={1000}
+                  step={1}
+                  className="glass-input"
+                  value={issueForm.max_uses}
+                  onChange={(event) => updateIssueForm({ max_uses: Number(event.target.value) })}
+                />
               </label>
               <label>
-                <span className="label-sm">Custom key <em>optional</em></span>
-                <input className="glass-input customer360-mono" minLength={8} maxLength={128} value={issueForm.custom_key} onChange={(event) => updateIssueForm({ custom_key: event.target.value })} placeholder="Blank creates a secure random key" />
+                <span className="label-sm">
+                  Custom key <em>optional</em>
+                </span>
+                <input
+                  className="glass-input customer360-mono"
+                  minLength={8}
+                  maxLength={128}
+                  value={issueForm.custom_key}
+                  onChange={(event) => updateIssueForm({ custom_key: event.target.value })}
+                  placeholder="Blank creates a secure random key"
+                />
               </label>
             </div>
             <label>
               <span className="label-sm">Order note</span>
-              <textarea className="glass-input" rows={3} value={issueForm.order_note} onChange={(event) => updateIssueForm({ order_note: event.target.value })} placeholder="Purchase context or anything support should know" />
+              <textarea
+                className="glass-input"
+                rows={3}
+                value={issueForm.order_note}
+                onChange={(event) => updateIssueForm({ order_note: event.target.value })}
+                placeholder="Purchase context or anything support should know"
+              />
             </label>
-            <p className="license-workflow-note">This action is protected by an idempotency key, so retrying the same submission cannot issue a duplicate license.</p>
-            {issueError ? <p className="license-workflow-error" role="alert">{issueError}</p> : null}
+            <p className="license-workflow-note">
+              This action is protected by an idempotency key, so retrying the same submission cannot
+              issue a duplicate license.
+            </p>
+            {issueError ? (
+              <p className="license-workflow-error" role="alert">
+                {issueError}
+              </p>
+            ) : null}
             <div className="license-workflow-actions">
-              <Button onClick={() => setIssueOpen(false)} disabled={issueBusy}>Cancel</Button>
-              <Button type="submit" variant="primary" icon={<Key />} disabled={issueBusy}>{issueBusy ? "Issuing…" : "Issue license"}</Button>
+              <Button onClick={() => setIssueOpen(false)} disabled={issueBusy}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary" icon={<Key />} disabled={issueBusy}>
+                {issueBusy ? "Issuing…" : "Issue license"}
+              </Button>
             </div>
           </form>
         )}
@@ -1099,22 +1700,50 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
         open={licenseAction !== null}
         onClose={() => (actionBusy ? undefined : setLicenseAction(null))}
         kicker="Customer fulfilment"
-        title={actionResult ? "Access updated" : licenseAction?.mode === "activate" ? "Activate on an install" : "Bind a device"}
+        title={
+          actionResult
+            ? "Access updated"
+            : licenseAction?.mode === "activate"
+              ? "Activate on an install"
+              : "Bind a device"
+        }
         sub={licenseAction ? `License ${licenseAction.license.license_key}` : undefined}
       >
         {actionResult ? (
           <div className="license-workflow-success" role="status">
-            <div className="license-workflow-success-icon"><Link2 /></div>
-            <p>{actionResult.changed ? "The license was updated successfully." : "The requested access was already in place; nothing was duplicated."}</p>
-            <div className="license-workflow-result-grid">
-              <span>Action<strong>{actionResult.action ?? licenseAction?.mode}</strong></span>
-              <span>Install<strong>{actionResult.target?.install_id ?? "—"}</strong></span>
-              <span>Hardware ID<strong>{actionResult.target?.hwid ?? "—"}</strong></span>
-              <span>Activated<strong>{actionResult.activated ? "Yes" : "No change"}</strong></span>
-              <span>Operation<strong>{actionResult.operation_id ?? "—"}</strong></span>
-              <span>Replay-safe<strong>{actionResult.replayed ? "Replayed" : "New operation"}</strong></span>
+            <div className="license-workflow-success-icon">
+              <Link2 />
             </div>
-            <div className="license-workflow-actions"><Button variant="primary" onClick={() => setLicenseAction(null)}>Done</Button></div>
+            <p>
+              {actionResult.changed
+                ? "The license was updated successfully."
+                : "The requested access was already in place; nothing was duplicated."}
+            </p>
+            <div className="license-workflow-result-grid">
+              <span>
+                Action<strong>{actionResult.action ?? licenseAction?.mode}</strong>
+              </span>
+              <span>
+                Install<strong>{actionResult.target?.install_id ?? "—"}</strong>
+              </span>
+              <span>
+                Hardware ID<strong>{actionResult.target?.hwid ?? "—"}</strong>
+              </span>
+              <span>
+                Activated<strong>{actionResult.activated ? "Yes" : "No change"}</strong>
+              </span>
+              <span>
+                Operation<strong>{actionResult.operation_id ?? "—"}</strong>
+              </span>
+              <span>
+                Replay-safe<strong>{actionResult.replayed ? "Replayed" : "New operation"}</strong>
+              </span>
+            </div>
+            <div className="license-workflow-actions">
+              <Button variant="primary" onClick={() => setLicenseAction(null)}>
+                Done
+              </Button>
+            </div>
           </div>
         ) : licenseAction ? (
           <form className="license-workflow-form" onSubmit={submitLicenseAction}>
@@ -1124,50 +1753,109 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
                 : "Bind an additional verified hardware ID. Add the install ID when you have it so the server can verify they match."}
             </div>
             <label>
-              <span className="label-sm">Install ID {licenseAction.mode === "activate" ? <em>required</em> : <em>recommended</em>}</span>
+              <span className="label-sm">
+                Install ID{" "}
+                {licenseAction.mode === "activate" ? <em>required</em> : <em>recommended</em>}
+              </span>
               <input
                 className="glass-input customer360-mono"
                 required={licenseAction.mode === "activate"}
                 value={actionInstallId}
-                onChange={(event) => { setActionInstallId(event.target.value); touchLicenseAction(); }}
+                onChange={(event) => {
+                  setActionInstallId(event.target.value);
+                  touchLicenseAction();
+                }}
                 placeholder="Install ID from Customer 360 or the app"
                 autoFocus
               />
             </label>
             {licenseAction.mode === "bind" ? (
               <label>
-                <span className="label-sm">Hardware ID <em>required</em></span>
-                <input className="glass-input customer360-mono" required value={actionHwid} onChange={(event) => { setActionHwid(event.target.value); touchLicenseAction(); }} placeholder="Verified HWID" />
+                <span className="label-sm">
+                  Hardware ID <em>required</em>
+                </span>
+                <input
+                  className="glass-input customer360-mono"
+                  required
+                  value={actionHwid}
+                  onChange={(event) => {
+                    setActionHwid(event.target.value);
+                    touchLicenseAction();
+                  }}
+                  placeholder="Verified HWID"
+                />
               </label>
             ) : null}
             <label>
-              <span className="label-sm">Reason <em>optional, saved for audit</em></span>
-              <textarea className="glass-input" rows={3} value={actionReason} onChange={(event) => { setActionReason(event.target.value); touchLicenseAction(); }} placeholder="e.g. Paid order verified in support ticket" />
+              <span className="label-sm">
+                Reason <em>optional, saved for audit</em>
+              </span>
+              <textarea
+                className="glass-input"
+                rows={3}
+                value={actionReason}
+                onChange={(event) => {
+                  setActionReason(event.target.value);
+                  touchLicenseAction();
+                }}
+                placeholder="e.g. Paid order verified in support ticket"
+              />
             </label>
-            <p className="license-workflow-note">Only a registered, non-revoked install or a hardware ID already seen by telemetry can be used.</p>
-            {actionError ? <p className="license-workflow-error" role="alert">{actionError}</p> : null}
+            <p className="license-workflow-note">
+              Only a registered, non-revoked install or a hardware ID already seen by telemetry can
+              be used.
+            </p>
+            {actionError ? (
+              <p className="license-workflow-error" role="alert">
+                {actionError}
+              </p>
+            ) : null}
             <div className="license-workflow-actions">
-              <Button onClick={() => setLicenseAction(null)} disabled={actionBusy}>Cancel</Button>
-              <Button type="submit" variant="primary" icon={licenseAction.mode === "activate" ? <PlayCircle /> : <Link2 />} disabled={actionBusy}>
-                {actionBusy ? "Saving…" : licenseAction.mode === "activate" ? "Activate license" : "Bind device"}
+              <Button onClick={() => setLicenseAction(null)} disabled={actionBusy}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                icon={licenseAction.mode === "activate" ? <PlayCircle /> : <Link2 />}
+                disabled={actionBusy}
+              >
+                {actionBusy
+                  ? "Saving…"
+                  : licenseAction.mode === "activate"
+                    ? "Activate license"
+                    : "Bind device"}
               </Button>
             </div>
           </form>
         ) : null}
       </Modal>
 
-      <Modal 
-        open={!!deleteCandidate} 
+      <Modal
+        open={!!deleteCandidate}
         onClose={() => setDeleteCandidate(null)}
         kicker="DANGER ZONE"
         title="Delete License"
-        sub={deleteCandidate?.hwid
-          ? "This permanently wipes the license from the database and instantly kills access on every bound machine. It cannot be recovered."
-          : "This will permanently wipe this license from the database. It cannot be recovered."}
+        sub={
+          deleteCandidate?.hwid
+            ? "This permanently wipes the license from the database and instantly kills access on every bound machine. It cannot be recovered."
+            : "This will permanently wipe this license from the database. It cannot be recovered."
+        }
       >
         <div style={{ marginTop: 24, display: "flex", justifyContent: "flex-end", gap: 12 }}>
-          <Button variant="ghost" onClick={() => setDeleteCandidate(null)}>Cancel</Button>
-          <Button variant="danger" onClick={confirmDelete} disabled={isDeleting}>
+          <Button
+            variant="ghost"
+            permission="licenses.write"
+            onClick={() => setDeleteCandidate(null)}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="danger"
+            permission="licenses.write"
+            onClick={confirmDelete}
+            disabled={isDeleting}
+          >
             {isDeleting ? "Processing..." : "Confirm"}
           </Button>
         </div>
@@ -1184,30 +1872,86 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
         {editCandidate ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {/* Machine-owned facts about this key (read-only) */}
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 16px", fontSize: "0.71875rem", color: "var(--text-3)" }}>
-              <span>Source: <strong style={{ color: "var(--text-2)", textTransform: "uppercase" }}>{editCandidate.order_source || "—"}</strong></span>
-              <span>Issued: <strong style={{ color: "var(--text-2)" }}>{editCandidate.purchased_at ? formatDate(editCandidate.purchased_at) : formatDate(editCandidate.created_at)}</strong></span>
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "6px 16px",
+                fontSize: "0.71875rem",
+                color: "var(--text-3)",
+              }}
+            >
+              <span>
+                Source:{" "}
+                <strong style={{ color: "var(--text-2)", textTransform: "uppercase" }}>
+                  {editCandidate.order_source || "—"}
+                </strong>
+              </span>
+              <span>
+                Issued:{" "}
+                <strong style={{ color: "var(--text-2)" }}>
+                  {editCandidate.purchased_at
+                    ? formatDate(editCandidate.purchased_at)
+                    : formatDate(editCandidate.created_at)}
+                </strong>
+              </span>
               {editCandidate.verified_discord ? (
-                <span>Verified Discord: <strong style={{ color: "var(--success-text)" }}>{discordHandle(editCandidate.verified_discord)}</strong></span>
+                <span>
+                  Verified Discord:{" "}
+                  <strong style={{ color: "var(--success-text)" }}>
+                    {discordHandle(editCandidate.verified_discord)}
+                  </strong>
+                </span>
               ) : null}
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                gap: 12,
+              }}
+            >
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <label className="label-sm">Order No.</label>
-                <input type="text" className="glass-input" placeholder="e.g. ORD-1042 / invoice id" value={editForm.order_id} onChange={e => setEditForm(f => ({ ...f, order_id: e.target.value }))} style={{ fontFamily: "monospace" }} />
+                <input
+                  type="text"
+                  className="glass-input"
+                  placeholder="e.g. ORD-1042 / invoice id"
+                  value={editForm.order_id}
+                  onChange={(e) => setEditForm((f) => ({ ...f, order_id: e.target.value }))}
+                  style={{ fontFamily: "monospace" }}
+                />
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <label className="label-sm">Customer Name</label>
-                <input type="text" className="glass-input" placeholder="Buyer name" value={editForm.customer_name} onChange={e => setEditForm(f => ({ ...f, customer_name: e.target.value }))} />
+                <input
+                  type="text"
+                  className="glass-input"
+                  placeholder="Buyer name"
+                  value={editForm.customer_name}
+                  onChange={(e) => setEditForm((f) => ({ ...f, customer_name: e.target.value }))}
+                />
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <label className="label-sm">Customer Email</label>
-                <input type="email" className="glass-input" placeholder="buyer@mail.com" value={editForm.customer_email} onChange={e => setEditForm(f => ({ ...f, customer_email: e.target.value }))} />
+                <input
+                  type="email"
+                  className="glass-input"
+                  placeholder="buyer@mail.com"
+                  value={editForm.customer_email}
+                  onChange={(e) => setEditForm((f) => ({ ...f, customer_email: e.target.value }))}
+                />
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <label className="label-sm">Discord</label>
-                <input type="text" className="glass-input" placeholder="@buyer" value={editForm.customer_discord} onChange={e => setEditForm(f => ({ ...f, customer_discord: e.target.value }))} />
+                <input
+                  type="text"
+                  className="glass-input"
+                  placeholder="@buyer"
+                  value={editForm.customer_discord}
+                  onChange={(e) => setEditForm((f) => ({ ...f, customer_discord: e.target.value }))}
+                />
               </div>
             </div>
 
@@ -1218,7 +1962,7 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
                 rows={3}
                 placeholder="Anything worth remembering about this sale…"
                 value={editForm.order_note}
-                onChange={e => setEditForm(f => ({ ...f, order_note: e.target.value }))}
+                onChange={(e) => setEditForm((f) => ({ ...f, order_note: e.target.value }))}
                 style={{ resize: "vertical", minHeight: 64 }}
               />
             </div>
@@ -1228,19 +1972,55 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker, filterBar }
                 <summary style={{ cursor: "pointer", fontSize: "0.75rem", color: "var(--text-2)" }}>
                   Raw storefront payload (what the shop sent when this key was issued)
                 </summary>
-                <pre style={{ marginTop: 8, padding: "10px 12px", background: "rgba(3, 5, 12, 0.4)", border: "1px solid var(--line)", borderRadius: 10, fontSize: "0.6875rem", color: "var(--text-2)", whiteSpace: "pre-wrap", wordBreak: "break-all", maxHeight: 180, overflow: "auto" }}>
-                  {(() => { try { return JSON.stringify(JSON.parse(editCandidate.order_meta), null, 2); } catch { return editCandidate.order_meta; } })()}
+                <pre
+                  style={{
+                    marginTop: 8,
+                    padding: "10px 12px",
+                    background: "rgba(3, 5, 12, 0.4)",
+                    border: "1px solid var(--line)",
+                    borderRadius: 10,
+                    fontSize: "0.6875rem",
+                    color: "var(--text-2)",
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-all",
+                    maxHeight: 180,
+                    overflow: "auto",
+                  }}
+                >
+                  {(() => {
+                    try {
+                      return JSON.stringify(JSON.parse(editCandidate.order_meta), null, 2);
+                    } catch {
+                      return editCandidate.order_meta;
+                    }
+                  })()}
                 </pre>
               </details>
             ) : null}
 
             {editError ? (
-              <p style={{ margin: 0, fontSize: "0.8125rem", color: "var(--danger-text)" }} role="alert">{editError}</p>
+              <p
+                style={{ margin: 0, fontSize: "0.8125rem", color: "var(--danger-text)" }}
+                role="alert"
+              >
+                {editError}
+              </p>
             ) : null}
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
-              <Button variant="ghost" onClick={() => setEditCandidate(null)} disabled={isSavingEdit}>Cancel</Button>
-              <Button variant="primary" onClick={saveEdit} disabled={isSavingEdit}>
+              <Button
+                variant="ghost"
+                onClick={() => setEditCandidate(null)}
+                disabled={isSavingEdit}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                permission="licenses.write"
+                onClick={saveEdit}
+                disabled={isSavingEdit}
+              >
                 {isSavingEdit ? "Saving..." : "Save"}
               </Button>
             </div>

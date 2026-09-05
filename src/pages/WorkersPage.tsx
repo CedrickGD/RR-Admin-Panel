@@ -520,6 +520,7 @@ function InstallsPanel({ hwid }: InstallsPanelProps) {
                       <Button
                         size="xs"
                         variant="danger"
+                        permission="monitoring.write"
                         onClick={() => void revoke(install.installId)}
                         disabled={busy}
                       >
@@ -530,6 +531,7 @@ function InstallsPanel({ hwid }: InstallsPanelProps) {
                     <Button
                       size="xs"
                       variant="danger"
+                      permission="monitoring.write"
                       title="Invalidate this install's signing key — the app must register a new install"
                       onClick={() => {
                         setConfirmId(install.installId);
@@ -663,7 +665,7 @@ export function WorkersPage({
   onOpenMapUser,
   filterBar,
 }: WorkersPageProps) {
-  const [tab, setTab] = useState<TabKey>("users");
+  const [tab, setTab] = useState<TabKey>("sessions");
 
   // Users tab state
   const [userQuery, setUserQuery] = useState("");
@@ -965,6 +967,7 @@ export function WorkersPage({
               icon={<Download />}
               onClick={() => void handleExport()}
               disabled={exporting || !users || users.length === 0}
+              permission="exports.read"
               title="Download one row per user (every user ever seen) as a clean Excel (.xlsx) sheet"
             >
               {exporting ? "Preparing…" : "Export Users"}

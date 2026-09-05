@@ -47,7 +47,7 @@ export function resolveUserRollupFilters(
     : { range: "all", version: null, platform: null, country: null };
 }
 
-export function useAdminStats(needs: AdminStatsNeeds, filters: StatsFilters) {
+export function useAdminStats(needs: AdminStatsNeeds, filters: StatsFilters, accessKey = "") {
   const [stats, setStats] = useState<StatsPayload | null>(null);
   const [users, setUsers] = useState<UserRollupRecord[] | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
@@ -56,6 +56,16 @@ export function useAdminStats(needs: AdminStatsNeeds, filters: StatsFilters) {
   const statsRequestSeq = useRef(0);
   const usersRequestSeq = useRef(0);
   const hasStats = useRef(false);
+  const [dataAccessKey, setDataAccessKey] = useState(accessKey);
+  useEffect(() => {
+    ++statsRequestSeq.current;
+    ++usersRequestSeq.current;
+    hasStats.current = false;
+    setStats(null);
+    setUsers(null);
+    setError(null);
+    setDataAccessKey(accessKey);
+  }, [accessKey]);
 
   // The users rollup is all-time. Range affects stats only, so changing 7d ->
   // 30d must not trigger another full-history users query and payload. Access
@@ -92,7 +102,7 @@ export function useAdminStats(needs: AdminStatsNeeds, filters: StatsFilters) {
         if (seq === statsRequestSeq.current) setStatsLoading(false);
       }
     },
-    [filters],
+    [filters, accessKey],
   );
 
   const loadUsers = useCallback(
@@ -110,7 +120,7 @@ export function useAdminStats(needs: AdminStatsNeeds, filters: StatsFilters) {
         if (seq === usersRequestSeq.current) setUsersLoading(false);
       }
     },
-    [userFilters],
+    [userFilters, accessKey],
   );
 
   useEffect(() => {
@@ -155,8 +165,8 @@ export function useAdminStats(needs: AdminStatsNeeds, filters: StatsFilters) {
   };
 
   return {
-    stats,
-    users,
+    stats: dataAccessKey === accessKey ? stats : null,
+    users: dataAccessKey === accessKey ? users : null,
     loading: statsLoading || usersLoading,
     error,
     refresh,

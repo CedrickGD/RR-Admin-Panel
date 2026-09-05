@@ -16,8 +16,9 @@ It is currently built as:
 - `Live` shows only genuinely active sessions seen within the last 6 minutes, with a stable sort so rows do not jump while you copy from the table.
 - `Sessions` is the searchable session archive and supports readable `.txt` export.
 - `Errors` shows recent real application failures only.
-- `Settings` shows account, storage, build, and backend status.
-- The shell uses RR branding, animated network background, glass panels, a resizable desktop sidebar, and the logo favicon.
+- The sidebar groups Customers, Monitoring, Support, Communication and Administration. Customer 360 opens a full workspace with four tabs; licenses separate inventory, purchase lookup and creation.
+- `Settings` includes dark/light themes, accent colors, plain/RGB/image/network backgrounds, motion controls, account and system status. Appearance and compressed image uploads are saved per account **in the current browser**, not synced between devices.
+- `Panel access` lets the owner manage members, roles, individual permissions, access expiry, timed permission overrides and active sessions. See [panel access and appearance](docs/panel-workspace.md) for rollout details.
 
 ## Architecture
 

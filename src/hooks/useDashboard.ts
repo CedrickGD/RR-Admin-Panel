@@ -7,7 +7,7 @@ import type {
   PageKey,
   SummaryPayload,
 } from "../types/telemetry";
-import { fetchAdminData, fetchSession, postAuth, postLogout } from "../utils/api";
+import { apiUrl, fetchAdminData, fetchSession, postAuth, postLogout } from "../utils/api";
 import { emitRefresh } from "../utils/refreshBus";
 
 const DEFAULT_REFRESH_MS = 15_000;
@@ -26,17 +26,25 @@ export function useDashboard(activePage: PageKey) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const dashboardRequest = useRef<Promise<void> | null>(null);
+  const accessRevision = useRef(0);
+  const currentUser = useRef(user);
+  useEffect(() => {
+    currentUser.current = user;
+  }, [user]);
   const loadDashboard = useCallback((silent: boolean): Promise<void> => {
     // Slow NAS reads and fetch retries can exceed the polling interval. Share
     // the in-flight request instead of stacking more DB work behind it.
     if (dashboardRequest.current) return dashboardRequest.current;
 
     const request = (async () => {
+      const revision = accessRevision.current;
       try {
         const { ok, data, status } = await fetchAdminData();
+        if (revision !== accessRevision.current) return;
 
         if (status === 401) {
           const session = await fetchSession();
+          if (revision !== accessRevision.current) return;
           setAuthMode(session.authMode ?? "access");
           setRequiresBootstrap(!session.hasUsers);
           if (!session.authenticated) {
@@ -123,6 +131,39 @@ export function useDashboard(activePage: PageKey) {
   }, [verifySession]);
 
   useEffect(() => {
+    if (!user?.email) return;
+    const stream = new EventSource(apiUrl("/api/auth/watch"), { withCredentials: true });
+    const changed = (event: MessageEvent) => {
+      try {
+        const payload = JSON.parse(event.data) as { authenticated: boolean; user?: AuthUser };
+        if (
+          payload.authenticated &&
+          JSON.stringify(payload.user) === JSON.stringify(currentUser.current)
+        )
+          return;
+        accessRevision.current++;
+        setSummary(null);
+        setHealth(null);
+        if (!payload.authenticated) {
+          stream.close();
+          setUser(null);
+          setAuthError("Your panel session has ended. Sign in again.");
+        } else if (payload.user) {
+          setUser(payload.user);
+          void (dashboardRequest.current ?? Promise.resolve()).then(() => loadDashboard(false));
+        }
+      } catch {
+        /* A malformed event cannot grant access. The next server request rechecks it. */
+      }
+    };
+    stream.addEventListener("access", changed);
+    return () => {
+      stream.removeEventListener("access", changed);
+      stream.close();
+    };
+  }, [user?.email, loadDashboard]);
+
+  useEffect(() => {
     if (!user) return;
 
     const refreshMs = activePage === "live" ? LIVE_REFRESH_MS : DEFAULT_REFRESH_MS;
@@ -194,6 +235,11 @@ export function useDashboard(activePage: PageKey) {
 
   const logout = async () => {
     await postLogout();
+    accessRevision.current++;
+    if (authMode === "access") {
+      window.location.assign("/cdn-cgi/access/logout");
+      return;
+    }
     setReady(false);
     setUser(null);
     setSummary(null);

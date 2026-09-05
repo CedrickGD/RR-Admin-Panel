@@ -12,14 +12,12 @@ const modal = source("../src/components/ds/Modal.tsx");
 describe("Customer 360 workspace", () => {
   it("offers the complete support workspace as internal tabs", () => {
     for (const label of [
-      "Summary",
-      "Diagnostics",
-      "Settings",
-      "Activity & errors",
+      "Overview",
+
+      "Support & history",
       "Licenses & orders",
-      "Feedback",
-      "Installs & sessions",
-      "All fields",
+
+      "Devices & sessions",
     ]) {
       expect(overlay).toContain(`label: "${label}"`);
     }

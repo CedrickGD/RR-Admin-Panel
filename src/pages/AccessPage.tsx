@@ -45,7 +45,11 @@ function paidKeysOf(user: UserRollupRecord): string[] {
 export function AccessPage({ users = null, onOpenWorker, filterBar }: AccessPageProps) {
   const [suspensions, setSuspensions] = useState<SuspensionRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(() => {
+    const value = sessionStorage.getItem("rr:access-search") ?? "";
+    sessionStorage.removeItem("rr:access-search");
+    return value;
+  });
   const deferredQuery = useDeferredValue(query);
   const [userPage, setUserPage] = useState(1);
   const [tierFilter, setTierFilter] = useState<"all" | "paid" | "suspended">("all");
@@ -373,6 +377,7 @@ export function AccessPage({ users = null, onOpenWorker, filterBar }: AccessPage
                             <Button
                               size="sm"
                               variant="ghost"
+                              permission="access.write"
                               icon={<RotateCcw size={14} />}
                               onClick={() =>
                                 setLiftTarget({
@@ -388,6 +393,7 @@ export function AccessPage({ users = null, onOpenWorker, filterBar }: AccessPage
                               size="sm"
                               variant="ghost"
                               icon={<Ban size={14} />}
+                              permission="access.write"
                               onClick={() => openSuspend(u)}
                             >
                               Suspend
@@ -549,6 +555,7 @@ export function AccessPage({ users = null, onOpenWorker, filterBar }: AccessPage
                       <Button
                         size="sm"
                         variant="ghost"
+                        permission="access.write"
                         icon={<RotateCcw size={14} />}
                         onClick={() =>
                           setLiftTarget({
@@ -693,7 +700,12 @@ export function AccessPage({ users = null, onOpenWorker, filterBar }: AccessPage
               <Button variant="ghost" onClick={() => setSuspendTarget(null)} disabled={busy}>
                 Cancel
               </Button>
-              <Button variant="danger" onClick={() => void confirmSuspend()} disabled={busy}>
+              <Button
+                variant="danger"
+                permission="access.write"
+                onClick={() => void confirmSuspend()}
+                disabled={busy}
+              >
                 {busy ? "Applying…" : mode === "ban" ? "Ban access" : "Suspend access"}
               </Button>
             </div>
@@ -716,7 +728,12 @@ export function AccessPage({ users = null, onOpenWorker, filterBar }: AccessPage
           <Button variant="ghost" onClick={() => setLiftTarget(null)} disabled={lifting}>
             Cancel
           </Button>
-          <Button variant="primary" onClick={() => void confirmLift()} disabled={lifting}>
+          <Button
+            variant="primary"
+            permission="access.write"
+            onClick={() => void confirmLift()}
+            disabled={lifting}
+          >
             {lifting ? "Lifting…" : "Lift now"}
           </Button>
         </div>

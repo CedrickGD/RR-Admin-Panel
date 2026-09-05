@@ -32,6 +32,7 @@ import {
 import { Badge, type BadgeProps } from "./ds/Badge";
 import { Button } from "./ds/Button";
 import { Modal } from "./ds/Modal";
+import { usePanelPermission } from "../hooks/usePanelPermission";
 
 export interface Customer360Anchor {
   selector: Customer360Selector;
@@ -40,11 +41,12 @@ export interface Customer360Anchor {
   detail?: string | null;
 }
 
-interface Customer360OverlayProps {
+export interface Customer360OverlayProps {
   session: AppSessionRecord | null;
   anchor?: Customer360Anchor | null;
   open: boolean;
   onClose: () => void;
+  embedded?: boolean;
 }
 
 type TabKey =
@@ -58,14 +60,10 @@ type TabKey =
   | "all";
 
 const TABS: Array<{ key: TabKey; label: string; icon: ReactNode }> = [
-  { key: "summary", label: "Summary", icon: <UserRound /> },
-  { key: "diagnostics", label: "Diagnostics", icon: <ShieldCheck /> },
-  { key: "settings", label: "Settings", icon: <Settings2 /> },
-  { key: "activity", label: "Activity & errors", icon: <Activity /> },
+  { key: "summary", label: "Overview", icon: <UserRound /> },
   { key: "commerce", label: "Licenses & orders", icon: <KeyRound /> },
-  { key: "feedback", label: "Feedback", icon: <MessageSquareText /> },
-  { key: "sessions", label: "Installs & sessions", icon: <Laptop /> },
-  { key: "all", label: "All fields", icon: <Clipboard /> },
+  { key: "sessions", label: "Devices & sessions", icon: <Laptop /> },
+  { key: "activity", label: "Support & history", icon: <Activity /> },
 ];
 
 function confidenceLabel(confidence: CustomerConfidence): string {
@@ -137,12 +135,16 @@ function titleFor(
 function InfoGrid({ items }: { items: Array<{ label: string; value: unknown; mono?: boolean }> }) {
   return (
     <dl className="customer360-info-grid">
-      {items.map((item) => (
-        <div className="customer360-info" key={item.label}>
-          <dt>{item.label}</dt>
-          <dd className={item.mono ? "customer360-mono" : undefined}>{displayValue(item.value)}</dd>
-        </div>
-      ))}
+      {items
+        .filter((item) => item.value !== null && item.value !== undefined && item.value !== "")
+        .map((item) => (
+          <div className="customer360-info" key={item.label}>
+            <dt>{item.label}</dt>
+            <dd className={item.mono ? "customer360-mono" : undefined}>
+              {displayValue(item.value)}
+            </dd>
+          </div>
+        ))}
     </dl>
   );
 }
@@ -319,9 +321,6 @@ function SummaryTab({ customer }: { customer: Customer360Customer }) {
               { label: "Discord", value: profile.discord },
               { label: "Verified Discord", value: profile.verified_discord },
               { label: "Preferred contact", value: profile.contact },
-              { label: "Identity", value: anchor.identity, mono: true },
-              { label: "Hardware ID", value: anchor.hwid, mono: true },
-              { label: "Install ID", value: anchor.install_id, mono: true },
             ]}
           />
         </section>
@@ -650,18 +649,33 @@ function SessionFallback({ session }: { session: AppSessionRecord }) {
   );
 }
 
-export function Customer360Overlay({
+export function Customer360View({
   session,
   anchor = null,
   open,
   onClose,
+  embedded = false,
 }: Customer360OverlayProps) {
   const [customer, setCustomer] = useState<Customer360Customer | null>(null);
+  const canReadLicenses = usePanelPermission("licenses.read");
+  const canMonitor = usePanelPermission("monitoring.read");
+  const canReadSupport = usePanelPermission("support.read");
+  const visibleTabs = TABS.filter(
+    (tab) =>
+      tab.key === "summary" ||
+      (tab.key === "commerce" && canReadLicenses) ||
+      (tab.key === "sessions" && canMonitor) ||
+      (tab.key === "activity" && canReadSupport),
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>("summary");
   const [reloadKey, setReloadKey] = useState(0);
   const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (embedded && open)
+      (document.querySelector(".customer-workspace h1") as HTMLElement | null)?.focus();
+  }, [embedded, open, customer?.anchor.identity]);
   const requestSeq = useRef(0);
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const selector: Customer360Selector | null = session ? "session_id" : (anchor?.selector ?? null);
@@ -701,14 +715,15 @@ export function Customer360Overlay({
 
   function onTabKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
     let next = index;
-    if (event.key === "ArrowRight" || event.key === "ArrowDown") next = (index + 1) % TABS.length;
+    if (event.key === "ArrowRight" || event.key === "ArrowDown")
+      next = (index + 1) % visibleTabs.length;
     else if (event.key === "ArrowLeft" || event.key === "ArrowUp")
-      next = (index - 1 + TABS.length) % TABS.length;
+      next = (index - 1 + visibleTabs.length) % visibleTabs.length;
     else if (event.key === "Home") next = 0;
-    else if (event.key === "End") next = TABS.length - 1;
+    else if (event.key === "End") next = visibleTabs.length - 1;
     else return;
     event.preventDefault();
-    setActiveTab(TABS[next].key);
+    setActiveTab(visibleTabs[next].key);
     tabRefs.current[next]?.focus();
   }
 
@@ -743,7 +758,7 @@ export function Customer360Overlay({
         </span>
       </div>
       <div className="customer360-tabs" role="tablist" aria-label="Customer information sections">
-        {TABS.map((tab, index) => (
+        {visibleTabs.map((tab, index) => (
           <button
             key={tab.key}
             ref={(node) => {
@@ -782,10 +797,27 @@ export function Customer360Overlay({
           </div>
         ) : null}
         {activeTab === "settings" ? <SettingsTab customer={customer} /> : null}
-        {activeTab === "activity" ? <ActivityTab customer={customer} /> : null}
+        {activeTab === "activity" ? (
+          <>
+            <FeedbackTab customer={customer} />
+            <ActivityTab customer={customer} />
+            <details className="customer-advanced">
+              <summary>Diagnostics</summary>
+              <DiagnosticReport report={customer.diagnostics} />
+            </details>
+          </>
+        ) : null}
         {activeTab === "commerce" ? <CommerceTab customer={customer} /> : null}
         {activeTab === "feedback" ? <FeedbackTab customer={customer} /> : null}
-        {activeTab === "sessions" ? <SessionsTab customer={customer} /> : null}
+        {activeTab === "sessions" ? (
+          <>
+            <SessionsTab customer={customer} />
+            <details className="customer-advanced">
+              <summary>App settings & features</summary>
+              <SettingsTab customer={customer} />
+            </details>
+          </>
+        ) : null}
         {activeTab === "all" ? (
           <section className="customer360-card">
             <div className="customer360-card-title">
@@ -803,6 +835,13 @@ export function Customer360Overlay({
           </section>
         ) : null}
       </div>
+      <details className="customer-advanced">
+        <summary>Advanced · technical record</summary>
+        <Button size="sm" onClick={() => void copyAllFields()}>
+          {copied ? "Copied" : "Copy JSON"}
+        </Button>
+        <pre className="customer360-json">{JSON.stringify(customer, null, 2)}</pre>
+      </details>
     </>
   ) : (
     <div className="customer360-content customer360-load-state">
@@ -831,6 +870,56 @@ export function Customer360Overlay({
     </div>
   );
 
+  function openCustomerAction(page: "licenses" | "access") {
+    const value = customer?.anchor.hwid ?? customer?.anchor.identity ?? "";
+    sessionStorage.setItem(page === "licenses" ? "rr:license-search" : "rr:access-search", value);
+    onClose();
+    window.location.hash = `#/${page}`;
+  }
+  if (embedded)
+    return (
+      <section
+        className="customer-workspace"
+        aria-label="Customer 360"
+        onKeyDown={(event) => {
+          if (event.key === "Escape") onClose();
+        }}
+      >
+        <header className="customer-workspace-head">
+          <div>
+            <h1 tabIndex={-1}>{titleFor(customer, session, anchor)}</h1>
+            <p>Customer workspace · 360</p>
+          </div>
+          <Button onClick={onClose}>Back to workspace</Button>
+        </header>
+        {customer && (
+          <div className="customer-action-bar">
+            <Button
+              permission="licenses.read"
+              icon={<KeyRound />}
+              onClick={() => openCustomerAction("licenses")}
+            >
+              Manage licenses
+            </Button>
+            <Button
+              permission="access.read"
+              icon={<ShieldCheck />}
+              onClick={() => openCustomerAction("access")}
+            >
+              Manage app access
+            </Button>
+            <Button
+              permission="support.read"
+              icon={<MessageSquareText />}
+              onClick={() => setActiveTab("activity")}
+            >
+              Support history
+            </Button>
+          </div>
+        )}
+        <div className="customer360-shell">{body}</div>
+      </section>
+    );
   return (
     <Modal
       open={open}
@@ -848,4 +937,15 @@ export function Customer360Overlay({
       <div className="customer360-shell">{body}</div>
     </Modal>
   );
+}
+
+/** Every old entry point opens the same addressable customer workspace. */
+export function Customer360Overlay({ open, session, anchor, onClose }: Customer360OverlayProps) {
+  useEffect(() => {
+    if (!open) return;
+    const target = anchor ?? (session ? { selector: "session_id", value: session.id } : null);
+    if (target) window.dispatchEvent(new CustomEvent("rr:open-customer", { detail: target }));
+    onClose();
+  }, [open, anchor?.value, session?.id]);
+  return null;
 }

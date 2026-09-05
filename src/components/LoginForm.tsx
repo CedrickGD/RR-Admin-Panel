@@ -24,13 +24,7 @@ function AuthBrand() {
   );
 }
 
-export function LoginForm({
-  isBootstrap,
-  authMode,
-  busy,
-  error,
-  onSubmit,
-}: LoginFormProps) {
+export function LoginForm({ isBootstrap, authMode, busy, error, onSubmit }: LoginFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -41,15 +35,14 @@ export function LoginForm({
         <div className="auth-card v2-rise">
           <AuthBrand />
           <div className="auth-head">
-            <p className="kicker">Zero Trust</p>
-            <h1 className="auth-title">Cloudflare Access Gate</h1>
+            <h1 className="auth-title">Welcome back</h1>
             <p className="auth-sub">
-              This dashboard stays behind Cloudflare Access. Continue through the protected portal and return here
-              once the session is established.
+              Sign in to your RazorReaper workspace. If your access has ended, contact the panel
+              owner.
             </p>
           </div>
-          <a href="/" className="btn btn-primary auth-submit">
-            Open Access Portal
+          <a href="/cdn-cgi/access/logout" className="btn btn-primary auth-submit">
+            Sign in again
           </a>
         </div>
       </div>
@@ -62,12 +55,13 @@ export function LoginForm({
         <AuthBrand />
 
         <div className="auth-head">
-          <p className="kicker">{isBootstrap ? "First-Time Setup" : "Operator Sign-In"}</p>
-          <h1 className="auth-title">{isBootstrap ? "Create Admin Account" : "Enter the Dashboard"}</h1>
+          <h1 className="auth-title">
+            {isBootstrap ? "Create your owner account" : "Welcome back"}
+          </h1>
           <p className="auth-sub">
             {isBootstrap
               ? "Set up the first admin account for this panel."
-              : "Use your operator credentials to access live telemetry, sessions, and error feeds."}
+              : "Sign in to your RazorReaper workspace."}
           </p>
         </div>
 
@@ -82,7 +76,11 @@ export function LoginForm({
           </div>
         </div>
 
-        {error ? <div className="inline-error" role="alert">{error}</div> : null}
+        {error ? (
+          <div className="inline-error" role="alert">
+            {error}
+          </div>
+        ) : null}
 
         <form
           onSubmit={(event) => {

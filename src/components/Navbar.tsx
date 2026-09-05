@@ -1,94 +1,76 @@
 import {
-  AlertTriangle,
+  Activity,
   BarChart3,
-  Clock3,
-  History,
-  Layers,
+  ChevronDown,
+  ChevronRight,
+  CircleHelp,
+  KeyRound,
+  LayoutDashboard,
   LogOut,
-  Map,
   Menu,
-  Radio,
-  RefreshCw,
-  Settings2,
-  X,
-  Key,
-  Ban,
-  Megaphone,
   MessageSquare,
+  Moon,
+  Radio,
+  Search,
+  Settings2,
+  ShieldCheck,
+  Sun,
   UsersRound,
+  X,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
-import type { AuthMode, AuthUser, HealthPayload, PageKey, SummaryPayload } from "../types/telemetry";
-import { timeAgo } from "../utils/format";
-
-const brandLogo = new URL("../img/logo.ico", import.meta.url).href;
-
-/** Set the sidebar width var and flip the icon-only collapsed class in one place. */
-function applySidebarWidth(width: number) {
-  const root = document.documentElement;
-  root.style.setProperty("--sb-w", `${width}px`);
-  root.classList.toggle("sb-collapsed", width < 150);
-}
-
-interface NavEntry {
-  key: PageKey;
-  label: string;
-  icon: ReactNode;
-}
-
-interface NavGroup {
-  /** Micro-caps label rendered above the group; null = no header (top group). */
-  label: string | null;
-  items: NavEntry[];
-}
-
-/**
- * Nav grouped by what the admin is doing, labeled so the structure is visible:
- * dashboard first, then realtime, then history, then per-user management, then
- * broadcast + configuration.
- */
-const NAV_GROUPS: NavGroup[] = [
+import type {
+  AuthMode,
+  AuthUser,
+  HealthPayload,
+  PageKey,
+  SummaryPayload,
+} from "../types/telemetry";
+import { canVisit } from "../../shared/panel-policy";
+import { useAppearance } from "../hooks/useAppearance";
+const logo = new URL("../img/logo.ico", import.meta.url).href;
+const GROUPS: Array<{ label: string; icon: ReactNode; items: Array<[PageKey, string]> }> = [
   {
-    label: null,
-    items: [{ key: "overview", label: "Overview", icon: <BarChart3 size={16} /> }],
-  },
-  {
-    label: "Live",
+    label: "Customers",
+    icon: <UsersRound />,
     items: [
-      { key: "live",    label: "Live",     icon: <Radio size={16} /> },
-      { key: "workers", label: "Sessions", icon: <History size={16} /> },
+      ["customers", "Customer directory"],
+      ["licenses", "Licenses & orders"],
+      ["access", "App suspensions"],
     ],
   },
   {
-    label: "Analytics",
+    label: "Monitoring",
+    icon: <Activity />,
     items: [
-      { key: "traffic",  label: "Traffic",  icon: <Clock3 size={16} /> },
-      { key: "versions", label: "Versions", icon: <Layers size={16} /> },
-      { key: "heatmap",  label: "Heatmap",  icon: <Map size={16} /> },
-      { key: "errors",   label: "Errors",   icon: <AlertTriangle size={16} /> },
+      ["live", "Live sessions"],
+      ["workers", "Session history"],
+      ["traffic", "Traffic"],
+      ["versions", "Versions"],
+      ["heatmap", "World map"],
     ],
   },
   {
-    label: "Users",
+    label: "Support",
+    icon: <CircleHelp />,
     items: [
-      { key: "customers", label: "Customers", icon: <UsersRound size={16} /> },
-      { key: "licenses", label: "Licenses", icon: <Key size={16} /> },
-      { key: "access",   label: "Access",   icon: <Ban size={16} /> },
-      { key: "feedback", label: "Feedback", icon: <MessageSquare size={16} /> },
+      ["feedback", "Feedback inbox"],
+      ["errors", "Application errors"],
     ],
   },
+  { label: "Communication", icon: <MessageSquare />, items: [["announcements", "Announcements"]] },
   {
-    label: "System",
+    label: "Administration",
+    icon: <ShieldCheck />,
     items: [
-      { key: "announcements", label: "Announcements", icon: <Megaphone size={16} /> },
-      { key: "settings",      label: "Settings",      icon: <Settings2 size={16} /> },
+      ["team", "Panel access"],
+      ["settings", "Settings"],
     ],
   },
 ];
-
 export interface NavbarProps {
   page: PageKey;
-  onNavigate: (key: PageKey) => void;
+  onNavigate: (p: PageKey) => void;
   user: AuthUser;
   authMode: AuthMode;
   summary?: SummaryPayload | null;
@@ -97,184 +79,160 @@ export interface NavbarProps {
   refreshing?: boolean;
   onLogout: () => void;
 }
-
-/**
- * Frosted left sidebar shell: generous brand lockup on top, vertical nav
- * with white-pill active state, live-ingest status + actions pinned to the
- * bottom. Below 900px it becomes an off-canvas drawer behind a slim
- * frosted mobile bar (hamburger).
- */
-export function Navbar({
-  page,
-  onNavigate,
-  user,
-  authMode,
-  summary,
-  health,
-  onRefresh,
-  refreshing = false,
-  onLogout,
-}: NavbarProps) {
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const apiOk = health?.api === "alive";
-  const ingestLabel = timeAgo(summary?.stats.lastIngestAt ?? health?.lastIngestAt ?? null);
-
-  // Restore the persisted sidebar width once on mount (64px = icon-only collapsed mode).
-  useEffect(() => {
-    try {
-      const stored = Number(localStorage.getItem("rr-sb-w"));
-      if (Number.isFinite(stored) && stored >= 64 && stored <= 330) {
-        applySidebarWidth(stored);
-      }
-    } catch { /* ignore */ }
-  }, []);
-
-  function navigate(key: PageKey) {
-    onNavigate(key);
-    setDrawerOpen(false);
-  }
-
-  /* Drag the sidebar's right edge to resize (persisted); double-click resets.
-     Below the snap threshold the sidebar collapses to an icon-only rail (logo +
-     page icons). The content column follows --sb-w live, and a resize event is
-     dispatched so charts/maps re-measure their containers mid-drag. */
-  function startResize(event: React.PointerEvent<HTMLDivElement>) {
-    event.preventDefault();
-    const root = document.documentElement;
-    const startX = event.clientX;
-    const startWidth = parseInt(getComputedStyle(root).getPropertyValue("--sb-w"), 10) || 236;
-    let frame = 0;
-    let nextWidth = startWidth;
-
-    function flush() {
-      frame = 0;
-      applySidebarWidth(nextWidth);
-      window.dispatchEvent(new Event("resize"));
-    }
-    function onMove(move: PointerEvent) {
-      const raw = startWidth + (move.clientX - startX);
-      // Snap: anything dragged below the readable minimum collapses to the icon rail.
-      nextWidth = raw < 150 ? 64 : Math.min(330, Math.max(188, raw));
-      if (!frame) frame = requestAnimationFrame(flush);
-    }
-    function onUp() {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-      if (frame) cancelAnimationFrame(frame);
-      applySidebarWidth(nextWidth);
-      try { localStorage.setItem("rr-sb-w", String(nextWidth)); } catch { /* ignore */ }
-      window.dispatchEvent(new Event("resize"));
-    }
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-  }
-
-  function resetResize() {
-    applySidebarWidth(236);
-    try { localStorage.removeItem("rr-sb-w"); } catch { /* ignore */ }
-    window.dispatchEvent(new Event("resize"));
-  }
-
-  const refreshButton = (
-    <button
-      type="button"
-      className="btn-icon"
-      onClick={onRefresh}
-      disabled={refreshing}
-      aria-label="Refresh data"
-      title={refreshing ? "Syncing" : "Refresh data"}
-    >
-      <RefreshCw size={16} className={refreshing ? "animate-spin" : undefined} />
-    </button>
+export function Navbar({ page, onNavigate, user, health, onLogout }: NavbarProps) {
+  const [mobile, setMobile] = useState(false);
+  const [expanded, setExpanded] = useState(
+    () => GROUPS.find((g) => g.items.some(([key]) => key === page))?.label ?? "Customers",
   );
-
+  const [search, setSearch] = useState("");
+  const { appearance, updateAppearance } = useAppearance();
+  useEffect(() => {
+    const group = GROUPS.find((g) => g.items.some(([key]) => key === page));
+    if (group) setExpanded(group.label);
+  }, [page]);
+  function navigate(key: PageKey) {
+    window.dispatchEvent(new Event("rr:close-customer"));
+    onNavigate(key);
+    setMobile(false);
+  }
+  const activeGroup = GROUPS.find((g) => g.items.some(([key]) => key === page));
+  const title =
+    page === "overview"
+      ? "Overview"
+      : (activeGroup?.items.find(([key]) => key === page)?.[1] ?? "Workspace");
   return (
     <>
-      {/* Slim frosted bar — mobile only (≤900px) */}
-      <header className="mobilebar">
+      <button
+        className={`sb-scrim ${mobile ? "sb-scrim-open" : ""}`}
+        aria-label="Close navigation"
+        aria-hidden={!mobile}
+        tabIndex={mobile ? 0 : -1}
+        onClick={() => setMobile(false)}
+      />
+      <aside className={`sidebar ${mobile ? "open" : ""}`} aria-label="Primary navigation">
         <button
-          type="button"
-          className="btn-icon"
-          onClick={() => setDrawerOpen(true)}
-          aria-label="Open navigation"
+          className="sb-brand"
+          onClick={() => navigate(canVisit("overview", user) ? "overview" : "settings")}
         >
-          <Menu size={17} />
+          <img className="sb-brand-img" src={logo} alt="" />
+          <span className="sb-brand-text">
+            <strong>
+              RazorReaper<span className="brand-dot">.</span>
+            </strong>
+            <small>Admin workspace</small>
+          </span>
         </button>
-        <div className="mobilebar-brand">
-          <img src={brandLogo} alt="" className="mobilebar-logo" />
-          <span>RazorReaper</span>
-        </div>
-        {refreshButton}
-      </header>
-
-      <div className={`sb-scrim${drawerOpen ? " sb-scrim-open" : ""}`} onClick={() => setDrawerOpen(false)} aria-hidden />
-
-      <aside className={`sidebar${drawerOpen ? " open" : ""}`} aria-label="Primary">
-        <div className="sb-brand">
-          <img src={brandLogo} alt="RazorReaper logo" className="sb-brand-img" />
-          <div className="sb-brand-text">
-            <span className="sb-brand-name">RazorReaper</span>
-            <span className="sb-brand-sub">Operations Console</span>
-          </div>
-          <button
-            type="button"
-            className="btn-icon sb-close"
-            onClick={() => setDrawerOpen(false)}
-            aria-label="Close navigation"
-          >
-            <X size={16} />
-          </button>
-        </div>
-
-        <nav className="sb-nav" aria-label="Primary">
-          {NAV_GROUPS.map((group, groupIndex) => (
-            <div key={group.label ?? `group-${groupIndex}`} style={{ display: "contents" }}>
-              {group.label ? <div className="sb-group-label">{group.label}</div> : null}
-              {group.items.map((item) => (
+        <nav className="sb-nav" aria-label="Main">
+          {canVisit("overview", user) && (
+            <button
+              className={`sb-item ${page === "overview" ? "active" : ""}`}
+              onClick={() => navigate("overview")}
+              aria-current={page === "overview" ? "page" : undefined}
+            >
+              <LayoutDashboard />
+              <span>Overview</span>
+            </button>
+          )}
+          <div className="nav-divider" />
+          {GROUPS.map((group) => {
+            const items = group.items.filter(([key]) => canVisit(key, user));
+            if (!items.length) return null;
+            const open = expanded === group.label;
+            const active = items.some(([key]) => key === page);
+            return (
+              <div className="nav-section" key={group.label}>
                 <button
-                  key={item.key}
-                  type="button"
-                  className={`sb-item${page === item.key ? " active" : ""}`}
-                  onClick={() => navigate(item.key)}
-                  aria-current={page === item.key ? "page" : undefined}
+                  className={`sb-item nav-parent ${active ? "has-active" : ""}`}
+                  onClick={() => setExpanded(open ? "" : group.label)}
+                  aria-expanded={open}
                 >
-                  {item.icon}
-                  <span>{item.label}</span>
+                  {group.icon}
+                  <span>{group.label}</span>
+                  {open ? (
+                    <ChevronDown className="nav-chevron" />
+                  ) : (
+                    <ChevronRight className="nav-chevron" />
+                  )}
                 </button>
-              ))}
-            </div>
-          ))}
+                {open && (
+                  <div className="nav-children">
+                    {items.map(([key, label]) => (
+                      <button
+                        key={key}
+                        className={`sb-item ${page === key ? "active" : ""}`}
+                        onClick={() => navigate(key)}
+                        aria-current={page === key ? "page" : undefined}
+                      >
+                        <span>{label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </nav>
-
         <div className="sb-foot">
-          <div className={`tn-live${apiOk ? "" : " offline"}`} title={`API ${apiOk ? "online" : "offline"}`}>
-            <span className="tn-live-dot" />
-            {apiOk ? "Ingest online" : "Ingest offline"}
-          </div>
-          <div className="sb-meta" title="Last ingest">ingest · {ingestLabel}</div>
-          <div className="sb-actions">
-            {authMode === "app" ? (
-              <button
-                type="button"
-                className="btn-icon"
-                onClick={onLogout}
-                aria-label="Sign out"
-                title={`Signed in as ${user.email}`}
-              >
-                <LogOut size={16} />
-              </button>
-            ) : null}
+          <span className="workspace-status">
+            <i className={health?.api === "alive" ? "online" : ""} />
+            {health?.api === "alive" ? "All systems connected" : "Connecting…"}
+          </span>
+          <div className="account-row">
+            <span className="account-avatar">{user.email.slice(0, 1).toUpperCase()}</span>
+            <span className="account-text">
+              <strong>{user.email.split("@")[0]}</strong>
+              <small>{user.panelRole ?? user.role}</small>
+            </span>
+            <button className="btn-icon" onClick={onLogout} title="Sign out" aria-label="Sign out">
+              <LogOut size={16} />
+            </button>
           </div>
         </div>
-
-        <div
-          className="sb-resize"
-          onPointerDown={startResize}
-          onDoubleClick={resetResize}
-          title="Drag to resize · double-click to reset"
-          aria-hidden
-        />
       </aside>
+      <header className="workspace-bar">
+        <button
+          className="btn-icon mobile-menu"
+          aria-label="Open navigation"
+          onClick={() => setMobile(!mobile)}
+        >
+          {mobile ? <X /> : <Menu />}
+        </button>
+        <div className="workspace-breadcrumb">
+          <span>{activeGroup?.label ?? "Workspace"}</span>
+          <ChevronRight size={13} />
+          <strong>{title}</strong>
+        </div>
+        {canVisit("customers", user) && (
+          <form
+            className="workspace-search"
+            onSubmit={(e) => {
+              e.preventDefault();
+              sessionStorage.setItem("rr:customer-search", search);
+              navigate("customers");
+              window.dispatchEvent(new CustomEvent("rr:customer-search", { detail: search }));
+            }}
+          >
+            <Search size={16} />
+            <input
+              aria-label="Search customers"
+              placeholder="Search customers, Discord, devices…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            <kbd>↵</kbd>
+          </form>
+        )}
+        <button
+          className="btn-icon theme-toggle"
+          onClick={() =>
+            updateAppearance({ theme: appearance.theme === "dark" ? "light" : "dark" })
+          }
+          title={appearance.theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          aria-label={appearance.theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+        >
+          {appearance.theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+        </button>
+      </header>
     </>
   );
 }

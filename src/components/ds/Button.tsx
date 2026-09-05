@@ -11,6 +11,8 @@
  */
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { sizedIcon } from "./sizedIcon";
+import { usePanelPermission } from "../../hooks/usePanelPermission";
+import type { Permission } from "../../../shared/panel-policy";
 
 const VARIANT_CLASS: Record<string, string> = {
   primary: "btn-primary",
@@ -21,6 +23,7 @@ const VARIANT_CLASS: Record<string, string> = {
 const SIZE_CLASS: Record<string, string> = { md: "", sm: " btn-sm", xs: " btn-xs" };
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  permission?: Permission;
   /** "ghost" (default, most actions) · "primary" (one per view max) · "accent" (accent-tinted ghost) · "danger" (sign out, destructive) */
   variant?: "primary" | "ghost" | "accent" | "danger";
   size?: "md" | "sm" | "xs";
@@ -29,6 +32,7 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 export function Button({
+  permission,
   variant = "ghost",
   size = "md",
   icon,
@@ -37,6 +41,8 @@ export function Button({
   type = "button",
   ...rest
 }: ButtonProps) {
+  const allowed = usePanelPermission(permission);
+  if (!allowed) return null;
   return (
     <button
       type={type}
@@ -50,6 +56,7 @@ export function Button({
 }
 
 export interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  permission?: Permission;
   /** lucide-react element, e.g. icon={<ChevronDown />} */
   icon: ReactNode;
   /** Icon px size. Default 14 (table rows); 16 for panel chrome. */
@@ -57,7 +64,16 @@ export interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement>
 }
 
 /** Square icon-only button for table rows and panel chrome. */
-export function IconButton({ icon, size = 14, className = "", type = "button", ...rest }: IconButtonProps) {
+export function IconButton({
+  permission,
+  icon,
+  size = 14,
+  className = "",
+  type = "button",
+  ...rest
+}: IconButtonProps) {
+  const allowed = usePanelPermission(permission);
+  if (!allowed) return null;
   return (
     <button type={type} className={`btn-icon${className ? ` ${className}` : ""}`} {...rest}>
       {sizedIcon(icon, size)}

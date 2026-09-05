@@ -144,7 +144,15 @@ function LoadingRows() {
 }
 
 export function CustomersPage({ users, filterBar }: CustomersPageProps) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(() => sessionStorage.getItem("rr:customer-search") ?? "");
+  useEffect(() => {
+    const search = (event: Event) => {
+      setQuery((event as CustomEvent<string>).detail);
+      setPage(1);
+    };
+    window.addEventListener("rr:customer-search", search);
+    return () => window.removeEventListener("rr:customer-search", search);
+  }, []);
   const deferredQuery = useDeferredValue(query);
   const [filters, setFilters] = useState<UserDirectoryFilters>(EMPTY_FILTERS);
   const [scope, setScope] = useState<CustomerScope | null>(null);

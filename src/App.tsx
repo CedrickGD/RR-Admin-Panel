@@ -5,12 +5,19 @@ import { LoginForm } from "./components/LoginForm";
 import { Navbar } from "./components/Navbar";
 import { useAdminStats, DEFAULT_STATS_FILTERS } from "./hooks/useAdminStats";
 import { useDashboard } from "./hooks/useDashboard";
-import { useAccent } from "./hooks/useAccent";
+import { useAppearance, setAppearanceAccount } from "./hooks/useAppearance";
+import { PanelBackground } from "./components/PanelBackground";
+import { CustomerWorkspaceRouter } from "./components/CustomerWorkspaceRouter";
+import { canVisit } from "../shared/panel-policy";
+import { PanelIdentity } from "./hooks/usePanelPermission";
 import type { MapFocusTarget } from "./pages/HeatmapPage";
 import type { PageKey, StatsFilters } from "./types/telemetry";
 
 const AccessPage = lazy(() =>
   import("./pages/AccessPage").then((module) => ({ default: module.AccessPage })),
+);
+const TeamPage = lazy(() =>
+  import("./pages/TeamPage").then((module) => ({ default: module.TeamPage })),
 );
 const AnnouncementsPage = lazy(() =>
   import("./pages/AnnouncementsPage").then((module) => ({ default: module.AnnouncementsPage })),
@@ -74,6 +81,7 @@ type FocusedSession = { id: string; token: number } | null;
    being restored — lands back on the page the admin was on, never on
    Overview. Hash also gives shareable deep links and back/forward nav. */
 const PAGE_KEYS: readonly PageKey[] = [
+  "team",
   "overview",
   "live",
   "workers",
@@ -114,7 +122,8 @@ function readInitialPage(): PageKey {
 }
 
 export default function App() {
-  const { hue: accentHue } = useAccent();
+  const { appearance } = useAppearance();
+  const accentHue = appearance.hue;
   const [page, setPage] = useState<PageKey>(readInitialPage);
 
   // Keep URL hash + storage in sync with the active page. The very first
@@ -168,13 +177,19 @@ export default function App() {
     retrySession,
     refresh,
   } = useDashboard(page);
+  useEffect(() => {
+    setAppearanceAccount(user?.email ?? "guest");
+    if (user && !canVisit(page, user))
+      setPage(PAGE_KEYS.find((key) => canVisit(key, user)) ?? "settings");
+  }, [user, page]);
   const { stats, users } = useAdminStats(
     {
-      stats: Boolean(user) && STATS_PAGES.has(page),
-      users: Boolean(user) && USER_PAGES.has(page),
+      stats: Boolean(user && canVisit(page, user)) && STATS_PAGES.has(page),
+      users: Boolean(user && canVisit(page, user)) && USER_PAGES.has(page),
       userScope: page === "workers" ? "filtered" : "all",
     },
     filters,
+    JSON.stringify([user?.email, user?.role, user?.panelRole, user?.permissions]),
   );
 
   // Rendered by each data page inside its own header so the filters sit with the
@@ -297,196 +312,201 @@ export default function App() {
 
   /* ─── Dashboard ─── */
   return (
-    <div className="app-shell v2-shell">
-      <Navbar
-        page={page}
-        onNavigate={setPage}
-        user={user}
-        authMode={authMode}
-        summary={summary}
-        health={health}
-        onRefresh={refresh}
-        refreshing={refreshing}
-        onLogout={() => void logout()}
-      />
+    <PanelIdentity.Provider value={user}>
+      <div className="app-shell v2-shell">
+        <PanelBackground />
+        <Navbar
+          page={page}
+          onNavigate={setPage}
+          user={user}
+          authMode={authMode}
+          summary={summary}
+          health={health}
+          onRefresh={refresh}
+          refreshing={refreshing}
+          onLogout={() => void logout()}
+        />
 
-      <main className="main-area v2-main">
-        {loadError ? (
-          <div className="page-content" style={{ paddingBottom: 0, paddingTop: 20 }}>
+        <main className="main-area v2-main">
+          {loadError ? (
+            <div className="page-content" style={{ paddingBottom: 0, paddingTop: 20 }}>
+              <div
+                style={{
+                  background: "hsl(4 86% 58% / 0.07)",
+                  border: "1px solid hsl(4 86% 58% / 0.22)",
+                  borderRadius: 12,
+                  padding: "14px 18px",
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 12,
+                }}
+              >
+                <AlertTriangle
+                  className="h-4 w-4 mt-0.5 shrink-0"
+                  style={{ color: "var(--danger)" }}
+                />
+                <div style={{ flex: 1 }}>
+                  <p
+                    style={{
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      color: "var(--danger)",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.1em",
+                      marginBottom: 2,
+                    }}
+                  >
+                    Load error
+                  </p>
+                  <p style={{ fontSize: "0.8125rem", color: "var(--text-1)", marginBottom: 4 }}>
+                    The dashboard could not refresh.
+                  </p>
+                  <p style={{ fontSize: "0.8125rem", color: "hsl(4 86% 68%)" }}>{loadError}</p>
+                </div>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={refresh}>
+                  Retry
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {summary && health && canVisit(page, user) ? (
+            <div key={`${page}:${JSON.stringify(user.permissions)}`} className="page-enter">
+              <Suspense
+                fallback={
+                  <div
+                    className="page-content"
+                    style={{ minHeight: 320, display: "grid", placeItems: "center" }}
+                  >
+                    <div className="spinner spinner-md" aria-label="Loading page" />
+                  </div>
+                }
+              >
+                {page === "overview" ? (
+                  <OverviewPage
+                    summary={summary}
+                    stats={stats}
+                    theme={appearance.theme}
+                    accentHue={accentHue}
+                    filterBar={filterBar}
+                  />
+                ) : null}
+                {page === "traffic" ? (
+                  <TrafficPage
+                    summary={summary}
+                    stats={stats}
+                    theme={appearance.theme}
+                    accentHue={accentHue}
+                    filterBar={filterBar}
+                  />
+                ) : null}
+                {page === "versions" ? (
+                  <VersionsPage
+                    summary={summary}
+                    stats={stats}
+                    theme={appearance.theme}
+                    accentHue={accentHue}
+                    filterBar={filterBar}
+                  />
+                ) : null}
+                {page === "heatmap" ? (
+                  <HeatmapPage
+                    summary={summary}
+                    users={users}
+                    theme={appearance.theme}
+                    onOpenSession={handleOpenLiveSession}
+                    focusedTarget={mapFocusTarget}
+                    onFocusConsumed={handleMapFocusConsumed}
+                    filterBar={refreshButton}
+                  />
+                ) : null}
+                {page === "live" ? (
+                  <LivePage
+                    summary={summary}
+                    focusedSessionId={focusedLiveSession?.id ?? null}
+                    focusedSessionToken={focusedLiveSession?.token ?? 0}
+                    onFocusConsumed={handleLiveFocusConsumed}
+                    onOpenMapSession={handleOpenHeatmapSession}
+                    filterBar={refreshButton}
+                  />
+                ) : null}
+                {page === "workers" ? (
+                  <WorkersPage
+                    summary={summary}
+                    stats={stats}
+                    users={users}
+                    focusedWorkerId={focusedWorkerId}
+                    onOpenMapSession={handleOpenHeatmapSession}
+                    onOpenMapUser={handleOpenMapUser}
+                    filterBar={filterBar}
+                  />
+                ) : null}
+                {page === "customers" ? (
+                  <CustomersPage users={users} filterBar={refreshButton} />
+                ) : null}
+                {page === "errors" ? <ErrorsPage /> : null}
+                {page === "licenses" ? (
+                  <LicensesPage
+                    summary={summary}
+                    onOpenSession={handleOpenLiveSession}
+                    onOpenWorker={handleOpenWorker}
+                    filterBar={refreshButton}
+                  />
+                ) : null}
+                {page === "access" ? (
+                  <AccessPage
+                    users={users}
+                    onOpenWorker={handleOpenWorker}
+                    filterBar={refreshButton}
+                  />
+                ) : null}
+                {page === "announcements" ? <AnnouncementsPage filterBar={refreshButton} /> : null}
+                {page === "feedback" ? (
+                  <FeedbackPage
+                    summary={summary}
+                    onOpenSession={handleOpenLiveSession}
+                    onOpenWorker={handleOpenWorker}
+                    filterBar={refreshButton}
+                  />
+                ) : null}
+                {page === "settings" ? (
+                  <SettingsPage
+                    user={user}
+                    authMode={authMode}
+                    summary={summary}
+                    health={health}
+                    onLogout={() => void logout()}
+                    filterBar={refreshButton}
+                  />
+                ) : null}
+                {page === "team" ? <TeamPage /> : null}
+              </Suspense>
+            </div>
+          ) : !loadError ? (
             <div
               style={{
-                background: "hsl(4 86% 58% / 0.07)",
-                border: "1px solid hsl(4 86% 58% / 0.22)",
-                borderRadius: 12,
-                padding: "14px 18px",
                 display: "flex",
-                alignItems: "flex-start",
-                gap: 12,
+                alignItems: "center",
+                justifyContent: "center",
+                minHeight: "70vh",
+                padding: "24px",
               }}
             >
-              <AlertTriangle
-                className="h-4 w-4 mt-0.5 shrink-0"
-                style={{ color: "var(--danger)" }}
-              />
-              <div style={{ flex: 1 }}>
-                <p
-                  style={{
-                    fontSize: "0.75rem",
-                    fontWeight: 600,
-                    color: "var(--danger)",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.1em",
-                    marginBottom: 2,
-                  }}
-                >
-                  Load error
+              <div className="login-card" style={{ textAlign: "center", maxWidth: 380 }}>
+                <div className="spinner" style={{ margin: "0 auto 16px" }} />
+                <p className="kicker" style={{ marginBottom: 8 }}>
+                  Loading
                 </p>
-                <p style={{ fontSize: "0.8125rem", color: "var(--text-1)", marginBottom: 4 }}>
-                  The dashboard could not refresh.
+                <h2 style={{ fontSize: "1.25rem", marginBottom: 8 }}>Fetching dashboard data</h2>
+                <p style={{ fontSize: "0.8125rem", color: "var(--text-2)", lineHeight: 1.7 }}>
+                  Loading session summary and telemetry…
                 </p>
-                <p style={{ fontSize: "0.8125rem", color: "hsl(4 86% 68%)" }}>{loadError}</p>
               </div>
-              <button type="button" className="btn btn-ghost btn-sm" onClick={refresh}>
-                Retry
-              </button>
             </div>
-          </div>
-        ) : null}
-
-        {summary && health ? (
-          <div key={page} className="page-enter">
-            <Suspense
-              fallback={
-                <div
-                  className="page-content"
-                  style={{ minHeight: 320, display: "grid", placeItems: "center" }}
-                >
-                  <div className="spinner spinner-md" aria-label="Loading page" />
-                </div>
-              }
-            >
-              {page === "overview" ? (
-                <OverviewPage
-                  summary={summary}
-                  stats={stats}
-                  theme="dark"
-                  accentHue={accentHue}
-                  filterBar={filterBar}
-                />
-              ) : null}
-              {page === "traffic" ? (
-                <TrafficPage
-                  summary={summary}
-                  stats={stats}
-                  theme="dark"
-                  accentHue={accentHue}
-                  filterBar={filterBar}
-                />
-              ) : null}
-              {page === "versions" ? (
-                <VersionsPage
-                  summary={summary}
-                  stats={stats}
-                  theme="dark"
-                  accentHue={accentHue}
-                  filterBar={filterBar}
-                />
-              ) : null}
-              {page === "heatmap" ? (
-                <HeatmapPage
-                  summary={summary}
-                  users={users}
-                  theme="dark"
-                  onOpenSession={handleOpenLiveSession}
-                  focusedTarget={mapFocusTarget}
-                  onFocusConsumed={handleMapFocusConsumed}
-                  filterBar={refreshButton}
-                />
-              ) : null}
-              {page === "live" ? (
-                <LivePage
-                  summary={summary}
-                  focusedSessionId={focusedLiveSession?.id ?? null}
-                  focusedSessionToken={focusedLiveSession?.token ?? 0}
-                  onFocusConsumed={handleLiveFocusConsumed}
-                  onOpenMapSession={handleOpenHeatmapSession}
-                  filterBar={refreshButton}
-                />
-              ) : null}
-              {page === "workers" ? (
-                <WorkersPage
-                  summary={summary}
-                  stats={stats}
-                  users={users}
-                  focusedWorkerId={focusedWorkerId}
-                  onOpenMapSession={handleOpenHeatmapSession}
-                  onOpenMapUser={handleOpenMapUser}
-                  filterBar={filterBar}
-                />
-              ) : null}
-              {page === "customers" ? (
-                <CustomersPage users={users} filterBar={refreshButton} />
-              ) : null}
-              {page === "errors" ? <ErrorsPage /> : null}
-              {page === "licenses" ? (
-                <LicensesPage
-                  summary={summary}
-                  onOpenSession={handleOpenLiveSession}
-                  onOpenWorker={handleOpenWorker}
-                  filterBar={refreshButton}
-                />
-              ) : null}
-              {page === "access" ? (
-                <AccessPage
-                  users={users}
-                  onOpenWorker={handleOpenWorker}
-                  filterBar={refreshButton}
-                />
-              ) : null}
-              {page === "announcements" ? <AnnouncementsPage filterBar={refreshButton} /> : null}
-              {page === "feedback" ? (
-                <FeedbackPage
-                  summary={summary}
-                  onOpenSession={handleOpenLiveSession}
-                  onOpenWorker={handleOpenWorker}
-                  filterBar={refreshButton}
-                />
-              ) : null}
-              {page === "settings" ? (
-                <SettingsPage
-                  user={user}
-                  authMode={authMode}
-                  summary={summary}
-                  health={health}
-                  onLogout={() => void logout()}
-                  filterBar={refreshButton}
-                />
-              ) : null}
-            </Suspense>
-          </div>
-        ) : !loadError ? (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              minHeight: "70vh",
-              padding: "24px",
-            }}
-          >
-            <div className="login-card" style={{ textAlign: "center", maxWidth: 380 }}>
-              <div className="spinner" style={{ margin: "0 auto 16px" }} />
-              <p className="kicker" style={{ marginBottom: 8 }}>
-                Loading
-              </p>
-              <h2 style={{ fontSize: "1.25rem", marginBottom: 8 }}>Fetching dashboard data</h2>
-              <p style={{ fontSize: "0.8125rem", color: "var(--text-2)", lineHeight: 1.7 }}>
-                Loading session summary and telemetry…
-              </p>
-            </div>
-          </div>
-        ) : null}
-      </main>
-    </div>
+          ) : null}
+        </main>
+        <CustomerWorkspaceRouter user={user} />
+      </div>
+    </PanelIdentity.Provider>
   );
 }

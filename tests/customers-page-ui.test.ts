@@ -14,7 +14,7 @@ const app = source("../src/App.tsx");
 describe("Customers CRM page", () => {
   it("is a dedicated Users navigation destination backed by the all-time rollup", () => {
     expect(telemetry).toContain('| "customers"');
-    expect(nav).toContain('{ key: "customers", label: "Customers"');
+    expect(nav).toMatch(/\["customers",\s*"Customer directory"\]/);
     expect(app).toContain('import("./pages/CustomersPage")');
     expect(app).toContain('"workers", "customers", "heatmap", "access"');
     expect(app).toContain('page === "customers"');

@@ -72,6 +72,7 @@ function cloudflareRoutes(): Plugin {
 export default defineConfig({
   plugins: [react(), tailwindcss(), cloudflareHeaders(), cloudflareRoutes()],
   root: "public",
+  resolve: { alias: { "/src": path.resolve(projectRoot, "src") } },
   build: {
     outDir: path.resolve(projectRoot, "dist"),
     emptyOutDir: true,

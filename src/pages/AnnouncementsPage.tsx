@@ -70,13 +70,18 @@ function localInputToIso(local: string): string | null {
 }
 
 /** Live display state derived from the active flag + schedule window. */
-function displayStatus(a: AnnouncementRecord): { label: string; tone: "success" | "warning" | "muted" | "info" } {
+function displayStatus(a: AnnouncementRecord): {
+  label: string;
+  tone: "success" | "warning" | "muted" | "info";
+} {
   if (!a.is_active) return { label: "Off", tone: "muted" };
   const now = Date.now();
   const starts = a.starts_at ? Date.parse(a.starts_at) : null;
   const expires = a.expires_at ? Date.parse(a.expires_at) : null;
-  if (starts !== null && Number.isFinite(starts) && now < starts) return { label: "Scheduled", tone: "info" };
-  if (expires !== null && Number.isFinite(expires) && now >= expires) return { label: "Expired", tone: "muted" };
+  if (starts !== null && Number.isFinite(starts) && now < starts)
+    return { label: "Scheduled", tone: "info" };
+  if (expires !== null && Number.isFinite(expires) && now >= expires)
+    return { label: "Expired", tone: "muted" };
   return { label: "Live", tone: "success" };
 }
 
@@ -149,7 +154,8 @@ export function AnnouncementsPage({ filterBar }: AnnouncementsPageProps) {
         starts_at: localInputToIso(form.starts_at),
         expires_at: localInputToIso(form.expires_at),
       };
-      const path = editingId === null ? "/api/admin/announcements" : `/api/admin/announcements/${editingId}`;
+      const path =
+        editingId === null ? "/api/admin/announcements" : `/api/admin/announcements/${editingId}`;
       const url = new URL(apiUrl(path), window.location.origin);
       const res = await fetchApi(
         url.toString(),
@@ -159,7 +165,7 @@ export function AnnouncementsPage({ filterBar }: AnnouncementsPageProps) {
           body: JSON.stringify(payload),
           credentials: "include",
         },
-        { retry: false }
+        { retry: false },
       );
       const data = await res.json();
       if (data.ok) {
@@ -187,7 +193,7 @@ export function AnnouncementsPage({ filterBar }: AnnouncementsPageProps) {
           body: JSON.stringify({ is_active: a.is_active === 1 ? false : true }),
           credentials: "include",
         },
-        { retry: false }
+        { retry: false },
       );
       const data = await res.json();
       if (data.ok) await fetchAnnouncements();
@@ -201,8 +207,15 @@ export function AnnouncementsPage({ filterBar }: AnnouncementsPageProps) {
     if (!deleteCandidate) return;
     setIsDeleting(true);
     try {
-      const url = new URL(apiUrl(`/api/admin/announcements/${deleteCandidate.id}`), window.location.origin);
-      const res = await fetchApi(url.toString(), { method: "DELETE", credentials: "include" }, { retry: false });
+      const url = new URL(
+        apiUrl(`/api/admin/announcements/${deleteCandidate.id}`),
+        window.location.origin,
+      );
+      const res = await fetchApi(
+        url.toString(),
+        { method: "DELETE", credentials: "include" },
+        { retry: false },
+      );
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
         throw new Error(`Failed to delete: ${errData.error || res.statusText}`);
@@ -218,8 +231,11 @@ export function AnnouncementsPage({ filterBar }: AnnouncementsPageProps) {
   };
 
   const sorted = useMemo(
-    () => [...announcements].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
-    [announcements]
+    () =>
+      [...announcements].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      ),
+    [announcements],
   );
 
   return (
@@ -230,7 +246,12 @@ export function AnnouncementsPage({ filterBar }: AnnouncementsPageProps) {
         right={
           <>
             {filterBar}
-            <Button size="sm" icon={<Plus size={16} />} onClick={openCreate}>
+            <Button
+              size="sm"
+              icon={<Plus size={16} />}
+              permission="announcements.write"
+              onClick={openCreate}
+            >
               New Announcement
             </Button>
           </>
@@ -249,7 +270,17 @@ export function AnnouncementsPage({ filterBar }: AnnouncementsPageProps) {
         </div>
 
         {loading ? (
-          <div className="panel-body" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "60px 16px", color: "var(--text-3)" }}>
+          <div
+            className="panel-body"
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 12,
+              padding: "60px 16px",
+              color: "var(--text-3)",
+            }}
+          >
             <div className="spinner spinner-md" />
             <span>Loading announcements…</span>
           </div>
@@ -275,8 +306,20 @@ export function AnnouncementsPage({ filterBar }: AnnouncementsPageProps) {
                   return (
                     <tr key={a.id}>
                       <td style={{ maxWidth: 380 }}>
-                        <div style={{ fontWeight: 600, color: "var(--text-1)", marginBottom: 2 }}>{a.title}</div>
-                        <div style={{ fontSize: "var(--fs-small)", color: "var(--text-3)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 360 }} title={a.body}>
+                        <div style={{ fontWeight: 600, color: "var(--text-1)", marginBottom: 2 }}>
+                          {a.title}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "var(--fs-small)",
+                            color: "var(--text-3)",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            maxWidth: 360,
+                          }}
+                          title={a.body}
+                        >
                           {a.body}
                         </div>
                       </td>
@@ -286,17 +329,39 @@ export function AnnouncementsPage({ filterBar }: AnnouncementsPageProps) {
                       <td>
                         <Badge tone={status.tone}>{status.label}</Badge>
                       </td>
-                      <td className="muted" style={{ whiteSpace: "nowrap", fontSize: "var(--fs-small)" }}>
+                      <td
+                        className="muted"
+                        style={{ whiteSpace: "nowrap", fontSize: "var(--fs-small)" }}
+                      >
                         <div>From: {a.starts_at ? formatDate(a.starts_at) : "immediately"}</div>
                         <div>Until: {a.expires_at ? formatDate(a.expires_at) : "no end"}</div>
                       </td>
                       <td>
                         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                          <Button size="xs" variant="ghost" onClick={() => toggleActive(a)} style={{ minWidth: 62, justifyContent: "center" }}>
+                          <Button
+                            size="xs"
+                            variant="ghost"
+                            permission="announcements.write"
+                            onClick={() => toggleActive(a)}
+                            style={{ minWidth: 62, justifyContent: "center" }}
+                          >
                             {a.is_active === 1 ? "Turn off" : "Turn on"}
                           </Button>
-                          <IconButton icon={<Pencil />} size={16} title="Edit" onClick={() => openEdit(a)} />
-                          <IconButton icon={<Trash2 />} size={16} title="Delete" style={{ color: "var(--danger)" }} onClick={() => setDeleteCandidate(a)} />
+                          <IconButton
+                            icon={<Pencil />}
+                            size={16}
+                            title="Edit"
+                            permission="announcements.write"
+                            onClick={() => openEdit(a)}
+                          />
+                          <IconButton
+                            icon={<Trash2 />}
+                            size={16}
+                            title="Delete"
+                            style={{ color: "var(--danger)" }}
+                            permission="announcements.write"
+                            onClick={() => setDeleteCandidate(a)}
+                          />
                         </div>
                       </td>
                     </tr>
@@ -342,7 +407,13 @@ export function AnnouncementsPage({ filterBar }: AnnouncementsPageProps) {
             />
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16 }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+              gap: 16,
+            }}
+          >
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <label className="label-sm">Level</label>
               <select
@@ -358,7 +429,17 @@ export function AnnouncementsPage({ filterBar }: AnnouncementsPageProps) {
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <label className="label-sm">Active</label>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.85rem", color: "var(--text)", cursor: "pointer", height: 38 }}>
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  fontSize: "0.85rem",
+                  color: "var(--text)",
+                  cursor: "pointer",
+                  height: 38,
+                }}
+              >
                 <input
                   type="checkbox"
                   checked={form.is_active}
@@ -369,7 +450,13 @@ export function AnnouncementsPage({ filterBar }: AnnouncementsPageProps) {
             </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16 }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+              gap: 16,
+            }}
+          >
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <label className="label-sm">Show from (optional)</label>
               <input
@@ -391,8 +478,15 @@ export function AnnouncementsPage({ filterBar }: AnnouncementsPageProps) {
           </div>
 
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 8 }}>
-            <Button variant="ghost" onClick={() => setIsEditorOpen(false)}>Cancel</Button>
-            <Button variant="primary" onClick={handleSave} disabled={saving}>
+            <Button variant="ghost" onClick={() => setIsEditorOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              permission="announcements.write"
+              onClick={handleSave}
+              disabled={saving}
+            >
               {saving ? "Saving..." : editingId === null ? "Publish" : "Save Changes"}
             </Button>
           </div>
@@ -408,8 +502,19 @@ export function AnnouncementsPage({ filterBar }: AnnouncementsPageProps) {
         sub="This permanently removes the announcement. It cannot be recovered."
       >
         <div style={{ marginTop: 24, display: "flex", justifyContent: "flex-end", gap: 12 }}>
-          <Button variant="ghost" onClick={() => setDeleteCandidate(null)}>Cancel</Button>
-          <Button variant="danger" onClick={confirmDelete} disabled={isDeleting}>
+          <Button
+            variant="ghost"
+            permission="announcements.write"
+            onClick={() => setDeleteCandidate(null)}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="danger"
+            permission="announcements.write"
+            onClick={confirmDelete}
+            disabled={isDeleting}
+          >
             {isDeleting ? "Processing..." : "Confirm"}
           </Button>
         </div>

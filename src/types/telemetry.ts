@@ -2,6 +2,7 @@ export type TelemetryStatus = "ok" | "degraded" | "down";
 export type AuthMode = "app" | "access";
 export type ThemeMode = "dark" | "light";
 export type PageKey =
+  | "team"
   | "overview"
   | "traffic"
   | "versions"
@@ -362,6 +363,8 @@ export interface HealthPayload {
 }
 
 export interface AuthUser {
+  panelRole?: import("../../shared/panel-policy").PanelRole;
+  permissions?: import("../../shared/panel-policy").Permission[];
   email: string;
   role: "admin" | "viewer";
 }

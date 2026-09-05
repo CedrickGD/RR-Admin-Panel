@@ -22,6 +22,50 @@ html[data-theme] .status-dot {
   background: var(--accent);
   box-shadow: none;
 }
+.live-online-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  --live-online-color: #22c55e;
+}
+html[data-theme="light"] .live-online-status {
+  --live-online-color: #16803c;
+}
+.live-online-dot {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--live-online-color);
+}
+.live-online-dot::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border: 1px solid var(--live-online-color);
+  border-radius: 50%;
+  animation: live-online-pulse 2.8s ease-out infinite;
+}
+@keyframes live-online-pulse {
+  0%,
+  30% {
+    transform: scale(0.65);
+    opacity: 0.5;
+  }
+  85%,
+  100% {
+    transform: scale(1.15);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-online-dot::after {
+    animation: none;
+    opacity: 0;
+  }
+}
 html[data-theme] .gauge-fill {
   stroke: var(--accent);
   filter: none;

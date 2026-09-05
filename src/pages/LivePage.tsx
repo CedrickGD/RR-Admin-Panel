@@ -360,7 +360,12 @@ export function LivePage({
                     <td>{displayLocation(session)}</td>
                     <td>
                       <RecordCell
-                        primary="Online"
+                        primary={
+                          <span className="live-online-status">
+                            <i className="live-online-dot" aria-hidden="true" />
+                            Online
+                          </span>
+                        }
                         secondary={
                           session.errorCount
                             ? session.errorCount + " errors"

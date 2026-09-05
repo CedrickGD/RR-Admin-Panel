@@ -22,6 +22,7 @@ import type {
 } from "../types/customer360";
 import type { AppSessionRecord } from "../types/telemetry";
 import { fetchCustomer360 } from "../utils/api";
+import { useRefreshSignal } from "../utils/refreshBus";
 import {
   formatDate,
   formatDuration,
@@ -708,6 +709,21 @@ export function Customer360View({
       if (requestSeq.current === seq) requestSeq.current += 1;
     };
   }, [open, selector, value, reloadKey]);
+
+  useRefreshSignal(() => {
+    if (!open || !selector || !value || loading) return;
+    const seq = ++requestSeq.current;
+    void fetchCustomer360(selector, value)
+      .then((result) => {
+        if (seq === requestSeq.current && result.ok && result.data?.customer) {
+          setCustomer(result.data.customer);
+          setError(null);
+        }
+      })
+      .catch(() => {
+        /* Keep the current customer visible until the next refresh. */
+      });
+  });
 
   useEffect(() => {
     if (open) setActiveTab("summary");

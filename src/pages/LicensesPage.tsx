@@ -1,7 +1,10 @@
+import { Select } from "../components/ds/Select";
 import { usePanelPermission } from "../hooks/usePanelPermission";
 import {
   Eye,
   EyeOff,
+  Check,
+  X,
   Key,
   Link2,
   Pencil,
@@ -12,7 +15,7 @@ import {
   ShoppingCart,
   User,
 } from "lucide-react";
-import { useEffect, useState, useMemo, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, useMemo, useRef, type FormEvent, type ReactNode } from "react";
 import { Badge } from "../components/ds/Badge";
 import { Button, IconButton } from "../components/ds/Button";
 import { EmptyState } from "../components/ds/EmptyState";
@@ -164,10 +167,19 @@ export function LicensesPage({
 }: LicensesPageProps) {
   const canWrite = usePanelPermission("licenses.write");
   const [licenses, setLicenses] = useState<LicenseRecord[]>([]);
+  const [createdKeys, setCreatedKeys] = useState<string[]>([]);
+  const [createdOnly, setCreatedOnly] = useState(false);
+  const [highlightCreated, setHighlightCreated] = useState(false);
   const [workspaceTab, setWorkspaceTab] = useState<"inventory" | "lookup" | "generate">(
     "inventory",
   );
   const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    if (!createdKeys.length || workspaceTab !== "inventory") return;
+    setHighlightCreated(true);
+    const timer = window.setTimeout(() => setHighlightCreated(false), 45000);
+    return () => window.clearTimeout(timer);
+  }, [createdKeys, workspaceTab]);
   const [generating, setGenerating] = useState(false);
   const [searchQuery, setSearchQuery] = useState(() => {
     const value = sessionStorage.getItem("rr:license-search") ?? "";
@@ -226,20 +238,22 @@ export function LicensesPage({
   const [actionResult, setActionResult] = useState<LicenseOperationResponse | null>(null);
   const [actionOperationKey, setActionOperationKey] = useState(makeOperationKey);
 
+  const licenseRequest = useRef(0);
   const fetchLicenses = async (silent = false) => {
+    const seq = ++licenseRequest.current;
     try {
       if (!silent) setLoading(true);
       const url = new URL(apiUrl("/api/admin/licenses"), window.location.origin);
       url.searchParams.set("_ts", String(Date.now()));
       const res = await fetchApi(url.toString(), { cache: "no-store", credentials: "include" });
       const data = await res.json();
-      if (data.ok) {
+      if (data.ok && seq === licenseRequest.current) {
         setLicenses(data.licenses);
       }
     } catch (e) {
       console.error(e);
     } finally {
-      if (!silent) setLoading(false);
+      if (seq === licenseRequest.current) setLoading(false);
     }
   };
 
@@ -331,6 +345,7 @@ export function LicensesPage({
         throw new Error(result.data?.error ?? `Could not issue license (HTTP ${result.status}).`);
       }
       setIssueResult(result.data);
+      setCreatedKeys([result.data.license.license_key]);
       await fetchLicenses(true);
       if (lookupMode === "order_id" && lookupValue.trim() === issueForm.order_id.trim()) {
         await performLookup(issueForm.order_id, "order_id");
@@ -460,6 +475,10 @@ export function LicensesPage({
       );
       const data = await res.json();
       if (data.ok) {
+        setCreatedKeys(Array.isArray(data.generated_keys) ? data.generated_keys : []);
+        setCreatedOnly(false);
+        setSearchQuery("");
+        setWorkspaceTab("inventory");
         await fetchLicenses();
         setCustomKey("");
         // Clear the one-shot buyer attribution so the next batch never
@@ -560,6 +579,7 @@ export function LicensesPage({
   const sortedLicenses = useMemo(() => {
     return [
       ...licenses.filter((lic) => {
+        if (createdOnly && !createdKeys.includes(lic.license_key)) return false;
         const lowerQuery = searchQuery.toLowerCase();
         return (
           !searchQuery.trim() ||
@@ -575,13 +595,18 @@ export function LicensesPage({
         );
       }),
     ].sort((a, b) => {
+      if (highlightCreated) {
+        const recentlyCreated =
+          Number(createdKeys.includes(b.license_key)) - Number(createdKeys.includes(a.license_key));
+        if (recentlyCreated) return recentlyCreated;
+      }
       const aIsMaster = isMasterLicense(a);
       const bIsMaster = isMasterLicense(b);
       if (aIsMaster && !bIsMaster) return -1;
       if (!aIsMaster && bIsMaster) return 1;
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
-  }, [licenses, searchQuery]);
+  }, [licenses, searchQuery, createdOnly, createdKeys, highlightCreated]);
 
   const renderTable = (lics: LicenseRecord[], title: string) => (
     <section className="panel" style={{ marginBottom: 24 }}>
@@ -643,7 +668,17 @@ export function LicensesPage({
               {lics.map((lic) => {
                 const isMaster = isMasterLicense(lic);
                 return (
-                  <tr key={lic.id} className={isMaster ? "row-master" : undefined}>
+                  <tr
+                    key={lic.id}
+                    className={[
+                      isMaster ? "row-master" : "",
+                      highlightCreated && createdKeys.includes(lic.license_key)
+                        ? "row-created"
+                        : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                  >
                     <td>
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                         <Key
@@ -669,6 +704,9 @@ export function LicensesPage({
                         >
                           {lic.license_key}
                         </span>
+                        {highlightCreated && createdKeys.includes(lic.license_key) && (
+                          <span className="created-label">New</span>
+                        )}
                         {isMaster && (
                           <span
                             style={{
@@ -975,58 +1013,21 @@ export function LicensesPage({
                           title="Bind another device"
                           aria-label={`Bind ${lic.license_key} to a device`}
                         />
-                        <button
-                          disabled={!canWrite}
+                        <IconButton
+                          permission="licenses.write"
+                          icon={<Pencil />}
                           onClick={() => openEdit(lic)}
-                          style={{
-                            background: "transparent",
-                            border: "1px solid transparent",
-                            color: "var(--accent-text)",
-                            cursor: "pointer",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            padding: "6px",
-                            borderRadius: "6px",
-                            transition:
-                              "background var(--t-med) var(--ease-smooth), color var(--t-med) var(--ease-smooth)",
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.background = "var(--accent-subtle)";
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.background = "transparent";
-                          }}
                           title="Edit customer / order info"
-                        >
-                          <Pencil size={15} />
-                        </button>
-                        <button
-                          disabled={!canWrite}
+                          aria-label="Edit customer / order info"
+                        />
+                        <IconButton
+                          permission="licenses.write"
+                          icon={<Trash2 />}
+                          className="danger-action"
                           onClick={() => setDeleteCandidate(lic)}
-                          style={{
-                            background: "transparent",
-                            border: "1px solid transparent",
-                            color: "var(--danger)",
-                            cursor: "pointer",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            padding: "6px",
-                            borderRadius: "6px",
-                            transition:
-                              "background var(--t-med) var(--ease-smooth), color var(--t-med) var(--ease-smooth)",
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.background = "var(--danger-sub)";
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.background = "transparent";
-                          }}
-                          title="Permanently Delete License"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                          title="Permanently delete license"
+                          aria-label="Permanently delete license"
+                        />
                       </div>
                     </td>
                   </tr>
@@ -1043,9 +1044,44 @@ export function LicensesPage({
     <div className="page-content page-stack-lg">
       <PageHeader
         kicker="Access"
-        title="Licenses"
+        title="Licenses & orders"
         right={workspaceTab === "inventory" ? filterBar : undefined}
       />
+      {createdKeys.length > 0 && (
+        <div className="creation-notice" role="status">
+          <span className="creation-notice-icon">
+            <Check />
+          </span>
+          <div>
+            <strong>
+              {createdKeys.length === 1
+                ? "License created"
+                : `${createdKeys.length} licenses created`}
+            </strong>
+            <span>The new licenses are marked in your inventory.</span>
+          </div>
+          <Button
+            size="sm"
+            variant="accent"
+            onClick={() => {
+              setWorkspaceTab("inventory");
+              setSearchQuery("");
+              setCreatedOnly(!createdOnly);
+            }}
+          >
+            {createdOnly ? "Show all licenses" : "Show created licenses"}
+          </Button>
+          <IconButton
+            icon={<X />}
+            aria-label="Dismiss creation notice"
+            onClick={() => {
+              setCreatedKeys([]);
+              setCreatedOnly(false);
+              setHighlightCreated(false);
+            }}
+          />
+        </div>
+      )}
       <div className="workspace-tabs" role="tablist" aria-label="License workspace">
         <button
           role="tab"
@@ -1098,11 +1134,11 @@ export function LicensesPage({
             <form className="license-lookup-form" onSubmit={submitLookup}>
               <label>
                 <span className="label-sm">Search by</span>
-                <select
+                <Select
                   className="glass-input"
                   value={lookupMode}
-                  onChange={(event) => {
-                    setLookupMode(event.target.value as LookupMode);
+                  onValueChange={(value) => {
+                    setLookupMode(value as LookupMode);
                     setLookupResults(null);
                     setRevealedLookupKeys(new Set());
                     setLookupError(null);
@@ -1110,7 +1146,7 @@ export function LicensesPage({
                 >
                   <option value="order_id">Exact order ID</option>
                   <option value="customer">Customer name, email or Discord</option>
-                </select>
+                </Select>
               </label>
               <label className="license-lookup-query">
                 <span className="label-sm">
@@ -1413,10 +1449,10 @@ export function LicensesPage({
 
               <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                 <label className="label-sm">Duration Type</label>
-                <select
+                <Select
                   className="glass-input"
                   value={genType}
-                  onChange={(e) => setGenType(e.target.value)}
+                  onValueChange={(value) => setGenType(value)}
                   style={{ cursor: "pointer" }}
                 >
                   <option value="lifetime">Lifetime</option>
@@ -1426,7 +1462,7 @@ export function LicensesPage({
                   <option value="days">Days</option>
                   <option value="hours">Hours</option>
                   <option value="minutes">Minutes</option>
-                </select>
+                </Select>
               </div>
 
               {genType !== "lifetime" && (
@@ -1612,16 +1648,14 @@ export function LicensesPage({
               </label>
               <label>
                 <span className="label-sm">License plan</span>
-                <select
+                <Select
                   className="glass-input"
                   value={issueForm.type}
-                  onChange={(event) =>
-                    updateIssueForm({ type: event.target.value as IssueForm["type"] })
-                  }
+                  onValueChange={(value) => updateIssueForm({ type: value as IssueForm["type"] })}
                 >
                   <option value="lifetime">Lifetime</option>
                   <option value="trial">Trial</option>
-                </select>
+                </Select>
               </label>
               {issueForm.type === "trial" ? (
                 <label>

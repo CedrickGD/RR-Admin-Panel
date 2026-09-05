@@ -1,5 +1,6 @@
 import { Archive, Check, Mail, MessageSquare, Trash2, User } from "lucide-react";
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { matchesFeedbackStatus } from "../utils/feedbackInbox";
 import { Badge } from "../components/ds/Badge";
 import { Button, IconButton } from "../components/ds/Button";
 import { EmptyState } from "../components/ds/EmptyState";
@@ -44,7 +45,7 @@ const STATUS_TONE: Record<FeedbackStatus, "info" | "muted"> = {
 };
 
 const STATUS_TABS: Array<{ key: "all" | FeedbackStatus; label: string }> = [
-  { key: "all", label: "All" },
+  { key: "all", label: "Inbox" },
   { key: "new", label: "New" },
   { key: "read", label: "Read" },
   { key: "archived", label: "Archived" },
@@ -75,18 +76,24 @@ export function FeedbackPage({
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [deleteCandidate, setDeleteCandidate] = useState<FeedbackRecord | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const requestVersion = useRef(0);
+  const fetching = useRef(false);
 
   const fetchFeedback = async (silent = false) => {
+    if (fetching.current) return;
+    fetching.current = true;
+    const request = ++requestVersion.current;
     try {
       if (!silent) setLoading(true);
       const url = new URL(apiUrl("/api/admin/feedback"), window.location.origin);
       url.searchParams.set("_ts", String(Date.now()));
       const res = await fetchApi(url.toString(), { cache: "no-store", credentials: "include" });
       const data = await res.json();
-      if (data.ok) setFeedback(data.feedback ?? []);
+      if (data.ok && request === requestVersion.current) setFeedback(data.feedback ?? []);
     } catch (e) {
       console.error(e);
     } finally {
+      fetching.current = false;
       if (!silent) setLoading(false);
     }
   };
@@ -113,6 +120,7 @@ export function FeedbackPage({
       );
       const data = await res.json();
       if (data.ok) {
+        ++requestVersion.current;
         // Update locally to avoid a full refetch flicker.
         setFeedback((prev) => prev.map((f) => (f.id === item.id ? { ...f, status } : f)));
       } else {
@@ -141,6 +149,7 @@ export function FeedbackPage({
         throw new Error(`Failed to delete: ${errData.error || res.statusText}`);
       }
       setFeedback((prev) => prev.filter((f) => f.id !== deleteCandidate.id));
+      ++requestVersion.current;
     } catch (err) {
       console.error(err);
       alert("Error: " + (err instanceof Error ? err.message : "Failed"));
@@ -174,7 +183,7 @@ export function FeedbackPage({
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return feedback
-      .filter((f) => (tab === "all" ? true : f.status === tab))
+      .filter((f) => matchesFeedbackStatus(f.status, tab))
       .filter((f) => {
         if (!q) return true;
         return (
@@ -264,7 +273,7 @@ export function FeedbackPage({
               return (
                 <div
                   key={f.id}
-                  className="glass-inset"
+                  className={`feedback-card ${isNew ? "is-new" : ""}`}
                   style={{
                     padding: "14px 16px",
                     boxShadow: isNew ? "inset 2px 0 0 0 var(--accent)" : undefined,

@@ -168,10 +168,22 @@ export function useDashboard(activePage: PageKey) {
 
     const refreshMs = activePage === "live" ? LIVE_REFRESH_MS : DEFAULT_REFRESH_MS;
     const id = window.setInterval(() => {
-      if (document.visibilityState === "visible") void loadDashboard(true);
+      if (document.visibilityState === "visible") {
+        void loadDashboard(true);
+        emitRefresh();
+      }
     }, refreshMs);
-
-    return () => window.clearInterval(id);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        void loadDashboard(true);
+        emitRefresh();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [activePage, loadDashboard, user]);
 
   useEffect(() => {

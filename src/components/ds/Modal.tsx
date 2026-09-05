@@ -71,10 +71,13 @@ export function Modal({
     if (!open) return;
     const onKey = (event: KeyboardEvent) => {
       const overlay = overlayRef.current;
-      const openOverlays = document.querySelectorAll<HTMLElement>('[data-modal-root="true"][data-state="open"]');
+      const openOverlays = document.querySelectorAll<HTMLElement>(
+        '[data-modal-root="true"][data-state="open"]',
+      );
       if (overlay && openOverlays.item(openOverlays.length - 1) !== overlay) return;
 
       if (event.key === "Escape" && onClose) {
+        if (dialogRef.current?.querySelector(".gdrop-menu")) return;
         event.preventDefault();
         event.stopPropagation();
         onClose();
@@ -110,7 +113,8 @@ export function Modal({
   useEffect(() => {
     if (!open) return;
 
-    restoreFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    restoreFocusRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const frame = window.requestAnimationFrame(() => {
@@ -149,7 +153,8 @@ export function Modal({
           : undefined
       }
       onTransitionEnd={(event) => {
-        if (!open && event.target === event.currentTarget && event.propertyName === "opacity") setExiting(false);
+        if (!open && event.target === event.currentTarget && event.propertyName === "opacity")
+          setExiting(false);
       }}
     >
       <div
@@ -158,24 +163,35 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={shown.title ? titleId : undefined}
-        aria-label={shown.title ? undefined : shown.kicker ?? "Dialog"}
+        aria-label={shown.title ? undefined : (shown.kicker ?? "Dialog")}
         tabIndex={-1}
         onClick={(event) => event.stopPropagation()}
       >
         <div className="kpi-modal-head">
           <div>
             {shown.kicker ? <p className="kicker">{shown.kicker}</p> : null}
-            {shown.title ? <h2 className="section-title" id={titleId}>{shown.title}</h2> : null}
+            {shown.title ? (
+              <h2 className="section-title" id={titleId}>
+                {shown.title}
+              </h2>
+            ) : null}
             {shown.sub ? <p className="section-sub">{shown.sub}</p> : null}
           </div>
-          <button ref={closeRef} type="button" className="btn-icon" title="Close" aria-label="Close dialog" onClick={onClose}>
+          <button
+            ref={closeRef}
+            type="button"
+            className="btn-icon"
+            title="Close"
+            aria-label="Close dialog"
+            onClick={onClose}
+          >
             <X size={16} />
           </button>
         </div>
-        {shown.children}
+        <div className="kpi-modal-content">{shown.children}</div>
       </div>
     </div>,
-    document.body
+    document.body,
   );
 }
 

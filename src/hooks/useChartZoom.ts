@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-const MIN_WINDOW = 4;
+const MIN_WINDOW = 1;
 
 export function useChartZoom(totalPoints: number) {
   const [range, setRange] = useState({ start: 0, end: totalPoints });
@@ -33,7 +33,15 @@ export function useChartZoom(totalPoints: number) {
       setRange((prev) => {
         const currentWindow = prev.end - prev.start;
         const zoomFactor = e.deltaY > 0 ? 1.25 : 0.8;
-        const newWindow = Math.max(MIN_WINDOW, Math.min(totalPoints, Math.round(currentWindow * zoomFactor)));
+        const newWindow = Math.max(
+          MIN_WINDOW,
+          Math.min(
+            totalPoints,
+            e.deltaY > 0
+              ? Math.ceil(currentWindow * zoomFactor)
+              : Math.floor(currentWindow * zoomFactor),
+          ),
+        );
 
         if (newWindow === currentWindow) return prev;
 
@@ -50,11 +58,14 @@ export function useChartZoom(totalPoints: number) {
     return () => container.removeEventListener("wheel", handler);
   }, [totalPoints]);
 
-  const setWindow = useCallback((hours: number) => {
-    const end = totalPoints;
-    const start = Math.max(0, end - hours);
-    setRange({ start, end });
-  }, [totalPoints]);
+  const setWindow = useCallback(
+    (hours: number) => {
+      const end = totalPoints;
+      const start = Math.max(0, end - hours);
+      setRange({ start, end });
+    },
+    [totalPoints],
+  );
 
   const resetZoom = useCallback(() => {
     setRange({ start: 0, end: totalPoints });

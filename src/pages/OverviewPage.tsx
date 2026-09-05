@@ -72,10 +72,10 @@ export function OverviewPage({ summary, stats, filterBar }: OverviewPageProps) {
   const traffic = useMemo(() => buildTrafficTimeline(summary, 24, "UTC"), [summary]);
   const regions = useMemo(() => buildRegionBreakdown(summary), [summary]);
 
-  const [activeWindow, setActiveWindow] = useState(24);
   const [dismissedErrors, setDismissedErrors] = useState<Set<string>>(new Set());
 
   const zoom = useChartZoom(traffic.length);
+  const activeWindow = zoom.visibleEnd - zoom.visibleStart;
   const visibleTraffic = useMemo(
     () => traffic.slice(zoom.visibleStart, zoom.visibleEnd),
     [traffic, zoom.visibleStart, zoom.visibleEnd],
@@ -83,7 +83,7 @@ export function OverviewPage({ summary, stats, filterBar }: OverviewPageProps) {
 
   const totals = useMemo(
     () =>
-      traffic.reduce(
+      visibleTraffic.reduce(
         (acc, p) => ({
           activity: acc.activity + p.activity,
           started: acc.started + p.started,
@@ -92,7 +92,7 @@ export function OverviewPage({ summary, stats, filterBar }: OverviewPageProps) {
         }),
         { activity: 0, started: 0, errors: 0, peakUsers: 0 },
       ),
-    [traffic],
+    [visibleTraffic],
   );
 
   const topRegion = regions[0]?.label ?? "Unknown";
@@ -109,7 +109,6 @@ export function OverviewPage({ summary, stats, filterBar }: OverviewPageProps) {
 
   const handleTimeWindow = useCallback(
     (hours: number) => {
-      setActiveWindow(hours);
       if (hours >= 24) {
         zoom.resetZoom();
       } else {
@@ -274,7 +273,7 @@ export function OverviewPage({ summary, stats, filterBar }: OverviewPageProps) {
           value={formatNumber(sessionsValue)}
           sub={
             stats
-              ? `In range · ${formatNumber(stats.totals.lifetimeSessions)} all-time`
+              ? `Last 24 hours · ${formatNumber(stats.totals.lifetimeSessions)} all-time`
               : `${formatNumber(summary.stats.sessionsStartedToday)} started today`
           }
           icon={<TrendingUp size={14} />}
@@ -287,7 +286,9 @@ export function OverviewPage({ summary, stats, filterBar }: OverviewPageProps) {
           label="Avg Session"
           value={formatDuration(avgDurationSeconds)}
           sub={
-            stats ? "In range · legacy excluded" : `${formatNumber(lifetimeEvents)} all-time events`
+            stats
+              ? "Last 24 hours · legacy excluded"
+              : `${formatNumber(lifetimeEvents)} all-time events`
           }
           icon={<Clock size={14} />}
           tone="primary"
@@ -296,7 +297,7 @@ export function OverviewPage({ summary, stats, filterBar }: OverviewPageProps) {
         <KpiStatCard
           label="Errors"
           value={formatNumber(errorsValue)}
-          sub={stats ? "In range" : "Last 24 hours"}
+          sub="Last 24 hours"
           icon={<AlertTriangle size={14} />}
           tone={errorsValue > 0 ? "danger" : "primary"}
           drilldown={errorsDrilldown}
@@ -311,7 +312,7 @@ export function OverviewPage({ summary, stats, filterBar }: OverviewPageProps) {
           {canMonitor ? (
             <CollapsiblePanel
               kicker="Traffic"
-              title="Last 24 Hours"
+              title={`Activity · ${activeWindow} ${activeWindow === 1 ? "hour" : "hours"}`}
               sub={
                 zoom.isZoomed
                   ? `Viewing ${windowHours}h window — scroll to adjust`
@@ -344,6 +345,7 @@ export function OverviewPage({ summary, stats, filterBar }: OverviewPageProps) {
                       key={tw.label}
                       type="button"
                       className={`seg-btn${activeWindow === tw.hours ? " active" : ""}`}
+                      aria-pressed={activeWindow === tw.hours}
                       onClick={() => handleTimeWindow(tw.hours)}
                     >
                       {tw.label}
@@ -356,7 +358,6 @@ export function OverviewPage({ summary, stats, filterBar }: OverviewPageProps) {
                     className="btn btn-ghost btn-sm"
                     onClick={() => {
                       zoom.resetZoom();
-                      setActiveWindow(24);
                     }}
                     title="Reset zoom"
                     style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 8px" }}

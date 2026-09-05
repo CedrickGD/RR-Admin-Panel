@@ -1,3 +1,4 @@
+import { Select } from "../components/ds/Select";
 import { Megaphone, Plus, Trash2, Pencil } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Badge } from "../components/ds/Badge";
@@ -416,16 +417,16 @@ export function AnnouncementsPage({ filterBar }: AnnouncementsPageProps) {
           >
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <label className="label-sm">Level</label>
-              <select
+              <Select
                 className="glass-input"
                 value={form.level}
-                onChange={(e) => setForm({ ...form, level: e.target.value as AnnouncementLevel })}
+                onValueChange={(value) => setForm({ ...form, level: value as AnnouncementLevel })}
                 style={{ cursor: "pointer" }}
               >
                 <option value="info">Info</option>
                 <option value="warning">Warning</option>
                 <option value="critical">Critical</option>
-              </select>
+              </Select>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <label className="label-sm">Active</label>

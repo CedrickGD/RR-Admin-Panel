@@ -125,6 +125,7 @@ export function normalizeRecentSessions(sessions: readonly AppSessionRecord[]): 
 export function buildSessionDirectoryOptions(
   sessions: readonly AppSessionRecord[],
   continent: string | null,
+  includeLegacy = false,
 ): {
   versions: string[];
   continents: string[];
@@ -134,7 +135,7 @@ export function buildSessionDirectoryOptions(
   const continents = new Set<string>();
   const countries = new Map<string, string>();
 
-  for (const session of normalizeRecentSessions(sessions)) {
+  for (const session of includeLegacy ? sessions : normalizeRecentSessions(sessions)) {
     const version = versionName(session);
     if (version) versions.add(version);
     const macroRegion = getMacroRegion(session.clientCountry);
@@ -159,36 +160,39 @@ export function filterAndSortSessions(
   filters: UserDirectoryFilters,
   sortKey: SessionDirectorySortKey,
   sortDirection: DirectorySortDirection,
+  includeLegacy = false,
 ): AppSessionRecord[] {
   const normalizedQuery = query.trim().toLowerCase();
-  const filtered = normalizeRecentSessions(sessions).filter((session) => {
-    if (filters.version && versionName(session) !== filters.version) return false;
-    if (filters.continent && getMacroRegion(session.clientCountry) !== filters.continent) {
-      return false;
-    }
-    if (filters.country && countryKey(session.clientCountry) !== filters.country) {
-      return false;
-    }
-    if (!normalizedQuery) return true;
+  const filtered = (includeLegacy ? [...sessions] : normalizeRecentSessions(sessions)).filter(
+    (session) => {
+      if (filters.version && versionName(session) !== filters.version) return false;
+      if (filters.continent && getMacroRegion(session.clientCountry) !== filters.continent) {
+        return false;
+      }
+      if (filters.country && countryKey(session.clientCountry) !== filters.country) {
+        return false;
+      }
+      if (!normalizedQuery) return true;
 
-    return [
-      userName(session),
-      session.installId,
-      session.hwid ?? "",
-      session.clientIp ?? "",
-      discordName(session) ?? "",
-      versionName(session) ?? "",
-      session.clientCity ?? "",
-      session.clientRegion ?? "",
-      session.clientCountry ?? "",
-      formatCountryLabel(session.clientCountry),
-      getMacroRegion(session.clientCountry),
-      session.lastEvent ?? "",
-    ]
-      .join(" ")
-      .toLowerCase()
-      .includes(normalizedQuery);
-  });
+      return [
+        userName(session),
+        session.installId,
+        session.hwid ?? "",
+        session.clientIp ?? "",
+        discordName(session) ?? "",
+        versionName(session) ?? "",
+        session.clientCity ?? "",
+        session.clientRegion ?? "",
+        session.clientCountry ?? "",
+        formatCountryLabel(session.clientCountry),
+        getMacroRegion(session.clientCountry),
+        session.lastEvent ?? "",
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(normalizedQuery);
+    },
+  );
 
   return filtered.sort((left, right) => {
     const compared = compareOptional(

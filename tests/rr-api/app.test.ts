@@ -95,7 +95,9 @@ beforeAll(async () => {
       if (url === "https://api.github.com/repos/CedrickGD/RazorReaper/releases/assets/42") {
         return new Response(null, {
           status: 302,
-          headers: { location: "https://release-assets.githubusercontent.com/razorreaper/setup.exe" },
+          headers: {
+            location: "https://release-assets.githubusercontent.com/razorreaper/setup.exe",
+          },
         });
       }
       throw new Error(`Unexpected network request in test: ${url}`);
@@ -382,10 +384,9 @@ describe("rr-api app", () => {
     });
     expect(ingest.status).toBe(202);
 
-    const response = await call(
-      `/api/admin/user-activity?identity=${identity}&range=7d`,
-      { headers: await accessIdentityHeaders(ADMIN_EMAIL) },
-    );
+    const response = await call(`/api/admin/user-activity?identity=${identity}&range=7d`, {
+      headers: await accessIdentityHeaders(ADMIN_EMAIL),
+    });
 
     expect(response.status, await response.clone().text()).toBe(200);
     const payload = (await response.json()) as {

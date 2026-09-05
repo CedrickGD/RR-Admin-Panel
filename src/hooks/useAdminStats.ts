@@ -102,7 +102,7 @@ export function useAdminStats(needs: AdminStatsNeeds, filters: StatsFilters, acc
         if (seq === statsRequestSeq.current) setStatsLoading(false);
       }
     },
-    [filters, accessKey],
+    [filters.range, filters.version, filters.country, filters.platform, accessKey],
   );
 
   const loadUsers = useCallback(

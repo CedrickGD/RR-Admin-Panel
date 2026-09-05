@@ -1,7 +1,10 @@
 import { Check, ChevronDown, Search } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 interface GlassDropdownProps {
+  disabled?: boolean;
+  label?: string;
+  allowClear?: boolean;
   /** Empty/"all" state label, e.g. "All versions". Selecting it passes null to onChange. */
   placeholder: string;
   options: string[];
@@ -21,11 +24,58 @@ interface GlassDropdownProps {
  * in the console. Trigger pill + anchored dark popover with type-to-filter.
  * NEVER use a native <select> in this design system.
  */
-export function GlassDropdown({ placeholder, options, value, onChange, renderOption, searchThreshold = 8, align = "right" }: GlassDropdownProps) {
+export function GlassDropdown({
+  placeholder,
+  options,
+  value,
+  onChange,
+  renderOption,
+  searchThreshold = 8,
+  align = "right",
+  disabled,
+  label: accessibleLabel,
+  allowClear = true,
+}: GlassDropdownProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const rootRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [placement, setPlacement] = useState({ top: 0, left: 0, width: 200, maxHeight: 300 });
+  useLayoutEffect(() => {
+    if (!open || !menuRef.current || !rootRef.current) return;
+    const menu = menuRef.current;
+    menu.showPopover?.();
+    const position = () => {
+      const rect = rootRef.current!.getBoundingClientRect();
+      const below = window.innerHeight - rect.bottom - 12;
+      const above = rect.top - 12;
+      const upwards = below < 220 && above > below;
+      const maxHeight = Math.max(40, Math.min(320, upwards ? above : below));
+      const width = Math.min(Math.max(rect.width, 200), window.innerWidth - 24);
+      const height = Math.min(menu.scrollHeight, maxHeight);
+      const left = Math.max(
+        12,
+        Math.min(
+          align === "right" ? rect.right - width : rect.left,
+          window.innerWidth - width - 12,
+        ),
+      );
+      setPlacement({
+        top: upwards ? Math.max(12, rect.top - height - 7) : rect.bottom + 7,
+        left,
+        width,
+        maxHeight,
+      });
+    };
+    position();
+    window.addEventListener("resize", position);
+    document.addEventListener("scroll", position, true);
+    return () => {
+      window.removeEventListener("resize", position);
+      document.removeEventListener("scroll", position, true);
+    };
+  }, [open, align]);
 
   const label = (option: string) => (renderOption ? renderOption(option) : option);
   const searchable = options.length > searchThreshold;
@@ -33,7 +83,10 @@ export function GlassDropdown({ placeholder, options, value, onChange, renderOpt
   const visibleOptions = useMemo(() => {
     const trimmed = query.trim().toLowerCase();
     if (!trimmed) return options;
-    return options.filter((option) => label(option).toLowerCase().includes(trimmed) || option.toLowerCase().includes(trimmed));
+    return options.filter(
+      (option) =>
+        label(option).toLowerCase().includes(trimmed) || option.toLowerCase().includes(trimmed),
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [options, query, renderOption]);
 
@@ -43,7 +96,11 @@ export function GlassDropdown({ placeholder, options, value, onChange, renderOpt
       return;
     }
 
-    searchRef.current?.focus();
+    if (searchRef.current) searchRef.current.focus();
+    else
+      menuRef.current
+        ?.querySelector<HTMLButtonElement>('[aria-selected="true"], .gdrop-item')
+        ?.focus();
 
     const onPointerDown = (event: PointerEvent) => {
       if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
@@ -53,6 +110,7 @@ export function GlassDropdown({ placeholder, options, value, onChange, renderOpt
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setOpen(false);
+        rootRef.current?.querySelector<HTMLButtonElement>(".gdrop-trigger")?.focus();
       }
     };
     document.addEventListener("pointerdown", onPointerDown);
@@ -66,17 +124,62 @@ export function GlassDropdown({ placeholder, options, value, onChange, renderOpt
   const select = (next: string | null) => {
     onChange(next);
     setOpen(false);
+    rootRef.current?.querySelector<HTMLButtonElement>(".gdrop-trigger")?.focus();
   };
 
   return (
     <div className={`gdrop${value ? " gdrop-active" : ""}`} ref={rootRef}>
-      <button type="button" className="gdrop-trigger" onClick={() => setOpen((current) => !current)} aria-expanded={open}>
+      <button
+        type="button"
+        disabled={disabled}
+        aria-label={accessibleLabel}
+        className="gdrop-trigger"
+        onClick={() => setOpen((current) => !current)}
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        onKeyDown={(event) => {
+          if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            event.preventDefault();
+            setOpen(true);
+          }
+        }}
+      >
         <span className="gdrop-trigger-label">{value ? label(value) : placeholder}</span>
         <ChevronDown size={14} className={`gdrop-chevron${open ? " gdrop-chevron-open" : ""}`} />
       </button>
 
       {open ? (
-        <div className="gdrop-menu" role="listbox" style={align === "left" ? { right: "auto", left: 0, transformOrigin: "top left" } : undefined}>
+        <div
+          ref={menuRef}
+          popover="manual"
+          className="gdrop-menu"
+          role="listbox"
+          aria-label={accessibleLabel ?? placeholder}
+          onKeyDown={(event) => {
+            if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+            if (event.target === searchRef.current && !event.key.startsWith("Arrow")) return;
+            const items = [
+              ...(menuRef.current?.querySelectorAll<HTMLButtonElement>(".gdrop-item") ?? []),
+            ];
+            if (!items.length) return;
+            event.preventDefault();
+            const current = items.indexOf(document.activeElement as HTMLButtonElement);
+            const next =
+              event.key === "Home"
+                ? 0
+                : event.key === "End"
+                  ? items.length - 1
+                  : (current + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+            items[next].focus();
+          }}
+          style={{
+            ...placement,
+            right: "auto",
+            margin: 0,
+            position: "fixed",
+            transformOrigin: "top left",
+          }}
+        >
           {searchable ? (
             <div className="gdrop-search">
               <Search size={14} />
@@ -91,16 +194,18 @@ export function GlassDropdown({ placeholder, options, value, onChange, renderOpt
           ) : null}
 
           <div className="gdrop-list">
-            <button
-              type="button"
-              className={`gdrop-item${value === null ? " gdrop-item-selected" : ""}`}
-              onClick={() => select(null)}
-              role="option"
-              aria-selected={value === null}
-            >
-              <span>{placeholder}</span>
-              {value === null ? <Check size={14} /> : null}
-            </button>
+            {allowClear && (
+              <button
+                type="button"
+                className={`gdrop-item${value === null ? " gdrop-item-selected" : ""}`}
+                onClick={() => select(null)}
+                role="option"
+                aria-selected={value === null}
+              >
+                <span>{placeholder}</span>
+                {value === null ? <Check size={14} /> : null}
+              </button>
+            )}
             {visibleOptions.map((option) => (
               <button
                 key={option}

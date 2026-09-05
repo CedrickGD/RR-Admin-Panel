@@ -5,6 +5,7 @@ import "./index.css";
 import "./theme/styles.css";
 import "./theme/app-glue.css";
 import "./theme/workspace.css";
+import "./theme/operations.css";
 import { redirectLegacyPagesHost } from "./utils/legacyPagesRedirect";
 
 const root = document.getElementById("root");

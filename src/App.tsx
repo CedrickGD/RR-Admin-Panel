@@ -186,27 +186,16 @@ export default function App() {
     {
       stats: Boolean(user && canVisit(page, user)) && STATS_PAGES.has(page),
       users: Boolean(user && canVisit(page, user)) && USER_PAGES.has(page),
-      userScope: page === "workers" ? "filtered" : "all",
+      userScope: "all",
     },
-    filters,
+    page === "overview"
+      ? { range: "today", version: null, country: null, platform: null }
+      : filters,
     JSON.stringify([user?.email, user?.role, user?.panelRole, user?.permissions]),
   );
 
-  // Rendered by each data page inside its own header so the filters sit with the
-  // content they affect instead of in a detached strip. Refresh lives here too —
-  // top-right of the page, where a dashboard reload belongs.
-  const refreshButton = (
-    <button
-      type="button"
-      className="btn-icon"
-      onClick={refresh}
-      disabled={refreshing}
-      aria-label="Refresh data"
-      title={refreshing ? "Syncing" : "Refresh data"}
-    >
-      <RefreshCw size={15} className={refreshing ? "animate-spin" : undefined} />
-    </button>
-  );
+  // Dimension filters remain on analytical views; operational lists filter their own rows.
+  const refreshButton = null;
 
   const filterBar = (
     <div className="header-tools">
@@ -388,7 +377,6 @@ export default function App() {
                     stats={stats}
                     theme={appearance.theme}
                     accentHue={accentHue}
-                    filterBar={filterBar}
                   />
                 ) : null}
                 {page === "traffic" ? (
@@ -438,7 +426,7 @@ export default function App() {
                     focusedWorkerId={focusedWorkerId}
                     onOpenMapSession={handleOpenHeatmapSession}
                     onOpenMapUser={handleOpenMapUser}
-                    filterBar={filterBar}
+                    filterBar={refreshButton}
                   />
                 ) : null}
                 {page === "customers" ? (

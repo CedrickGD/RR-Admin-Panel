@@ -1,6 +1,13 @@
 import {
   Activity,
   BarChart3,
+  Ban,
+  Bug,
+  Globe2,
+  History,
+  Inbox,
+  Megaphone,
+  PackageCheck,
   ChevronDown,
   ChevronRight,
   CircleHelp,
@@ -28,43 +35,52 @@ import type {
 } from "../types/telemetry";
 import { canVisit } from "../../shared/panel-policy";
 import { useAppearance } from "../hooks/useAppearance";
+import { useChartColors } from "../hooks/useChartColors";
 const logo = new URL("../img/logo.ico", import.meta.url).href;
-const GROUPS: Array<{ label: string; icon: ReactNode; items: Array<[PageKey, string]> }> = [
+const GROUPS: Array<{
+  label: string;
+  icon: ReactNode;
+  items: Array<[PageKey, string, ReactNode]>;
+}> = [
   {
     label: "Customers",
     icon: <UsersRound />,
     items: [
-      ["customers", "Customer directory"],
-      ["licenses", "Licenses & orders"],
-      ["access", "App suspensions"],
+      ["customers", "Customer directory", <UsersRound />],
+      ["licenses", "Licenses & orders", <KeyRound />],
+      ["access", "App suspensions", <Ban />],
     ],
   },
   {
     label: "Monitoring",
     icon: <Activity />,
     items: [
-      ["live", "Live sessions"],
-      ["workers", "Session history"],
-      ["traffic", "Traffic"],
-      ["versions", "Versions"],
-      ["heatmap", "World map"],
+      ["live", "Live sessions", <Radio />],
+      ["workers", "Session history", <History />],
+      ["traffic", "Traffic", <BarChart3 />],
+      ["versions", "Versions", <PackageCheck />],
+      ["heatmap", "World map", <Globe2 />],
     ],
   },
   {
-    label: "Support",
-    icon: <CircleHelp />,
+    label: "Communication",
+    icon: <MessageSquare />,
     items: [
-      ["feedback", "Feedback inbox"],
-      ["errors", "Application errors"],
+      ["announcements", "Announcements", <Megaphone />],
+      ["feedback", "Feedback inbox", <Inbox />],
     ],
   },
-  { label: "Communication", icon: <MessageSquare />, items: [["announcements", "Announcements"]] },
+  {
+    label: "Diagnostics",
+    icon: <CircleHelp />,
+    items: [["errors", "Application errors", <Bug />]],
+  },
   {
     label: "Administration",
     icon: <ShieldCheck />,
     items: [
-      ["team", "Panel access"],
-      ["settings", "Settings"],
+      ["team", "Panel access", <ShieldCheck />],
+      ["settings", "Settings", <Settings2 />],
     ],
   },
 ];
@@ -80,6 +96,7 @@ export interface NavbarProps {
   onLogout: () => void;
 }
 export function Navbar({ page, onNavigate, user, health, onLogout }: NavbarProps) {
+  useChartColors();
   const [mobile, setMobile] = useState(false);
   const [expanded, setExpanded] = useState(
     () => GROUPS.find((g) => g.items.some(([key]) => key === page))?.label ?? "Customers",
@@ -116,9 +133,7 @@ export function Navbar({ page, onNavigate, user, health, onLogout }: NavbarProps
         >
           <img className="sb-brand-img" src={logo} alt="" />
           <span className="sb-brand-text">
-            <strong>
-              RazorReaper<span className="brand-dot">.</span>
-            </strong>
+            <strong>RazorReaper</strong>
             <small>Admin workspace</small>
           </span>
         </button>
@@ -156,13 +171,14 @@ export function Navbar({ page, onNavigate, user, health, onLogout }: NavbarProps
                 </button>
                 {open && (
                   <div className="nav-children">
-                    {items.map(([key, label]) => (
+                    {items.map(([key, label, icon]) => (
                       <button
                         key={key}
                         className={`sb-item ${page === key ? "active" : ""}`}
                         onClick={() => navigate(key)}
                         aria-current={page === key ? "page" : undefined}
                       >
+                        {icon}
                         <span>{label}</span>
                       </button>
                     ))}

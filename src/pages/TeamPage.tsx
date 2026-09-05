@@ -1,3 +1,4 @@
+import { Select } from "../components/ds/Select";
 import { useEffect, useState } from "react";
 import { Check, Clock3, LogOut, Plus, Search, ShieldCheck, UsersRound, X } from "lucide-react";
 import {
@@ -407,16 +408,16 @@ export function TeamPage() {
               </label>
               <label>
                 Base role
-                <select
+                <Select
                   value={editor.role}
-                  onChange={(e) => setEditor({ ...editor, role: e.target.value as PanelRole })}
+                  onValueChange={(value) => setEditor({ ...editor, role: value as PanelRole })}
                 >
                   {["admin", "support", "viewer"].map((role) => (
                     <option key={role} value={role}>
                       {ROLE_LABELS[role as PanelRole]}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
               <label>
                 Access expires
@@ -480,15 +481,15 @@ export function TeamPage() {
                         <small>{p.group}</small>
                       </td>
                       <td>
-                        <select
+                        <Select
                           aria-label={`Rule for ${p.label}`}
                           value={editor.overrides[p.key]?.effect ?? "inherit"}
-                          onChange={(e) => {
+                          onValueChange={(value) => {
                             const overrides = { ...editor.overrides };
-                            if (e.target.value === "inherit") delete overrides[p.key];
+                            if (value === "inherit") delete overrides[p.key];
                             else
                               overrides[p.key] = {
-                                effect: e.target.value as "allow" | "deny",
+                                effect: value as "allow" | "deny",
                                 expiresAt: overrides[p.key]?.expiresAt ?? null,
                               };
                             setEditor({ ...editor, overrides });
@@ -497,7 +498,7 @@ export function TeamPage() {
                           <option value="inherit">Inherit role</option>
                           <option value="allow">Allow</option>
                           <option value="deny">Deny</option>
-                        </select>
+                        </Select>
                       </td>
                       <td>
                         <input

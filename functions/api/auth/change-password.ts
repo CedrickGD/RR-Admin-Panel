@@ -9,6 +9,7 @@ import { error, json, jsonBodyErrorMessage, readJsonBody } from "../../_lib/http
 import { internalError } from "../../_lib/responses";
 import type { RuntimeEnv } from "../../_lib/types";
 import { ensureAuthSchema, findUserByEmail, updateUserPassword } from "../../_lib/users";
+import { requireDashboardAccess } from "../../_lib/admin";
 
 type HandlerContext = {
   request: Request;
@@ -24,6 +25,8 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
   if (context.request.method !== "POST") {
     return error(405, "Method not allowed. Use POST.");
   }
+  const access = await requireDashboardAccess(context.request, context.env);
+  if (!access.ok) return access.response;
 
   if (!context.env.JWT_SECRET) {
     return error(500, "Server is missing JWT_SECRET.");

@@ -276,3 +276,35 @@ CREATE TABLE IF NOT EXISTS license_install_claims (
 );
 
 CREATE INDEX IF NOT EXISTS idx_license_install_claims_license ON license_install_claims(license_id);
+
+-- Panel membership is separate from RazorReaper customer/app access.
+CREATE TABLE IF NOT EXISTS panel_members (
+  email TEXT PRIMARY KEY,
+  display_name TEXT NOT NULL DEFAULT '',
+  role TEXT NOT NULL CHECK(role IN ('owner','admin','support','viewer')),
+  enabled INTEGER NOT NULL DEFAULT 1,
+  expires_at TEXT,
+  overrides_json TEXT NOT NULL DEFAULT '{}',
+  revoked_before INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS panel_sessions (
+  id TEXT PRIMARY KEY,
+  email TEXT NOT NULL,
+  auth_mode TEXT NOT NULL,
+  user_agent TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL,
+  last_seen_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  revoked_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_panel_sessions_email ON panel_sessions(email, expires_at);
+CREATE TABLE IF NOT EXISTS panel_audit (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  actor TEXT NOT NULL,
+  target TEXT NOT NULL,
+  action TEXT NOT NULL,
+  detail TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL
+);

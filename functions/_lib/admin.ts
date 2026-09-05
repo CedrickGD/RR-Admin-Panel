@@ -9,10 +9,19 @@ import { enforceSameOriginMutation } from "./csrf";
 import { enforceAccessAllowList, error, getAccessIdentity } from "./http";
 import type { AppUserRole, RuntimeEnv } from "./types";
 import { ensureAuthSchema, findUserByEmail } from "./users";
+import {
+  effectivePermissions,
+  routePermissions,
+  type PanelRole,
+  type Permission,
+} from "../../shared/panel-policy";
+import { findPanelMember, memberDenied, memberOverrides, trackPanelSession } from "./panel-access";
 
 export interface DashboardRequestUser {
   email: string;
   role: AppUserRole;
+  panelRole?: PanelRole;
+  permissions?: Permission[];
 }
 
 export interface DashboardAccessContext {
@@ -20,10 +29,12 @@ export interface DashboardAccessContext {
   user: DashboardRequestUser;
   accessIdentity: string | null;
   sessionExpiresAt: string | null;
+  permissionChecked?: boolean;
 }
 
 /** Role guard for sensitive reads and state-changing operator workflows. */
 export function requireAdminRole(access: DashboardAccessContext): Response | null {
+  if (access.permissionChecked) return null;
   return access.user.role === "admin" ? null : error(403, "Administrator role required.");
 }
 
@@ -39,10 +50,62 @@ export async function requireDashboardAccess(
   env: RuntimeEnv,
   deps?: DashboardAccessDeps,
 ): Promise<DashboardAccessResult> {
-  if (resolveAuthMode(env) === "access") {
-    return requireVerifiedAccess(request, env, deps);
+  const result =
+    resolveAuthMode(env) === "access"
+      ? await requireVerifiedAccess(request, env, deps)
+      : await requireAppSession(request, env, deps);
+  if (!result.ok) return result;
+  const member = await findPanelMember(env, result.access.user.email);
+  if (memberDenied(member)) return deny(error(401, "Panel access is disabled or expired."));
+  if (!member) {
+    const required = routePermissions(
+      new URL(request.url).pathname.replace(/\/$/, ""),
+      request.method,
+    );
+    if (
+      required === null ||
+      (Array.isArray(required) &&
+        result.access.user.role !== "admin" &&
+        required.some((p) => p.endsWith(".write") || p === "exports.read"))
+    )
+      return deny(error(403, "You do not have permission for this action."));
   }
-  return requireAppSession(request, env, deps);
+  const token =
+    result.access.authMode === "access"
+      ? request.headers.get(ACCESS_JWT_HEADER)
+      : getSessionTokenFromCookie(request, env.AUTH_SESSION_COOKIE);
+  if (
+    !token ||
+    !(await trackPanelSession(
+      env,
+      request,
+      result.access.user.email,
+      token,
+      result.access.authMode,
+      member,
+    ))
+  )
+    return deny(error(401, "This panel session has ended. Sign in again."));
+  if (member) {
+    const permissions = effectivePermissions(member.role, memberOverrides(member));
+    result.access.user = { ...result.access.user, panelRole: member.role, permissions };
+    const path = new URL(request.url).pathname.replace(/\/$/, "");
+    const required = routePermissions(path, request.method);
+    const alternativeRead =
+      request.method === "GET" &&
+      ((path === "/api/admin/stats" && permissions.includes("overview.read")) ||
+        (path === "/api/admin/users" &&
+          (permissions.includes("monitoring.read") || permissions.includes("access.read"))) ||
+        (path === "/api/admin/user-activity" && permissions.includes("customers.read")));
+    const allowed =
+      alternativeRead ||
+      (required === "team.manage"
+        ? member.role === "owner"
+        : required !== null && required.every((p) => permissions.includes(p)));
+    if (!allowed) return deny(error(403, "You do not have permission for this action."));
+    result.access.permissionChecked = true;
+  }
+  return result;
 }
 
 /**
@@ -60,7 +123,7 @@ async function requireVerifiedAccess(
   }
 
   const denied = enforceAccessAllowList(identity.email, env);
-  if (denied) {
+  if (denied && !(await findPanelMember(env, identity.email))) {
     return deny(denied);
   }
 

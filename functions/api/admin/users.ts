@@ -23,7 +23,11 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
     const filters = parseStatsFilters(new URL(context.request.url));
     const users = await loadUsersRollup(context.env, filters);
 
-    return json({ ok: true, generatedAt: new Date().toISOString(), users });
+    const visibleUsers =
+      access.access.user.permissions && !access.access.user.permissions.includes("licenses.read")
+        ? users.map((user) => ({ ...user, paidLicenseKeys: [] }))
+        : users;
+    return json({ ok: true, generatedAt: new Date().toISOString(), users: visibleUsers });
   } catch (usersError) {
     return internalError(context.request, "Unable to complete the request.", usersError);
   }

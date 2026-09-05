@@ -20,10 +20,35 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
       return access.response;
     }
 
-    const [summary, health] = await Promise.all([
+    const [loadedSummary, health] = await Promise.all([
       loadSummary(context.env),
       loadHealth(context.env),
     ]);
+    const summary = structuredClone(loadedSummary);
+
+    const permissions = access.access.user.permissions;
+    if (permissions) {
+      if (!permissions.includes("monitoring.read")) {
+        summary.activeSessions = [];
+        summary.recentSessions = [];
+        summary.recentEvents = [];
+      }
+      if (!permissions.includes("support.read")) summary.recentErrors = [];
+      if (!permissions.includes("overview.read") && !permissions.includes("monitoring.read")) {
+        summary.stats = {
+          totalEvents: 0,
+          lifetimeEvents: 0,
+          totalSessions: 0,
+          activeUsers: 0,
+          lifetimeUsers: 0,
+          sessionsStartedToday: 0,
+          sessionsEndedToday: 0,
+          averageSessionDurationSeconds: 0,
+          errorsLast24Hours: 0,
+          lastIngestAt: null,
+        };
+      }
+    }
 
     return json({
       ok: true,

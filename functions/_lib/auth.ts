@@ -82,6 +82,7 @@ export async function createAppSessionToken(
     exp: issuedAt + SESSION_TTL_SECONDS,
     email,
     role,
+    jti: crypto.randomUUID(),
   };
 
   const headerEncoded = base64UrlEncode(JSON.stringify({ alg: "HS256", typ: "JWT" }));

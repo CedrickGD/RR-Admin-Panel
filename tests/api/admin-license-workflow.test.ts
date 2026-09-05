@@ -93,7 +93,11 @@ describe("admin license order workflow", () => {
     });
 
     expect(response.status).toBe(403);
-    expect(mock.operations).toHaveLength(0);
+    expect(
+      mock.operations.filter(
+        (op) => /\b(INSERT|UPDATE|DELETE)\b/i.test(op.sql) && !op.sql.includes("panel_"),
+      ).length,
+    ).toBe(0);
   });
 
   it("blocks a second license for an exact order even with a fresh idempotency key", async () => {

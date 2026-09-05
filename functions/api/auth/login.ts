@@ -8,6 +8,7 @@ import {
 import { error, json, jsonBodyErrorMessage, readJsonBody } from "../../_lib/http";
 import { internalError } from "../../_lib/responses";
 import type { RuntimeEnv } from "../../_lib/types";
+import { findPanelMember, memberDenied } from "../../_lib/panel-access";
 import {
   countUsers,
   ensureAuthSchema,
@@ -62,6 +63,8 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
       return error(401, "Invalid email or password.");
     }
 
+    if (memberDenied(await findPanelMember(context.env, email)))
+      return error(403, "Panel access is disabled or expired.");
     await touchUserLastLogin(context.env, user.id);
     const { token, expiresAt } = await createAppSessionToken(
       context.env.JWT_SECRET,

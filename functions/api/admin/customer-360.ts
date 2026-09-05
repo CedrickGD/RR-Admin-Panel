@@ -126,6 +126,15 @@ export async function onRequestGet(context: HandlerContext): Promise<Response> {
 
     const selector = readSelector(new URL(context.request.url));
     if (!selector.ok) return error(400, selector.message);
+    const permits = (key: import("../../../shared/panel-policy").Permission) =>
+      !access.access.user.permissions || access.access.user.permissions.includes(key);
+    if (
+      (selector.name === "license_key" || selector.name === "order_id") &&
+      !permits("licenses.read")
+    )
+      return error(403, "License access is required for this lookup.");
+    if (selector.name === "feedback_id" && !permits("support.read"))
+      return error(403, "Support access is required for this lookup.");
 
     await ensureTelemetrySchema(db);
     const anchor = await resolveAnchor(context.env, selector.name, selector.value);
@@ -215,7 +224,7 @@ export async function onRequestGet(context: HandlerContext): Promise<Response> {
           email: primaryLicense?.customer_email ?? null,
           discord: primaryLicense?.customer_discord ?? latest?.discordUser ?? null,
           verified_discord: verifiedDiscord,
-          contact: asString(newestFeedback?.contact),
+          contact: permits("support.read") ? asString(newestFeedback?.contact) : null,
         },
         summary: {
           is_active: sessions.some((row) => row.isActive),
@@ -245,17 +254,17 @@ export async function onRequestGet(context: HandlerContext): Promise<Response> {
           rpc_enabled: latest?.rpcEnabled ?? null,
           features: parseObject(latest?.featuresJson),
         },
-        diagnostics,
-        activity,
+        diagnostics: permits("support.read") ? diagnostics : null,
+        activity: permits("monitoring.read") && permits("support.read") ? activity : null,
         usage,
-        orders,
-        licenses,
-        access: accessRows,
-        discord_links: discordLinks,
-        feedback,
-        errors,
-        installs: installs.map(mapInstall),
-        sessions,
+        orders: permits("licenses.read") ? orders : [],
+        licenses: permits("licenses.read") ? licenses : [],
+        access: permits("access.read") ? accessRows : [],
+        discord_links: permits("licenses.read") ? discordLinks : [],
+        feedback: permits("support.read") ? feedback : [],
+        errors: permits("support.read") ? errors : [],
+        installs: permits("monitoring.read") ? installs.map(mapInstall) : [],
+        sessions: permits("monitoring.read") ? sessions : [],
         section_errors: sectionErrors,
       },
     });

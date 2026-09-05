@@ -371,6 +371,7 @@ export interface SessionClaims {
 }
 
 export interface AppSessionClaims {
+  jti?: string;
   sub: "rr-user";
   scope: "dashboard";
   iat: number;

@@ -109,15 +109,17 @@ export function GlassDropdown({
     };
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopImmediatePropagation();
         setOpen(false);
         rootRef.current?.querySelector<HTMLButtonElement>(".gdrop-trigger")?.focus();
       }
     };
     document.addEventListener("pointerdown", onPointerDown);
-    window.addEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, true);
     return () => {
       document.removeEventListener("pointerdown", onPointerDown);
-      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keydown", onKey, true);
     };
   }, [open]);
 

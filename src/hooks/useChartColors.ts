@@ -1,4 +1,5 @@
-import { useCallback, useSyncExternalStore } from "react";
+import { useCallback, useEffect } from "react";
+import { useAppearance } from "./useAppearance";
 
 const STORAGE_KEY = "rr-chart-color-preset";
 
@@ -40,47 +41,21 @@ function applyPresetTokens(preset: ChartColorPreset | null) {
   }
 }
 
-// Simple in-memory store that syncs to localStorage and notifies all subscribers
-let currentPreset: ChartColorPreset | null = (() => {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored || stored === "Default") return null;
-    return CHART_COLOR_PRESETS.find((p) => p.label === stored) ?? null;
-  } catch {
-    return null;
-  }
-})();
-
-applyPresetTokens(currentPreset);
-
-const listeners = new Set<() => void>();
-
-function subscribe(callback: () => void) {
-  listeners.add(callback);
-  return () => { listeners.delete(callback); };
-}
-
-function getSnapshot(): ChartColorPreset | null {
-  return currentPreset;
-}
-
-function setPresetInternal(preset: ChartColorPreset | null) {
-  currentPreset = preset;
-  applyPresetTokens(preset);
-  try {
-    localStorage.setItem(STORAGE_KEY, preset?.label ?? "Default");
-  } catch { /* ignore */ }
-  for (const listener of listeners) listener();
-}
-
 export function useChartColors() {
-  const override = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
-
-  const setPreset = useCallback((preset: ChartColorPreset | null) => {
-    setPresetInternal(preset);
-  }, []);
-
-  const activeLabel = override?.label ?? "Default";
-
-  return { override, setPreset, activeLabel, presets: CHART_COLOR_PRESETS } as const;
+  const { appearance, updateAppearance } = useAppearance();
+  const override =
+    CHART_COLOR_PRESETS.find((p) => p.label === appearance.chartPreset && p.label !== "Default") ??
+    null;
+  useEffect(() => applyPresetTokens(override), [override]);
+  const setPreset = useCallback(
+    (preset: ChartColorPreset | null) =>
+      updateAppearance({ chartPreset: preset?.label ?? "Default" }),
+    [],
+  );
+  return {
+    override,
+    setPreset,
+    activeLabel: appearance.chartPreset,
+    presets: CHART_COLOR_PRESETS,
+  } as const;
 }

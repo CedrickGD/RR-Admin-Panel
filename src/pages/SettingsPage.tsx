@@ -24,7 +24,7 @@ type Props = {
   filterBar?: ReactNode;
 };
 export function SettingsPage({ user, authMode, summary, health, onLogout }: Props) {
-  const { appearance: a, updateAppearance: update } = useAppearance();
+  const { appearance: a, updateAppearance: update, syncStatus, retrySync } = useAppearance();
   const [tab, setTab] = useState("appearance"),
     [error, setError] = useState(""),
     [uploading, setUploading] = useState(false);
@@ -319,10 +319,23 @@ export function SettingsPage({ user, authMode, summary, health, onLogout }: Prop
                 Your workspace, your way
               </button>
             </div>
-            <p className="settings-caption">
-              Changes save automatically for your account in this browser. The preview contains
-              example data.
+            <p className="settings-caption" role="status">
+              {syncStatus === "saved"
+                ? "Saved to your account on the NAS. Available on all your devices."
+                : syncStatus === "saving"
+                  ? "Saving your appearance to the NAS…"
+                  : syncStatus === "loading"
+                    ? "Loading your account appearance…"
+                    : syncStatus === "error"
+                      ? "The NAS could not be reached. Your local changes are kept for the next save."
+                      : "Sign in to sync your appearance across devices."}
             </p>
+            {syncStatus === "error" && (
+              <button className="btn btn-ghost" onClick={retrySync}>
+                Save again
+              </button>
+            )}
+            <p className="settings-caption">The preview contains example data.</p>
           </aside>
         </div>
       )}

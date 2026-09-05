@@ -17,6 +17,7 @@ export interface PanelMember {
   updated_at: string;
 }
 export const PANEL_SCHEMA = [
+  `CREATE TABLE IF NOT EXISTS panel_preferences (email TEXT PRIMARY KEY, appearance_json TEXT NOT NULL DEFAULT '{}', updated_at TEXT NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS panel_members (email TEXT PRIMARY KEY, display_name TEXT NOT NULL DEFAULT '', role TEXT NOT NULL CHECK(role IN ('owner','admin','support','viewer')), enabled INTEGER NOT NULL DEFAULT 1, expires_at TEXT, overrides_json TEXT NOT NULL DEFAULT '{}', revoked_before INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS panel_sessions (id TEXT PRIMARY KEY, email TEXT NOT NULL, auth_mode TEXT NOT NULL, user_agent TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, last_seen_at TEXT NOT NULL, expires_at TEXT NOT NULL, revoked_at TEXT)`,
   `CREATE INDEX IF NOT EXISTS idx_panel_sessions_email ON panel_sessions(email, expires_at)`,

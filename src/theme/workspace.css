@@ -1303,7 +1303,7 @@ html[data-theme="light"] .recharts-default-tooltip {
     gap: 10px;
     height: 58px;
     padding: 0 14px;
-    z-index: 40;
+    z-index: 100;
   }
   .mobile-menu {
     display: inline-flex;
@@ -1313,6 +1313,10 @@ html[data-theme="light"] .recharts-default-tooltip {
     height: 38px;
     flex-shrink: 0;
     border-radius: 8px;
+    z-index: 160;
+    position: relative;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
   .workspace-breadcrumb {
     font-size: 12px;
@@ -1341,31 +1345,15 @@ html[data-theme="light"] .recharts-default-tooltip {
     display: none;
   }
   .sb-scrim {
-    position: fixed;
-    inset: 0;
-    z-index: 110;
-    background: rgba(2, 3, 9, 0.65);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
-    opacity: 0;
-    pointer-events: none;
-    border: none;
-    padding: 0;
-    margin: 0;
-    cursor: pointer;
-    transition: opacity 0.28s var(--ease-smooth);
-    -webkit-tap-highlight-color: transparent;
-  }
-  .sb-scrim.sb-scrim-open {
-    opacity: 1;
-    pointer-events: auto;
+    display: none !important;
+    pointer-events: none !important;
   }
   .sidebar {
     position: fixed;
     top: 0;
     bottom: 0;
     left: 0;
-    z-index: 130 !important;
+    z-index: 150 !important;
     width: min(290px, 85vw);
     max-width: 320px;
     height: 100%;
@@ -1374,9 +1362,9 @@ html[data-theme="light"] .recharts-default-tooltip {
     background: #0d0e15 !important;
     background: var(--surface-1, #0d0e15) !important;
     border-right: 1px solid var(--line-hi, rgba(255, 255, 255, 0.12));
-    box-shadow: 6px 0 36px rgba(0, 0, 0, 0.8);
+    box-shadow: 6px 0 36px rgba(0, 0, 0, 0.9);
     transform: translateX(-102%);
-    transition: transform 0.28s var(--ease-smooth), visibility 0.28s;
+    transition: transform 0.25s var(--ease-smooth), visibility 0.25s;
     visibility: hidden;
     pointer-events: none;
     display: flex;
@@ -1387,7 +1375,7 @@ html[data-theme="light"] .recharts-default-tooltip {
   .sidebar.open {
     transform: translateX(0);
     visibility: visible;
-    pointer-events: auto;
+    pointer-events: auto !important;
   }
   .sb-brand-row {
     display: flex;

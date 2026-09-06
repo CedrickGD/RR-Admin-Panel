@@ -113,7 +113,7 @@ export function Navbar({ page, onNavigate, user, onLogout }: NavbarProps) {
     } catch {
       /* Navigation still works when storage is unavailable. */
     }
-    return [GROUPS.find((g) => g.items.some(([key]) => key === page))?.label ?? "Customers"];
+    return GROUPS.map((g) => g.label);
   });
   const searchScope =
     page === "licenses" || page === "workers" || page === "live" ? page : "customers";
@@ -135,20 +135,27 @@ export function Navbar({ page, onNavigate, user, onLogout }: NavbarProps) {
 
   useEffect(() => {
     if (!mobile) return;
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") setMobile(false);
     };
     const onResize = () => {
       if (window.innerWidth > 900) setMobile(false);
     };
+    const onPointerDown = (e: MouseEvent | TouchEvent | PointerEvent) => {
+      const target = e.target as Node | null;
+      const sidebarEl = document.querySelector(".sidebar");
+      const menuBtn = document.querySelector(".mobile-menu");
+      if (sidebarEl && !sidebarEl.contains(target) && menuBtn && !menuBtn.contains(target)) {
+        setMobile(false);
+      }
+    };
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("resize", onResize);
+    window.addEventListener("pointerdown", onPointerDown);
     return () => {
-      document.body.style.overflow = originalOverflow;
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("resize", onResize);
+      window.removeEventListener("pointerdown", onPointerDown);
     };
   }, [mobile]);
 
@@ -168,14 +175,6 @@ export function Navbar({ page, onNavigate, user, onLogout }: NavbarProps) {
       : (activeGroup?.items.find(([key]) => key === page)?.[1] ?? "Workspace");
   return (
     <>
-      <button
-        type="button"
-        className={`sb-scrim ${mobile ? "sb-scrim-open" : ""}`}
-        aria-label="Close navigation"
-        aria-hidden={!mobile}
-        tabIndex={mobile ? 0 : -1}
-        onClick={() => setMobile(false)}
-      />
       <aside className={`sidebar ${mobile ? "open" : ""}`} aria-label="Primary navigation">
         <div className="sb-brand-row">
           <button
@@ -207,6 +206,7 @@ export function Navbar({ page, onNavigate, user, onLogout }: NavbarProps) {
             return (
               <div className="nav-section" key={group.label}>
                 <button
+                  type="button"
                   className={`sb-item nav-parent ${active ? "has-active" : ""}`}
                   onClick={() =>
                     setExpanded((current) =>
@@ -229,6 +229,7 @@ export function Navbar({ page, onNavigate, user, onLogout }: NavbarProps) {
                   <div className="nav-children">
                     {items.map(([key, label, icon]) => (
                       <button
+                        type="button"
                         key={key}
                         className={`sb-item ${page === key ? "active" : ""}`}
                         onClick={() => navigate(key)}

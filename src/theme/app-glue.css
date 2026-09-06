@@ -999,30 +999,12 @@ html.sb-collapsed .sb-group-label {
   display: none;
 }
 .sb-scrim {
-  position: fixed;
-  inset: 0;
-  z-index: 110;
-  background: rgba(2, 3, 9, 0.65);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  opacity: 0;
-  pointer-events: none;
-  border: none;
-  padding: 0;
-  margin: 0;
-  outline: none;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition: opacity 0.28s var(--ease-smooth);
+  display: none !important;
+  pointer-events: none !important;
 }
 .sb-scrim-open {
-  opacity: 1;
-  pointer-events: auto;
-}
-@media (min-width: 901px) {
-  .sb-scrim {
-    display: none;
-  }
+  display: none !important;
+  pointer-events: none !important;
 }
 
 /* Content sits right of the sidebar and owns the FULL remaining width.

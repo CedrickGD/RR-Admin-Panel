@@ -154,8 +154,13 @@ select option {
   background: #000;
   opacity: var(--image-dim);
 }
+html,
+body {
+  overflow-x: clip;
+}
 .app-shell {
   isolation: isolate;
+  overflow-x: clip;
 }
 .sidebar {
   width: var(--sb-w);
@@ -1291,38 +1296,43 @@ html[data-theme="light"] .recharts-default-tooltip {
 }
 @media (max-width: 900px) {
   :root {
-    --page-pad: 20px;
+    --page-pad: 16px;
   }
   .workspace-bar {
     margin-left: 0;
-    gap: 12px;
-    height: 60px;
+    gap: 10px;
+    height: 58px;
+    padding: 0 14px;
+    z-index: 40;
   }
   .mobile-menu {
-    display: grid;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    flex-shrink: 0;
+    border-radius: 8px;
   }
   .workspace-breadcrumb {
-    font-size: 11px;
+    font-size: 12px;
   }
   .workspace-search {
     width: auto;
     flex: 1;
+    min-width: 0;
   }
   .workspace-search input {
-    font-size: 11px;
+    font-size: 14px;
+    height: 36px;
+    padding-left: 32px;
+    padding-right: 12px;
   }
   .customer-workspace {
-    inset: 60px 0 0;
+    inset: 58px 0 0;
   }
   .settings-layout {
     grid-template-columns: 1fr;
-  }
-  .appearance-preview {
-    position: static;
-    max-width: 520px;
-  }
-  .sidebar {
-    width: 244px;
   }
   .settings-controls {
     order: 1;
@@ -1330,10 +1340,129 @@ html[data-theme="light"] .recharts-default-tooltip {
   .appearance-preview {
     display: none;
   }
+  .sb-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 110;
+    background: rgba(2, 3, 9, 0.65);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    opacity: 0;
+    pointer-events: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    cursor: pointer;
+    transition: opacity 0.28s var(--ease-smooth);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .sb-scrim.sb-scrim-open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 130 !important;
+    width: min(290px, 85vw);
+    max-width: 320px;
+    height: 100%;
+    height: 100dvh;
+    padding: calc(env(safe-area-inset-top, 0px) + 14px) 12px calc(env(safe-area-inset-bottom, 0px) + 14px);
+    background: #0d0e15 !important;
+    background: var(--surface-1, #0d0e15) !important;
+    border-right: 1px solid var(--line-hi, rgba(255, 255, 255, 0.12));
+    box-shadow: 6px 0 36px rgba(0, 0, 0, 0.8);
+    transform: translateX(-102%);
+    transition: transform 0.28s var(--ease-smooth), visibility 0.28s;
+    visibility: hidden;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .sidebar.open {
+    transform: translateX(0);
+    visibility: visible;
+    pointer-events: auto;
+  }
+  .sb-brand-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    gap: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--line);
+  }
+  .sb-brand-row .sb-brand {
+    border-bottom: none;
+    padding: 2px 4px;
+    flex: 1;
+    min-width: 0;
+  }
+  .sidebar .sb-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    color: var(--text-2);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--line);
+    flex-shrink: 0;
+  }
+  .sidebar .sb-close:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-1);
+  }
+  .sidebar .sb-nav {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-top: 6px;
+  }
+  .sidebar .sb-item {
+    min-height: 44px;
+    padding: 10px 14px;
+    font-size: 0.875rem;
+    gap: 12px;
+    border-radius: 10px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .sidebar .sb-item svg {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+  }
+  .sidebar .nav-children .sb-item {
+    padding-left: 20px;
+    min-height: 42px;
+  }
+  .sidebar .sb-foot {
+    margin-top: auto;
+    padding-top: 12px;
+  }
+  .sidebar .account-row {
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--line);
+  }
 }
 @media (max-width: 600px) {
   :root {
-    --page-pad: 16px;
+    --page-pad: 14px;
+  }
+  .workspace-bar {
+    padding: 0 10px;
+    gap: 8px;
+    height: 54px;
   }
   .workspace-breadcrumb {
     display: none;
@@ -1341,11 +1470,37 @@ html[data-theme="light"] .recharts-default-tooltip {
   .workspace-search kbd {
     display: none;
   }
+  .workspace-search input {
+    font-size: 14px;
+    height: 34px;
+    padding-left: 30px;
+  }
   .page-content {
-    padding-top: 22px;
+    padding-top: 16px;
+    padding-inline: 14px;
   }
   .page-title {
-    font-size: 1.4rem;
+    font-size: 1.3rem;
+  }
+  .stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .stat-card {
+    padding: 8px 10px;
+  }
+  .data-table-wrap {
+    max-height: none !important;
+  }
+  .table-pagination {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+  .table-pagination-actions {
+    width: 100%;
+    justify-content: space-between;
   }
   .member-fields {
     grid-template-columns: 1fr;
@@ -1365,6 +1520,23 @@ html[data-theme="light"] .recharts-default-tooltip {
   .audit-list time {
     display: none;
   }
+  .customer-workspace {
+    inset: 54px 0 0;
+    padding: 16px var(--page-pad) 40px;
+  }
+  .customer-workspace-head {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .customer-workspace-head .customer-back {
+    margin-left: 0;
+  }
+  .customer-heading-identity {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
   .customer-workspace-head h1 {
     font-size: 19px;
   }
@@ -1374,6 +1546,26 @@ html[data-theme="light"] .recharts-default-tooltip {
   }
   .team-editor {
     width: 100%;
+  }
+}
+@media (max-width: 768px) {
+  .glass-input,
+  .auth-input input,
+  .search-input,
+  .workspace-search input,
+  input[type="text"],
+  input[type="search"],
+  input[type="email"],
+  input[type="password"],
+  input[type="datetime-local"],
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+@media (max-width: 360px) {
+  .stat-grid {
+    grid-template-columns: 1fr;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1594,8 +1786,10 @@ html[data-background="image"] .settings-caption {
 @media (max-width: 900px) {
   .sidebar {
     visibility: hidden;
+    pointer-events: none;
   }
   .sidebar.open {
     visibility: visible;
+    pointer-events: auto;
   }
 }

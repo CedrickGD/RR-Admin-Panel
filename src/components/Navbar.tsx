@@ -132,6 +132,30 @@ export function Navbar({ page, onNavigate, user, onLogout }: NavbarProps) {
       /* Optional cache. */
     }
   }, [expanded, expansionKey]);
+
+  useEffect(() => {
+    if (!mobile) return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobile(false);
+    };
+    const onResize = () => {
+      if (window.innerWidth > 900) setMobile(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("resize", onResize);
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [mobile]);
+
+  useEffect(() => {
+    setMobile(false);
+  }, [page]);
+
   function navigate(key: PageKey) {
     window.dispatchEvent(new Event("rr:close-customer"));
     onNavigate(key);
@@ -145,6 +169,7 @@ export function Navbar({ page, onNavigate, user, onLogout }: NavbarProps) {
   return (
     <>
       <button
+        type="button"
         className={`sb-scrim ${mobile ? "sb-scrim-open" : ""}`}
         aria-label="Close navigation"
         aria-hidden={!mobile}
@@ -152,16 +177,27 @@ export function Navbar({ page, onNavigate, user, onLogout }: NavbarProps) {
         onClick={() => setMobile(false)}
       />
       <aside className={`sidebar ${mobile ? "open" : ""}`} aria-label="Primary navigation">
-        <button
-          className="sb-brand"
-          onClick={() => navigate(canVisit("overview", user) ? "overview" : "settings")}
-        >
-          <img className="sb-brand-img" src={logo} alt="" />
-          <span className="sb-brand-text">
-            <strong>RazorReaper</strong>
-            <small>Admin workspace</small>
-          </span>
-        </button>
+        <div className="sb-brand-row">
+          <button
+            type="button"
+            className="sb-brand"
+            onClick={() => navigate(canVisit("overview", user) ? "overview" : "settings")}
+          >
+            <img className="sb-brand-img" src={logo} alt="" />
+            <span className="sb-brand-text">
+              <strong>RazorReaper</strong>
+              <small>Admin workspace</small>
+            </span>
+          </button>
+          <button
+            type="button"
+            className="btn-icon sb-close"
+            onClick={() => setMobile(false)}
+            aria-label="Close navigation"
+          >
+            <X size={18} />
+          </button>
+        </div>
         <nav className="sb-nav" aria-label="Main">
           {GROUPS.map((group) => {
             const items = group.items.filter(([key]) => canVisit(key, user));

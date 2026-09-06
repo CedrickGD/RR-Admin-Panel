@@ -261,7 +261,7 @@ describe("POST /api/feedback (signature optional)", () => {
     });
 
     await expectJson(response, 201, { ok: true });
-    expect(ops(mock, /^INSERT INTO feedback/)).toHaveLength(1);
+    expect(ops(mock, /^INSERT INTO feedback\b/)).toHaveLength(1);
     expect(ops(mock, TOUCH)).toHaveLength(1);
   });
 
@@ -312,7 +312,10 @@ describe("POST /api/feedback (signature optional)", () => {
       env: env(db()),
     });
 
-    await expectJson(response, 400, { ok: false, error: "Feedback message is required." });
+    await expectJson(response, 400, {
+      ok: false,
+      error: "Please describe the issue in the Feedback form before sending diagnostics.",
+    });
   });
 });
 

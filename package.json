@@ -14,7 +14,8 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "format:check": "prettier --check \"functions/**/*.ts\" \"backend-worker/**/*.js\" \"shared/**/*.ts\" \"tests/**/*.ts\"",
-    "check": "npm run typecheck && npm run test && npm run build"
+    "check": "npm run typecheck && npm run test && npm run build",
+    "deploy:nas": "powershell -ExecutionPolicy Bypass -File tools/deploy-nas.ps1"
   },
   "dependencies": {
     "lucide-react": "^0.553.0",

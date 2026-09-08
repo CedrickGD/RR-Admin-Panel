@@ -18,7 +18,8 @@ import { Button } from "../components/ds/Button";
 import { Tabs, type TabItem } from "../components/ds/Tabs";
 import { useSignOut } from "../hooks/useSignOut";
 import { canVisit } from "../../shared/panel-policy";
-const SETTINGS_TABS: TabItem[] = [
+type SettingsTab = "appearance" | "account";
+const SETTINGS_TABS: TabItem<SettingsTab>[] = [
   { key: "appearance", label: "Appearance", panelId: "settings-panel-appearance" },
   { key: "account", label: "Account", panelId: "settings-panel-account" },
 ];
@@ -32,7 +33,7 @@ export function SettingsPage({ user, authMode, onLogout }: Props) {
   const { appearance: a, updateAppearance: update, syncStatus, retrySync } = useAppearance();
   // Same confirm step as the sidebar footer — one sign-out, one behaviour.
   const signOut = useSignOut(onLogout);
-  const [tab, setTab] = useState("appearance"),
+  const [tab, setTab] = useState<SettingsTab>("appearance"),
     [error, setError] = useState(""),
     [uploading, setUploading] = useState(false);
   const save = (value: Partial<Appearance>) => {

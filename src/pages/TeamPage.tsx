@@ -82,7 +82,8 @@ const emptyEditor = (): Editor => ({
   password: "",
   existing: false,
 });
-const TEAM_TABS: TabItem[] = [
+type TeamTab = "members" | "sessions" | "audit";
+const TEAM_TABS: TabItem<TeamTab>[] = [
   { key: "members", label: "Members", panelId: "team-panel-members" },
   { key: "sessions", label: "Active sessions", panelId: "team-panel-sessions" },
   { key: "audit", label: "Access history", panelId: "team-panel-audit" },
@@ -108,7 +109,7 @@ function generatePassword(): string {
 export function TeamPage() {
   const [data, setData] = useState<Data | null>(null),
     [query, setQuery] = useState(""),
-    [tab, setTab] = useState("members"),
+    [tab, setTab] = useState<TeamTab>("members"),
     [editor, setEditor] = useState<Editor | null>(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
@@ -540,7 +541,10 @@ export function TeamPage() {
                       icon={showPassword ? <EyeOff /> : <Eye />}
                       size={16}
                       title={showPassword ? "Hide password" : "Show password"}
-                      aria-label={showPassword ? "Hide password" : "Show password"}
+                      /* The name stays put and aria-pressed carries the state —
+                         swapping both said "Hide password, pressed", which reads
+                         as the opposite of what the button would do. */
+                      aria-label="Show password"
                       aria-pressed={showPassword}
                       onClick={() => setShowPassword((visible) => !visible)}
                     />

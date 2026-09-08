@@ -31,11 +31,13 @@
   --chart-axis-soft: #81818c;
   --sidebar-bg: rgba(16, 16, 19, 0.98);
   --header-bg: rgba(9, 9, 11, 0.96);
-  /* Pre-hydration fallback. --al, --on-accent and --accent-text are hue-dependent
-     and get rewritten inline on <html> by src/utils/accentContrast (through
-     useAppearance.apply / useAccent); the values here and in the two theme blocks
-     below are the violet-safe defaults that hold until that first write. */
+  /* Pre-hydration fallback. --al, --on-accent, --accent-text and the hover pair
+     are hue-dependent and get rewritten inline on <html> by
+     src/utils/accentContrast (through useAppearance.apply); the values here and
+     in the two theme blocks below are the violet-safe defaults that hold until
+     that first write. */
   --on-accent: #fff;
+  --on-accent-hover: #fff;
 }
 html[data-theme="light"] {
   color-scheme: light;

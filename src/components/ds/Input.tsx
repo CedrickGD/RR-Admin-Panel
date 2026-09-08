@@ -25,8 +25,12 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       ref={ref}
       type={type}
       className={`glass-input${mono ? " customer360-mono" : ""}${className ? ` ${className}` : ""}`}
-      aria-invalid={invalid || undefined}
       {...rest}
+      /* After the spread, not before: ds/Field always passes an `aria-invalid`
+         key (undefined when the field has no error), which silently overwrote
+         the computed value and dropped the attribute — `invalid` was dead in
+         exactly the place the primitive exists to serve. */
+      aria-invalid={invalid || rest["aria-invalid"] || undefined}
     />
   );
 });
@@ -44,8 +48,9 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
     <textarea
       ref={ref}
       className={`glass-input${className ? ` ${className}` : ""}`}
-      aria-invalid={invalid || undefined}
       {...rest}
+      /* See Input: the field's own `aria-invalid` has to survive the spread. */
+      aria-invalid={invalid || rest["aria-invalid"] || undefined}
     />
   );
 });

@@ -52,7 +52,10 @@ const STATUS_LABEL: Record<FeedbackStatus, string> = {
   archived: "Archived",
 };
 
-const STATUS_TABS: TabItem[] = [
+/** The inbox filter: every status, plus the "all" pseudo-status. */
+type FeedbackTab = "all" | FeedbackStatus;
+
+const STATUS_TABS: TabItem<FeedbackTab>[] = [
   { key: "all", label: "Inbox" },
   { key: "new", label: "New" },
   { key: "read", label: "Read" },
@@ -76,7 +79,7 @@ export function FeedbackPage({ summary, filterBar }: FeedbackPageProps) {
   const [feedback, setFeedback] = useState<FeedbackRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [tab, setTab] = useState<"all" | FeedbackStatus>("all");
+  const [tab, setTab] = useState<FeedbackTab>("all");
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [deleteCandidate, setDeleteCandidate] = useState<FeedbackRecord | null>(null);
   const [replyCandidate, setReplyCandidate] = useState<FeedbackRecord | null>(null);
@@ -183,7 +186,7 @@ export function FeedbackPage({ summary, filterBar }: FeedbackPageProps) {
 
   const newCount = useMemo(() => feedback.filter((f) => f.status === "new").length, [feedback]);
   // The unread count rides on the "New" tab instead of a separate badge beside it.
-  const statusTabs = useMemo<TabItem[]>(
+  const statusTabs = useMemo<TabItem<FeedbackTab>[]>(
     () => STATUS_TABS.map((t) => (t.key === "new" ? { ...t, count: newCount } : t)),
     [newCount],
   );
@@ -218,7 +221,7 @@ export function FeedbackPage({ summary, filterBar }: FeedbackPageProps) {
               aria-label="Filter by status"
               items={statusTabs}
               value={tab}
-              onChange={(key) => setTab(key as "all" | FeedbackStatus)}
+              onChange={setTab}
             />
           </>
         }

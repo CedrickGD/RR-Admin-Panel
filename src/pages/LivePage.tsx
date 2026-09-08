@@ -59,7 +59,7 @@ interface LivePageProps {
   filterBar?: ReactNode;
 }
 
-const LIVE_SCOPES: TabItem[] = [
+const LIVE_SCOPES: TabItem<"all" | "errors">[] = [
   { key: "all", label: "All live" },
   { key: "errors", label: "With errors" },
 ];

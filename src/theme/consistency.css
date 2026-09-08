@@ -569,6 +569,11 @@ html[data-theme] .stat-card .tile-icon {
    tone-* classes carry the semantic hues. A blanket override here flattened them all. */
 html[data-theme="dark"] {
   --workspace-surface: rgb(0 0 0 / 32%);
+  /* --workspace-surface already flattened onto the page ground: the tone a panel
+     resolves to, but opaque. For the two places that must hide what scrolls
+     behind them and would otherwise fall back to the raw page --bg — a slab of a
+     colour no panel wears (Customer 360's stuck bar, the pinned action column). */
+  --workspace-solid: #030303;
   --sidebar-bg: rgb(0 0 0 / var(--sidebar-opacity, 0.75));
   /* Dialogs are opaque: the backdrop-filter that used to hide the page behind them is
      banned for perf (app-glue.css), so a translucent fill just leaks the page through. */
@@ -577,6 +582,7 @@ html[data-theme="dark"] {
 }
 html[data-theme="light"] {
   --workspace-surface: rgb(255 255 255 / 60%);
+  --workspace-solid: #fbfbfb;
   --sidebar-bg: rgb(255 255 255 / var(--sidebar-opacity, 0.75));
   --workspace-dialog: var(--surface-float);
   --workspace-hover: rgb(255 255 255 / 35%);
@@ -896,10 +902,13 @@ html[data-theme] .customer-action-bar .btn {
   margin-bottom: 14px;
 }
 /* Scrolled: opaque so records pass behind it, and compact so the record keeps
-   the height — the name and the actions survive, the decoration does not. */
+   the height — the name and the actions survive, the decoration does not.
+   --workspace-solid, not --bg: the workspace shows the PanelBackground canvas in
+   every non-plain background mode, and the raw page ground read there as a flat
+   slab of a colour no card on the page wears. */
 .customer-workspace-bar.is-stuck {
   padding-top: 12px;
-  background: var(--bg);
+  background: var(--workspace-solid);
   border-bottom-color: var(--line);
 }
 .customer-workspace-bar.is-stuck :is(.customer-workspace-head, .customer-action-bar) {
@@ -1156,7 +1165,10 @@ html[data-theme]
   > tbody
   > tr
   > td:last-child:not([colspan]) {
-  background: var(--surface-1);
+  /* The panel's own tone, made opaque (--workspace-solid), not --surface-1: the
+     strip has to hide the columns behind it, but painting it a step lighter than
+     the translucent panel made it read as a slab laid over the table. */
+  background: var(--workspace-solid);
   /* Edge shadow and row separator in one declaration — the second would drop
      the first (see the inset above). */
   box-shadow:
@@ -1177,7 +1189,7 @@ html[data-theme]
   > tbody
   > tr.row-created
   > td:last-child:not([colspan]) {
-  background: color-mix(in srgb, var(--accent) 12%, var(--surface-1));
+  background: color-mix(in srgb, var(--accent) 12%, var(--workspace-solid));
 }
 
 /* ── Stacked cards (TableFrame mobileLayout="stack") ──

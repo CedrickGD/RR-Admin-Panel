@@ -122,12 +122,38 @@ describe("resolveAccentContrast", () => {
 });
 
 describe("accentCustomProperties", () => {
-  it("writes exactly the three hue-dependent custom properties", () => {
+  it("writes exactly the hue-dependent custom properties", () => {
     const props = accentCustomProperties(186, "light");
-    expect(Object.keys(props).sort()).toEqual(["--accent-text", "--al", "--on-accent"]);
+    expect(Object.keys(props).sort()).toEqual([
+      "--accent-hover",
+      "--accent-text",
+      "--al",
+      "--on-accent",
+      "--on-accent-hover",
+    ]);
     const resolved = resolveAccentContrast(186, "light");
     expect(props["--al"]).toBe(resolved.al);
     expect(props["--on-accent"]).toBe(resolved.onAccent);
     expect(props["--accent-text"]).toBe(resolved.accentText);
+    expect(props["--accent-hover"]).toBe(resolved.accentHover);
+    expect(props["--on-accent-hover"]).toBe(resolved.onAccentHover);
+  });
+});
+
+/* .btn-primary repaints its fill on hover, so the ink has to clear AA on the
+   hover fill as well — the state the pointer is actually in. */
+describe("primary hover fill", () => {
+  it("clears AA on the hover fill for every hue, in both themes", () => {
+    for (const theme of THEMES)
+      for (let hue = 0; hue < 360; hue += 1) {
+        const resolved = resolveAccentContrast(hue, theme);
+        const hoverFill = parseHsl(resolved.accentHover);
+        const measured = contrastRatio(hoverFill, parseColor(resolved.onAccentHover));
+        expect(measured).toBeGreaterThanOrEqual(AA_CONTRAST);
+        expect(resolved.onAccentHoverRatio).toBeCloseTo(measured, 6);
+        // Moving away from the ink can never make it lose to the other one.
+        expect(resolved.onAccentHover).toBe(resolved.onAccent);
+        expect(resolved.onAccentHoverRatio).toBeGreaterThanOrEqual(resolved.onAccentRatio);
+      }
   });
 });

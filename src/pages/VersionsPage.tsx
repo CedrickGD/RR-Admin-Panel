@@ -505,6 +505,7 @@ export function VersionsPage({ stats, theme, accentHue = 217, filterBar }: Versi
         {versionRows.length > 0 ? (
           <DataTable<VersionRow>
             flush
+            mobileLayout="stack"
             caption="Every known release with its current and all-time adoption"
             columns={RELEASE_COLUMNS}
             rows={versionRows}

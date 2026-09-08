@@ -303,10 +303,15 @@ html[data-theme] .feedback-card.is-new .badge-info {
 .btn-accent-ghost:not(:disabled):hover {
   background: color-mix(in srgb, var(--accent) 26%, var(--surface-1));
 }
+/* Both fill and ink come from utils/accentContrast, which derives the hover fill
+   and re-runs the ink picker on it. Mixing the accent toward --text-1 here
+   repainted the button without re-deriving --on-accent, so a white-inked accent
+   (blue/indigo/violet) dropped to ~4.0–4.5:1 for as long as the pointer was on
+   it — the one state where the label matters most. */
 .btn-primary:not(:disabled):hover {
-  background: color-mix(in srgb, var(--accent) 86%, var(--text-1));
-  border-color: color-mix(in srgb, var(--accent) 86%, var(--text-1));
-  color: var(--on-accent);
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  color: var(--on-accent-hover);
 }
 .btn-danger:not(:disabled):hover {
   background: color-mix(in srgb, var(--danger) 24%, var(--surface-1));

@@ -1,6 +1,13 @@
 import { TableFrame, RecordCell, RecordLink } from "../components/ds/TableFrame";
 import { Ban, ShieldAlert, ShieldCheck, Clock, User, RotateCcw, X } from "lucide-react";
-import { useDeferredValue, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import {
   CustomerAccessDialog,
   type CustomerAccessTarget,
@@ -32,8 +39,9 @@ interface AccessPageProps {
 
 /** Column keys the customer table sorts by — the header row owns the choice. */
 type SortKey = "access" | "first_seen" | "last_seen";
+type TierFilter = "all" | "paid" | "suspended";
 
-const TIER_FILTERS: TabItem[] = [
+const TIER_FILTERS: TabItem<TierFilter>[] = [
   { key: "all", label: "All" },
   { key: "paid", label: "Paid" },
   { key: "suspended", label: "Suspended" },
@@ -82,7 +90,7 @@ export function AccessPage({ users = null, onOpenWorker, filterBar }: AccessPage
   });
   const deferredQuery = useDeferredValue(query);
   const [userPage, setUserPage] = useState(1);
-  const [tierFilter, setTierFilter] = useState<"all" | "paid" | "suspended">("all");
+  const [tierFilter, setTierFilter] = useState<TierFilter>("all");
   const [sortKey, setSortKey] = useState<SortKey>("last_seen");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
 
@@ -257,7 +265,7 @@ export function AccessPage({ users = null, onOpenWorker, filterBar }: AccessPage
               items={TIER_FILTERS}
               value={tierFilter}
               onChange={(key) => {
-                setTierFilter(key as "all" | "paid" | "suspended");
+                setTierFilter(key);
                 setUserPage(1);
               }}
             />
@@ -319,9 +327,7 @@ export function AccessPage({ users = null, onOpenWorker, filterBar }: AccessPage
                     sort={sort}
                     onSortChange={changeSort}
                   />
-                  <th scope="col" style={{ textAlign: "right" }}>
-                    Action
-                  </th>
+                  <th scope="col" aria-label="Customer actions" />
                 </tr>
               </thead>
               <tbody>
@@ -368,7 +374,7 @@ export function AccessPage({ users = null, onOpenWorker, filterBar }: AccessPage
                           icon={<ShieldCheck size={14} />}
                           onClick={() => openAccess(u)}
                         >
-                          Manage access
+                          Manage app access
                         </Button>
                       </td>
                     </tr>
@@ -420,7 +426,7 @@ export function AccessPage({ users = null, onOpenWorker, filterBar }: AccessPage
                 <th scope="col" className="col-lg">
                   By
                 </th>
-                <th scope="col">Action</th>
+                <th scope="col" aria-label="Suspension actions" />
               </tr>
             </thead>
             <tbody>
@@ -478,14 +484,9 @@ export function AccessPage({ users = null, onOpenWorker, filterBar }: AccessPage
                     )}
                   </td>
                   <td
-                    className="muted col-md"
+                    className="muted col-md cell-truncate"
                     data-label="Reason"
-                    style={{
-                      maxWidth: 260,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
+                    style={{ "--cell-max": "260px" } as CSSProperties}
                     title={row.reason ?? undefined}
                   >
                     {row.reason || (
@@ -493,14 +494,9 @@ export function AccessPage({ users = null, onOpenWorker, filterBar }: AccessPage
                     )}
                   </td>
                   <td
-                    className="muted col-lg"
+                    className="muted col-lg cell-truncate"
                     data-label="By"
-                    style={{
-                      maxWidth: 180,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
+                    style={{ "--cell-max": "180px" } as CSSProperties}
                     title={row.created_by ?? undefined}
                   >
                     {row.created_by || "—"}

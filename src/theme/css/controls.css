@@ -247,9 +247,12 @@
   transition: border-color var(--t-med), box-shadow var(--t-med), background var(--t-med);
   width: 100%;
 }
+/* One focus ring, not two: the `:focus-visible` outline below is the console's
+   ring (same as `.btn` and `.table-sort`), so the field no longer also paints a
+   3px accent glow underneath it — the two landed on top of each other and made
+   every dialog field louder than the buttons beside it. */
 .glass-input:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-subtle);
   /* Token, not a near-black wash: this rule outranks the themed `input.glass-input`
      fill in workspace.css, so a literal here turns every light-theme field mid-grey. */
   background: var(--surface-3);

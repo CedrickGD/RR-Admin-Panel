@@ -140,6 +140,9 @@ const SEARCH_LIMIT = 8;
    states a preference, which then holds at every width. */
 const RAIL_KEY = "rr:sidebar-rail";
 const RAIL_AUTO_QUERY = "(min-width: 901px) and (max-width: 1200px)";
+/* The width the rail CSS itself is scoped to (app-glue.css). Below it the mobile
+   drawer shows full labels whatever the stored preference says. */
+const RAIL_WIDTH_QUERY = "(min-width: 901px)";
 type RailPreference = "expanded" | "collapsed" | null;
 
 function readRailPreference(): RailPreference {
@@ -190,13 +193,26 @@ export function Navbar({ page, onNavigate, user, onLogout }: NavbarProps) {
   /* ── Icon rail ─── */
   const [railPreference, setRailPreference] = useState<RailPreference>(readRailPreference);
   const [autoRail, setAutoRail] = useState(() => window.matchMedia(RAIL_AUTO_QUERY).matches);
+  const [wideViewport, setWideViewport] = useState(
+    () => window.matchMedia(RAIL_WIDTH_QUERY).matches,
+  );
   useEffect(() => {
     const query = window.matchMedia(RAIL_AUTO_QUERY);
     const onChange = () => setAutoRail(query.matches);
     query.addEventListener("change", onChange);
     return () => query.removeEventListener("change", onChange);
   }, []);
+  useEffect(() => {
+    const query = window.matchMedia(RAIL_WIDTH_QUERY);
+    const onChange = () => setWideViewport(query.matches);
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
+  }, []);
   const railCollapsed = railPreference ? railPreference === "collapsed" : autoRail;
+  /* The stored preference holds at every width, but only the desktop rail hides
+     the labels — in the mobile drawer they are all visible, so a `title` there
+     is a tooltip (and an accessible description) repeating what is on screen. */
+  const railLabelsHidden = railCollapsed && wideViewport;
   useEffect(() => {
     // --sb-w and every offset that reads it (topbar, main, Customer 360) follow
     // this class; the rail rules themselves are scoped to (min-width: 901px),
@@ -390,7 +406,7 @@ export function Navbar({ page, onNavigate, user, onLogout }: NavbarProps) {
             // left the button with no accessible name at all in that layout —
             // and the rail is the default between 901 and 1200px.
             aria-label="RazorReaper Operations Console — go to overview"
-            title={railCollapsed ? "RazorReaper — Operations Console" : undefined}
+            title={railLabelsHidden ? "RazorReaper — Operations Console" : undefined}
             onClick={() => navigate(canVisit("overview", user) ? "overview" : "settings")}
           >
             <img className="sb-brand-img" src={logo} alt="" />
@@ -431,7 +447,7 @@ export function Navbar({ page, onNavigate, user, onLogout }: NavbarProps) {
                   type="button"
                   className={`sb-item nav-parent ${active ? "has-active" : ""}`}
                   // The rail hides every label, so the tooltip carries the name.
-                  title={railCollapsed ? group.label : undefined}
+                  title={railLabelsHidden ? group.label : undefined}
                   onClick={() =>
                     setExpanded((current) =>
                       current.includes(group.label)
@@ -456,7 +472,7 @@ export function Navbar({ page, onNavigate, user, onLogout }: NavbarProps) {
                         type="button"
                         key={key}
                         className={`sb-item ${page === key ? "active" : ""}`}
-                        title={railCollapsed ? PAGE_META[key].label : undefined}
+                        title={railLabelsHidden ? PAGE_META[key].label : undefined}
                         onClick={() => navigate(key)}
                         aria-current={page === key ? "page" : undefined}
                       >

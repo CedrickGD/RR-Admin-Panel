@@ -294,6 +294,25 @@
 .data-table tbody td.muted { color: var(--text-2); }
 .data-table tbody td.mono  { font-family: var(--font-mono); font-size: var(--fs-small); }
 
+/* One-line cell that clamps instead of stretching the table (a Discord handle,
+   an error type, a suspension reason). A class, not an inline style: an inline
+   `max-width` outranks every stack rule, so the clamp used to survive into the
+   stacked mobile card and ellipsise a value the card had room to wrap. Per
+   column width via `--cell-max`, the way TableFrame passes `--table-min-w`. */
+.cell-truncate {
+  max-width: var(--cell-max, 200px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 900px) {
+  .table-frame--stack .cell-truncate {
+    max-width: none;
+    overflow: visible;
+    white-space: normal;
+  }
+}
+
 .row-expand-panel { background: rgba(3, 5, 12, 0.28); border-top: 1px solid var(--line); }
 /* Padding sits on .row-expand-content, NOT on .row-expand-inner: the inner is
    the overflow-clip element, and a border-box can't shrink below its own
@@ -409,7 +428,11 @@
    scroll its own Save out of view — the treatment operations.css grants the
    legacy `.form-actions`/`.form-footer` rows, applied here by the primitive
    itself. `bottom: -20px` cancels `.kpi-modal-content`'s bottom padding so
-   the row lands flush on the modal's edge. */
+   the row lands flush on the modal's edge. Measured, because it reads like an
+   overhang and is not: the scroller's own padding sits inside its scrollable
+   area, so -20px puts the row's bottom edge exactly ON the visible bottom, with
+   the buttons their own 14px above it. Anything past -20px does start clipping
+   them, so this number is the modal's padding — never the row's. */
 .modal-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 9px; }
 .modal-actions-between { justify-content: space-between; }
 .kpi-modal-content .modal-actions {

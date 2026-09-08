@@ -41,7 +41,7 @@ const DAILY_LEGEND = [
   { label: "Forecast", color: "var(--chart-users)", dashed: true },
 ];
 
-const INSIGHT_VIEWS: TabItem[] = [
+const INSIGHT_VIEWS: TabItem<"daily" | "timezones">[] = [
   { key: "daily", label: "Daily customers" },
   { key: "timezones", label: "Timezones" },
 ];
@@ -217,6 +217,8 @@ export function TrafficPage({ summary, stats, theme, filterBar }: TrafficPagePro
             : `Daily unique customers · ${forecastDays} d forecast (dashed).`
           : "Timezone-local activity from the loaded event window."}
         right={
+          /* The view switch lives in the header next to the legend and meta,
+             never over the plot area (docs/panel-workspace.md, Charts). */
           <div className="chart-head-tools">
             {/* Names the two curves the daily chart draws; the timezone grid labels its own. */}
             {insightView === "daily" ? <ChartLegend items={DAILY_LEGEND} /> : null}
@@ -227,21 +229,18 @@ export function TrafficPage({ summary, stats, theme, filterBar }: TrafficPagePro
                 { label: "Errors", value: formatNumber(metaErrors) },
               ]}
             />
+            {/* Both views answer "who was active", so this narrows the panel
+                rather than swapping panels: radiogroup, not tablist. */}
+            <SegmentedControl
+              aria-label="Traffic insight view"
+              value={insightView}
+              onChange={setInsightView}
+              items={INSIGHT_VIEWS}
+            />
           </div>
         }
       >
         <div className="panel-body">
-          {/* View switch — both views answer "who was active", so this narrows
-              the panel rather than swapping panels: radiogroup, not tablist. */}
-          <div style={{ display: "flex", paddingBottom: 6 }}>
-            <SegmentedControl
-              aria-label="Traffic insight view"
-              value={insightView}
-              onChange={(key) => setInsightView(key as "daily" | "timezones")}
-              items={INSIGHT_VIEWS}
-            />
-          </div>
-
           {insightView === "daily" ? (
             <div className="chart-wrap chart-wrap-tall">
               <ResponsiveContainer width="100%" height={320}>

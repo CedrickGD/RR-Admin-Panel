@@ -71,7 +71,7 @@ interface WorkersPageProps {
 const nameOf = (user: UserRollupRecord) => user.userLabel?.trim() || user.identity;
 const versionOf = (user: UserRollupRecord) => user.displayVersion || user.appVersion || "Unknown";
 type Scope = "all" | "online" | "offline" | "errors";
-const SCOPES: TabItem[] = [
+const SCOPES: TabItem<Scope>[] = [
   { key: "all", label: "All customers" },
   { key: "online", label: "Online", icon: <Radio /> },
   { key: "offline", label: "Offline" },
@@ -281,7 +281,7 @@ export function WorkersPage({
             aria-label="Activity filter"
             items={SCOPES}
             value={scope}
-            onChange={(key) => setScope(key as Scope)}
+            onChange={setScope}
           />
         </div>
         <div className="monitor-filter-row">
@@ -344,9 +344,7 @@ export function WorkersPage({
                 {heading("Time in app", "totalTime", true)}
                 {heading("Last active", "lastSeen")}
                 {heading("Location", "location")}
-                <th scope="col">
-                  <span className="sr-only">Actions</span>
-                </th>
+                <th scope="col" aria-label="Customer actions" />
               </tr>
             </thead>
             <tbody>

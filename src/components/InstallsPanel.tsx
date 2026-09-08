@@ -4,6 +4,7 @@ import { fetchInstalls, revokeInstall } from "../utils/api";
 import { formatDate } from "../utils/format";
 import { Badge } from "./ds/Badge";
 import { Button } from "./ds/Button";
+import { Input } from "./ds/Input";
 import { RelativeTime } from "./ds/RelativeTime";
 function versionLabel(version: string | null) {
   return version === "legacy" ? "Legacy" : version || "—";
@@ -162,8 +163,7 @@ export function InstallsPanel({ hwid }: InstallsPanelProps) {
                 >
                   {confirming ? (
                     <>
-                      <input
-                        className="glass-input"
+                      <Input
                         value={reason}
                         onChange={(e) => setReason(e.target.value)}
                         placeholder="Reason (optional)"

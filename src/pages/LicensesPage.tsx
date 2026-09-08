@@ -182,7 +182,7 @@ function maskLicenseKey(value: string): string {
 }
 
 /** Standard batch vs. one multi-seat master key — the generator's only mode switch. */
-const GENERATOR_KINDS: TabItem[] = [
+const GENERATOR_KINDS: TabItem<"standard" | "master">[] = [
   { key: "standard", label: "Standard" },
   { key: "master", label: "Master key" },
 ];
@@ -232,13 +232,15 @@ export function LicensesPage({
   const [createdOnly, setCreatedOnly] = useState(false);
   const [highlightCreated, setHighlightCreated] = useState(false);
   const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>("inventory");
-  const workspaceTabs = useMemo<TabItem[]>(
+  const workspaceTabs = useMemo<TabItem<WorkspaceTab>[]>(
     () => [
       { key: "inventory", label: "All licenses", panelId: "licenses-panel-inventory" },
       { key: "lookup", label: "Find a purchase", panelId: "licenses-panel-lookup" },
       // "Bulk generate": the batch/master path, not the audited single sale.
       ...(canWrite
-        ? [{ key: "generate", label: "Bulk generate", panelId: "licenses-panel-generate" }]
+        ? ([
+            { key: "generate", label: "Bulk generate", panelId: "licenses-panel-generate" },
+          ] satisfies TabItem<WorkspaceTab>[])
         : []),
     ],
     [canWrite],
@@ -731,6 +733,13 @@ export function LicensesPage({
     });
   }, [licenses, searchQuery, createdOnly, createdKeys, highlightCreated]);
 
+  /** The two things that can filter the inventory down to nothing. */
+  const hasLicenseFilters = searchQuery.trim().length > 0 || createdOnly;
+  const clearLicenseFilters = () => {
+    setSearchQuery("");
+    setCreatedOnly(false);
+  };
+
   const renderTable = (lics: LicenseRecord[], title: string) => (
     <section
       className="panel"
@@ -749,8 +758,20 @@ export function LicensesPage({
       </div>
 
       {!loading && lics.length === 0 ? (
-        <EmptyState icon={<Key />} title="No licenses found">
-          {searchQuery
+        <EmptyState
+          icon={<Key />}
+          title="No licenses found"
+          // Filtered to nothing: the way out sits in the empty state, like every
+          // other filtered list in the console.
+          action={
+            hasLicenseFilters ? (
+              <Button size="sm" icon={<X size={14} />} onClick={clearLicenseFilters}>
+                Clear filters
+              </Button>
+            ) : undefined
+          }
+        >
+          {hasLicenseFilters
             ? "No licenses match your current search filter."
             : "No license keys generated yet."}
         </EmptyState>
@@ -1083,7 +1104,7 @@ export function LicensesPage({
         aria-label="License workspace"
         items={workspaceTabs}
         value={workspaceTab}
-        onChange={(key) => setWorkspaceTab(key as WorkspaceTab)}
+        onChange={setWorkspaceTab}
       />
       {workspaceTab === "inventory" && renderTable(sortedLicenses, "All licenses")}
       {workspaceTab === "lookup" && (
@@ -1112,7 +1133,6 @@ export function LicensesPage({
               <Field label="Search by">
                 <Select
                   aria-label="Search by"
-                  className="glass-input"
                   value={lookupMode}
                   onValueChange={(value) => {
                     setLookupMode(value as LookupMode);
@@ -1125,10 +1145,7 @@ export function LicensesPage({
                   <option value="customer">Customer name, email or Discord</option>
                 </Select>
               </Field>
-              <Field
-                label={lookupMode === "order_id" ? "Customer order ID" : "Customer"}
-                hint="required"
-              >
+              <Field label={lookupMode === "order_id" ? "Order ID" : "Customer"} hint="required">
                 <Input
                   value={lookupValue}
                   onChange={(event) => {
@@ -1325,7 +1342,7 @@ export function LicensesPage({
             <div className="license-generator-grid">
               {isMaster ? (
                 <>
-                  <Field label="Custom key string" hint="optional">
+                  <Field label="Custom key" hint="optional">
                     <Input
                       mono
                       placeholder="Blank = random key"
@@ -1373,7 +1390,6 @@ export function LicensesPage({
               <Field label="Duration type">
                 <Select
                   aria-label="Duration type"
-                  className="glass-input"
                   value={genType}
                   onValueChange={(value) => setGenType(value)}
                 >
@@ -1407,7 +1423,7 @@ export function LicensesPage({
                 <ShoppingCart size={12} /> Customer / order — for manual sales
               </legend>
               <div className="license-generator-grid">
-                <Field label="Order no." hint="optional">
+                <Field label="Order ID" hint="optional">
                   <Input
                     mono
                     placeholder="e.g. ORD-1042"
@@ -1550,7 +1566,6 @@ export function LicensesPage({
               <Field label="License plan">
                 <Select
                   aria-label="License plan"
-                  className="glass-input"
                   value={issueForm.type}
                   onValueChange={(value) => updateIssueForm({ type: value as IssueForm["type"] })}
                 >
@@ -1676,7 +1691,9 @@ export function LicensesPage({
               </span>
             </div>
             <ModalActions>
-              <Button variant="primary" onClick={() => setLicenseAction(null)}>
+              {/* A success screen has nothing left to commit, so the dismissal is
+                  a ghost here too — primary always means "commit something". */}
+              <Button variant="ghost" onClick={() => setLicenseAction(null)}>
                 Done
               </Button>
             </ModalActions>
@@ -1830,7 +1847,7 @@ export function LicensesPage({
             </div>
 
             <div className="license-edit-grid">
-              <Field label="Order no." hint="optional">
+              <Field label="Order ID" hint="optional">
                 <Input
                   mono
                   placeholder="e.g. ORD-1042 / invoice id"

@@ -3,12 +3,15 @@
    The accent hue is user-tunable 0–360°, but --on-accent (#fff) and
    --accent-text were fixed formulas, so a cyan/green/gold accent dropped
    primary-button text to ~1.5:1 and light-theme accent labels to ~2.8:1.
-   These helpers derive the three hue-dependent values from the hue itself:
+   These helpers derive the hue-dependent values from the hue itself:
      • the accent lightness (--al) that is actually painted,
      • the ink laid on top of it (--on-accent),
      • the accent-coloured text on the page ground (--accent-text),
+     • the primary button's hover fill and its ink (--accent-hover,
+       --on-accent-hover) — a hover that repaints the fill has to re-verify
+       the ink on it, or the button only passes while nobody is pointing at it,
    each verified against WCAG AA (4.5:1) before it is handed out.
-   Pure functions, no DOM — useAppearance/useAccent write the result as
+   Pure functions, no DOM — useAppearance is the one writer of the result as
    inline custom properties on <html>. The static formulas in
    theme/tokens/accent.css and theme/workspace.css stay as the
    pre-hydration fallback and are tuned to the same numbers.
@@ -164,6 +167,8 @@ export interface AccentInk {
   /** Ready-to-write CSS colour for --on-accent. */
   color: string;
   ratio: number;
+  /** True for white, false for the hue-tinted dark ink. */
+  white: boolean;
 }
 
 /** White or a hue-tinted dark ink on hsl(hue ACCENT_SATURATION lightness) — whichever reads better. */
@@ -172,8 +177,30 @@ export function pickOnAccent(hue: number, lightness: number): AccentInk {
   const white = contrastRatio(accent, WHITE);
   const ink = contrastRatio(accent, hslToRgb(hue, INK_SATURATION, INK_LIGHTNESS));
   return white >= ink
-    ? { color: "#fff", ratio: white }
-    : { color: `hsl(${normalizeHue(hue)} ${INK_SATURATION}% ${INK_LIGHTNESS}%)`, ratio: ink };
+    ? { color: "#fff", ratio: white, white: true }
+    : {
+        color: `hsl(${normalizeHue(hue)} ${INK_SATURATION}% ${INK_LIGHTNESS}%)`,
+        ratio: ink,
+        white: false,
+      };
+}
+
+/* How far the `.btn-primary` hover fill travels along the accent's lightness
+   axis. It always moves AWAY from the ink — darker under white, lighter under
+   the dark ink — so hovering deepens the ink's contrast instead of eroding it,
+   and the same lightness search that cleared AA for the rest state clears it
+   for the hover state too. The old `color-mix(accent 86%, --text-1)` moved
+   toward the page text in both themes: in dark that brightened a white-inked
+   button from 5.67:1 to 4.50:1 at hue 262 and to 3.50:1 at hue 221, i.e. the
+   ink was only ever verified against the fill the button is NOT wearing while
+   the pointer is on it. 6 points matches that mix's visual weight (≈5 points
+   of lightness) so the hover reads as strongly as it did. */
+export const HOVER_LIGHTNESS_STEP = 6;
+
+/** Lightness of the hover fill for an accent painted at `lightness` with `ink`. */
+export function hoverLightness(lightness: number, ink: AccentInk): number {
+  const step = ink.white ? -HOVER_LIGHTNESS_STEP : HOVER_LIGHTNESS_STEP;
+  return Math.min(100, Math.max(0, lightness + step));
 }
 
 export interface AccentContrast {
@@ -190,6 +217,12 @@ export interface AccentContrast {
   accentTextRatio: number;
   /** hsl() of the accent as painted — the honest swatch colour. */
   accent: string;
+  /** --accent-hover: the `.btn-primary` hover fill, an hsl() of the same hue. */
+  accentHover: string;
+  /** --on-accent-hover: the ink re-picked on that fill. Same family as `onAccent`. */
+  onAccentHover: string;
+  /** Never below `onAccentRatio` — the hover fill only moves away from the ink. */
+  onAccentHoverRatio: number;
   /** False when no candidate reached 4.5:1 and the best available was kept. */
   meetsAA: boolean;
 }
@@ -238,6 +271,12 @@ export function resolveAccentContrast(hue: number, theme: AccentTheme): AccentCo
     }
   }
 
+  /* The hover fill is derived here, not in CSS, so the ink is verified against
+     both fills the button actually wears. Stepping away from the ink cannot
+     change which ink wins, so the hover keeps the rest state's colour. */
+  const hoverL = hoverLightness(lightness, ink);
+  const hoverInk = pickOnAccent(h, hoverL);
+
   return {
     lightness,
     al: `${lightness}%`,
@@ -246,6 +285,9 @@ export function resolveAccentContrast(hue: number, theme: AccentTheme): AccentCo
     accentText: `hsl(${h} ${cfg.textSaturation}% ${textLightness}%)`,
     accentTextRatio: textRatio,
     accent: `hsl(${h} ${ACCENT_SATURATION}% ${lightness}%)`,
+    accentHover: `hsl(${h} ${ACCENT_SATURATION}% ${hoverL}%)`,
+    onAccentHover: hoverInk.color,
+    onAccentHoverRatio: hoverInk.ratio,
     meetsAA: ink.ratio >= AA_CONTRAST && textRatio >= AA_CONTRAST,
   };
 }
@@ -255,12 +297,14 @@ export function accentColor(hue: number, theme: AccentTheme): string {
   return resolveAccentContrast(hue, theme).accent;
 }
 
-/** The three custom properties to write on <html>, keyed by property name. */
+/** The hue-dependent custom properties to write on <html>, keyed by property name. */
 export function accentCustomProperties(hue: number, theme: AccentTheme): Record<string, string> {
   const resolved = resolveAccentContrast(hue, theme);
   return {
     "--al": resolved.al,
     "--on-accent": resolved.onAccent,
     "--accent-text": resolved.accentText,
+    "--accent-hover": resolved.accentHover,
+    "--on-accent-hover": resolved.onAccentHover,
   };
 }

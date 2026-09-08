@@ -12,10 +12,10 @@
 import { sizedIcon } from "./sizedIcon";
 import { useTabRoving, type TabItem } from "./Tabs";
 
-export interface SegmentedControlProps {
-  value: string;
-  onChange: (key: string) => void;
-  items: TabItem[];
+export interface SegmentedControlProps<K extends string = string> {
+  value: K;
+  onChange: (key: K) => void;
+  items: readonly TabItem<K>[];
   /** Required: names the group for screen readers, e.g. "Activity filter". */
   "aria-label": string;
   /** "radiogroup" (default, a filter) or "tablist" (pill-styled panel switch). */
@@ -26,14 +26,14 @@ export interface SegmentedControlProps {
 export type { TabItem };
 
 /** Pill segmented control. */
-export function SegmentedControl({
+export function SegmentedControl<K extends string>({
   value,
   onChange,
   items,
   className = "",
   as = "radiogroup",
   "aria-label": ariaLabel,
-}: SegmentedControlProps) {
+}: SegmentedControlProps<K>) {
   const { listRef, onKeyDown } = useTabRoving(items, value, onChange);
   const tabs = as === "tablist";
   // See ds/Tabs: one tabbable stop even when `value` matches no item.

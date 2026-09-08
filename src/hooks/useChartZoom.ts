@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
 
 const MIN_WINDOW = 1;
 /** Same factors the wheel used before, now shared with the buttons and the keyboard. */
@@ -10,14 +18,19 @@ const IS_APPLE =
   typeof navigator !== "undefined" && /Mac|iPad|iPhone|iPod/.test(navigator.userAgent);
 
 export const ZOOM_MODIFIER_LABEL = IS_APPLE ? "⌘" : "Ctrl";
-/** One short phrase for a panel sub line — the buttons carry the rest. */
-export const ZOOM_HINT = `${ZOOM_MODIFIER_LABEL} + scroll to zoom`;
+/* One short phrase for a panel sub line — and, through `hintId`, the plot's
+   aria-describedby, so what is announced is what is on screen. It names the
+   keyboard route too: the description is the one place a keyboard-only user
+   hears it, and a modifier + wheel is no use to them. */
+export const ZOOM_HINT = `${ZOOM_MODIFIER_LABEL} + scroll or +/-/0 to zoom`;
 
 /** Spread onto the plot wrapper; the caller keeps ownership of ref and className. */
 export interface ChartZoomContainerProps {
   tabIndex: number;
   role: "group";
   "aria-label": string;
+  /** Points at the element the caller gave `hintId` — see the hook's return. */
+  "aria-describedby": string;
   onKeyDown: (event: KeyboardEvent<HTMLElement>) => void;
 }
 
@@ -123,14 +136,21 @@ export function useChartZoom(totalPoints: number, label = "Chart") {
     [zoomBy, resetZoom],
   );
 
+  /* A name names; instructions are a description. The keyboard sentence used to
+     BE the aria-label, so entering the plot read out "Activity chart. Ctrl +
+     scroll, or the plus, minus and 0 keys, zoom the time window., group" every
+     single time. It is a description now, hung on the panel sub line that
+     already renders `hint` on screen — one string, said once, in the right slot. */
+  const hintId = useId();
   const containerProps = useMemo<ChartZoomContainerProps>(
     () => ({
       tabIndex: 0,
       role: "group",
-      "aria-label": `${label}. ${ZOOM_MODIFIER_LABEL} + scroll, or the plus, minus and 0 keys, zoom the time window.`,
+      "aria-label": label,
+      "aria-describedby": hintId,
       onKeyDown,
     }),
-    [label, onKeyDown],
+    [hintId, label, onKeyDown],
   );
 
   const setWindow = useCallback(
@@ -155,5 +175,8 @@ export function useChartZoom(totalPoints: number, label = "Chart") {
     containerRef,
     containerProps,
     hint: ZOOM_HINT,
+    /* Put this on whatever renders `hint`; the plot points its aria-describedby
+       at it (CollapsiblePanel takes it as `subId`). */
+    hintId,
   };
 }

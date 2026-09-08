@@ -708,10 +708,13 @@ html::after {
     );
   animation: liquid-b 33s ease-in-out infinite alternate;
 }
-/* --bg-ox/--bg-oy (Settings → Background Position) shift the whole painted
-   background so the user can slide the color under a dark corner. Custom
-   properties resolve inside keyframes at runtime, so the offset rides along
-   with the drift animation. */
+/* --bg-ox/--bg-oy shift the whole painted background so the color can be slid
+   under a dark corner. Custom properties resolve inside keyframes at runtime,
+   so the offset rides along with the drift animation. Nothing writes them today
+   — the hook that did was removed with the rest of the dead useAccent plumbing,
+   and the Settings control it was built for was never wired up — so every
+   reference below carries a `, 0%` fallback and the layers sit unshifted. The
+   hooks stay because they cost nothing and the keyframes are the hard part. */
 @keyframes liquid-a {
   0% {
     transform: translate3d(calc(-4% + var(--bg-ox, 0%)), calc(-3% + var(--bg-oy, 0%)), 0)

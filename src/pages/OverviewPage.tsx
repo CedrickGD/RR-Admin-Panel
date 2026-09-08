@@ -324,6 +324,9 @@ export function OverviewPage({ summary, stats, filterBar }: OverviewPageProps) {
               kicker="Traffic"
               title={`Activity · ${activeWindow} ${activeWindow === 1 ? "hour" : "hours"}`}
               sub={zoom.hint}
+              /* The plot describes itself with this line instead of reciting it
+                 as its accessible name (useChartZoom). */
+              subId={zoom.hintId}
               padding="body"
               right={
                 /* Range and zoom controls live in the header, not over the plot. */

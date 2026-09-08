@@ -12,7 +12,7 @@ import {
   Users as UsersIcon,
   X,
 } from "lucide-react";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useMemo, useState, type CSSProperties } from "react";
 import { CollapsiblePanel } from "../components/CollapsiblePanel";
 import { RowExpandClip } from "../components/RowExpandClip";
 import { KpiStatCard } from "../components/KpiStatCard";
@@ -149,7 +149,7 @@ function topType(group: VisibleGroup): { type: string; more: number } | null {
 
 /* ── presentational pieces ──────────────────────────────────── */
 
-const VIEW_TABS: TabItem[] = [
+const VIEW_TABS: TabItem<ViewKey>[] = [
   { key: "users", label: "By customer" },
   { key: "failures", label: "By failure" },
 ];
@@ -465,7 +465,7 @@ export function ErrorsPage() {
               aria-label="Error grouping"
               items={VIEW_TABS}
               value={view}
-              onChange={(key) => setView(key as ViewKey)}
+              onChange={setView}
             />
           </>
         }
@@ -620,9 +620,7 @@ export function ErrorsPage() {
                     sort={sort}
                     onSortChange={handleSort}
                   />
-                  <th scope="col">
-                    <span className="sr-only">Actions</span>
-                  </th>
+                  <th scope="col" aria-label="Customer actions" />
                 </tr>
               </thead>
               <tbody
@@ -701,14 +699,9 @@ export function ErrorsPage() {
                             </button>
                           </td>
                           <td
-                            className="col-lg"
+                            className="col-lg cell-truncate"
                             data-label="Discord"
-                            style={{
-                              whiteSpace: "nowrap",
-                              maxWidth: 160,
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                            }}
+                            style={{ "--cell-max": "160px" } as CSSProperties}
                           >
                             {user.discordUser?.trim() ? (
                               <span
@@ -730,14 +723,9 @@ export function ErrorsPage() {
                             {user.platform ?? "—"}
                           </td>
                           <td
-                            className="muted col-md"
+                            className="muted col-md cell-truncate"
                             data-label="Location"
-                            style={{
-                              whiteSpace: "nowrap",
-                              maxWidth: 150,
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                            }}
+                            style={{ "--cell-max": "150px" } as CSSProperties}
                             title={userLocation(user) || undefined}
                           >
                             {userLocation(user) || "—"}
@@ -755,15 +743,7 @@ export function ErrorsPage() {
                               ) : null}
                             </span>
                           </td>
-                          <td
-                            data-label="Top type"
-                            style={{
-                              whiteSpace: "nowrap",
-                              maxWidth: 200,
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                            }}
-                          >
+                          <td className="cell-truncate" data-label="Top type">
                             {top ? (
                               <span
                                 className="mono"

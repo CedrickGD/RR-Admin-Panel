@@ -454,7 +454,6 @@ export function AnnouncementsPage({ filterBar }: AnnouncementsPageProps) {
             <Field label="Level">
               <Select
                 aria-label="Level"
-                className="glass-input"
                 value={form.level}
                 onValueChange={(value) => setForm({ ...form, level: value as AnnouncementLevel })}
               >

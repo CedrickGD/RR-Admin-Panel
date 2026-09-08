@@ -19,8 +19,14 @@
 import { useRef, type KeyboardEvent, type ReactNode } from "react";
 import { sizedIcon } from "./sizedIcon";
 
-export interface TabItem {
-  key: string;
+/**
+ * `K` is the page's own key union (`TabItem<ViewKey>[]`). Leaving it at the
+ * default `string` is what forced every call site to launder the key back with
+ * an unchecked `as`, which also swallowed a key in `items` that the state union
+ * never had — the page then switched to a view it has no branch for.
+ */
+export interface TabItem<K extends string = string> {
+  key: K;
   /** Sentence case, e.g. "Active sessions" — never Title Case (docs/panel-workspace.md). */
   label: string;
   /** Optional leading lucide-react element. */
@@ -41,11 +47,11 @@ export interface TabItem {
   panelId?: string;
 }
 
-export interface TabsProps {
+export interface TabsProps<K extends string = string> {
   /** Selected item key. */
-  value: string;
-  onChange: (key: string) => void;
-  items: TabItem[];
+  value: K;
+  onChange: (key: K) => void;
+  items: readonly TabItem<K>[];
   /** Required: names the tab list for screen readers, e.g. "License workspace". */
   "aria-label": string;
   className?: string;
@@ -55,10 +61,10 @@ export interface TabsProps {
  * Shared roving-tabindex keyboard handling for Tabs and SegmentedControl.
  * Returns the ref the container must carry and its keydown handler.
  */
-export function useTabRoving(
-  items: TabItem[],
-  value: string,
-  onChange: (key: string) => void,
+export function useTabRoving<K extends string>(
+  items: readonly TabItem<K>[],
+  value: K,
+  onChange: (key: K) => void,
 ) {
   const listRef = useRef<HTMLDivElement>(null);
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
@@ -81,13 +87,13 @@ export function useTabRoving(
 }
 
 /** Underline tabs for switching the sub-view of a page. */
-export function Tabs({
+export function Tabs<K extends string>({
   value,
   onChange,
   items,
   className = "",
   "aria-label": ariaLabel,
-}: TabsProps) {
+}: TabsProps<K>) {
   const { listRef, onKeyDown } = useTabRoving(items, value, onChange);
   // Roving tabindex needs exactly one tabbable stop; if `value` matches nothing
   // (a filtered-away tab) the first item keeps the group reachable by keyboard.

@@ -7,6 +7,8 @@ interface CollapsiblePanelProps {
   title?: string;
   /** Optional one-line subtitle under the title. */
   sub?: string;
+  /** `id` for the sub line, so a control in the panel can describe itself with it. */
+  subId?: string;
   /** Header-right slot: badges, meta items, controls (kept clickable). */
   right?: ReactNode;
   /** Legacy compatibility; panels always stay open. */
@@ -34,6 +36,7 @@ export function CollapsiblePanel({
   kicker,
   title,
   sub,
+  subId,
   right,
   padding = "flush",
   children,
@@ -57,7 +60,11 @@ export function CollapsiblePanel({
           <div className="panel-head-left">
             {kicker ? <p className="kicker">{kicker}</p> : null}
             {title ? <h2 className="section-title">{title}</h2> : null}
-            {sub ? <p className="section-sub">{sub}</p> : null}
+            {sub ? (
+              <p className="section-sub" id={subId}>
+                {sub}
+              </p>
+            ) : null}
           </div>
           <div className="panel-head-right" onClick={(event) => event.stopPropagation()}>
             {right}

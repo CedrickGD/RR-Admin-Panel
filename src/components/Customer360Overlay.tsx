@@ -717,6 +717,13 @@ export function Customer360View({
     const onKey = (event: globalThis.KeyboardEvent) => {
       if (event.key !== "Escape" || event.defaultPrevented) return;
       if (document.querySelector('[data-modal-root="true"][data-state="open"]')) return;
+      // …but not when focus is somewhere else entirely. The topbar search stays
+      // reachable above the workspace, and Escape there clears the field — it
+      // must not tear the whole record down instead. Nothing focused (body) is
+      // still the workspace's, which is the case the window listener is for.
+      const root = workspaceRef.current;
+      const focused = document.activeElement;
+      if (root && focused && focused !== document.body && !root.contains(focused)) return;
       event.preventDefault();
       onClose();
     };

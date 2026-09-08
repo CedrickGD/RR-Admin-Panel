@@ -8,18 +8,25 @@ function source(path: string): string {
 
 const page = source("../src/pages/CustomersPage.tsx");
 const nav = source("../src/components/Navbar.tsx");
+const pageMeta = source("../src/pageMeta.ts");
 const telemetry = source("../src/types/telemetry.ts");
 const app = source("../src/App.tsx");
 
 describe("Customers CRM page", () => {
   it("is a dedicated Users navigation destination backed by the all-time rollup", () => {
     expect(telemetry).toContain('| "customers"');
-    expect(nav).toMatch(/\["customers",\s*"Customer directory",/);
+    // The sidebar carries structure only; the visible name lives in PAGE_META,
+    // which the rail, the breadcrumb and the page H1 all read.
+    expect(nav).toMatch(/\["customers",\s*<UsersRound \/>\]/);
+    // The label must not repeat the group name, or the rail renders "Customers > Customers".
+    expect(pageMeta).toMatch(
+      /customers:\s*\{\s*group:\s*"Customers",\s*label:\s*"Customer directory"\s*\}/,
+    );
     expect(app).toContain('import("./pages/CustomersPage")');
     expect(app).toContain('"workers", "customers", "heatmap", "access"');
     expect(app).toContain('page === "customers"');
     expect(app).toContain("<CustomersPage users={users} filterBar={refreshButton} />");
-    expect(page).toContain('title="Customer Directory"');
+    expect(page).toContain('page="customers"');
     expect(page).toContain("filterAndSortUsers(users");
     expect(page).toContain("all-time customer records");
   });

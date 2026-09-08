@@ -1,14 +1,17 @@
-import { Archive, Check, Mail, MessageSquare, Trash2, User } from "lucide-react";
+import { Archive, Check, Mail, MessageSquare, Trash2, User, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { matchesFeedbackStatus } from "../utils/feedbackInbox";
 import { Badge } from "../components/ds/Badge";
 import { Button, IconButton } from "../components/ds/Button";
 import { EmptyState } from "../components/ds/EmptyState";
-import { Modal } from "../components/ds/Modal";
+import { FormError } from "../components/ds/Field";
+import { Modal, ModalActions } from "../components/ds/Modal";
 import { PageHeader } from "../components/ds/PageHeader";
+import { RelativeTime } from "../components/ds/RelativeTime";
 import { SearchInput } from "../components/ds/SearchInput";
+import { SegmentedControl, type TabItem } from "../components/ds/SegmentedControl";
+import { Skeleton } from "../components/ds/Skeleton";
 import type { SummaryPayload } from "../types/telemetry";
-import { formatDate, timeAgo } from "../utils/format";
 import { apiUrl, fetchApi } from "../utils/api";
 import { useRefreshSignal } from "../utils/refreshBus";
 import { navigateCustomerUrl } from "../utils/customerNavigation";
@@ -43,7 +46,13 @@ const STATUS_TONE: Record<FeedbackStatus, "info" | "muted"> = {
   archived: "muted",
 };
 
-const STATUS_TABS: Array<{ key: "all" | FeedbackStatus; label: string }> = [
+const STATUS_LABEL: Record<FeedbackStatus, string> = {
+  new: "New",
+  read: "Read",
+  archived: "Archived",
+};
+
+const STATUS_TABS: TabItem[] = [
   { key: "all", label: "Inbox" },
   { key: "new", label: "New" },
   { key: "read", label: "Read" },
@@ -72,6 +81,10 @@ export function FeedbackPage({ summary, filterBar }: FeedbackPageProps) {
   const [deleteCandidate, setDeleteCandidate] = useState<FeedbackRecord | null>(null);
   const [replyCandidate, setReplyCandidate] = useState<FeedbackRecord | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  // Failures report inline — in the dialog for the delete, in the panel head for
+  // a status change. Nothing on this page reports itself through window.alert().
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
   const requestVersion = useRef(0);
   const fetching = useRef(false);
 
@@ -117,19 +130,22 @@ export function FeedbackPage({ summary, filterBar }: FeedbackPageProps) {
       const data = await res.json();
       if (data.ok) {
         ++requestVersion.current;
+        setListError(null);
         // Update locally to avoid a full refetch flicker.
         setFeedback((prev) => prev.map((f) => (f.id === item.id ? { ...f, status } : f)));
       } else {
-        alert("Error: " + (data.error || "Failed to update"));
+        setListError(data.error || "The status could not be updated.");
       }
     } catch (e) {
       console.error(e);
+      setListError("The status could not be updated.");
     }
   };
 
   const confirmDelete = async () => {
     if (!deleteCandidate) return;
     setIsDeleting(true);
+    setDeleteError(null);
     try {
       const url = new URL(
         apiUrl(`/api/admin/feedback/${deleteCandidate.id}`),
@@ -146,12 +162,14 @@ export function FeedbackPage({ summary, filterBar }: FeedbackPageProps) {
       }
       setFeedback((prev) => prev.filter((f) => f.id !== deleteCandidate.id));
       ++requestVersion.current;
+      setDeleteCandidate(null);
     } catch (err) {
       console.error(err);
-      alert("Error: " + (err instanceof Error ? err.message : "Failed"));
+      // The dialog stays open with the reason in it, the way Licenses and
+      // Announcements report a failed delete.
+      setDeleteError(err instanceof Error ? err.message : "The feedback could not be deleted.");
     } finally {
       setIsDeleting(false);
-      setDeleteCandidate(null);
     }
   };
 
@@ -164,6 +182,11 @@ export function FeedbackPage({ summary, filterBar }: FeedbackPageProps) {
   };
 
   const newCount = useMemo(() => feedback.filter((f) => f.status === "new").length, [feedback]);
+  // The unread count rides on the "New" tab instead of a separate badge beside it.
+  const statusTabs = useMemo<TabItem[]>(
+    () => STATUS_TABS.map((t) => (t.key === "new" ? { ...t, count: newCount } : t)),
+    [newCount],
+  );
 
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -185,23 +208,18 @@ export function FeedbackPage({ summary, filterBar }: FeedbackPageProps) {
     <div className="page-content page-stack-lg">
       <PageHeader
         kicker="Inbox"
-        title="Feedback"
+        page="feedback"
         right={
           <>
             {filterBar}
-            <div className="seg-control" role="tablist" aria-label="Filter by status">
-              {STATUS_TABS.map((t) => (
-                <button
-                  key={t.key}
-                  type="button"
-                  className={`seg-btn${tab === t.key ? " active" : ""}`}
-                  onClick={() => setTab(t.key)}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
-            {newCount > 0 ? <Badge tone="info">{newCount} new</Badge> : null}
+            {/* A filter over one list, not a panel switch — the default
+                radiogroup roles are the honest ones (ds/SegmentedControl). */}
+            <SegmentedControl
+              aria-label="Filter by status"
+              items={statusTabs}
+              value={tab}
+              onChange={(key) => setTab(key as "all" | FeedbackStatus)}
+            />
           </>
         }
       />
@@ -216,29 +234,50 @@ export function FeedbackPage({ summary, filterBar }: FeedbackPageProps) {
             <SearchInput
               value={searchQuery}
               onChange={setSearchQuery}
-              placeholder="Search message, user, license…"
+              placeholder="Search message, customer, license…"
               style={{ width: "min(280px, 100%)" }}
             />
           </div>
         </div>
+        {listError && (
+          <p className="inline-notice danger" role="alert">
+            {listError}
+          </p>
+        )}
 
         {loading ? (
           <div
             className="panel-body"
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 12,
-              padding: "60px 16px",
-              color: "var(--text-3)",
-            }}
+            style={{ display: "flex", flexDirection: "column", gap: 10 }}
+            aria-busy="true"
           >
-            <div className="spinner spinner-md" />
-            <span>Loading feedback…</span>
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="feedback-card">
+                <Skeleton width={120} />
+                <Skeleton width="70%" style={{ marginTop: 10 }} />
+                <Skeleton width="45%" style={{ marginTop: 6 }} />
+              </div>
+            ))}
           </div>
         ) : filtered.length === 0 ? (
-          <EmptyState icon={<MessageSquare />} title="No Feedback">
+          <EmptyState
+            icon={<MessageSquare />}
+            title="No feedback"
+            action={
+              searchQuery || tab !== "all" ? (
+                <Button
+                  size="sm"
+                  icon={<X size={14} />}
+                  onClick={() => {
+                    setSearchQuery("");
+                    setTab("all");
+                  }}
+                >
+                  Clear filters
+                </Button>
+              ) : undefined
+            }
+          >
             {searchQuery || tab !== "all"
               ? "Nothing matches the current filter."
               : "Feedback submitted from the app will show up here."}
@@ -277,16 +316,15 @@ export function FeedbackPage({ summary, filterBar }: FeedbackPageProps) {
                     <div
                       style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}
                     >
-                      <Badge tone={STATUS_TONE[f.status]}>{f.status.toUpperCase()}</Badge>
+                      <Badge tone={STATUS_TONE[f.status]}>{STATUS_LABEL[f.status]}</Badge>
                       <span
                         style={{
                           fontSize: "var(--fs-tiny)",
                           color: "var(--text-3)",
                           fontFamily: "var(--font-mono)",
                         }}
-                        title={formatDate(f.created_at)}
                       >
-                        {timeAgo(f.created_at)}
+                        <RelativeTime iso={f.created_at} />
                       </span>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
@@ -321,7 +359,10 @@ export function FeedbackPage({ summary, filterBar }: FeedbackPageProps) {
                         title="Delete"
                         style={{ color: "var(--danger)" }}
                         permission="support.write"
-                        onClick={() => setDeleteCandidate(f)}
+                        onClick={() => {
+                          setDeleteError(null);
+                          setDeleteCandidate(f);
+                        }}
                       />
                     </div>
                   </div>
@@ -437,17 +478,20 @@ export function FeedbackPage({ summary, filterBar }: FeedbackPageProps) {
       )}
       <Modal
         open={!!deleteCandidate}
-        onClose={() => setDeleteCandidate(null)}
-        kicker="DANGER ZONE"
-        title="Delete Feedback"
+        onClose={() => {
+          setDeleteError(null);
+          setDeleteCandidate(null);
+        }}
+        kicker="Danger zone"
+        title="Delete feedback"
         sub="This permanently removes this feedback entry. It cannot be recovered."
       >
-        <div style={{ marginTop: 24, display: "flex", justifyContent: "flex-end", gap: 12 }}>
-          <Button
-            variant="ghost"
-            permission="support.write"
-            onClick={() => setDeleteCandidate(null)}
-          >
+        <FormError message={deleteError} />
+        {/* ModalActions, not an inline-styled row: the action row sticks to the
+            bottom of the dialog everywhere else. Cancel carries no permission —
+            leaving a dialog is not a privilege (ds/Modal). */}
+        <ModalActions>
+          <Button variant="ghost" onClick={() => setDeleteCandidate(null)}>
             Cancel
           </Button>
           <Button
@@ -456,9 +500,9 @@ export function FeedbackPage({ summary, filterBar }: FeedbackPageProps) {
             onClick={confirmDelete}
             disabled={isDeleting}
           >
-            {isDeleting ? "Processing…" : "Confirm"}
+            {isDeleting ? "Deleting…" : "Delete feedback"}
           </Button>
-        </div>
+        </ModalActions>
       </Modal>
     </div>
   );

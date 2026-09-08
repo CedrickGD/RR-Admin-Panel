@@ -1,12 +1,15 @@
 import { TableFrame } from "../components/ds/TableFrame";
 import { Select } from "../components/ds/Select";
 import { Megaphone, Plus, Trash2, Pencil } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Badge } from "../components/ds/Badge";
 import { Button, IconButton } from "../components/ds/Button";
 import { EmptyState } from "../components/ds/EmptyState";
-import { Modal } from "../components/ds/Modal";
+import { Field, FormError } from "../components/ds/Field";
+import { Input, Textarea } from "../components/ds/Input";
+import { Modal, ModalActions } from "../components/ds/Modal";
 import { PageHeader } from "../components/ds/PageHeader";
+import { SkeletonRows } from "../components/ds/Skeleton";
 import { formatDate } from "../utils/format";
 import { apiUrl, fetchApi } from "../utils/api";
 import { useRefreshSignal } from "../utils/refreshBus";
@@ -53,6 +56,13 @@ const LEVEL_TONE: Record<AnnouncementLevel, "info" | "warning" | "danger"> = {
   critical: "danger",
 };
 
+/** Sentence case, like every other label in the console (docs/panel-workspace.md). */
+const LEVEL_LABEL: Record<AnnouncementLevel, string> = {
+  info: "Info",
+  warning: "Warning",
+  critical: "Critical",
+};
+
 /** ISO (UTC) -> value for a <input type="datetime-local"> in the admin's local timezone. */
 function isoToLocalInput(iso: string | null): string {
   if (!iso) return "";
@@ -92,9 +102,17 @@ export function AnnouncementsPage({ filterBar }: AnnouncementsPageProps) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  // Inline in the dialog, not a native alert(): a failed save keeps the typed
+  // announcement on screen next to the reason it did not go out.
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  // Same rule for the row-level active toggle, which still used alert().
+  const [listError, setListError] = useState<string | null>(null);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  // What the editor opened with — anything beyond it is unsaved work the Modal must not discard.
+  const editorBaseline = useRef<FormState>(EMPTY_FORM);
 
   const [deleteCandidate, setDeleteCandidate] = useState<AnnouncementRecord | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -124,29 +142,34 @@ export function AnnouncementsPage({ filterBar }: AnnouncementsPageProps) {
   const openCreate = () => {
     setEditingId(null);
     setForm(EMPTY_FORM);
+    editorBaseline.current = EMPTY_FORM;
     setIsEditorOpen(true);
   };
 
   const openEdit = (a: AnnouncementRecord) => {
     setEditingId(a.id);
-    setForm({
+    const loaded: FormState = {
       title: a.title,
       body: a.body,
       level: a.level,
       is_active: a.is_active === 1,
       starts_at: isoToLocalInput(a.starts_at),
       expires_at: isoToLocalInput(a.expires_at),
-    });
+    };
+    setForm(loaded);
+    editorBaseline.current = loaded;
     setIsEditorOpen(true);
   };
 
-  const handleSave = async () => {
+  const submitEditor = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     if (saving) return;
     if (!form.title.trim() || !form.body.trim()) {
-      alert("Title and message are both required.");
+      setSaveError("Title and message are both required.");
       return;
     }
     setSaving(true);
+    setSaveError(null);
     try {
       const payload = {
         title: form.title.trim(),
@@ -174,11 +197,11 @@ export function AnnouncementsPage({ filterBar }: AnnouncementsPageProps) {
         await fetchAnnouncements();
         setIsEditorOpen(false);
       } else {
-        alert("Error saving announcement: " + (data.error || JSON.stringify(data)));
+        setSaveError(data.error || "The announcement could not be saved.");
       }
-    } catch (e: any) {
+    } catch (e) {
       console.error(e);
-      alert("Exception: " + e.message);
+      setSaveError(e instanceof Error ? e.message : "The announcement could not be saved.");
     } finally {
       setSaving(false);
     }
@@ -198,16 +221,22 @@ export function AnnouncementsPage({ filterBar }: AnnouncementsPageProps) {
         { retry: false },
       );
       const data = await res.json();
-      if (data.ok) await fetchAnnouncements();
-      else alert("Error: " + (data.error || "Failed to update"));
+      if (data.ok) {
+        setListError(null);
+        await fetchAnnouncements();
+      } else {
+        setListError(data.error || "The announcement could not be updated.");
+      }
     } catch (e) {
       console.error(e);
+      setListError("The announcement could not be updated.");
     }
   };
 
   const confirmDelete = async () => {
     if (!deleteCandidate) return;
     setIsDeleting(true);
+    setDeleteError(null);
     try {
       const url = new URL(
         apiUrl(`/api/admin/announcements/${deleteCandidate.id}`),
@@ -223,12 +252,13 @@ export function AnnouncementsPage({ filterBar }: AnnouncementsPageProps) {
         throw new Error(`Failed to delete: ${errData.error || res.statusText}`);
       }
       await fetchAnnouncements();
+      setDeleteCandidate(null);
     } catch (err) {
       console.error(err);
-      alert("Error: " + (err instanceof Error ? err.message : "Failed"));
+      // The dialog stays open with the reason instead of closing on a failure.
+      setDeleteError(err instanceof Error ? err.message : "The announcement could not be deleted.");
     } finally {
       setIsDeleting(false);
-      setDeleteCandidate(null);
     }
   };
 
@@ -244,17 +274,18 @@ export function AnnouncementsPage({ filterBar }: AnnouncementsPageProps) {
     <div className="page-content page-stack-lg">
       <PageHeader
         kicker="Broadcast"
-        title="Announcements"
+        page="announcements"
         right={
           <>
             {filterBar}
             <Button
+              variant="primary"
               size="sm"
               icon={<Plus size={16} />}
               permission="announcements.write"
               onClick={openCreate}
             >
-              New Announcement
+              New announcement
             </Button>
           </>
         }
@@ -263,45 +294,51 @@ export function AnnouncementsPage({ filterBar }: AnnouncementsPageProps) {
       <section className="panel">
         <div className="panel-head">
           <div className="panel-head-left">
-            <h2 className="section-title">All Announcements</h2>
+            <h2 className="section-title">All announcements</h2>
             <p className="section-sub">Live in-app banners</p>
           </div>
           <div className="panel-head-right">
             <Badge tone="muted">{sorted.length}</Badge>
           </div>
         </div>
+        {listError && (
+          <p className="inline-notice danger" role="alert">
+            {listError}
+          </p>
+        )}
 
-        {loading ? (
-          <div
-            className="panel-body"
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 12,
-              padding: "60px 16px",
-              color: "var(--text-3)",
-            }}
+        {!loading && sorted.length === 0 ? (
+          <EmptyState
+            icon={<Megaphone />}
+            title="No announcements yet"
+            action={
+              <Button
+                variant="primary"
+                size="sm"
+                icon={<Plus size={16} />}
+                permission="announcements.write"
+                onClick={openCreate}
+              >
+                New announcement
+              </Button>
+            }
           >
-            <div className="spinner spinner-md" />
-            <span>Loading announcements…</span>
-          </div>
-        ) : sorted.length === 0 ? (
-          <EmptyState icon={<Megaphone />} title="No Announcements Yet">
             Create one to broadcast a message to everyone using the app.
           </EmptyState>
         ) : (
-          <TableFrame>
+          <TableFrame stickyActions mobileLayout="stack" aria-busy={loading || undefined}>
+            <caption className="table-caption">Announcements and their schedule</caption>
             <thead>
               <tr>
-                <th>Announcement</th>
-                <th>Level</th>
-                <th>Status</th>
-                <th>Window</th>
-                <th />
+                <th scope="col">Announcement</th>
+                <th scope="col">Level</th>
+                <th scope="col">Status</th>
+                <th scope="col">Window</th>
+                <th scope="col" aria-label="Announcement actions" />
               </tr>
             </thead>
             <tbody>
+              {loading && <SkeletonRows columns={5} rows={3} />}
               {sorted.map((a) => {
                 const status = displayStatus(a);
                 return (
@@ -324,14 +361,15 @@ export function AnnouncementsPage({ filterBar }: AnnouncementsPageProps) {
                         {a.body}
                       </div>
                     </td>
-                    <td>
-                      <Badge tone={LEVEL_TONE[a.level]}>{a.level.toUpperCase()}</Badge>
+                    <td data-label="Level">
+                      <Badge tone={LEVEL_TONE[a.level]}>{LEVEL_LABEL[a.level]}</Badge>
                     </td>
-                    <td>
+                    <td data-label="Status">
                       <Badge tone={status.tone}>{status.label}</Badge>
                     </td>
                     <td
                       className="muted"
+                      data-label="Window"
                       style={{ whiteSpace: "nowrap", fontSize: "var(--fs-small)" }}
                     >
                       <div>From: {a.starts_at ? formatDate(a.starts_at) : "immediately"}</div>
@@ -361,7 +399,10 @@ export function AnnouncementsPage({ filterBar }: AnnouncementsPageProps) {
                           title="Delete"
                           style={{ color: "var(--danger)" }}
                           permission="announcements.write"
-                          onClick={() => setDeleteCandidate(a)}
+                          onClick={() => {
+                            setDeleteError(null);
+                            setDeleteCandidate(a);
+                          }}
                         />
                       </div>
                     </td>
@@ -376,148 +417,120 @@ export function AnnouncementsPage({ filterBar }: AnnouncementsPageProps) {
       {/* Create / edit editor */}
       <Modal
         open={isEditorOpen}
-        onClose={() => setIsEditorOpen(false)}
-        kicker={editingId === null ? "NEW" : "EDIT"}
-        title={editingId === null ? "New Announcement" : "Edit Announcement"}
+        onClose={() => (saving ? undefined : setIsEditorOpen(false))}
+        dismissOnScrim={false}
+        isDirty={() =>
+          (Object.keys(form) as Array<keyof FormState>).some(
+            (key) => form[key] !== editorBaseline.current[key],
+          )
+        }
+        kicker={editingId === null ? "New" : "Edit"}
+        title={editingId === null ? "New announcement" : "Edit announcement"}
         sub="Leave start/end empty for show-immediately / no-end."
       >
-        <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 8 }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <label className="label-sm">Title</label>
-            <input
-              type="text"
-              className="glass-input"
+        <form className="announcement-form" onSubmit={submitEditor}>
+          <Field label="Title" hint="required">
+            <Input
+              required
               placeholder="e.g. Scheduled maintenance tonight"
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
               maxLength={200}
             />
-          </div>
+          </Field>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <label className="label-sm">Message</label>
-            <textarea
-              className="glass-input"
-              placeholder="Write your announcement..."
+          <Field label="Message" hint="required">
+            <Textarea
+              required
+              placeholder="Write your announcement…"
               value={form.body}
               onChange={(e) => setForm({ ...form, body: e.target.value })}
               rows={4}
               maxLength={4000}
-              style={{ resize: "vertical", fontFamily: "inherit" }}
             />
-          </div>
+          </Field>
 
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-              gap: 16,
-            }}
-          >
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <label className="label-sm">Level</label>
+          <div className="announcement-form-grid">
+            <Field label="Level">
               <Select
+                aria-label="Level"
                 className="glass-input"
                 value={form.level}
                 onValueChange={(value) => setForm({ ...form, level: value as AnnouncementLevel })}
-                style={{ cursor: "pointer" }}
               >
                 <option value="info">Info</option>
                 <option value="warning">Warning</option>
                 <option value="critical">Critical</option>
               </Select>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <label className="label-sm">Active</label>
-              <label
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  fontSize: "0.85rem",
-                  color: "var(--text)",
-                  cursor: "pointer",
-                  height: 38,
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={form.is_active}
-                  onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
-                />
-                Show in app
-              </label>
-            </div>
+            </Field>
+            <label className="toggle-row announcement-toggle">
+              <span>Show in app</span>
+              <input
+                type="checkbox"
+                checked={form.is_active}
+                onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
+              />
+            </label>
           </div>
 
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-              gap: 16,
-            }}
-          >
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <label className="label-sm">Show from (optional)</label>
-              <input
+          <div className="announcement-form-grid">
+            <Field label="Show from" hint="optional">
+              <Input
                 type="datetime-local"
-                className="glass-input"
                 value={form.starts_at}
                 onChange={(e) => setForm({ ...form, starts_at: e.target.value })}
               />
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <label className="label-sm">Show until (optional)</label>
-              <input
+            </Field>
+            <Field label="Show until" hint="optional">
+              <Input
                 type="datetime-local"
-                className="glass-input"
                 value={form.expires_at}
                 onChange={(e) => setForm({ ...form, expires_at: e.target.value })}
               />
-            </div>
+            </Field>
           </div>
 
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 8 }}>
-            <Button variant="ghost" onClick={() => setIsEditorOpen(false)}>
+          <FormError message={saveError} />
+
+          <ModalActions>
+            <Button variant="ghost" onClick={() => setIsEditorOpen(false)} disabled={saving}>
               Cancel
             </Button>
             <Button
+              type="submit"
               variant="primary"
               permission="announcements.write"
-              onClick={handleSave}
               disabled={saving}
             >
-              {saving ? "Saving..." : editingId === null ? "Publish" : "Save Changes"}
+              {saving ? "Saving…" : editingId === null ? "Publish" : "Save changes"}
             </Button>
-          </div>
-        </div>
+          </ModalActions>
+        </form>
       </Modal>
 
       {/* Delete confirmation */}
       <Modal
         open={!!deleteCandidate}
-        onClose={() => setDeleteCandidate(null)}
-        kicker="DANGER ZONE"
-        title="Delete Announcement"
+        onClose={() => (isDeleting ? undefined : setDeleteCandidate(null))}
+        kicker="Danger zone"
+        title="Delete announcement"
         sub="This permanently removes the announcement. It cannot be recovered."
       >
-        <div style={{ marginTop: 24, display: "flex", justifyContent: "flex-end", gap: 12 }}>
-          <Button
-            variant="ghost"
-            permission="announcements.write"
-            onClick={() => setDeleteCandidate(null)}
-          >
+        <FormError message={deleteError} />
+        <ModalActions>
+          <Button variant="ghost" onClick={() => setDeleteCandidate(null)} disabled={isDeleting}>
             Cancel
           </Button>
           <Button
             variant="danger"
+            icon={<Trash2 />}
             permission="announcements.write"
             onClick={confirmDelete}
             disabled={isDeleting}
           >
-            {isDeleting ? "Processing..." : "Confirm"}
+            {isDeleting ? "Deleting…" : "Delete announcement"}
           </Button>
-        </div>
+        </ModalActions>
       </Modal>
     </div>
   );

@@ -17,10 +17,16 @@ describe("customer order license workflow", () => {
     expect(page).toContain("searchAdminLicenses(mode, query)");
   });
 
-  it("only offers standard issue when the lookup is unfulfilled", () => {
+  it("offers the audited issue flow from the page header and from an unfulfilled lookup", () => {
+    // The primary action sits in the header on every tab; the empty lookup keeps
+    // its own call to action, pre-filled from the search that just failed.
+    expect(page).toMatch(/<PageHeader[\s\S]*?onClick=\{openIssue\}[\s\S]*?\/>/);
     expect(page).toContain("lookupResults.length === 0 ? (");
     expect(page).toContain("Issue purchased license");
     expect(page).not.toContain("Issue another license");
+    // The generator is the batch path and says so. (The tab also carries a
+    // panelId now, so match the key/label pair rather than the whole literal.)
+    expect(page).toContain('{ key: "generate", label: "Bulk generate"');
   });
 
   it("makes issue, activate and bind operations replay-safe", () => {

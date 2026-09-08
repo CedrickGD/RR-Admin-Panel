@@ -67,6 +67,9 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  /* Floor, not a fixed height: tiles with and without a sub line still line up
+     across a KPI row. */
+  min-height: 72px;
   overflow: hidden;
   transition: border-color 0.15s, background 0.15s, box-shadow 0.18s, transform 0.18s var(--ease-smooth);
 }
@@ -95,10 +98,23 @@
 .stat-card.tone-success::before { background: hsl(142 71% 45% / 0.7); }
 .stat-card.tone-warning::before { background: hsl(37 91% 55% / 0.7); }
 .stat-card.tone-danger::before  { background: hsl(4 86% 58% / 0.7); }
+/* Compact density (KpiStatCard density="compact") — the denser monitoring row
+   on Session history / Live. Same tile, lower floor and a smaller number, so
+   those pages need no second tile component. Padding is deliberately not
+   restated here: inside a `.stat-grid` it comes from the theme layers
+   (9px 16px), which is already the dense value. */
+.stat-card-compact { min-height: 56px; }
+.stat-card-compact .stat-value { font-size: var(--fs-section); }
 
+/* One type scale for the tile, and it lives here: label var(--fs-small) 12px,
+   value var(--fs-stat), sub var(--fs-tiny) 11px — the sub is quieter than the
+   label it explains, which the three competing font-size rules in
+   app-glue/operations/consistency had inverted. Those are gone; this block is
+   the owner. `min-height` keeps a row of tiles aligned whether or not a tile
+   has a sub line. */
 .tile-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .stat-label {
-  font-size: var(--fs-tiny);
+  font-size: var(--fs-small);
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -117,14 +133,19 @@
 }
 .stat-value-unit { font-size: 0.72em; font-weight: 600; color: var(--text-2); margin-left: 1px; }
 .stat-value-ok { color: var(--success-text); }
+/* One line, ellipsised — the full text is on the tile's title attribute. The
+   drill-down chevron sits outside the truncating span so it is never the part
+   that gets cut (or stranded on a second line). */
 .stat-sub {
-  font-size: var(--fs-small);
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  font-size: var(--fs-tiny);
   color: var(--text-2);
   margin: 2px 0 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
+.stat-sub-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stat-sub .kpi-card-chevron { flex: none; }
 .tile-side { flex: none; display: flex; align-items: center; }
 .tile-spark { display: block; }
 .tile-icon {
@@ -239,6 +260,18 @@
 .kv-val { font-family: var(--font-mono); font-size: var(--fs-small); color: var(--text-1); font-weight: 500; text-align: right; }
 
 /* ── Data table ───────────────────────────────────────────────── */
+/* DataTable `caption`: names the table for assistive tech without taking space. */
+.table-caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
 .data-table-wrap { overflow-x: auto; border-radius: var(--r); border: 1px solid var(--line); }
 .data-table { width: 100%; border-collapse: collapse; font-size: var(--fs-body); }
 .data-table thead th {
@@ -369,6 +402,26 @@
   box-shadow: var(--shadow-overlay);
 }
 .kpi-modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+
+/* ── ds/Modal ModalActions — the one dialog action row ────────────
+   Cancel (ghost) first, the committing action last. Inside a dialog the row
+   sticks to the bottom of the scrolling body, so a long form can never
+   scroll its own Save out of view — the treatment operations.css grants the
+   legacy `.form-actions`/`.form-footer` rows, applied here by the primitive
+   itself. `bottom: -20px` cancels `.kpi-modal-content`'s bottom padding so
+   the row lands flush on the modal's edge. */
+.modal-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 9px; }
+.modal-actions-between { justify-content: space-between; }
+.kpi-modal-content .modal-actions {
+  position: sticky;
+  bottom: -20px;
+  z-index: 3;
+  margin-top: 4px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+  background: var(--surface-float);
+}
+
 .kpi-timespan-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px; }
 .kpi-timespan-cell {
   display: flex;
@@ -512,7 +565,13 @@
 .customer360-record-fields dt { margin: 0 0 3px; color: var(--text-3); font-size: 0.65625rem; font-weight: 650; letter-spacing: 0.07em; text-transform: uppercase; }
 .customer360-info dd,
 .customer360-record-fields dd { min-width: 0; margin: 0; color: var(--text-1); font-size: var(--fs-small); overflow-wrap: anywhere; white-space: pre-wrap; }
-.customer360-mono { font-family: var(--font-mono); font-size: var(--fs-tiny) !important; }
+/* The mono face is shared by read-only machine values and by `<Input mono>`
+   (license keys, HWIDs). Only the read-only ones may shrink with !important:
+   an !important size on a FIELD outranks the 16px touch floor at the end of
+   consistency.css and brings back Safari's focus-zoom. Fields get their small
+   size at plain specificity instead, so the mobile floor still wins. */
+.customer360-mono { font-family: var(--font-mono); }
+.customer360-mono:not(input, textarea) { font-size: var(--fs-tiny) !important; }
 .customer360-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
 .customer360-metrics > div { padding: 13px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); }
 .customer360-metrics span { display: block; color: var(--text-3); font-size: var(--fs-tiny); text-transform: uppercase; letter-spacing: 0.07em; }
@@ -612,8 +671,9 @@
   gap: 10px;
   align-items: end;
 }
-.license-lookup-form label,
-.license-workflow-form label { display: flex; min-width: 0; flex-direction: column; gap: 6px; }
+/* Every field in these two forms is a ds/Field now, which brings its own
+   column layout — the old `label { flex-direction: column }` rule is gone
+   because it also hit `.ds-field-label` and broke the requirement marker. */
 .license-lookup-results { padding: 13px; border: 1px solid var(--line); border-radius: 11px; background: hsl(225 50% 75% / 0.025); }
 .license-lookup-results-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .license-lookup-results-head > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
@@ -623,7 +683,6 @@
 .license-lookup-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; padding: 11px; border: 1px solid var(--line-row); border-radius: 9px; background: var(--surface-2); }
 .license-lookup-card-main { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
 .license-lookup-key { display: inline-flex; align-items: center; gap: 5px; color: var(--text-1); }
-.license-lookup-key .btn-icon { width: 24px; height: 24px; }
 .license-lookup-card-main > div { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; color: var(--text-3); font-size: var(--fs-tiny); }
 .license-lookup-card-actions { display: flex; flex: none; gap: 6px; }
 .license-lookup-empty { margin: 12px 0 0; padding: 12px; border-radius: 8px; background: var(--warning-sub); color: var(--text-2); font-size: var(--fs-small); line-height: 1.5; }
@@ -633,8 +692,10 @@
 .license-workflow-form textarea { resize: vertical; min-height: 68px; }
 .license-action-explainer { padding: 10px 11px; border-left: 2px solid var(--accent); border-radius: 6px; background: var(--accent-subtle); color: var(--text-2); font-size: var(--fs-small); line-height: 1.5; }
 .license-workflow-note { margin: 0; color: var(--text-3); font-size: var(--fs-tiny); line-height: 1.45; }
-.license-workflow-error { margin: 0; padding: 9px 10px; border: 1px solid hsl(4 86% 58% / 0.25); border-radius: 8px; background: var(--danger-sub); color: var(--danger-text); font-size: var(--fs-small); }
-.license-workflow-actions { display: flex; align-items: center; justify-content: flex-end; gap: 9px; }
+/* `.form-error` is the DS name (ds/Field's FormError) and now the only one:
+   the license dialogs' `.license-workflow-error` band was the same box and its
+   last call site is migrated. */
+.form-error { margin: 0; padding: 9px 10px; border: 1px solid hsl(4 86% 58% / 0.25); border-radius: 8px; background: var(--danger-sub); color: var(--danger-text); font-size: var(--fs-small); }
 .license-workflow-success { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; }
 .license-workflow-success-icon { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid hsl(142 71% 45% / 0.32); border-radius: 50%; background: hsl(142 71% 45% / 0.1); color: var(--success-text); }
 .license-workflow-success-icon svg { width: 20px; height: 20px; }
@@ -643,6 +704,67 @@
 .license-workflow-result-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; border: 1px solid var(--line-row); border-radius: 9px; overflow: hidden; }
 .license-workflow-result-grid span { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 9px; color: var(--text-3); font-size: var(--fs-tiny); border-right: 1px solid var(--line-row); }
 .license-workflow-result-grid strong { color: var(--text-1); font-size: var(--fs-small); overflow-wrap: anywhere; }
+
+/* ── License key copy affordance ─────────────────────────────── */
+/* A key nobody can copy is a key nobody can deliver: the inventory cell, the
+   creation notice and the lookup card all pair the value with one IconButton. */
+.license-key-cell { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
+.creation-notice-keys { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; margin: 6px 0 0; padding: 0; list-style: none; }
+.creation-notice-keys li { display: inline-flex; align-items: center; gap: 2px; min-width: 0; }
+.creation-notice-keys code { color: var(--text-1); font-family: var(--font-mono); font-size: var(--fs-tiny); overflow-wrap: anywhere; }
+
+/* ── License generator (the "Bulk generate" tab) ─────────────── */
+/* Was ~8 inline-styled flex columns and an onClick button; it is a real form
+   now, so the layout lives here and the errors live in the form. */
+.license-generator-form { display: flex; flex-direction: column; gap: 16px; }
+.license-generator-note { margin: 0; color: var(--text-3); font-size: var(--fs-small); line-height: 1.5; }
+.license-generator-note strong { color: var(--text-1); font-weight: 600; }
+.license-generator-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; align-items: start; }
+.license-generator-section { min-width: 0; margin: 0; padding: 14px 0 0; border: 0; border-top: 1px solid var(--line); }
+.license-generator-section > legend { padding: 0; margin-bottom: 10px; }
+/* Tailwind's preflight makes every svg a block, which would drop the legend
+   icon onto its own line. */
+.license-generator-section > legend svg { display: inline-block; vertical-align: -2px; margin-right: 6px; }
+/* The seat toggle sits in the field grid, aligned with the inputs' baseline —
+   and its checkbox hugs its label instead of being pushed a column apart.
+   Compound selector on purpose: plain `.toggle-row` (workspace.css) is a later
+   layer, so a single class here would lose its `justify-content`. */
+.toggle-row.license-generator-toggle,
+.toggle-row.announcement-toggle { align-self: end; justify-content: flex-start; gap: 10px; min-height: 34px; }
+.license-generator-actions { display: flex; justify-content: flex-end; }
+
+/* ── Announcement editor dialog ──────────────────────────────── */
+.announcement-form { display: flex; flex-direction: column; gap: 16px; }
+.announcement-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; align-items: end; }
+
+/* ── Feedback reply dialog ───────────────────────────────────── */
+.feedback-reply-body { display: grid; gap: 16px; min-width: 0; }
+.feedback-reply-item { min-width: 0; padding: 4px 12px; border-left: 2px solid var(--accent); }
+.feedback-reply-meta { color: var(--text-2); font-size: var(--fs-small); }
+.feedback-reply-text { margin: 8px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.feedback-reply-draft { min-height: 120px; resize: vertical; font-family: inherit; }
+
+/* ── License order editor (the pencil dialog) ────────────────── */
+.license-edit-form { display: flex; flex-direction: column; gap: 14px; }
+.license-edit-facts { display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--text-3); font-size: var(--fs-tiny); }
+.license-edit-facts strong { color: var(--text-2); }
+.license-edit-facts .is-source { text-transform: uppercase; }
+.license-edit-facts .is-verified { color: var(--success-text); }
+.license-edit-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.license-edit-raw > summary { cursor: pointer; color: var(--text-2); font-size: var(--fs-small); }
+.license-edit-raw pre {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  max-height: 180px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: var(--fs-tiny);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
 
 @media (max-width: 800px) {
   .license-lookup-form { grid-template-columns: 1fr; }
@@ -679,6 +801,9 @@
 }
 .empty-state p { font-size: var(--fs-body); color: var(--text-2); margin: 0; }
 .empty-state strong { font-family: var(--font-display); font-size: var(--fs-strong); color: var(--text-1); }
+/* The way out of the empty state (ds/EmptyState `action`): clear the filters,
+   add the first member, retry the fetch. */
+.empty-state-action { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
 
 /* "All clear" variant — green ring */
 .empty-ring {
@@ -756,8 +881,10 @@
   to   { opacity: 1; }
 }
 
+/* Both stops are tokens (theme/consistency.css, per theme): the dark theme's
+   translucent white tint is invisible on the light theme's white panels. */
 .skeleton {
-  background: linear-gradient(90deg, hsl(225 50% 75% / 0.05) 0%, hsl(225 50% 75% / 0.11) 50%, hsl(225 50% 75% / 0.05) 100%);
+  background: linear-gradient(90deg, var(--skeleton-1, hsl(225 50% 75% / 0.05)) 0%, var(--skeleton-2, hsl(225 50% 75% / 0.11)) 50%, var(--skeleton-1, hsl(225 50% 75% / 0.05)) 100%);
   background-size: 200% 100%;
   animation: shimmer 1.8s linear infinite;
   border-radius: 6px;
@@ -771,6 +898,150 @@
 .chart-wrap { padding: 6px 4px 4px; }
 .chart-wrap-tall { min-height: 280px; }
 .chart-wrap-med  { min-height: 200px; }
+
+/* Zoomable plot (hooks/useChartZoom): focusable, because an unmodified wheel
+   scrolls the page and zooming needs Ctrl/⌘ *or* focus. `zoom-in` replaces the
+   old `ns-resize`, which promised a resize handle. */
+.chart-zoom { cursor: zoom-in; border-radius: var(--r-sm); }
+.chart-zoom:focus { outline: none; }
+.chart-zoom:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Panel-header cluster for a chart: legend, meta stats and the range/zoom
+   controls. Wraps under the panel title on narrow viewports (.panel-head wraps). */
+.chart-head-tools {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  min-width: 0;
+}
+.chart-zoom-controls { display: inline-flex; align-items: center; gap: 4px; }
+/* The cluster is wider than the space beside the title, so let it shrink and
+   wrap inside the header instead of pushing the whole slot below the title. */
+@media (min-width: 761px) {
+  .panel-head-right:has(> .chart-head-tools) { flex: 1 1 0; }
+}
+@media (max-width: 760px) {
+  .chart-head-tools { justify-content: flex-start; width: 100%; }
+}
+
+/* ── Workspace search suggestions (components/SearchResults) ─────
+   Anchored to .workspace-search (which is position: relative). Right-aligned so
+   it never leaves the viewport on a phone, and wider than the field when the
+   field is narrow, because the rows carry a second line of context. */
+.search-results {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: -1px;
+  left: auto;
+  z-index: 70;
+  width: max(100%, 280px);
+  max-width: min(420px, calc(100vw - 24px));
+  max-height: min(60vh, 420px);
+  overflow-y: auto;
+  padding: 5px;
+  background: var(--surface-float);
+  border: 1px solid var(--line-hi);
+  border-radius: var(--r);
+  box-shadow: var(--shadow-float);
+  text-align: left;
+}
+.search-results-group + .search-results-group {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+}
+.search-results-group-label {
+  margin: 0;
+  padding: 6px 10px 3px;
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+}
+.search-results-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--text-1);
+  font-size: var(--fs-small);
+  text-align: left;
+  cursor: pointer;
+}
+.search-results-item.is-active {
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+}
+.search-results-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.search-results-detail {
+  color: var(--text-3);
+  font-size: var(--fs-tiny);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.search-results-item.is-active .search-results-detail {
+  color: var(--accent-text);
+}
+/* The fallback row: what Enter will do, or why there is nothing to offer. */
+.search-results-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  text-align: left;
+  cursor: pointer;
+}
+.search-results-hint.is-active {
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+}
+.search-results-empty {
+  padding: 9px 10px;
+  color: var(--text-3);
+  font-size: var(--fs-tiny);
+  line-height: 1.5;
+}
+
+/* Chart legend (charts/ChartLegend) — one inline row for a panel header,
+   sized to sit beside a MetaRow without stealing plot height. */
+.chart-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.chart-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-2);
+  font-size: var(--fs-tiny);
+  white-space: nowrap;
+}
+.chart-legend-swatch { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+/* A forecast series is drawn dashed, so its swatch is too — the gradient comes
+   from the component, this only shapes it into a line. */
+.chart-legend-swatch-dashed { height: 3px; border-radius: 2px; }
 
 /* Chart hover tooltip card */
 .chart-tip {

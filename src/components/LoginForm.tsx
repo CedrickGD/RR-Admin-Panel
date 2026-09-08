@@ -3,6 +3,10 @@ import { useState } from "react";
 import { Button } from "./ds/Button";
 const brandLogo = new URL("../img/logo.ico", import.meta.url).href;
 
+/** Mirrors PASSWORD_MIN_LENGTH in functions/_lib/auth.ts (enforced when a password is set). */
+const PASSWORD_MIN_LENGTH = 10;
+const ERROR_ID = "login-error";
+
 interface LoginFormProps {
   isBootstrap: boolean;
   authMode: "app" | "access";
@@ -11,11 +15,11 @@ interface LoginFormProps {
   onSubmit: (email: string, password: string, confirm: string) => void;
 }
 
-/** Brand lockup — logo + name + accent undertitle, mirroring the topnav. */
+/** Brand lockup — logo + name + accent undertitle, mirroring the sidebar brand. */
 function AuthBrand() {
   return (
     <div className="auth-brand">
-      <img src={brandLogo} alt="RazorReaper logo" className="auth-brand-img" />
+      <img src={brandLogo} alt="" className="auth-brand-img" />
       <div>
         <span className="auth-brand-name">RazorReaper</span>
         <span className="auth-brand-sub">Operations Console</span>
@@ -35,19 +39,22 @@ export function LoginForm({ isBootstrap, authMode, busy, error, onSubmit }: Logi
         <div className="auth-card v2-rise">
           <AuthBrand />
           <div className="auth-head">
-            <h1 className="auth-title">Welcome back</h1>
+            <h1 className="auth-title">Sign in</h1>
             <p className="auth-sub">
-              Sign in to your RazorReaper workspace. If your access has ended, contact the panel
-              owner.
+              This panel is protected by Cloudflare Access. If your access has ended, contact the
+              panel owner.
             </p>
           </div>
           <a href="/cdn-cgi/access/logout" className="btn btn-primary auth-submit">
-            Sign in again
+            Sign in with a different account
           </a>
         </div>
       </div>
     );
   }
+
+  const describedBy = error ? ERROR_ID : undefined;
+  const passwordHint = isBootstrap ? `Minimum ${PASSWORD_MIN_LENGTH} characters` : "Password";
 
   return (
     <div className="auth-shell">
@@ -55,29 +62,16 @@ export function LoginForm({ isBootstrap, authMode, busy, error, onSubmit }: Logi
         <AuthBrand />
 
         <div className="auth-head">
-          <h1 className="auth-title">
-            {isBootstrap ? "Create your owner account" : "Welcome back"}
-          </h1>
+          <h1 className="auth-title">{isBootstrap ? "Create your owner account" : "Sign in"}</h1>
           <p className="auth-sub">
             {isBootstrap
               ? "Set up the first admin account for this panel."
-              : "Sign in to your RazorReaper workspace."}
+              : "If your access has ended, contact the panel owner."}
           </p>
         </div>
 
-        <div className="auth-meta">
-          <div>
-            <span className="label-sm">Scope</span>
-            <strong>Sessions · Incidents · Rollout Health</strong>
-          </div>
-          <div>
-            <span className="label-sm">Mode</span>
-            <strong>{isBootstrap ? "Bootstrap" : "Protected Access"}</strong>
-          </div>
-        </div>
-
         {error ? (
-          <div className="inline-error" role="alert">
+          <div id={ERROR_ID} className="inline-error" role="alert">
             {error}
           </div>
         ) : null}
@@ -89,56 +83,74 @@ export function LoginForm({ isBootstrap, authMode, busy, error, onSubmit }: Logi
           }}
           className="auth-form"
         >
-          <label className="auth-field">
-            <span className="label-sm">Email</span>
+          <div className="auth-field">
+            <label htmlFor="login-email" className="label-sm">
+              Email
+            </label>
             <div className="auth-input">
               <Mail size={16} />
               <input
+                id="login-email"
+                name="email"
                 type="email"
+                autoComplete="email"
                 placeholder="admin@example.com"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 required
                 autoFocus
+                aria-describedby={describedBy}
               />
             </div>
-          </label>
+          </div>
 
-          <label className="auth-field">
-            <span className="label-sm">Password</span>
+          <div className="auth-field">
+            <label htmlFor="login-password" className="label-sm">
+              Password
+            </label>
             <div className="auth-input">
               <KeyRound size={16} />
               <input
+                id="login-password"
+                name="password"
                 type="password"
-                placeholder="Minimum 10 characters"
+                autoComplete={isBootstrap ? "new-password" : "current-password"}
+                placeholder={passwordHint}
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 required
-                minLength={10}
+                minLength={isBootstrap ? PASSWORD_MIN_LENGTH : undefined}
+                aria-describedby={describedBy}
               />
             </div>
-          </label>
+          </div>
 
           {isBootstrap ? (
-            <label className="auth-field">
-              <span className="label-sm">Confirm Password</span>
+            <div className="auth-field">
+              <label htmlFor="login-confirm" className="label-sm">
+                Confirm password
+              </label>
               <div className="auth-input">
                 <KeyRound size={16} />
                 <input
+                  id="login-confirm"
+                  name="confirm"
                   type="password"
+                  autoComplete="new-password"
                   placeholder="Re-enter password"
                   value={confirm}
                   onChange={(event) => setConfirm(event.target.value)}
                   required
-                  minLength={10}
+                  minLength={PASSWORD_MIN_LENGTH}
+                  aria-describedby={describedBy}
                 />
               </div>
-            </label>
+            </div>
           ) : null}
 
           <Button variant="primary" type="submit" disabled={busy} className="auth-submit">
             {busy ? <span className="spinner spinner-sm" aria-hidden="true" /> : null}
-            {isBootstrap ? "Create Account" : "Sign In"}
+            {isBootstrap ? "Create account" : "Sign in"}
           </Button>
         </form>
       </div>

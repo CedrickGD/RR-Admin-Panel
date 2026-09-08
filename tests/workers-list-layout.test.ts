@@ -53,16 +53,20 @@ describe("unified session history", () => {
     expect(html).not.toContain('role="tablist"');
     expect(html).toContain("Sessions");
     expect(html).toContain("Time in app");
-    expect(html.match(/aria-label="Show session history for /g)).toHaveLength(50);
-    expect(html).toContain("of 75 people");
+    // Two disclosures per row — the name button and the chevron — and both
+    // carry the same state-reflecting label.
+    expect(html.match(/aria-label="Show session history for /g)).toHaveLength(100);
+    expect(html).toContain("of 75 customers");
   });
   it("gives each person a keyboard-accessible expansion action", () => {
     const html = render(users.slice(0, 1));
-    expect(html).toContain('aria-label="Expand history for Person 0"');
+    expect(html).toContain('aria-label="Show session history for Person 0"');
     expect(html).toContain('aria-expanded="false"');
   });
   it("distinguishes an unloaded directory from an empty result", () => {
-    expect(render(null)).toContain("Loading the complete history");
-    expect(render([])).toContain("No matching activity");
+    // Unloaded: skeleton rows keep the table's shape; empty: the search empty state.
+    expect(render(null)).toContain('class="skeleton-row"');
+    expect(render(null)).not.toContain("No customers match");
+    expect(render([])).toContain("No customers match");
   });
 });

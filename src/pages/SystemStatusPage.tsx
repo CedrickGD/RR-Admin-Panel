@@ -63,7 +63,7 @@ export function SystemStatusPage() {
   return (
     <div className="page-content page-stack-lg">
       <PageHeader
-        title="Backend status"
+        page="system"
         sub="API, database and incoming data. Checked automatically every 15 seconds."
       />
       <div className="system-checks">

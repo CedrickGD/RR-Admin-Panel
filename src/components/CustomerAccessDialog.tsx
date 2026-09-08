@@ -1,18 +1,45 @@
 import { useEffect, useState } from "react";
-import type { Customer360Customer } from "../types/customer360";
 import type { SuspensionRecord } from "../types/telemetry";
 import { fetchAdminSuspensions, postLiftSuspension, postSuspend } from "../utils/api";
 import { emitRefresh } from "../utils/refreshBus";
 import { Button } from "./ds/Button";
-import { Modal } from "./ds/Modal";
+import { Field, FormError } from "./ds/Field";
+import { Input, Textarea } from "./ds/Input";
+import { Modal, ModalActions } from "./ds/Modal";
 import { Select } from "./ds/Select";
+
+/**
+ * The identifiers one customer is keyed by, plus what the dialog has to warn
+ * about. Every entry point (Customer 360, the customer directory, the app
+ * access page) builds this from the row it already has — the dialog itself
+ * loads the current restriction.
+ */
+export interface CustomerAccessTarget {
+  /** Primary identity the suspension is written against. */
+  identity: string;
+  hwid?: string | null;
+  install_id?: string | null;
+  /** Name shown in the dialog subtitle. Falls back to the identity. */
+  label?: string | null;
+  /** Paying customer: removing access revokes something they bought. */
+  paid?: boolean;
+  /** The keys behind `paid`, listed in the warning when they are known. */
+  paidKeys?: string[];
+}
+
+/** ISO (UTC) -> value for a <input type="datetime-local"> in the admin's local timezone. */
+function localDateTimeInput(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const date = new Date(iso);
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
 
 /** App enforcement belongs to the selected customer, not a second user directory. */
 export function CustomerAccessDialog({
-  customer,
+  target,
   onClose,
 }: {
-  customer: Customer360Customer;
+  target: CustomerAccessTarget;
   onClose: () => void;
 }) {
   const [current, setCurrent] = useState<SuspensionRecord | null>(null);
@@ -29,11 +56,7 @@ export function CustomerAccessDialog({
       .then((result) => {
         if (!active) return;
         if (!result.ok) throw new Error("Could not load the current access state.");
-        const keys = [
-          customer.anchor.identity,
-          customer.anchor.hwid,
-          customer.anchor.install_id,
-        ].filter(Boolean);
+        const keys = [target.identity, target.hwid, target.install_id].filter(Boolean);
         const row =
           result.suspensions?.find(
             (s) =>
@@ -45,12 +68,7 @@ export function CustomerAccessDialog({
         setReady(true);
         setMode(row?.mode ?? "allowed");
         setReason(row?.reason ?? "");
-        if (row?.banned_until) {
-          const date = new Date(row.banned_until);
-          setUntil(
-            new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16),
-          );
-        }
+        setUntil(localDateTimeInput(row?.banned_until));
         setLoading(false);
       })
       .catch((e: unknown) => {
@@ -62,7 +80,7 @@ export function CustomerAccessDialog({
     return () => {
       active = false;
     };
-  }, [customer.anchor.identity]);
+  }, [target.identity]);
   async function save() {
     if (busy || loading || !ready) return;
     let end: string | null = null;
@@ -83,10 +101,10 @@ export function CustomerAccessDialog({
             ? await postLiftSuspension(current.identity)
             : { ok: true }
           : await postSuspend({
-              identity: customer.anchor.identity,
-              hwid: customer.anchor.hwid,
-              install_id: customer.anchor.install_id,
-              user_label: customer.profile.user_label,
+              identity: target.identity,
+              hwid: target.hwid,
+              install_id: target.install_id,
+              user_label: target.label,
               mode,
               reason: reason.trim() || null,
               banned_until: end,
@@ -100,16 +118,23 @@ export function CustomerAccessDialog({
       setBusy(false);
     }
   }
+  // Differs from the loaded access state → an unfinished restriction the scrim must not discard.
+  const dirty = () =>
+    ready &&
+    (mode !== (current?.mode ?? "allowed") ||
+      reason !== (current?.reason ?? "") ||
+      (mode === "suspend" && until !== localDateTimeInput(current?.banned_until)));
+  const paidKeys = target.paidKeys?.filter(Boolean) ?? [];
   return (
     <Modal
       open
       onClose={() => {
         if (!busy) onClose();
       }}
+      dismissOnScrim={false}
+      isDirty={dirty}
       title="App access"
-      sub={
-        customer.profile.user_label ?? customer.profile.customer_name ?? customer.anchor.identity
-      }
+      sub={target.label ?? target.identity}
     >
       <form
         className="customer-access-form"
@@ -132,13 +157,18 @@ export function CustomerAccessDialog({
                   : "Allowed"}
               </strong>
             </p>
-            {customer.summary.license_tier === "premium" && (
-              <p className="inline-notice">This customer has a paid license.</p>
+            {target.paid && (
+              <p className="inline-notice">
+                This customer has paid
+                {paidKeys.length > 0 ? ` (${paidKeys.join(", ")})` : ""}. Removing access revokes
+                something they bought.
+              </p>
             )}
-            <label>
-              Access{" "}
+            {/* No aria-label on the Select: Field's <label for> now lands on the
+                trigger button, so the visible label is the name — the duplicate
+                that used to sit here had already drifted from it. */}
+            <Field label="Access">
               <Select
-                aria-label="App access"
                 value={mode}
                 onValueChange={(value) => setMode(value as typeof mode)}
                 disabled={busy || !ready}
@@ -147,38 +177,34 @@ export function CustomerAccessDialog({
                 <option value="suspend">Suspend until a date</option>
                 <option value="ban">Permanent ban</option>
               </Select>
-            </label>
+            </Field>
             {mode === "suspend" && (
-              <label>
-                Suspended until{" "}
-                <input
-                  className="glass-input"
+              <Field label="Suspended until" hint="required" help="Your local time.">
+                <Input
                   type="datetime-local"
                   value={until}
                   onChange={(e) => setUntil(e.target.value)}
                   required
                   disabled={busy}
                 />
-              </label>
+              </Field>
             )}
             {mode !== "allowed" && (
-              <label>
-                Reason shown to the user{" "}
-                <textarea
-                  className="glass-input"
+              <Field label="Reason shown to the customer" hint="optional">
+                <Textarea
                   rows={3}
                   maxLength={500}
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                   disabled={busy}
                 />
-              </label>
+              </Field>
             )}
           </>
         )}
-        {error && <p role="alert">{error}</p>}
-        <div className="row-actions">
-          <Button onClick={onClose} disabled={busy}>
+        <FormError message={error} />
+        <ModalActions>
+          <Button variant="ghost" onClick={onClose} disabled={busy}>
             Cancel
           </Button>
           <Button
@@ -189,7 +215,7 @@ export function CustomerAccessDialog({
           >
             {busy ? "Saving…" : mode === "allowed" ? "Allow app access" : "Apply restriction"}
           </Button>
-        </div>
+        </ModalActions>
       </form>
     </Modal>
   );

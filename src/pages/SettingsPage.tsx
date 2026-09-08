@@ -11,18 +11,27 @@ import {
 } from "lucide-react";
 import { useAppearance, DEFAULT_APPEARANCE, type Appearance } from "../hooks/useAppearance";
 import { ACCENT_PRESETS } from "../hooks/useAccent";
-import type { AuthMode, AuthUser, HealthPayload, SummaryPayload } from "../types/telemetry";
+import { accentColor, resolveAccentContrast } from "../utils/accentContrast";
+import type { AuthMode, AuthUser } from "../types/telemetry";
 import { PageHeader } from "../components/ds/PageHeader";
+import { Button } from "../components/ds/Button";
+import { Tabs, type TabItem } from "../components/ds/Tabs";
+import { useSignOut } from "../hooks/useSignOut";
+import { canVisit } from "../../shared/panel-policy";
+const SETTINGS_TABS: TabItem[] = [
+  { key: "appearance", label: "Appearance", panelId: "settings-panel-appearance" },
+  { key: "account", label: "Account", panelId: "settings-panel-account" },
+];
 type Props = {
   user: AuthUser;
   authMode: AuthMode;
-  summary: SummaryPayload;
-  health: HealthPayload;
   onLogout: () => void;
   filterBar?: ReactNode;
 };
-export function SettingsPage({ user, authMode, summary, health, onLogout }: Props) {
+export function SettingsPage({ user, authMode, onLogout }: Props) {
   const { appearance: a, updateAppearance: update, syncStatus, retrySync } = useAppearance();
+  // Same confirm step as the sidebar footer — one sign-out, one behaviour.
+  const signOut = useSignOut(onLogout);
   const [tab, setTab] = useState("appearance"),
     [error, setError] = useState(""),
     [uploading, setUploading] = useState(false);
@@ -83,34 +92,33 @@ export function SettingsPage({ user, authMode, summary, health, onLogout }: Prop
   );
   return (
     <div className="page-content settings-workspace">
-      <PageHeader title="Make it yours" sub="A clear workspace, with your own character." />
-      <div className="workspace-tabs">
-        {[
-          ["appearance", "Appearance"],
-          ["account", "My account"],
-          ["system", "System"],
-        ].map(([key, label]) => (
-          <button key={key} className={tab === key ? "active" : ""} onClick={() => setTab(key)}>
-            {label}
-          </button>
-        ))}
-      </div>
+      <PageHeader page="settings" />
+      <Tabs aria-label="Settings sections" items={SETTINGS_TABS} value={tab} onChange={setTab} />
       {error && (
         <div className="inline-notice danger" role="alert">
           {error}
         </div>
       )}
       {tab === "appearance" && (
-        <div className="settings-layout">
+        <div
+          className="settings-layout"
+          role="tabpanel"
+          id="settings-panel-appearance"
+          aria-labelledby="settings-panel-appearance-tab"
+        >
           <div className="settings-controls">
             <section className="settings-section">
               <h2>Color mode</h2>
               <p>Choose the foundation of your workspace.</p>
               <div className="theme-options">
+                {/* aria-pressed, not just the `.selected` class and a Check icon:
+                    the icon carries no name, so which mode is active was a purely
+                    visual cue. Same for the two pickers below. */}
                 {(["dark", "light"] as const).map((theme) => (
                   <button
                     key={theme}
                     className={`theme-option ${theme} ${a.theme === theme ? "selected" : ""}`}
+                    aria-pressed={a.theme === theme}
                     onClick={() => save({ theme })}
                   >
                     <div className="theme-mini">
@@ -134,11 +142,18 @@ export function SettingsPage({ user, authMode, summary, health, onLogout }: Prop
               <h2>Accent color</h2>
               <p>Highlights, active controls and your network.</p>
               <div className="color-swatches">
+                {/* Each swatch paints the accent exactly as the current theme would
+                    render it, with the ink that hue actually gets — a green swatch
+                    carries a dark check, not the invisible white one. */}
                 {ACCENT_PRESETS.map((p) => (
                   <button
                     key={p.label}
-                    style={{ background: p.color }}
+                    style={{
+                      background: accentColor(p.hue, a.theme),
+                      color: resolveAccentContrast(p.hue, a.theme).onAccent,
+                    }}
                     aria-label={p.label}
+                    aria-pressed={a.hue === p.hue}
                     title={p.label}
                     className={a.hue === p.hue ? "selected" : ""}
                     onClick={() => save({ hue: p.hue })}
@@ -171,6 +186,7 @@ export function SettingsPage({ user, authMode, summary, health, onLogout }: Prop
                   <button
                     key={key}
                     onClick={() => save({ background: key })}
+                    aria-pressed={a.background === key}
                     className={a.background === key ? "selected" : ""}
                   >
                     {icon}
@@ -180,7 +196,7 @@ export function SettingsPage({ user, authMode, summary, health, onLogout }: Prop
               </div>
               {a.background === "image" && (
                 <div className="upload-box">
-                  <label className="btn btn-secondary">
+                  <label className="btn btn-ghost">
                     <Upload size={16} />
                     {uploading ? "Processing…" : "Upload image"}
                     <input
@@ -196,12 +212,9 @@ export function SettingsPage({ user, authMode, summary, health, onLogout }: Prop
                   </label>
                   <span>JPG, PNG or WebP · up to 10 MB</span>
                   {a.image && (
-                    <button
-                      className="btn btn-ghost btn-sm"
-                      onClick={() => save({ image: "", background: "plain" })}
-                    >
+                    <Button size="sm" onClick={() => save({ image: "", background: "plain" })}>
                       Remove image
-                    </button>
+                    </Button>
                   )}
                 </div>
               )}
@@ -246,56 +259,9 @@ export function SettingsPage({ user, authMode, summary, health, onLogout }: Prop
               )}
             </section>
 
-            <button
-              className="btn btn-ghost"
-              onClick={() => save({ ...DEFAULT_APPEARANCE, image: "" })}
-            >
+            <Button onClick={() => save({ ...DEFAULT_APPEARANCE, image: "" })}>
               Reset appearance
-            </button>
-          </div>
-          <aside className="appearance-preview">
-            <div className="preview-window">
-              <div className="preview-title">
-                <span className="preview-dot" />
-                Your workspace
-              </div>
-              <strong>Everything in its place.</strong>
-              <p>
-                Calm surfaces. Clear information.
-                <br />A little color where it matters.
-              </p>
-              <div className="preview-metrics">
-                <div>
-                  <span>Active</span>
-                  <b>128</b>
-                  <small>Connected</small>
-                </div>
-                <div>
-                  <span>Resolved</span>
-                  <b>
-                    98.4<span>%</span>
-                  </b>
-                  <small>Looking good</small>
-                </div>
-              </div>
-              <div className="preview-list">
-                <span>
-                  <i />
-                  License activated<small>Just now</small>
-                </span>
-                <span>
-                  <i />
-                  Feedback resolved<small>2 min ago</small>
-                </span>
-                <span>
-                  <i />
-                  New session started<small>5 min ago</small>
-                </span>
-              </div>
-              <button className="btn btn-primary" onClick={() => setTab("account")}>
-                Your workspace, your way
-              </button>
-            </div>
+            </Button>
             <p className="settings-caption" role="status">
               {syncStatus === "saved"
                 ? "Saved to your account on the NAS. Available on all your devices."
@@ -307,17 +273,17 @@ export function SettingsPage({ user, authMode, summary, health, onLogout }: Prop
                       ? "The NAS could not be reached. Your local changes are kept for the next save."
                       : "Sign in to sync your appearance across devices."}
             </p>
-            {syncStatus === "error" && (
-              <button className="btn btn-ghost" onClick={retrySync}>
-                Save again
-              </button>
-            )}
-            <p className="settings-caption">The preview contains example data.</p>
-          </aside>
+            {syncStatus === "error" && <Button onClick={retrySync}>Save again</Button>}
+          </div>
         </div>
       )}
       {tab === "account" && (
-        <section className="settings-section account-settings">
+        <section
+          className="settings-section account-settings"
+          role="tabpanel"
+          id="settings-panel-account"
+          aria-labelledby="settings-panel-account-tab"
+        >
           <h2>Your account</h2>
           <dl className="clean-details">
             <dt>Email</dt>
@@ -327,26 +293,17 @@ export function SettingsPage({ user, authMode, summary, health, onLogout }: Prop
             <dt>Sign-in</dt>
             <dd>{authMode === "access" ? "Cloudflare Access" : "Email & password"}</dd>
           </dl>
-          <button className="btn btn-secondary" onClick={onLogout}>
+          {canVisit("system", user) && (
+            <a className="btn btn-ghost" href="#/system">
+              See Backend status
+            </a>
+          )}
+          <Button variant="danger" onClick={signOut.requestSignOut}>
             Sign out
-          </button>
+          </Button>
         </section>
       )}
-      {tab === "system" && (
-        <section className="settings-section account-settings">
-          <h2>System status</h2>
-          <dl className="clean-details">
-            <dt>API</dt>
-            <dd>Connected</dd>
-            <dt>Storage</dt>
-            <dd>{summary.storage.toUpperCase()}</dd>
-            <dt>Build</dt>
-            <dd>{health.build?.commit ?? "Unknown"}</dd>
-            <dt>Environment</dt>
-            <dd>{health.build?.environment ?? "Production"}</dd>
-          </dl>
-        </section>
-      )}
+      {signOut.dialog}
     </div>
   );
 }

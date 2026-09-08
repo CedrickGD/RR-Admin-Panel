@@ -34,13 +34,18 @@ import {
 import { Badge, type BadgeProps } from "./ds/Badge";
 import { Button } from "./ds/Button";
 import { Modal } from "./ds/Modal";
+import { RelativeTime } from "./ds/RelativeTime";
 import { usePanelPermission } from "../hooks/usePanelPermission";
 import { PanelBackground } from "./PanelBackground";
 import { CustomerAvatar, useCustomerProfiles } from "./CustomerProfiles";
 import { resolveCountry } from "../utils/geography";
 import { setWorkspaceSearch } from "../hooks/useWorkspaceSearch";
 import { CustomerAccessDialog } from "./CustomerAccessDialog";
-import { customerActionUrl, navigateCustomerUrl } from "../utils/customerNavigation";
+import {
+  customerActionUrl,
+  navigateCustomerUrl,
+  openCustomerWorkspace,
+} from "../utils/customerNavigation";
 
 export interface Customer360Anchor {
   selector: Customer360Selector;
@@ -223,7 +228,7 @@ function RecordList({
   rows: object[];
   empty: string;
   label: (row: Customer360DatabaseRow, index: number) => string;
-  meta?: (row: Customer360DatabaseRow) => string;
+  meta?: (row: Customer360DatabaseRow) => ReactNode;
   badge?: (row: Customer360DatabaseRow) => string | null;
 }) {
   if (rows.length === 0) return <p className="customer360-empty">{empty}</p>;
@@ -620,9 +625,12 @@ function SessionsTab({ customer }: { customer: Customer360Customer }) {
             rows={customer.installs}
             empty="No registered installs found."
             label={(row, index) => displayValue(row.installId ?? `Install ${index + 1}`)}
-            meta={(row) =>
-              `${displayValue(row.appVersion)} · ${row.lastSeenAt ? timeAgo(String(row.lastSeenAt)) : "never seen"}`
-            }
+            meta={(row) => (
+              <>
+                {displayValue(row.appVersion)} ·{" "}
+                {row.lastSeenAt ? <RelativeTime iso={String(row.lastSeenAt)} /> : "never seen"}
+              </>
+            )}
             badge={(row) => (row.revokedAt ? "revoked" : "active")}
           />
         </section>
@@ -632,9 +640,12 @@ function SessionsTab({ customer }: { customer: Customer360Customer }) {
             rows={customer.sessions}
             empty="No sessions found."
             label={(row, index) => displayValue(row.id ?? `Session ${index + 1}`)}
-            meta={(row) =>
-              `${displayValue(row.displayVersion ?? row.appVersion)} · ${row.lastSeenAt ? timeAgo(String(row.lastSeenAt)) : "time unknown"}`
-            }
+            meta={(row) => (
+              <>
+                {displayValue(row.displayVersion ?? row.appVersion)} ·{" "}
+                {row.lastSeenAt ? <RelativeTime iso={String(row.lastSeenAt)} /> : "time unknown"}
+              </>
+            )}
             badge={(row) => (Boolean(row.isActive) ? "online" : String(row.lastStatus ?? "ended"))}
           />
         </section>
@@ -687,12 +698,41 @@ export function Customer360View({
   const [reloadKey, setReloadKey] = useState(0);
   const [copied, setCopied] = useState(false);
   const [accessOpen, setAccessOpen] = useState(false);
+  // The workspace is its own scroll container, so the sticky bar compacts itself
+  // from the container's scroll position rather than the window's.
+  const workspaceRef = useRef<HTMLElement>(null);
+  const [scrolled, setScrolled] = useState(false);
   const findProfile = useCustomerProfiles();
   const accountProfile = findProfile(customer?.anchor.install_id, customer?.anchor.hwid);
   useEffect(() => {
     if (embedded && open)
       (document.querySelector(".customer-workspace h1") as HTMLElement | null)?.focus();
   }, [embedded, open, customer?.anchor.identity]);
+
+  // Escape belongs to the workspace, not to whatever happens to hold focus: a
+  // window listener answers it from anywhere on the page, and steps aside while
+  // a dialog is open on top (which owns Escape itself — see ds/Modal).
+  useEffect(() => {
+    if (!embedded || !open) return;
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      if (document.querySelector('[data-modal-root="true"][data-state="open"]')) return;
+      event.preventDefault();
+      onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [embedded, open, onClose]);
+
+  // Compact the sticky bar as soon as the workspace scrolls under it.
+  useEffect(() => {
+    const element = workspaceRef.current;
+    if (!embedded || !open || !element) return;
+    const update = () => setScrolled(element.scrollTop > 4);
+    update();
+    element.addEventListener("scroll", update, { passive: true });
+    return () => element.removeEventListener("scroll", update);
+  }, [embedded, open]);
   const requestSeq = useRef(0);
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const selector: Customer360Selector | null = session ? "session_id" : (anchor?.selector ?? null);
@@ -923,59 +963,64 @@ export function Customer360View({
   }
   if (embedded)
     return (
-      <section
-        className="customer-workspace"
-        aria-label="Customer 360"
-        onKeyDown={(event) => {
-          if (
-            event.key === "Escape" &&
-            !event.defaultPrevented &&
-            !document.querySelector('[data-modal-root="true"][data-state="open"]')
-          )
-            onClose();
-        }}
-      >
+      <section className="customer-workspace" aria-label="Customer 360" ref={workspaceRef}>
         <PanelBackground />
-        <header className="customer-workspace-head">
-          <Button className="customer-back" icon={<ArrowLeft />} onClick={onClose}>
-            Back to workspace
-          </Button>
-          <div className="customer-heading-identity">
-            {accountProfile && (
-              <CustomerAvatar profile={accountProfile} label={accountProfile.displayName} />
-            )}
-            <div>
-              <h1 tabIndex={-1}>
-                {accountProfile?.displayName ?? titleFor(customer, session, anchor)}
-              </h1>
-              <p>Customer workspace · 360</p>
+        {/* Identity and the customer's actions stay reachable while the record
+            scrolls: one sticky bar that compacts once the content moves under it. */}
+        <div className={`customer-workspace-bar${scrolled ? " is-stuck" : ""}`}>
+          <header className="customer-workspace-head">
+            <Button className="customer-back" icon={<ArrowLeft />} onClick={onClose}>
+              Back to workspace
+            </Button>
+            <div className="customer-heading-identity">
+              {accountProfile && (
+                <CustomerAvatar profile={accountProfile} label={accountProfile.displayName} />
+              )}
+              <div>
+                <h1 tabIndex={-1}>
+                  {accountProfile?.displayName ?? titleFor(customer, session, anchor)}
+                </h1>
+                <p>Customer workspace · 360</p>
+              </div>
             </div>
-          </div>
-        </header>
-        {customer && (
-          <div className="customer-action-bar">
-            <Button permission="licenses.read" icon={<KeyRound />} onClick={openCustomerAction}>
-              Manage licenses
-            </Button>
-            <Button
-              permission="access.read"
-              icon={<ShieldCheck />}
-              onClick={() => setAccessOpen(true)}
-            >
-              Manage app access
-            </Button>
-            <Button
-              permission="support.read"
-              icon={<MessageSquareText />}
-              onClick={() => setActiveTab("activity")}
-            >
-              Support history
-            </Button>
-          </div>
-        )}
+          </header>
+          {customer && (
+            <div className="customer-action-bar">
+              <Button permission="licenses.read" icon={<KeyRound />} onClick={openCustomerAction}>
+                Manage licenses
+              </Button>
+              <Button
+                permission="access.read"
+                icon={<ShieldCheck />}
+                onClick={() => setAccessOpen(true)}
+              >
+                Manage app access
+              </Button>
+              <Button
+                permission="support.read"
+                icon={<MessageSquareText />}
+                onClick={() => setActiveTab("activity")}
+              >
+                Support history
+              </Button>
+            </div>
+          )}
+        </div>
         <div className="customer360-shell">{body}</div>
         {accessOpen && customer && (
-          <CustomerAccessDialog customer={customer} onClose={() => setAccessOpen(false)} />
+          <CustomerAccessDialog
+            target={{
+              identity: customer.anchor.identity,
+              hwid: customer.anchor.hwid,
+              install_id: customer.anchor.install_id,
+              label:
+                customer.profile.user_label ??
+                customer.profile.customer_name ??
+                customer.anchor.identity,
+              paid: customer.summary.license_tier === "premium",
+            }}
+            onClose={() => setAccessOpen(false)}
+          />
         )}
       </section>
     );
@@ -1003,7 +1048,7 @@ export function Customer360Overlay({ open, session, anchor, onClose }: Customer3
   useEffect(() => {
     if (!open) return;
     const target = anchor ?? (session ? { selector: "session_id", value: session.id } : null);
-    if (target) window.dispatchEvent(new CustomEvent("rr:open-customer", { detail: target }));
+    if (target) openCustomerWorkspace(target);
     onClose();
   }, [open, anchor?.value, session?.id]);
   return null;

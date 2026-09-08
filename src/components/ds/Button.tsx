@@ -9,7 +9,7 @@
  * If the element has no explicit `size`, the DS size is injected automatically
  * (14px, 12px on size="xs"; IconButton uses its `size` prop, default 14px).
  */
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, ReactNode, Ref } from "react";
 import { sizedIcon } from "./sizedIcon";
 import { usePanelPermission } from "../../hooks/usePanelPermission";
 import type { Permission } from "../../../shared/panel-policy";
@@ -61,6 +61,12 @@ export interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement>
   icon: ReactNode;
   /** Icon px size. Default 14 (table rows); 16 for panel chrome. */
   size?: number;
+  /**
+   * React 19 passes ref through props for function components; declaring it here
+   * lets callers that must return focus to the control (the nav drawer button)
+   * use the primitive instead of a hand-rolled <button>.
+   */
+  ref?: Ref<HTMLButtonElement>;
 }
 
 /** Square icon-only button for table rows and panel chrome. */

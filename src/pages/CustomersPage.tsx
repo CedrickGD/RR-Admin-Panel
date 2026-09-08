@@ -1,4 +1,4 @@
-import { TableFrame, RecordCell } from "../components/ds/TableFrame";
+import { TableFrame, RecordCell, RecordLink } from "../components/ds/TableFrame";
 import {
   CustomerAvatar,
   useCustomerDirectory,
@@ -6,28 +6,35 @@ import {
 } from "../components/CustomerProfiles";
 import {
   AlertTriangle,
-  ArrowDown,
-  ArrowUp,
   Crown,
   Radio,
   ScanSearch,
   Search,
+  ShieldCheck,
   UsersRound,
+  X,
 } from "lucide-react";
 import { useDeferredValue, useEffect, useMemo, useState, type ReactNode } from "react";
 import { CollapsiblePanel } from "../components/CollapsiblePanel";
 import { Customer360Overlay, type Customer360Anchor } from "../components/Customer360Overlay";
+import {
+  CustomerAccessDialog,
+  type CustomerAccessTarget,
+} from "../components/CustomerAccessDialog";
 import { GlassDropdown } from "../components/GlassDropdown";
 import { KpiStatCard } from "../components/KpiStatCard";
 import { Badge } from "../components/ds/Badge";
-import { IconButton } from "../components/ds/Button";
+import { Button, IconButton } from "../components/ds/Button";
+import { SortHeader, type SortState } from "../components/ds/DataTable";
 import { EmptyState } from "../components/ds/EmptyState";
+import { SkeletonRows } from "../components/ds/Skeleton";
 import { PageHeader } from "../components/ds/PageHeader";
+import { RelativeTime } from "../components/ds/RelativeTime";
 import { useWorkspaceSearch } from "../hooks/useWorkspaceSearch";
 import { resolveCountry } from "../utils/geography";
 import { TablePagination } from "../components/ds/TablePagination";
 import type { UserRollupRecord } from "../types/telemetry";
-import { formatDuration, formatNumber, timeAgo } from "../utils/format";
+import { formatDate, formatDay, formatDuration, formatNumber } from "../utils/format";
 import { paginate } from "../utils/pagination";
 import {
   buildUserDirectoryOptions,
@@ -109,6 +116,17 @@ function matchesScope(user: UserRollupRecord, scope: CustomerScope | null): bool
   }
 }
 
+/** What the shared app-access dialog needs from a directory row. */
+function accessTargetOf(user: UserRollupRecord): CustomerAccessTarget {
+  return {
+    identity: user.identity,
+    hwid: user.hwid,
+    label: displayName(user),
+    paid: user.licenseTier === "premium",
+    paidKeys: user.paidLicenseKeys,
+  };
+}
+
 function customerAnchor(user: UserRollupRecord): Customer360Anchor {
   const hwid = user.hwid?.trim();
   return {
@@ -119,48 +137,13 @@ function customerAnchor(user: UserRollupRecord): Customer360Anchor {
   };
 }
 
-interface SortableThProps {
-  label: string;
-  sortKey: UserDirectorySortKey;
-  activeKey: UserDirectorySortKey;
-  direction: DirectorySortDirection;
-  className?: string;
-  onSort: (key: UserDirectorySortKey) => void;
-}
-
-function SortableTh({ label, sortKey, activeKey, direction, className, onSort }: SortableThProps) {
-  const active = activeKey === sortKey;
-  return (
-    <th
-      className={className}
-      aria-sort={active ? (direction === "asc" ? "ascending" : "descending") : "none"}
-    >
-      <button
-        type="button"
-        className={`sort-th${active ? " sort-th-active" : ""}`}
-        onClick={() => onSort(sortKey)}
-      >
-        {label}
-        {active ? direction === "asc" ? <ArrowUp /> : <ArrowDown /> : null}
-      </button>
-    </th>
-  );
-}
-
-function LoadingRows() {
-  return Array.from({ length: 6 }, (_, index) => (
-    <tr key={index} aria-hidden="true">
-      <td colSpan={10}>
-        <div className="skeleton customer-directory-skeleton" />
-      </td>
-    </tr>
-  ));
-}
+/** Column count of the directory table — keeps the skeleton in step with the head. */
+const DIRECTORY_COLUMNS = 10;
 
 export function CustomersPage({ users: sourceUsers, filterBar }: CustomersPageProps) {
   const users = useCustomerDirectory(sourceUsers);
   const findProfile = useCustomerProfiles();
-  const [query] = useWorkspaceSearch("customers");
+  const [query, setQuery] = useWorkspaceSearch("customers");
   useEffect(() => {
     setPage(1);
   }, [query]);
@@ -171,6 +154,7 @@ export function CustomersPage({ users: sourceUsers, filterBar }: CustomersPagePr
   const [sortDirection, setSortDirection] = useState<DirectorySortDirection>("desc");
   const [page, setPage] = useState(1);
   const [selectedUser, setSelectedUser] = useState<UserRollupRecord | null>(null);
+  const [accessTarget, setAccessTarget] = useState<CustomerAccessTarget | null>(null);
 
   const filterOptions = useMemo(
     () => buildUserDirectoryOptions(users ?? [], filters.continent),
@@ -226,53 +210,68 @@ export function CustomersPage({ users: sourceUsers, filterBar }: CustomersPagePr
     resetToFirstPage();
   }
 
-  function changeSort(next: UserDirectorySortKey) {
-    if (next === sortKey) {
+  function clearFilters() {
+    setQuery("");
+    setScope(null);
+    setFilters(EMPTY_FILTERS);
+    resetToFirstPage();
+  }
+
+  /** SortHeader hands back the column key; the page owns the direction toggle. */
+  function changeSort(next: string) {
+    const key = next as UserDirectorySortKey;
+    if (key === sortKey) {
       setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
     } else {
-      setSortKey(next);
-      setSortDirection(defaultUserSortDirection(next));
+      setSortKey(key);
+      setSortDirection(defaultUserSortDirection(key));
     }
     resetToFirstPage();
   }
 
+  const sort: SortState = { key: sortKey, direction: sortDirection };
+
   return (
     <div className="page-content page-stack-lg">
-      <PageHeader kicker="Customer support" title="Customers" right={filterBar} />
+      <PageHeader kicker="Customer support" page="customers" right={filterBar} />
 
       <div className="stat-grid stat-grid-4">
         <KpiStatCard
           label="All-time customers"
-          value={users ? formatNumber(totals.customers) : "—"}
+          value={formatNumber(totals.customers)}
           sub="Every customer identity ever seen"
           icon={<UsersRound />}
+          loading={!users}
         />
         <KpiStatCard
           label="Online now"
-          value={users ? formatNumber(totals.online) : "—"}
+          value={formatNumber(totals.online)}
           sub="Active customer sessions"
           icon={<Radio />}
           tone="success"
+          loading={!users}
         />
         <KpiStatCard
           label="Premium"
-          value={users ? formatNumber(totals.premium) : "—"}
+          value={formatNumber(totals.premium)}
           sub="Customers linked to a paid license"
           icon={<Crown />}
           tone="accent"
+          loading={!users}
         />
         <KpiStatCard
           label="Needs attention"
-          value={users ? formatNumber(totals.attention) : "—"}
+          value={formatNumber(totals.attention)}
           sub="Errors, suspension, or degraded state"
           icon={<AlertTriangle />}
           tone={totals.attention > 0 ? "danger" : "success"}
+          loading={!users}
         />
       </div>
 
       <CollapsiblePanel
         kicker="CRM"
-        title="Customer Directory"
+        title="Directory"
         collapsible={false}
         sub={
           directoryUsers
@@ -317,75 +316,79 @@ export function CustomersPage({ users: sourceUsers, filterBar }: CustomersPagePr
         <div className="panel-body-flush">
           {directoryUsers === null || directoryUsers.length > 0 ? (
             <>
-              <TableFrame className="data-table customer-directory-table" paginated>
+              <TableFrame
+                className="data-table customer-directory-table"
+                paginated
+                stickyActions
+                mobileLayout="stack"
+                aria-busy={directoryUsers === null || undefined}
+              >
+                <caption className="table-caption">
+                  All-time customer directory, sortable by column
+                </caption>
                 <thead>
                   <tr>
-                    <SortableTh
+                    <SortHeader
                       label="Customer"
                       sortKey="user"
-                      activeKey={sortKey}
-                      direction={sortDirection}
-                      onSort={changeSort}
+                      sort={sort}
+                      onSortChange={changeSort}
                     />
-                    <SortableTh
+                    <SortHeader
                       label="Contact"
                       sortKey="discord"
-                      activeKey={sortKey}
-                      direction={sortDirection}
-                      onSort={changeSort}
+                      sort={sort}
+                      onSortChange={changeSort}
                       className="col-md"
                     />
-                    <SortableTh
+                    <SortHeader
                       label="Version"
                       sortKey="version"
-                      activeKey={sortKey}
-                      direction={sortDirection}
-                      onSort={changeSort}
+                      sort={sort}
+                      onSortChange={changeSort}
                     />
-                    <th className="col-lg">Device / OS</th>
-                    <SortableTh
+                    <th scope="col" className="col-lg">
+                      Device / OS
+                    </th>
+                    <SortHeader
                       label="Location"
                       sortKey="location"
-                      activeKey={sortKey}
-                      direction={sortDirection}
-                      onSort={changeSort}
+                      sort={sort}
+                      onSortChange={changeSort}
                       className="col-xl"
                     />
-                    <SortableTh
+                    <SortHeader
                       label="Sessions"
                       sortKey="sessions"
-                      activeKey={sortKey}
-                      direction={sortDirection}
-                      onSort={changeSort}
+                      sort={sort}
+                      onSortChange={changeSort}
+                      className="numeric"
                     />
-                    <SortableTh
+                    <SortHeader
                       label="Total time"
                       sortKey="totalTime"
-                      activeKey={sortKey}
-                      direction={sortDirection}
-                      onSort={changeSort}
-                      className="col-lg"
+                      sort={sort}
+                      onSortChange={changeSort}
+                      className="col-lg numeric"
                     />
-                    <SortableTh
+                    <SortHeader
                       label="Support"
                       sortKey="errors"
-                      activeKey={sortKey}
-                      direction={sortDirection}
-                      onSort={changeSort}
+                      sort={sort}
+                      onSortChange={changeSort}
                     />
-                    <SortableTh
+                    <SortHeader
                       label="Last seen"
                       sortKey="lastSeen"
-                      activeKey={sortKey}
-                      direction={sortDirection}
-                      onSort={changeSort}
+                      sort={sort}
+                      onSortChange={changeSort}
                     />
-                    <th aria-label="Customer actions" />
+                    <th scope="col" aria-label="Customer actions" />
                   </tr>
                 </thead>
                 <tbody className={directoryUsers === null ? undefined : "dt-settle"}>
                   {directoryUsers === null ? (
-                    <LoadingRows />
+                    <SkeletonRows columns={DIRECTORY_COLUMNS} />
                   ) : (
                     (paginated?.items ?? []).map((user) => (
                       <tr key={user.identity}>
@@ -396,37 +399,63 @@ export function CustomersPage({ users: sourceUsers, filterBar }: CustomersPagePr
                               label={displayName(user)}
                             />
                             <RecordCell
-                              primary={displayName(user)}
+                              primary={
+                                // The name opens the same workspace as the row action,
+                                // so Customer 360 is one click away from the first column.
+                                <RecordLink
+                                  title="Open customer workspace"
+                                  onClick={() => setSelectedUser(user)}
+                                >
+                                  {displayName(user)}
+                                </RecordLink>
+                              }
                               secondary={user.licenseTier === "premium" ? "Premium" : "Free"}
                             />
                           </div>
                         </td>
-                        <td className="muted col-md" title={user.discordUser ?? undefined}>
+                        <td
+                          className="muted col-md"
+                          data-label="Contact"
+                          title={user.discordUser ?? undefined}
+                        >
                           {discordHandle(user.discordUser)}
                         </td>
-                        <td>
+                        <td data-label="Version">
                           <Badge tone="muted">{versionLabel(user)}</Badge>
                         </td>
-                        <td className="muted col-lg">
+                        <td className="muted col-lg" data-label="Device / OS">
                           <div className="customer-directory-stacked">
                             <span>{user.deviceModel?.trim() || user.platform?.trim() || "—"}</span>
                             <small>{user.osVersion?.trim() || "OS not reported"}</small>
                           </div>
                         </td>
-                        <td className="muted col-xl" title={locationLabel(user)}>
+                        <td className="muted col-xl" data-label="Location" title={locationLabel(user)}>
                           {locationLabel(user)}
                         </td>
-                        <td className="muted">{formatNumber(user.sessions)}</td>
-                        <td className="muted col-lg">
+                        <td className="muted numeric" data-label="Sessions">
+                          {formatNumber(user.sessions)}
+                        </td>
+                        <td className="muted col-lg numeric" data-label="Total time">
                           {user.totalDurationSeconds > 0
                             ? formatDuration(user.totalDurationSeconds)
                             : "—"}
                         </td>
-                        <td>
+                        <td data-label="Support">
                           <div className="customer-directory-support">
                             {user.suspension ? (
-                              <Badge tone="danger">
-                                {user.suspension.mode === "ban" ? "Banned" : "Suspended"}
+                              <Badge
+                                tone={user.suspension.mode === "ban" ? "danger" : "warning"}
+                                title={
+                                  user.suspension.bannedUntil
+                                    ? `Lifts automatically on ${formatDate(user.suspension.bannedUntil)}`
+                                    : undefined
+                                }
+                              >
+                                {user.suspension.mode === "ban"
+                                  ? "Banned"
+                                  : user.suspension.bannedUntil
+                                    ? `Suspended until ${formatDay(user.suspension.bannedUntil)}`
+                                    : "Suspended"}
                               </Badge>
                             ) : null}
                             {user.errors > 0 ? (
@@ -442,17 +471,28 @@ export function CustomersPage({ users: sourceUsers, filterBar }: CustomersPagePr
                             {!needsAttention(user) ? <Badge tone="success">Clear</Badge> : null}
                           </div>
                         </td>
-                        <td className="muted customer-directory-last-seen">
+                        <td className="muted customer-directory-last-seen" data-label="Last seen">
                           {user.isActive ? <span className="status-dot" /> : null}
-                          {timeAgo(user.lastSeen)}
+                          <RelativeTime iso={user.lastSeen} />
                         </td>
                         <td>
-                          <IconButton
-                            title="Open customer workspace"
-                            icon={<ScanSearch />}
-                            aria-label={`Open Customer 360 for ${displayName(user)}`}
-                            onClick={() => setSelectedUser(user)}
-                          />
+                          <div className="row-actions">
+                            {/* Suspending is a directory action, not something
+                                buried one workspace deeper. */}
+                            <IconButton
+                              permission="access.read"
+                              title="Manage app access"
+                              icon={<ShieldCheck />}
+                              aria-label={`Manage app access for ${displayName(user)}`}
+                              onClick={() => setAccessTarget(accessTargetOf(user))}
+                            />
+                            <IconButton
+                              title="Open customer workspace"
+                              icon={<ScanSearch />}
+                              aria-label={`Open Customer 360 for ${displayName(user)}`}
+                              onClick={() => setSelectedUser(user)}
+                            />
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -472,8 +512,16 @@ export function CustomersPage({ users: sourceUsers, filterBar }: CustomersPagePr
               ) : null}
             </>
           ) : hasFilters ? (
-            <EmptyState icon={<Search />} title="No customers match">
-              Nothing matches the current search and filters. Clear them to see every customer.
+            <EmptyState
+              icon={<Search />}
+              title="No customers match"
+              action={
+                <Button size="sm" icon={<X />} onClick={clearFilters}>
+                  Clear filters
+                </Button>
+              }
+            >
+              Nothing matches the current search and filters.
             </EmptyState>
           ) : (
             <EmptyState icon={<UsersRound />} title="No customers recorded yet">
@@ -482,6 +530,10 @@ export function CustomersPage({ users: sourceUsers, filterBar }: CustomersPagePr
           )}
         </div>
       </CollapsiblePanel>
+
+      {accessTarget ? (
+        <CustomerAccessDialog target={accessTarget} onClose={() => setAccessTarget(null)} />
+      ) : null}
 
       <Customer360Overlay
         open={selectedUser !== null}

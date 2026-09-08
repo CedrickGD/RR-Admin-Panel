@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import { TelemetryChartTooltip } from "./charts/TelemetryChartTooltip";
 import { BreakdownList, Modal, TimespanGrid } from "./ds/Modal";
+import { Skeleton } from "./ds/Skeleton";
 import { Sparkline } from "./widgets";
 
 /** Legacy tone names (accent/amber/rose) kept for backward compatibility alongside the DS names. */
@@ -29,8 +30,14 @@ export interface KpiDrilldown {
 }
 
 interface KpiStatCardProps {
+  /** Sentence case, e.g. "Errors in range" — never Title Case (see docs/panel-workspace.md, Copy rules). */
   label: string;
-  value: string;
+  /**
+   * Display value. ReactNode so a tile can show a live element — e.g.
+   * <RelativeTime iso={…} /> — instead of a string frozen at render time.
+   */
+  value: ReactNode;
+  /** One short, factual line. Sentence case, e.g. "Most recent event" — never Title Case (see docs/panel-workspace.md, Copy rules). */
   sub: string;
   /** Lucide icon for the right-side well when no spark is given. Default activity. */
   icon?: ReactNode;
@@ -43,6 +50,17 @@ interface KpiStatCardProps {
   chartColor?: string;
   /** Optional mini trend rendered on the tile's right side (replaces the icon well). */
   spark?: number[];
+  /**
+   * "default" is the KPI row on Overview/Customers/Heatmap; "compact" is the
+   * denser monitoring row (Session history, Live) — same tile, less padding and
+   * a smaller value, so those pages need no second tile component.
+   */
+  density?: "default" | "compact";
+  /**
+   * Data still in flight: value and sub render as skeletons instead of "—" or
+   * a "…loading" sub line, and the tile is not clickable.
+   */
+  loading?: boolean;
 }
 
 /**
@@ -59,11 +77,17 @@ export function KpiStatCard({
   drilldown,
   chartColor,
   spark,
+  density = "default",
+  loading = false,
 }: KpiStatCardProps) {
   const [open, setOpen] = useState(false);
+  // The pop animation replays by remounting on a changed value, which only a
+  // scalar can key. Element values (e.g. <RelativeTime />) re-render themselves.
+  const valueKey = typeof value === "string" || typeof value === "number" ? value : undefined;
   // The series block only renders with 2+ points, so a 1-point series alone must not
   // make the card clickable (it would open an empty modal).
   const expandable = Boolean(
+    !loading &&
     drilldown &&
     ((drilldown.timespans?.length ?? 0) > 0 ||
       (drilldown.series?.length ?? 0) > 1 ||
@@ -73,7 +97,8 @@ export function KpiStatCard({
   return (
     <>
       <article
-        className={`stat-card${spark && spark.length > 1 ? " has-spark" : " has-icon"}${expandable ? " kpi-card-clickable" : ""}`}
+        aria-busy={loading || undefined}
+        className={`stat-card${spark && spark.length > 1 ? " has-spark" : " has-icon"}${density === "compact" ? " stat-card-compact" : ""}${expandable ? " kpi-card-clickable" : ""}`}
         onClick={expandable ? () => setOpen(true) : undefined}
         role={expandable ? "button" : undefined}
         tabIndex={expandable ? 0 : undefined}
@@ -90,25 +115,40 @@ export function KpiStatCard({
       >
         <div className="tile-main">
           <span className="stat-label">{label}</span>
-          <strong className="stat-value tile-value-pop" key={value}>
-            {value}
-            {delta !== undefined && delta !== null ? (
-              <span
-                className={`stat-card-delta ${Number(delta) >= 0 ? "stat-card-delta-positive" : "stat-card-delta-negative"}`}
-              >
-                {Number(delta) >= 0 ? "+" : ""}
-                {delta}%
-              </span>
-            ) : null}
-          </strong>
-          <p className="stat-sub" title={sub}>
-            {sub}
-            {expandable ? (
-              <span className="kpi-card-chevron">
-                <ChevronRight size={12} />
-              </span>
-            ) : null}
-          </p>
+          {loading ? (
+            <>
+              <strong className="stat-value">
+                <Skeleton width={64} height={density === "compact" ? 15 : 19} />
+              </strong>
+              <p className="stat-sub">
+                <Skeleton width={104} height={9} />
+              </p>
+            </>
+          ) : (
+            <>
+              <strong className="stat-value tile-value-pop" key={valueKey}>
+                {value}
+                {delta !== undefined && delta !== null ? (
+                  <span
+                    className={`stat-card-delta ${Number(delta) >= 0 ? "stat-card-delta-positive" : "stat-card-delta-negative"}`}
+                  >
+                    {Number(delta) >= 0 ? "+" : ""}
+                    {delta}%
+                  </span>
+                ) : null}
+              </strong>
+              <p className="stat-sub" title={sub}>
+                {/* The text truncates, the chevron does not — it sits outside
+                    the ellipsised span so it can never be the part cut off. */}
+                <span className="stat-sub-text">{sub}</span>
+                {expandable ? (
+                  <span className="kpi-card-chevron">
+                    <ChevronRight size={12} />
+                  </span>
+                ) : null}
+              </p>
+            </>
+          )}
         </div>
         <div className="tile-side" aria-hidden="true">
           {spark && spark.length > 1 ? (

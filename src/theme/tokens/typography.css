@@ -17,7 +17,7 @@
   --fs-strong:  0.9375rem;   /* 15px — brand name, emphasized values */
   --fs-section: 1.05rem;     /* ~17px — section titles */
   --fs-page:    1.25rem;     /* 20px — page title (command-bar row) */
-  --fs-stat:    1.25rem;     /* KPI tile value */
+  --fs-stat:    1.4rem;      /* KPI tile value — the one size, no per-layer overrides */
 
   /* Tracking */
   --track-display: -0.02em;       /* display text tightens */

@@ -5,6 +5,7 @@ import {
   Eye,
   EyeOff,
   Check,
+  Copy,
   X,
   Key,
   Link2,
@@ -20,12 +21,22 @@ import { useEffect, useState, useMemo, useRef, type FormEvent, type ReactNode } 
 import { Badge } from "../components/ds/Badge";
 import { Button, IconButton } from "../components/ds/Button";
 import { EmptyState } from "../components/ds/EmptyState";
-import { Modal } from "../components/ds/Modal";
+import { Field, FormError } from "../components/ds/Field";
+import { Input, Textarea } from "../components/ds/Input";
+import { Modal, ModalActions } from "../components/ds/Modal";
+import { SegmentedControl } from "../components/ds/SegmentedControl";
+import { SkeletonRows } from "../components/ds/Skeleton";
+import { Tabs, type TabItem } from "../components/ds/Tabs";
 import { StatusBadge } from "../components/StatusBadge";
 import { PageHeader } from "../components/ds/PageHeader";
+import { RelativeTime } from "../components/ds/RelativeTime";
 import { CustomerReturnLink } from "../components/CustomerReturnLink";
-import { useWorkspaceSearch } from "../hooks/useWorkspaceSearch";
-import { timeAgo, formatDate } from "../utils/format";
+import {
+  licenseSearchRecords,
+  useSearchRecordSource,
+  useWorkspaceSearch,
+} from "../hooks/useWorkspaceSearch";
+import { formatDate } from "../utils/format";
 import {
   activateAdminLicense,
   apiUrl,
@@ -118,8 +129,24 @@ const EMPTY_ORDER_FORM: OrderEditForm = {
   order_note: "",
 };
 
+function orderFormFor(lic: LicenseRecord): OrderEditForm {
+  return {
+    order_id: lic.order_id ?? "",
+    customer_name: lic.customer_name ?? "",
+    customer_email: lic.customer_email ?? "",
+    customer_discord: lic.customer_discord ?? "",
+    order_note: lic.order_note ?? "",
+  };
+}
+
+/** Shallow field-by-field comparison — "has the operator changed anything since the dialog opened?" */
+function formsEqual<T extends object>(a: T, b: T): boolean {
+  return (Object.keys(a) as Array<keyof T>).every((key) => a[key] === b[key]);
+}
+
 type LookupMode = "order_id" | "customer";
 type LicenseActionMode = "activate" | "bind";
+type WorkspaceTab = "inventory" | "lookup" | "generate";
 
 interface IssueForm {
   order_id: string;
@@ -154,6 +181,38 @@ function maskLicenseKey(value: string): string {
   return `${value.slice(0, 4)}••••${value.slice(-4)}`;
 }
 
+/** Standard batch vs. one multi-seat master key — the generator's only mode switch. */
+const GENERATOR_KINDS: TabItem[] = [
+  { key: "standard", label: "Standard" },
+  { key: "master", label: "Master key" },
+];
+
+interface CopyKeyButtonProps {
+  value: string;
+  copied: boolean;
+  onCopy: (value: string) => void;
+  /** Icon px — 12 in dense rows, 14 in dialogs. */
+  size?: number;
+}
+
+/**
+ * A license key is worthless if it cannot leave the screen. Every place that
+ * shows one (creation notice, inventory row, lookup card, issue result) gets
+ * the same control, and it confirms with a checkmark the way Customer 360's
+ * "Copy JSON" does.
+ */
+function CopyKeyButton({ value, copied, onCopy, size = 12 }: CopyKeyButtonProps) {
+  return (
+    <IconButton
+      icon={copied ? <Check /> : <Copy />}
+      size={size}
+      title={copied ? "Copied" : "Copy license key"}
+      aria-label={copied ? `License key ${value} copied` : `Copy license key ${value}`}
+      onClick={() => onCopy(value)}
+    />
+  );
+}
+
 interface LicensesPageProps {
   summary?: SummaryPayload | null;
   onOpenSession?: (sessionId: string) => void;
@@ -172,8 +231,17 @@ export function LicensesPage({
   const [createdKeys, setCreatedKeys] = useState<string[]>([]);
   const [createdOnly, setCreatedOnly] = useState(false);
   const [highlightCreated, setHighlightCreated] = useState(false);
-  const [workspaceTab, setWorkspaceTab] = useState<"inventory" | "lookup" | "generate">(
-    "inventory",
+  const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>("inventory");
+  const workspaceTabs = useMemo<TabItem[]>(
+    () => [
+      { key: "inventory", label: "All licenses", panelId: "licenses-panel-inventory" },
+      { key: "lookup", label: "Find a purchase", panelId: "licenses-panel-lookup" },
+      // "Bulk generate": the batch/master path, not the audited single sale.
+      ...(canWrite
+        ? [{ key: "generate", label: "Bulk generate", panelId: "licenses-panel-generate" }]
+        : []),
+    ],
+    [canWrite],
   );
   const [loading, setLoading] = useState(true);
   useEffect(() => {
@@ -187,6 +255,26 @@ export function LicensesPage({
   useEffect(() => {
     if (searchQuery.trim()) setWorkspaceTab("inventory");
   }, [searchQuery]);
+  // The header search offers these while this page holds them — no extra fetch.
+  useSearchRecordSource(
+    "licenses",
+    useMemo(() => licenseSearchRecords(licenses), [licenses]),
+  );
+
+  // Which key was copied last — one flag, because only one confirmation shows at a time.
+  const [copiedValue, setCopiedValue] = useState<string | null>(null);
+  const copyTimer = useRef<number | null>(null);
+  useEffect(() => () => window.clearTimeout(copyTimer.current ?? undefined), []);
+  const copyValue = async (value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedValue(value);
+      window.clearTimeout(copyTimer.current ?? undefined);
+      copyTimer.current = window.setTimeout(() => setCopiedValue(null), 1800);
+    } catch {
+      setCopiedValue(null);
+    }
+  };
 
   const [genType, setGenType] = useState("lifetime");
   const [genDuration, setGenDuration] = useState(30);
@@ -195,9 +283,12 @@ export function LicensesPage({
   const [customKey, setCustomKey] = useState("");
   const [maxUses, setMaxUses] = useState(1);
   const [isInfiniteUses, setIsInfiniteUses] = useState(false);
+  // Inline, in the form — the generator used to report failures with window.alert().
+  const [generateError, setGenerateError] = useState<string | null>(null);
 
   const [deleteCandidate, setDeleteCandidate] = useState<LicenseRecord | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Customer/order attribution editor (per-license pencil action)
   const [editCandidate, setEditCandidate] = useState<LicenseRecord | null>(null);
@@ -222,6 +313,8 @@ export function LicensesPage({
 
   const [issueOpen, setIssueOpen] = useState(false);
   const [issueForm, setIssueForm] = useState<IssueForm>(EMPTY_ISSUE_FORM);
+  // What the dialog opened with — anything beyond it is unsaved work the Modal must not discard.
+  const issueBaseline = useRef<IssueForm>(EMPTY_ISSUE_FORM);
   const [issueBusy, setIssueBusy] = useState(false);
   const [issueError, setIssueError] = useState<string | null>(null);
   const [issueResult, setIssueResult] = useState<LicenseOperationResponse | null>(null);
@@ -234,6 +327,7 @@ export function LicensesPage({
   const [actionInstallId, setActionInstallId] = useState("");
   const [actionHwid, setActionHwid] = useState("");
   const [actionReason, setActionReason] = useState("");
+  const actionBaseline = useRef({ installId: "", hwid: "", reason: "" });
   const [actionBusy, setActionBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionResult, setActionResult] = useState<LicenseOperationResponse | null>(null);
@@ -290,12 +384,20 @@ export function LicensesPage({
     void performLookup();
   };
 
-  const openIssueForLookup = () => {
-    setIssueForm({
+  /**
+   * The one way into the audited issue flow. It is the page's primary action
+   * (header, every tab) and the follow-up of an empty lookup; in the second
+   * case the search the operator just ran pre-fills the form.
+   */
+  const openIssue = () => {
+    const query = lookupValue.trim();
+    const form: IssueForm = {
       ...EMPTY_ISSUE_FORM,
-      order_id: lookupMode === "order_id" ? lookupValue.trim() : "",
-      customer_name: lookupMode === "customer" ? lookupValue.trim() : "",
-    });
+      order_id: lookupMode === "order_id" ? query : "",
+      customer_name: lookupMode === "customer" ? query : "",
+    };
+    issueBaseline.current = form;
+    setIssueForm(form);
     setIssueOperationKey(makeOperationKey());
     setIssueError(null);
     setIssueResult(null);
@@ -367,8 +469,13 @@ export function LicensesPage({
         session.id === license.session_id || (license.hwid && session.hwid === license.hwid),
     );
     setLicenseAction({ license, mode });
-    setActionInstallId(linkedSession?.installId ?? "");
-    setActionHwid(license.hwid ?? linkedSession?.hwid ?? "");
+    actionBaseline.current = {
+      installId: linkedSession?.installId ?? "",
+      hwid: license.hwid ?? linkedSession?.hwid ?? "",
+      reason: "",
+    };
+    setActionInstallId(actionBaseline.current.installId);
+    setActionHwid(actionBaseline.current.hwid);
     setActionReason("");
     setActionError(null);
     setActionResult(null);
@@ -432,9 +539,27 @@ export function LicensesPage({
     setActionResult(null);
   };
 
-  const handleGenerate = async () => {
+  const submitGenerate = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     if (generating) return;
+    if (!isMaster && (!Number.isInteger(genCount) || genCount < 1 || genCount > 50)) {
+      setGenerateError("Quantity must be a whole number from 1 to 50.");
+      return;
+    }
+    if (
+      isMaster &&
+      !isInfiniteUses &&
+      (!Number.isInteger(maxUses) || maxUses < 1 || maxUses > 1000)
+    ) {
+      setGenerateError("Seats must be a whole number from 1 to 1000.");
+      return;
+    }
+    if (genType !== "lifetime" && (!Number.isFinite(genDuration) || genDuration < 1)) {
+      setGenerateError("Duration value must be at least 1.");
+      return;
+    }
     setGenerating(true);
+    setGenerateError(null);
     try {
       const url = new URL(apiUrl("/api/admin/licenses"), window.location.origin);
       let calculatedDays: number | null = null;
@@ -489,11 +614,11 @@ export function LicensesPage({
         setGenCustomerEmail("");
         setGenCustomerDiscord("");
       } else {
-        alert("Error generating license: " + (data.error || JSON.stringify(data)));
+        setGenerateError(data.error || "The licenses could not be generated.");
       }
-    } catch (e: any) {
+    } catch (e) {
       console.error(e);
-      alert("Exception: " + e.message);
+      setGenerateError(e instanceof Error ? e.message : "The licenses could not be generated.");
     } finally {
       setGenerating(false);
     }
@@ -502,6 +627,7 @@ export function LicensesPage({
   const confirmDelete = async () => {
     if (!deleteCandidate) return;
     setIsDeleting(true);
+    setDeleteError(null);
     try {
       // Always hard-delete: removes the row and instantly cuts access on every bound machine
       // (the app's next license poll gets "Invalid license key"). Master keys carry a custom
@@ -525,23 +651,19 @@ export function LicensesPage({
       }
 
       await fetchLicenses();
+      setDeleteCandidate(null);
     } catch (err) {
       console.error(err);
-      alert("Error: " + (err instanceof Error ? err.message : "Failed"));
+      // The dialog stays open with the reason — a failed delete used to close
+      // the dialog and report itself in a native alert().
+      setDeleteError(err instanceof Error ? err.message : "The license could not be deleted.");
     } finally {
       setIsDeleting(false);
-      setDeleteCandidate(null);
     }
   };
 
   const openEdit = (lic: LicenseRecord) => {
-    setEditForm({
-      order_id: lic.order_id ?? "",
-      customer_name: lic.customer_name ?? "",
-      customer_email: lic.customer_email ?? "",
-      customer_discord: lic.customer_discord ?? "",
-      order_note: lic.order_note ?? "",
-    });
+    setEditForm(orderFormFor(lic));
     setEditError(null);
     setEditCandidate(lic);
   };
@@ -610,7 +732,13 @@ export function LicensesPage({
   }, [licenses, searchQuery, createdOnly, createdKeys, highlightCreated]);
 
   const renderTable = (lics: LicenseRecord[], title: string) => (
-    <section className="panel" style={{ marginBottom: 24 }}>
+    <section
+      className="panel"
+      style={{ marginBottom: 24 }}
+      role="tabpanel"
+      id="licenses-panel-inventory"
+      aria-labelledby="licenses-panel-inventory-tab"
+    >
       <div className="panel-head">
         <div className="panel-head-left">
           <h2 className="section-title">{title}</h2>
@@ -620,42 +748,44 @@ export function LicensesPage({
         </div>
       </div>
 
-      {loading ? (
-        <div
-          style={{
-            padding: "60px",
-            textAlign: "center",
-            color: "var(--text-2)",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: "12px",
-          }}
-        >
-          <div className="spinner spinner-md" />
-          <span>Loading licenses...</span>
-        </div>
-      ) : lics.length === 0 ? (
-        <EmptyState icon={<Key />} title="No Licenses Found">
+      {!loading && lics.length === 0 ? (
+        <EmptyState icon={<Key />} title="No licenses found">
           {searchQuery
             ? "No licenses match your current search filter."
             : "No license keys generated yet."}
         </EmptyState>
       ) : (
-        <TableFrame className="license-table">
+        <TableFrame
+          className="license-table"
+          minWidth={1180}
+          stickyActions
+          mobileLayout="stack"
+          aria-busy={loading || undefined}
+        >
+          <caption className="table-caption">
+            All licenses with their customer, order and binding state
+          </caption>
           <thead>
             <tr>
-              <th>License Key</th>
-              <th>Customer</th>
-              <th>Order</th>
-              <th>Duration</th>
-              <th className="col-md">Usage</th>
-              <th>Status</th>
-              <th className="col-lg">Linked Session</th>
-              <th></th>
+              <th scope="col">License key</th>
+              <th scope="col">Customer</th>
+              <th scope="col">Order</th>
+              <th scope="col">Duration</th>
+              <th scope="col" className="col-md">
+                Usage
+              </th>
+              <th scope="col">Status</th>
+              <th scope="col" className="col-lg">
+                Linked session
+              </th>
+              <th scope="col" aria-label="License actions" />
             </tr>
           </thead>
           <tbody>
+            {/* The table shape is reserved while the first load runs — a
+                skeleton, never a centred "Loading licenses…" spinner that the
+                rows then push out of the way. A reload keeps the rows it has. */}
+            {loading && lics.length === 0 && <SkeletonRows columns={8} />}
             {lics.map((lic) => {
               const isMaster = isMasterLicense(lic);
               return (
@@ -669,7 +799,16 @@ export function LicensesPage({
                 >
                   <td>
                     <RecordCell
-                      primary={<span className="mono">{lic.license_key}</span>}
+                      primary={
+                        <span className="license-key-cell">
+                          <span className="mono">{lic.license_key}</span>
+                          <CopyKeyButton
+                            value={lic.license_key}
+                            copied={copiedValue === lic.license_key}
+                            onCopy={(value) => void copyValue(value)}
+                          />
+                        </span>
+                      }
                       secondary={
                         <>
                           {isMaster ? "Master license" : "License"}
@@ -680,7 +819,7 @@ export function LicensesPage({
                       }
                     />
                   </td>
-                  <td>
+                  <td data-label="Customer">
                     <RecordCell
                       primary={
                         lic.customer_name ||
@@ -710,18 +849,19 @@ export function LicensesPage({
                       }
                     />
                   </td>
-                  <td>
+                  <td data-label="Order">
                     <RecordCell
                       primary={lic.order_id || "—"}
-                      secondary={[
-                        lic.order_source,
-                        lic.purchased_at ? timeAgo(lic.purchased_at) : null,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
+                      secondary={
+                        <>
+                          {lic.order_source}
+                          {lic.order_source && lic.purchased_at ? " · " : null}
+                          {lic.purchased_at ? <RelativeTime iso={lic.purchased_at} /> : null}
+                        </>
+                      }
                     />
                   </td>
-                  <td style={{ whiteSpace: "nowrap" }}>
+                  <td data-label="Duration" style={{ whiteSpace: "nowrap" }}>
                     <span style={{ color: "var(--text-1)", fontWeight: 500 }}>
                       {lic.type === "lifetime"
                         ? "Lifetime"
@@ -738,10 +878,10 @@ export function LicensesPage({
                                   : `${Math.round(lic.duration_days || 0)} Days`}
                     </span>
                   </td>
-                  <td className="col-md">
+                  <td className="col-md" data-label="Usage">
                     {lic.usage_count} / {lic.max_uses === -1 ? "Unlimited" : lic.max_uses}
                   </td>
-                  <td>
+                  <td data-label="Status">
                     <StatusBadge
                       presence={
                         lic.status === "active"
@@ -753,7 +893,7 @@ export function LicensesPage({
                       label={lic.status[0].toUpperCase() + lic.status.slice(1)}
                     />
                   </td>
-                  <td className="col-lg">
+                  <td className="col-lg" data-label="Linked session">
                     {lic.hwid ? (
                       <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                         <User size={12} style={{ color: "var(--text-2)" }} />
@@ -773,9 +913,9 @@ export function LicensesPage({
                                   }
                                 }}
                                 className="record-link"
-                                title={isLive ? "View Live Session" : "View User Sessions"}
+                                title={isLive ? "View live session" : "View customer sessions"}
                               >
-                                {lic.user_label || "Unknown User"}
+                                {lic.user_label || "Unknown customer"}
                               </button>
                             );
                           })()
@@ -789,9 +929,9 @@ export function LicensesPage({
                               overflow: "hidden",
                               textOverflow: "ellipsis",
                             }}
-                            title={lic.user_label || "Unknown User"}
+                            title={lic.user_label || "Unknown customer"}
                           >
-                            {lic.user_label || "Unknown User"}
+                            {lic.user_label || "Unknown customer"}
                           </strong>
                         )}
                       </div>
@@ -842,7 +982,10 @@ export function LicensesPage({
                         permission="licenses.write"
                         icon={<Trash2 />}
                         variant="danger"
-                        onClick={() => setDeleteCandidate(lic)}
+                        onClick={() => {
+                          setDeleteError(null);
+                          setDeleteCandidate(lic);
+                        }}
                         title="Permanently delete license"
                         aria-label="Permanently delete license"
                       >
@@ -863,9 +1006,22 @@ export function LicensesPage({
     <div className="page-content page-stack-lg">
       <CustomerReturnLink />
       <PageHeader
-        kicker="Access"
-        title="Licenses & orders"
-        right={workspaceTab === "inventory" ? filterBar : undefined}
+        page="licenses"
+        right={
+          <>
+            {workspaceTab === "inventory" ? filterBar : null}
+            {/* One primary way to sell a license, reachable from every tab. */}
+            <Button
+              variant="primary"
+              size="sm"
+              icon={<Plus />}
+              permission="licenses.write"
+              onClick={openIssue}
+            >
+              Issue license
+            </Button>
+          </>
+        }
       />
       {createdKeys.length > 0 && (
         <div className="creation-notice" role="status">
@@ -879,7 +1035,28 @@ export function LicensesPage({
                 : `${createdKeys.length} licenses created`}
             </strong>
             <span>The new licenses are marked in your inventory.</span>
+            <ul className="creation-notice-keys">
+              {createdKeys.map((key) => (
+                <li key={key}>
+                  <code className="customer360-mono">{key}</code>
+                  <CopyKeyButton
+                    value={key}
+                    copied={copiedValue === key}
+                    onCopy={(value) => void copyValue(value)}
+                  />
+                </li>
+              ))}
+            </ul>
           </div>
+          {createdKeys.length > 1 && (
+            <Button
+              size="sm"
+              icon={copiedValue === createdKeys.join("\n") ? <Check /> : <Copy />}
+              onClick={() => void copyValue(createdKeys.join("\n"))}
+            >
+              {copiedValue === createdKeys.join("\n") ? "Copied" : "Copy all"}
+            </Button>
+          )}
           <Button
             size="sm"
             variant="accent"
@@ -902,38 +1079,18 @@ export function LicensesPage({
           />
         </div>
       )}
-      <div className="workspace-tabs" role="tablist" aria-label="License workspace">
-        <button
-          role="tab"
-          aria-selected={workspaceTab === "inventory"}
-          className={workspaceTab === "inventory" ? "active" : ""}
-          onClick={() => setWorkspaceTab("inventory")}
-        >
-          All licenses
-        </button>
-        <button
-          role="tab"
-          aria-selected={workspaceTab === "lookup"}
-          className={workspaceTab === "lookup" ? "active" : ""}
-          onClick={() => setWorkspaceTab("lookup")}
-        >
-          Find a purchase
-        </button>
-        {canWrite && (
-          <button
-            role="tab"
-            aria-selected={workspaceTab === "generate"}
-            className={workspaceTab === "generate" ? "active" : ""}
-            onClick={() => setWorkspaceTab("generate")}
-          >
-            Create licenses
-          </button>
-        )}
-      </div>
-      {workspaceTab === "inventory" && renderTable(sortedLicenses, "All Licenses")}
+      <Tabs
+        aria-label="License workspace"
+        items={workspaceTabs}
+        value={workspaceTab}
+        onChange={(key) => setWorkspaceTab(key as WorkspaceTab)}
+      />
+      {workspaceTab === "inventory" && renderTable(sortedLicenses, "All licenses")}
       {workspaceTab === "lookup" && (
         <section
           className="panel license-lookup-panel"
+          role="tabpanel"
+          id="licenses-panel-lookup"
           aria-labelledby="license-order-lookup-title"
         >
           <div className="panel-head">
@@ -952,9 +1109,9 @@ export function LicensesPage({
           </div>
           <div className="panel-body license-lookup-body">
             <form className="license-lookup-form" onSubmit={submitLookup}>
-              <label>
-                <span className="label-sm">Search by</span>
+              <Field label="Search by">
                 <Select
+                  aria-label="Search by"
                   className="glass-input"
                   value={lookupMode}
                   onValueChange={(value) => {
@@ -967,13 +1124,12 @@ export function LicensesPage({
                   <option value="order_id">Exact order ID</option>
                   <option value="customer">Customer name, email or Discord</option>
                 </Select>
-              </label>
-              <label className="license-lookup-query">
-                <span className="label-sm">
-                  {lookupMode === "order_id" ? "Customer order ID" : "Customer"}
-                </span>
-                <input
-                  className="glass-input"
+              </Field>
+              <Field
+                label={lookupMode === "order_id" ? "Customer order ID" : "Customer"}
+                hint="required"
+              >
+                <Input
                   value={lookupValue}
                   onChange={(event) => {
                     setLookupValue(event.target.value);
@@ -986,7 +1142,7 @@ export function LicensesPage({
                   }
                   autoComplete="off"
                 />
-              </label>
+              </Field>
               <Button
                 type="submit"
                 variant="primary"
@@ -997,11 +1153,7 @@ export function LicensesPage({
               </Button>
             </form>
 
-            {lookupError ? (
-              <p className="license-workflow-error" role="alert">
-                {lookupError}
-              </p>
-            ) : null}
+            <FormError message={lookupError} />
 
             {lookupResults !== null ? (
               <div className="license-lookup-results" aria-live="polite">
@@ -1023,7 +1175,7 @@ export function LicensesPage({
                       size="sm"
                       icon={<Plus />}
                       permission="licenses.write"
-                      onClick={openIssueForLookup}
+                      onClick={openIssue}
                     >
                       Issue purchased license
                     </Button>
@@ -1064,6 +1216,11 @@ export function LicensesPage({
                                   return next;
                                 })
                               }
+                            />
+                            <CopyKeyButton
+                              value={license.license_key}
+                              copied={copiedValue === license.license_key}
+                              onCopy={(value) => void copyValue(value)}
                             />
                           </span>
                           <div>
@@ -1132,114 +1289,93 @@ export function LicensesPage({
       )}
 
       {workspaceTab === "generate" && canWrite && (
-        <section className="panel">
+        <section
+          className="panel"
+          role="tabpanel"
+          id="licenses-panel-generate"
+          aria-labelledby="licenses-panel-generate-tab"
+        >
           <div className="panel-head">
             <div className="panel-head-left">
               <p className="kicker kicker-row">
-                <Plus size={12} /> Generator
+                <Plus size={12} /> Bulk generate
               </p>
-              <h2 className="section-title">License Generator</h2>
+              <h2 className="section-title">License generator</h2>
               <p className="section-sub">Create standard or custom master licenses</p>
             </div>
             <div className="panel-head-right">
-              <div className="seg-control">
-                <button
-                  onClick={() => setIsMaster(false)}
-                  className={"seg-btn" + (!isMaster ? " active" : "")}
-                >
-                  Standard
-                </button>
-                <button
-                  onClick={() => setIsMaster(true)}
-                  className={"seg-btn" + (isMaster ? " active" : "")}
-                >
-                  Master Key
-                </button>
-              </div>
+              <SegmentedControl
+                aria-label="Key kind"
+                items={GENERATOR_KINDS}
+                value={isMaster ? "master" : "standard"}
+                onChange={(key) => setIsMaster(key === "master")}
+              />
             </div>
           </div>
 
-          <div className="panel-body">
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-                gap: "16px",
-                marginBottom: "16px",
-              }}
-            >
+          <form className="panel-body license-generator-form" onSubmit={submitGenerate}>
+            {/* The generator is the batch path; a single sale belongs in the
+                audited issue flow, which is one click away in the header. */}
+            <p className="license-generator-note">
+              Keys created here carry no order record. For a single purchase use{" "}
+              <strong>Issue license</strong> in the page header — it requires an order ID and is
+              replay-safe.
+            </p>
+
+            <div className="license-generator-grid">
               {isMaster ? (
                 <>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                    <label className="label-sm">Custom Key String (optional)</label>
-                    <input
-                      type="text"
-                      className="glass-input"
+                  <Field label="Custom key string" hint="optional">
+                    <Input
+                      mono
                       placeholder="Blank = random key"
                       value={customKey}
                       onChange={(e) => setCustomKey(e.target.value)}
-                      style={{ fontFamily: "monospace" }}
                     />
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                      }}
-                    >
-                      <label className="label-sm">Max Uses (Usability)</label>
-                      <label
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 6,
-                          fontSize: "0.8rem",
-                          color: "var(--text-1)",
-                          cursor: "pointer",
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isInfiniteUses}
-                          onChange={(e) => setIsInfiniteUses(e.target.checked)}
-                        />
-                        Infinite
-                      </label>
-                    </div>
-                    {!isInfiniteUses && (
-                      <input
-                        type="number"
-                        className="glass-input"
-                        min={1}
-                        value={maxUses}
-                        onChange={(e) => setMaxUses(Number(e.target.value))}
-                      />
-                    )}
-                  </div>
+                  </Field>
+                  <Field
+                    label="Seats (max uses)"
+                    help="A master key can be activated on this many machines."
+                  >
+                    <Input
+                      type="number"
+                      min={1}
+                      max={1000}
+                      step={1}
+                      disabled={isInfiniteUses}
+                      value={isInfiniteUses ? "" : maxUses}
+                      placeholder={isInfiniteUses ? "Unlimited" : undefined}
+                      onChange={(e) => setMaxUses(Number(e.target.value))}
+                    />
+                  </Field>
+                  <label className="toggle-row license-generator-toggle">
+                    <span>Unlimited seats</span>
+                    <input
+                      type="checkbox"
+                      checked={isInfiniteUses}
+                      onChange={(e) => setIsInfiniteUses(e.target.checked)}
+                    />
+                  </label>
                 </>
               ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  <label className="label-sm">Quantity to Gen</label>
-                  <input
+                <Field label="Quantity" help="Up to 50 keys per batch.">
+                  <Input
                     type="number"
-                    className="glass-input"
-                    value={genCount}
                     min={1}
                     max={50}
+                    step={1}
+                    value={genCount}
                     onChange={(e) => setGenCount(Number(e.target.value))}
                   />
-                </div>
+                </Field>
               )}
 
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                <label className="label-sm">Duration Type</label>
+              <Field label="Duration type">
                 <Select
+                  aria-label="Duration type"
                   className="glass-input"
                   value={genType}
                   onValueChange={(value) => setGenType(value)}
-                  style={{ cursor: "pointer" }}
                 >
                   <option value="lifetime">Lifetime</option>
                   <option value="years">Years</option>
@@ -1249,104 +1385,84 @@ export function LicensesPage({
                   <option value="hours">Hours</option>
                   <option value="minutes">Minutes</option>
                 </Select>
-              </div>
+              </Field>
 
               {genType !== "lifetime" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  <label className="label-sm">Duration Value</label>
-                  <input
+                <Field label="Duration value">
+                  <Input
                     type="number"
-                    className="glass-input"
+                    min={1}
+                    step={1}
                     value={genDuration}
                     onChange={(e) => setGenDuration(Number(e.target.value))}
                   />
-                </div>
+                </Field>
               )}
             </div>
 
             {/* Optional buyer attribution for manual sales — stamped on every
                 generated key so the directory shows who it was sold to. */}
-            <div style={{ borderTop: "1px solid var(--line)", paddingTop: 14, marginBottom: 16 }}>
-              <p
-                className="label-sm"
-                style={{ marginBottom: 10, display: "inline-flex", alignItems: "center", gap: 6 }}
-              >
-                <ShoppingCart size={12} /> Customer / Order (optional — for manual sales)
-              </p>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-                  gap: "16px",
-                }}
-              >
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  <label className="label-sm">Order No.</label>
-                  <input
-                    type="text"
-                    className="glass-input"
+            <fieldset className="license-generator-section">
+              <legend className="label-sm">
+                <ShoppingCart size={12} /> Customer / order — for manual sales
+              </legend>
+              <div className="license-generator-grid">
+                <Field label="Order no." hint="optional">
+                  <Input
+                    mono
                     placeholder="e.g. ORD-1042"
                     value={genOrderId}
                     onChange={(e) => setGenOrderId(e.target.value)}
-                    style={{ fontFamily: "monospace" }}
                   />
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  <label className="label-sm">Customer Name</label>
-                  <input
-                    type="text"
-                    className="glass-input"
+                </Field>
+                <Field label="Customer name" hint="optional">
+                  <Input
                     placeholder="Buyer name"
                     value={genCustomerName}
                     onChange={(e) => setGenCustomerName(e.target.value)}
                   />
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  <label className="label-sm">Customer Email</label>
-                  <input
+                </Field>
+                <Field label="Customer email" hint="optional">
+                  <Input
                     type="email"
-                    className="glass-input"
                     placeholder="buyer@mail.com"
                     value={genCustomerEmail}
                     onChange={(e) => setGenCustomerEmail(e.target.value)}
                   />
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  <label className="label-sm">Discord</label>
-                  <input
-                    type="text"
-                    className="glass-input"
+                </Field>
+                <Field label="Discord" hint="optional">
+                  <Input
                     placeholder="@buyer"
                     value={genCustomerDiscord}
                     onChange={(e) => setGenCustomerDiscord(e.target.value)}
                   />
-                </div>
+                </Field>
               </div>
-            </div>
+            </fieldset>
 
-            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <FormError message={generateError} />
+
+            <div className="license-generator-actions">
               <Button
+                type="submit"
                 size="md"
                 icon={<Plus size={16} />}
                 permission="licenses.write"
-                onClick={handleGenerate}
                 disabled={generating}
                 variant="primary"
               >
-                {generating
-                  ? "Generating..."
-                  : isMaster
-                    ? "Create Master Key"
-                    : "Generate Standard Keys"}
+                {generating ? "Creating…" : isMaster ? "Create master key" : "Create licenses"}
               </Button>
             </div>
-          </div>
+          </form>
         </section>
       )}
 
       <Modal
         open={issueOpen}
         onClose={() => (issueBusy ? undefined : setIssueOpen(false))}
+        dismissOnScrim={false}
+        isDirty={() => !issueResult && !formsEqual(issueForm, issueBaseline.current)}
         kicker="Customer fulfilment"
         title={issueResult ? "License issued" : "Issue purchased license"}
         sub={
@@ -1362,6 +1478,13 @@ export function LicensesPage({
             </div>
             <p>The key is ready for the customer.</p>
             <code>{issueResult.license.license_key}</code>
+            <Button
+              size="sm"
+              icon={copiedValue === issueResult.license.license_key ? <Check /> : <Copy />}
+              onClick={() => void copyValue(issueResult.license!.license_key)}
+            >
+              {copiedValue === issueResult.license.license_key ? "Copied" : "Copy key"}
+            </Button>
             <div className="license-workflow-result-grid">
               <span>
                 Order<strong>{issueResult.license.order_id ?? issueForm.order_id}</strong>
@@ -1373,8 +1496,10 @@ export function LicensesPage({
                 Replay-safe<strong>{issueResult.replayed ? "Replayed" : "New operation"}</strong>
               </span>
             </div>
-            <div className="license-workflow-actions">
-              <Button onClick={() => setIssueOpen(false)}>Done</Button>
+            <ModalActions>
+              <Button variant="ghost" onClick={() => setIssueOpen(false)}>
+                Done
+              </Button>
               <Button
                 variant="primary"
                 icon={<PlayCircle />}
@@ -1386,55 +1511,45 @@ export function LicensesPage({
               >
                 Activate for install
               </Button>
-            </div>
+            </ModalActions>
           </div>
         ) : (
           <form className="license-workflow-form" onSubmit={submitIssue}>
             <div className="license-workflow-grid">
-              <label>
-                <span className="label-sm">
-                  Order ID <em>required</em>
-                </span>
-                <input
-                  className="glass-input"
+              <Field label="Order ID" hint="required">
+                <Input
                   required
                   value={issueForm.order_id}
                   onChange={(event) => updateIssueForm({ order_id: event.target.value })}
                   placeholder="ORD-1042"
                   autoFocus
                 />
-              </label>
-              <label>
-                <span className="label-sm">Customer name</span>
-                <input
-                  className="glass-input"
+              </Field>
+              <Field label="Customer name" hint="optional">
+                <Input
                   value={issueForm.customer_name}
                   onChange={(event) => updateIssueForm({ customer_name: event.target.value })}
                   placeholder="Buyer name"
                 />
-              </label>
-              <label>
-                <span className="label-sm">Customer email</span>
-                <input
+              </Field>
+              <Field label="Customer email" hint="optional">
+                <Input
                   type="email"
-                  className="glass-input"
                   value={issueForm.customer_email}
                   onChange={(event) => updateIssueForm({ customer_email: event.target.value })}
                   placeholder="buyer@example.com"
                 />
-              </label>
-              <label>
-                <span className="label-sm">Customer Discord</span>
-                <input
-                  className="glass-input"
+              </Field>
+              <Field label="Customer Discord" hint="optional">
+                <Input
                   value={issueForm.customer_discord}
                   onChange={(event) => updateIssueForm({ customer_discord: event.target.value })}
                   placeholder="@buyer"
                 />
-              </label>
-              <label>
-                <span className="label-sm">License plan</span>
+              </Field>
+              <Field label="License plan">
                 <Select
+                  aria-label="License plan"
                   className="glass-input"
                   value={issueForm.type}
                   onValueChange={(value) => updateIssueForm({ type: value as IssueForm["type"] })}
@@ -1442,76 +1557,69 @@ export function LicensesPage({
                   <option value="lifetime">Lifetime</option>
                   <option value="trial">Trial</option>
                 </Select>
-              </label>
+              </Field>
               {issueForm.type === "trial" ? (
-                <label>
-                  <span className="label-sm">Duration in days</span>
-                  <input
+                <Field label="Duration in days">
+                  <Input
                     type="number"
                     min={1}
                     max={3650}
                     step={1}
-                    className="glass-input"
                     value={issueForm.duration_days}
                     onChange={(event) =>
                       updateIssueForm({ duration_days: Number(event.target.value) })
                     }
                   />
-                </label>
+                </Field>
               ) : null}
-              <label>
-                <span className="label-sm">Seats / maximum uses</span>
-                <input
+              <Field label="Seats (max uses)">
+                <Input
                   type="number"
                   min={1}
                   max={1000}
                   step={1}
-                  className="glass-input"
                   value={issueForm.max_uses}
                   onChange={(event) => updateIssueForm({ max_uses: Number(event.target.value) })}
                 />
-              </label>
-              <label>
-                <span className="label-sm">
-                  Custom key <em>optional</em>
-                </span>
-                <input
-                  className="glass-input customer360-mono"
+              </Field>
+              <Field label="Custom key" hint="optional">
+                <Input
+                  mono
                   minLength={8}
                   maxLength={128}
                   value={issueForm.custom_key}
                   onChange={(event) => updateIssueForm({ custom_key: event.target.value })}
                   placeholder="Blank creates a secure random key"
                 />
-              </label>
+              </Field>
             </div>
-            <label>
-              <span className="label-sm">Order note</span>
-              <textarea
-                className="glass-input"
+            <Field label="Order note" hint="optional">
+              <Textarea
                 rows={3}
                 value={issueForm.order_note}
                 onChange={(event) => updateIssueForm({ order_note: event.target.value })}
                 placeholder="Purchase context or anything support should know"
               />
-            </label>
+            </Field>
             <p className="license-workflow-note">
               This action is protected by an idempotency key, so retrying the same submission cannot
               issue a duplicate license.
             </p>
-            {issueError ? (
-              <p className="license-workflow-error" role="alert">
-                {issueError}
-              </p>
-            ) : null}
-            <div className="license-workflow-actions">
-              <Button onClick={() => setIssueOpen(false)} disabled={issueBusy}>
+            <FormError message={issueError} />
+            <ModalActions>
+              <Button variant="ghost" onClick={() => setIssueOpen(false)} disabled={issueBusy}>
                 Cancel
               </Button>
-              <Button type="submit" variant="primary" icon={<Key />} disabled={issueBusy}>
+              <Button
+                type="submit"
+                variant="primary"
+                icon={<Key />}
+                permission="licenses.write"
+                disabled={issueBusy}
+              >
                 {issueBusy ? "Issuing…" : "Issue license"}
               </Button>
-            </div>
+            </ModalActions>
           </form>
         )}
       </Modal>
@@ -1519,6 +1627,14 @@ export function LicensesPage({
       <Modal
         open={licenseAction !== null}
         onClose={() => (actionBusy ? undefined : setLicenseAction(null))}
+        dismissOnScrim={false}
+        isDirty={() =>
+          !actionResult &&
+          !formsEqual(
+            { installId: actionInstallId, hwid: actionHwid, reason: actionReason },
+            actionBaseline.current,
+          )
+        }
         kicker="Customer fulfilment"
         title={
           actionResult
@@ -1559,11 +1675,11 @@ export function LicensesPage({
                 Replay-safe<strong>{actionResult.replayed ? "Replayed" : "New operation"}</strong>
               </span>
             </div>
-            <div className="license-workflow-actions">
+            <ModalActions>
               <Button variant="primary" onClick={() => setLicenseAction(null)}>
                 Done
               </Button>
-            </div>
+            </ModalActions>
           </div>
         ) : licenseAction ? (
           <form className="license-workflow-form" onSubmit={submitLicenseAction}>
@@ -1572,13 +1688,12 @@ export function LicensesPage({
                 ? "Use the registered install ID from the customer's app. The server resolves and verifies its hardware ID, then performs the first binding if needed."
                 : "Bind an additional verified hardware ID. Add the install ID when you have it so the server can verify they match."}
             </div>
-            <label>
-              <span className="label-sm">
-                Install ID{" "}
-                {licenseAction.mode === "activate" ? <em>required</em> : <em>recommended</em>}
-              </span>
-              <input
-                className="glass-input customer360-mono"
+            <Field
+              label="Install ID"
+              hint={licenseAction.mode === "activate" ? "required" : "recommended"}
+            >
+              <Input
+                mono
                 required={licenseAction.mode === "activate"}
                 value={actionInstallId}
                 onChange={(event) => {
@@ -1588,14 +1703,11 @@ export function LicensesPage({
                 placeholder="Install ID from Customer 360 or the app"
                 autoFocus
               />
-            </label>
+            </Field>
             {licenseAction.mode === "bind" ? (
-              <label>
-                <span className="label-sm">
-                  Hardware ID <em>required</em>
-                </span>
-                <input
-                  className="glass-input customer360-mono"
+              <Field label="Hardware ID" hint="required">
+                <Input
+                  mono
                   required
                   value={actionHwid}
                   onChange={(event) => {
@@ -1604,14 +1716,14 @@ export function LicensesPage({
                   }}
                   placeholder="Verified HWID"
                 />
-              </label>
+              </Field>
             ) : null}
-            <label>
-              <span className="label-sm">
-                Reason <em>optional, saved for audit</em>
-              </span>
-              <textarea
-                className="glass-input"
+            <Field
+              label="Reason"
+              hint="optional"
+              help="Saved with the operation for the audit log."
+            >
+              <Textarea
                 rows={3}
                 value={actionReason}
                 onChange={(event) => {
@@ -1620,24 +1732,21 @@ export function LicensesPage({
                 }}
                 placeholder="e.g. Paid order verified in support ticket"
               />
-            </label>
+            </Field>
             <p className="license-workflow-note">
               Only a registered, non-revoked install or a hardware ID already seen by telemetry can
               be used.
             </p>
-            {actionError ? (
-              <p className="license-workflow-error" role="alert">
-                {actionError}
-              </p>
-            ) : null}
-            <div className="license-workflow-actions">
-              <Button onClick={() => setLicenseAction(null)} disabled={actionBusy}>
+            <FormError message={actionError} />
+            <ModalActions>
+              <Button variant="ghost" onClick={() => setLicenseAction(null)} disabled={actionBusy}>
                 Cancel
               </Button>
               <Button
                 type="submit"
                 variant="primary"
                 icon={licenseAction.mode === "activate" ? <PlayCircle /> : <Link2 />}
+                permission="licenses.write"
                 disabled={actionBusy}
               >
                 {actionBusy
@@ -1646,70 +1755,65 @@ export function LicensesPage({
                     ? "Activate license"
                     : "Bind device"}
               </Button>
-            </div>
+            </ModalActions>
           </form>
         ) : null}
       </Modal>
 
       <Modal
         open={!!deleteCandidate}
-        onClose={() => setDeleteCandidate(null)}
-        kicker="DANGER ZONE"
-        title="Delete License"
+        onClose={() => (isDeleting ? undefined : setDeleteCandidate(null))}
+        kicker="Danger zone"
+        title="Delete license"
         sub={
           deleteCandidate?.hwid
             ? "This permanently wipes the license from the database and instantly kills access on every bound machine. It cannot be recovered."
             : "This will permanently wipe this license from the database. It cannot be recovered."
         }
       >
-        <div style={{ marginTop: 24, display: "flex", justifyContent: "flex-end", gap: 12 }}>
-          <Button
-            variant="ghost"
-            permission="licenses.write"
-            onClick={() => setDeleteCandidate(null)}
-          >
+        <FormError message={deleteError} />
+        <ModalActions>
+          <Button variant="ghost" onClick={() => setDeleteCandidate(null)} disabled={isDeleting}>
             Cancel
           </Button>
           <Button
             variant="danger"
+            icon={<Trash2 />}
             permission="licenses.write"
             onClick={confirmDelete}
             disabled={isDeleting}
           >
-            {isDeleting ? "Processing..." : "Confirm"}
+            {isDeleting ? "Deleting…" : "Delete license"}
           </Button>
-        </div>
+        </ModalActions>
       </Modal>
 
       {/* Customer / order attribution editor */}
       <Modal
         open={!!editCandidate}
         onClose={() => (isSavingEdit ? null : setEditCandidate(null))}
-        kicker="Order Tracking"
-        title="Customer & Order"
+        dismissOnScrim={false}
+        isDirty={() => !!editCandidate && !formsEqual(editForm, orderFormFor(editCandidate))}
+        kicker="Order tracking"
+        title="Customer & order"
         sub={editCandidate ? `License ${editCandidate.license_key}` : undefined}
       >
         {editCandidate ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <form
+            className="license-edit-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void saveEdit();
+            }}
+          >
             {/* Machine-owned facts about this key (read-only) */}
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: "6px 16px",
-                fontSize: "0.71875rem",
-                color: "var(--text-3)",
-              }}
-            >
+            <div className="license-edit-facts">
               <span>
-                Source:{" "}
-                <strong style={{ color: "var(--text-2)", textTransform: "uppercase" }}>
-                  {editCandidate.order_source || "—"}
-                </strong>
+                Source: <strong className="is-source">{editCandidate.order_source || "—"}</strong>
               </span>
               <span>
                 Issued:{" "}
-                <strong style={{ color: "var(--text-2)" }}>
+                <strong>
                   {editCandidate.purchased_at
                     ? formatDate(editCandidate.purchased_at)
                     : formatDate(editCandidate.created_at)}
@@ -1718,95 +1822,61 @@ export function LicensesPage({
               {editCandidate.verified_discord ? (
                 <span>
                   Verified Discord:{" "}
-                  <strong style={{ color: "var(--success-text)" }}>
+                  <strong className="is-verified">
                     {discordHandle(editCandidate.verified_discord)}
                   </strong>
                 </span>
               ) : null}
             </div>
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-                gap: 12,
-              }}
-            >
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <label className="label-sm">Order No.</label>
-                <input
-                  type="text"
-                  className="glass-input"
+            <div className="license-edit-grid">
+              <Field label="Order no." hint="optional">
+                <Input
+                  mono
                   placeholder="e.g. ORD-1042 / invoice id"
                   value={editForm.order_id}
                   onChange={(e) => setEditForm((f) => ({ ...f, order_id: e.target.value }))}
-                  style={{ fontFamily: "monospace" }}
                 />
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <label className="label-sm">Customer Name</label>
-                <input
-                  type="text"
-                  className="glass-input"
+              </Field>
+              <Field label="Customer name" hint="optional">
+                <Input
                   placeholder="Buyer name"
                   value={editForm.customer_name}
                   onChange={(e) => setEditForm((f) => ({ ...f, customer_name: e.target.value }))}
                 />
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <label className="label-sm">Customer Email</label>
-                <input
+              </Field>
+              <Field label="Customer email" hint="optional">
+                <Input
                   type="email"
-                  className="glass-input"
                   placeholder="buyer@mail.com"
                   value={editForm.customer_email}
                   onChange={(e) => setEditForm((f) => ({ ...f, customer_email: e.target.value }))}
                 />
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <label className="label-sm">Discord</label>
-                <input
-                  type="text"
-                  className="glass-input"
+              </Field>
+              <Field label="Discord" hint="optional">
+                <Input
                   placeholder="@buyer"
                   value={editForm.customer_discord}
                   onChange={(e) => setEditForm((f) => ({ ...f, customer_discord: e.target.value }))}
                 />
-              </div>
+              </Field>
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <label className="label-sm">Note</label>
-              <textarea
-                className="glass-input"
+            <Field label="Note" hint="optional">
+              <Textarea
                 rows={3}
                 placeholder="Anything worth remembering about this sale…"
                 value={editForm.order_note}
                 onChange={(e) => setEditForm((f) => ({ ...f, order_note: e.target.value }))}
-                style={{ resize: "vertical", minHeight: 64 }}
               />
-            </div>
+            </Field>
 
             {editCandidate.order_meta ? (
-              <details>
-                <summary style={{ cursor: "pointer", fontSize: "0.75rem", color: "var(--text-2)" }}>
+              <details className="license-edit-raw">
+                <summary>
                   Raw storefront payload (what the shop sent when this key was issued)
                 </summary>
-                <pre
-                  style={{
-                    marginTop: 8,
-                    padding: "10px 12px",
-                    background: "var(--surface-2)",
-                    border: "1px solid var(--line)",
-                    borderRadius: 10,
-                    fontSize: "0.6875rem",
-                    color: "var(--text-2)",
-                    whiteSpace: "pre-wrap",
-                    wordBreak: "break-all",
-                    maxHeight: 180,
-                    overflow: "auto",
-                  }}
-                >
+                <pre>
                   {(() => {
                     try {
                       return JSON.stringify(JSON.parse(editCandidate.order_meta), null, 2);
@@ -1818,16 +1888,9 @@ export function LicensesPage({
               </details>
             ) : null}
 
-            {editError ? (
-              <p
-                style={{ margin: 0, fontSize: "0.8125rem", color: "var(--danger-text)" }}
-                role="alert"
-              >
-                {editError}
-              </p>
-            ) : null}
+            <FormError message={editError} />
 
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
+            <ModalActions>
               <Button
                 variant="ghost"
                 onClick={() => setEditCandidate(null)}
@@ -1836,15 +1899,15 @@ export function LicensesPage({
                 Cancel
               </Button>
               <Button
+                type="submit"
                 variant="primary"
                 permission="licenses.write"
-                onClick={saveEdit}
                 disabled={isSavingEdit}
               >
-                {isSavingEdit ? "Saving..." : "Save"}
+                {isSavingEdit ? "Saving…" : "Save"}
               </Button>
-            </div>
-          </div>
+            </ModalActions>
+          </form>
         ) : null}
       </Modal>
     </div>

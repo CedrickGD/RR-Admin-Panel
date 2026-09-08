@@ -230,7 +230,7 @@ export function UserActivityPanel({ identity }: UserActivityPanelProps) {
         <p className="user-activity-note">{error}</p>
       ) : activity?.legacyOnly ? (
         <p className="user-activity-note">
-          Legacy client — this user only reports install-scoped heartbeats, so no per-session
+          Legacy client — this customer only reports install-scoped heartbeats, so no per-session
           history exists.
         </p>
       ) : activity && activity.totalSeconds === 0 ? (
@@ -336,8 +336,8 @@ export function UserActivityPanel({ identity }: UserActivityPanelProps) {
 
           {!activity.intervalsComplete ? (
             <p className="user-activity-warning">
-              This user exceeds the 20,000-session safety window. The newest intervals are shown;
-              older exact intervals are not included.
+              This customer exceeds the 20,000-session safety window. The newest intervals are
+              shown; older exact intervals are not included.
             </p>
           ) : null}
 

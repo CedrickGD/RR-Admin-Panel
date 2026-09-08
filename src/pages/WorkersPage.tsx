@@ -6,8 +6,6 @@ import {
   useCustomerProfiles,
 } from "../components/CustomerProfiles";
 import {
-  ArrowDown,
-  ArrowUp,
   ArrowUpRight,
   ChevronDown,
   ChevronUp,
@@ -32,13 +30,18 @@ import {
 } from "react";
 import { GlassDropdown } from "../components/GlassDropdown";
 import { InstallsPanel } from "../components/InstallsPanel";
-import { MonitoringSummary } from "../components/MonitoringSummary";
+import { KpiStatCard } from "../components/KpiStatCard";
 import { Button, IconButton } from "../components/ds/Button";
+import { SortHeader, type SortState } from "../components/ds/DataTable";
 import { EmptyState } from "../components/ds/EmptyState";
 import { PageHeader } from "../components/ds/PageHeader";
+import { RelativeTime } from "../components/ds/RelativeTime";
+import { SegmentedControl, type TabItem } from "../components/ds/SegmentedControl";
+import { SkeletonRows } from "../components/ds/Skeleton";
 import { TablePagination } from "../components/ds/TablePagination";
 import type { StatsPayload, SummaryPayload, UserRollupRecord } from "../types/telemetry";
-import { formatDate, formatDuration, formatNumber, timeAgo } from "../utils/format";
+import { openCustomerWorkspace } from "../utils/customerNavigation";
+import { formatDate, formatDuration, formatNumber } from "../utils/format";
 import { resolveCountry } from "../utils/geography";
 import {
   buildMonitoringDirectory,
@@ -68,16 +71,18 @@ interface WorkersPageProps {
 const nameOf = (user: UserRollupRecord) => user.userLabel?.trim() || user.identity;
 const versionOf = (user: UserRollupRecord) => user.displayVersion || user.appVersion || "Unknown";
 type Scope = "all" | "online" | "offline" | "errors";
-const SCOPES: Array<[Scope, string]> = [
-  ["all", "Everyone"],
-  ["online", "Online"],
-  ["offline", "Offline"],
-  ["errors", "With errors"],
+const SCOPES: TabItem[] = [
+  { key: "all", label: "All customers" },
+  { key: "online", label: "Online", icon: <Radio /> },
+  { key: "offline", label: "Offline" },
+  { key: "errors", label: "With errors" },
 ];
+/** Column count of the history table — keeps the loading skeleton in step with the head. */
+const HISTORY_COLUMNS = 8;
 async function exportHistory(users: UserRollupRecord[]) {
   const XLSX = await import("xlsx");
   const rows = users.map((u) => ({
-    User: nameOf(u),
+    Customer: nameOf(u),
     Discord: u.discordUser || "",
     Status: u.isActive ? "Online" : "Offline",
     Version: versionOf(u),
@@ -185,21 +190,25 @@ export function WorkersPage({
     setCountry(null);
     setPage(1);
   }
-  function changeSort(key: UserDirectorySortKey) {
+  /** SortHeader hands back the column key; the page owns the direction toggle. */
+  function changeSort(next: string) {
+    const key = next as UserDirectorySortKey;
     if (key === sort) setDirection((d) => (d === "asc" ? "desc" : "asc"));
     else {
       setSort(key);
       setDirection(key === "version" ? "desc" : defaultUserSortDirection(key));
     }
   }
-  function heading(label: string, key: UserDirectorySortKey) {
+  const sortState: SortState = { key: sort, direction };
+  function heading(label: string, key: UserDirectorySortKey, numeric = false) {
     return (
-      <th aria-sort={sort === key ? (direction === "asc" ? "ascending" : "descending") : undefined}>
-        <button className="table-sort" onClick={() => changeSort(key)}>
-          {label}
-          {sort === key && (direction === "asc" ? <ArrowUp /> : <ArrowDown />)}
-        </button>
-      </th>
+      <SortHeader
+        sortKey={key}
+        label={label}
+        sort={sortState}
+        onSortChange={changeSort}
+        className={numeric ? "numeric" : undefined}
+      />
     );
   }
   async function download() {
@@ -216,8 +225,7 @@ export function WorkersPage({
   return (
     <div className="page-content monitor-workspace">
       <PageHeader
-        title="Session history"
-        sub="People, activity and every recorded session. One place to look."
+        page="workers"
         right={
           <>
             {filterBar}
@@ -232,52 +240,49 @@ export function WorkersPage({
           </>
         }
       />
-      <MonitoringSummary
-        items={[
-          {
-            label: "People",
-            value: users === null ? "…" : formatNumber(rows.length),
-            icon: <UsersRound />,
-            tone: "violet",
-            note: filtered ? "Matching filters" : "All recorded users",
-          },
-          {
-            label: "Online now",
-            value: formatNumber(totals.online),
-            icon: <Radio />,
-            tone: "green",
-          },
-          {
-            label: "Sessions",
-            value: formatNumber(totals.sessions),
-            icon: <History />,
-            tone: "blue",
-            note: "Lifetime totals",
-          },
-          {
-            label: "Time in app",
-            value: formatDuration(totals.seconds),
-            icon: <Clock3 />,
-            tone: "amber",
-            note: "Lifetime totals",
-          },
-        ]}
-      />
-      <section className="monitor-surface" aria-label="People and session history">
+      <div className="stat-grid stat-grid-4">
+        <KpiStatCard
+          density="compact"
+          label="Customers"
+          value={formatNumber(rows.length)}
+          sub={filtered ? "Matching the current filters" : "All recorded customers"}
+          icon={<UsersRound />}
+          loading={users === null}
+        />
+        <KpiStatCard
+          density="compact"
+          label="Online now"
+          value={formatNumber(totals.online)}
+          sub="Customers active right now"
+          icon={<Radio />}
+          tone="success"
+          loading={users === null}
+        />
+        <KpiStatCard
+          density="compact"
+          label="Sessions"
+          value={formatNumber(totals.sessions)}
+          sub="Lifetime totals"
+          icon={<History />}
+          loading={users === null}
+        />
+        <KpiStatCard
+          density="compact"
+          label="Time in app"
+          value={formatDuration(totals.seconds)}
+          sub="Lifetime totals"
+          icon={<Clock3 />}
+          loading={users === null}
+        />
+      </div>
+      <section className="monitor-surface" aria-label="Customers and session history">
         <div className="monitor-toolbar">
-          <div className="monitor-scopes" aria-label="Activity filter">
-            {SCOPES.map(([key, label]) => (
-              <button
-                key={key}
-                aria-pressed={scope === key}
-                className={scope === key ? "selected" : ""}
-                onClick={() => setScope(key)}
-              >
-                {key === "online" && <i />}
-                {label}
-              </button>
-            ))}
-          </div>
+          <SegmentedControl
+            aria-label="Activity filter"
+            items={SCOPES}
+            value={scope}
+            onChange={(key) => setScope(key as Scope)}
+          />
         </div>
         <div className="monitor-filter-row">
           <div className="monitor-filter">
@@ -305,7 +310,7 @@ export function WorkersPage({
             </Button>
           )}
           <span className="monitor-results">
-            {formatNumber(rows.length)} people · expand a row for sessions
+            {formatNumber(rows.length)} customers · expand a row for sessions
           </span>
         </div>
         {error && (
@@ -313,31 +318,40 @@ export function WorkersPage({
             {error}
           </p>
         )}
-        {users === null ? (
-          <div className="monitor-loading" role="status">
-            Loading the complete history…
-          </div>
-        ) : rows.length === 0 ? (
-          <EmptyState icon={<Search />} title="No matching activity">
-            <Button onClick={clear}>Clear filters</Button>
+        {users !== null && rows.length === 0 ? (
+          <EmptyState
+            icon={<Search />}
+            title="No customers match"
+            action={
+              <Button icon={<X />} onClick={clear}>
+                Clear filters
+              </Button>
+            }
+          >
+            Nothing matches the current search and filters.
           </EmptyState>
         ) : (
-          <TableFrame>
+          <TableFrame stickyActions mobileLayout="stack" aria-busy={users === null || undefined}>
+            <caption className="table-caption">
+              Customers and their session history, sortable by column
+            </caption>
             <thead>
               <tr>
-                {heading("Person", "user")}
-                <th>Status</th>
+                {heading("Customer", "user")}
+                <th scope="col">Status</th>
                 {heading("Version", "version")}
-                {heading("Sessions", "sessions")}
-                {heading("Time in app", "totalTime")}
+                {heading("Sessions", "sessions", true)}
+                {heading("Time in app", "totalTime", true)}
                 {heading("Last active", "lastSeen")}
                 {heading("Location", "location")}
-                <th>
+                <th scope="col">
                   <span className="sr-only">Actions</span>
                 </th>
               </tr>
             </thead>
             <tbody>
+              {/* Nothing has loaded yet: skeleton rows stand in, so the frame keeps its shape. */}
+              {users === null && <SkeletonRows columns={HISTORY_COLUMNS} />}
               {visible.items.map((user) => {
                 const isExpanded = expanded === user.identity;
                 const session = latest.get((user.hwid?.trim() || user.identity).toLowerCase());
@@ -350,7 +364,7 @@ export function WorkersPage({
                           className="person-cell"
                           onClick={() => setExpanded(isExpanded ? null : user.identity)}
                           aria-expanded={isExpanded}
-                          aria-label={`Show session history for ${label}`}
+                          aria-label={`${isExpanded ? "Hide" : "Show"} session history for ${label}`}
                         >
                           <CustomerAvatar
                             profile={findProfile(session?.installId, user.hwid ?? user.identity)}
@@ -366,31 +380,33 @@ export function WorkersPage({
                           </span>
                         </button>
                       </td>
-                      <td>
+                      <td data-label="Status">
                         <span className={`presence ${user.isActive ? "online" : "offline"}`}>
                           <i />
                           {user.isActive ? "Online" : "Offline"}
                         </span>
                       </td>
-                      <td>
+                      <td data-label="Version">
                         <span className="version-text">{versionOf(user)}</span>
                         {user.rpcEnabled && (
                           <Radio className="rpc-icon" size={13} aria-label="Discord RPC enabled" />
                         )}
                       </td>
-                      <td>
+                      <td className="numeric" data-label="Sessions">
                         <strong className="table-number">{formatNumber(user.sessions)}</strong>
                       </td>
-                      <td>{formatDuration(user.totalDurationSeconds)}</td>
-                      <td title={formatDate(user.lastSeen)}>
-                        {timeAgo(user.lastSeen)}
+                      <td className="numeric" data-label="Time in app">
+                        {formatDuration(user.totalDurationSeconds)}
+                      </td>
+                      <td data-label="Last active">
+                        <RelativeTime iso={user.lastSeen} />
                         {user.errors > 0 && (
                           <small className="row-error">
                             {formatNumber(user.errors)} errors recorded
                           </small>
                         )}
                       </td>
-                      <td>
+                      <td data-label="Location">
                         <span
                           className="cell-location"
                           title={[user.city, resolveCountry(user.country)?.label ?? user.country]
@@ -406,7 +422,7 @@ export function WorkersPage({
                         <IconButton
                           icon={isExpanded ? <ChevronUp /> : <ChevronDown />}
                           aria-expanded={isExpanded}
-                          aria-label={`${isExpanded ? "Collapse" : "Expand"} history for ${label}`}
+                          aria-label={`${isExpanded ? "Hide" : "Show"} session history for ${label}`}
                           onClick={() => setExpanded(isExpanded ? null : user.identity)}
                         />
                       </td>
@@ -439,14 +455,10 @@ export function WorkersPage({
                                 variant="accent"
                                 icon={<ArrowUpRight />}
                                 onClick={() =>
-                                  window.dispatchEvent(
-                                    new CustomEvent("rr:open-customer", {
-                                      detail: {
-                                        selector: user.hwid ? "hwid" : "install_id",
-                                        value: user.hwid || session?.installId || user.identity,
-                                      },
-                                    }),
-                                  )
+                                  openCustomerWorkspace({
+                                    selector: user.hwid ? "hwid" : "install_id",
+                                    value: user.hwid || session?.installId || user.identity,
+                                  })
                                 }
                               >
                                 Customer workspace
@@ -489,7 +501,7 @@ export function WorkersPage({
         )}
         <TablePagination
           {...visible}
-          itemLabel="people"
+          itemLabel="customers"
           onPageChange={(p) => {
             setPage(p);
             setExpanded(null);

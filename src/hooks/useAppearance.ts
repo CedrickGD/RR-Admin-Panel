@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { DEFAULT_APPEARANCE, validateAppearance, type Appearance } from "../../shared/appearance";
+import { accentCustomProperties } from "../utils/accentContrast";
 import { apiUrl } from "../utils/api";
 export { DEFAULT_APPEARANCE, type Appearance };
 type SyncState = "local" | "loading" | "saving" | "saved" | "error";
@@ -57,6 +58,13 @@ function apply() {
   document.documentElement.style.setProperty("--ah", String(state.hue));
   document.documentElement.style.setProperty("--ah-secondary", String((state.hue + 65) % 360));
   document.documentElement.style.setProperty("--ah-tertiary", String((state.hue + 180) % 360));
+  /* --al, --on-accent and --accent-text are hue-dependent: the static formulas in
+     theme/tokens/accent.css and theme/workspace.css only clear WCAG AA around
+     violet. Recomputed here on every hue *and* theme change — apply() runs on
+     both — and written inline so they outrank the html[data-theme] fallbacks. */
+  const accent = accentCustomProperties(state.hue, state.theme);
+  for (const name of Object.keys(accent))
+    document.documentElement.style.setProperty(name, accent[name]);
 }
 function notify() {
   apply();

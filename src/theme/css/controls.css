@@ -24,7 +24,7 @@
 
 .btn-primary {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   border-color: var(--accent);
 }
 .btn-primary:hover:not(:disabled) {
@@ -75,31 +75,87 @@
 }
 .btn-icon:hover:not(:disabled) { background: var(--surface-3); color: var(--text-1); border-color: var(--line-hi); }
 
-/* ── Segmented control (time ranges) ──────────────────────────── */
-.seg-control {
-  display: inline-flex;
-  background: var(--surface-1);
-  backdrop-filter: blur(14px) saturate(140%);
-  -webkit-backdrop-filter: blur(14px) saturate(140%);
-  border: 1px solid var(--line);
-  border-radius: var(--r-ctl);
-  padding: 2px;
-  gap: 2px;
+/* ── ds/Tabs — underline sub-view switcher ────────────────────────
+   The DS owner of the tab row. Unlike the legacy `.workspace-tabs`
+   (workspace.css) and `.seg-*` (index/app-glue/controls) chains, nothing
+   in a later layer restyles these classes: this block is the whole look.
+   State is carried by color + the accent underline, never by a weight
+   change — a bold active label reflows the whole row on every switch. */
+.ds-tabs {
+  display: flex;
+  gap: 24px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 26px;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
-.seg-btn {
+.ds-tabs::-webkit-scrollbar { display: none; }
+.ds-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 0 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--text-3);
+  font-size: var(--fs-body);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color var(--t-med), border-color var(--t-med);
+}
+.ds-tab:hover:not(.is-active) { color: var(--text-2); }
+.ds-tab.is-active { color: var(--text-1); border-bottom-color: var(--accent); }
+.ds-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.ds-tab-count,
+.ds-seg-count {
+  padding: 1px 6px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  color: var(--text-2);
+  font-size: var(--fs-micro);
+  font-variant-numeric: tabular-nums;
+}
+.ds-tab.is-active .ds-tab-count,
+.ds-seg-btn.is-active .ds-seg-count { background: var(--accent-subtle); color: var(--accent-text); }
+
+/* ── ds/SegmentedControl — pill filter row ────────────────────── */
+.ds-seg {
+  display: inline-flex;
+  align-items: center;
+  /* The longest row is Heatmap's seven region chips; without this it runs off
+     a phone instead of breaking onto a second line (the legacy `.seg-control`
+     wrapped under 640px). inline-flex only wraps when actually constrained. */
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+}
+.ds-seg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 5px 11px;
-  border-radius: 7px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: none;
+  color: var(--text-2);
   font-size: var(--fs-small);
   font-weight: 500;
-  color: var(--text-2);
+  white-space: nowrap;
+  cursor: pointer;
   transition: background var(--t-fast), color var(--t-fast);
 }
-.seg-btn:hover:not(.active) { color: var(--text-1); }
-.seg-btn.active {
-  background: var(--surface-3);
-  box-shadow: inset 0 0 0 1px hsl(var(--ah) var(--as) var(--al) / 0.45);
-  color: var(--text-1);
+.ds-seg-btn:hover:not(.is-active) { color: var(--text-1); }
+.ds-seg-btn.is-active {
+  background: var(--accent-subtle);
+  box-shadow: inset 0 0 0 1px hsl(var(--ah) var(--as) var(--al) / 0.5);
+  color: var(--accent-text);
 }
+.ds-seg-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* ── Custom dropdown (GlassDropdown) ──────────────────────────── */
 .gdrop { position: relative; }
@@ -149,7 +205,7 @@
   border-bottom: 1px solid var(--line);
   color: var(--text-3);
 }
-.gdrop-search input { flex: 1; background: none; border: none; outline: none; color: var(--text-1); font-size: var(--fs-body); }
+.gdrop-search input { flex: 1; background: none; border: none; color: var(--text-1); font-size: var(--fs-body); }
 .gdrop-search input::placeholder { color: var(--text-3); }
 .gdrop-list { max-height: 264px; overflow-y: auto; padding: 5px; }
 .gdrop-item {
@@ -176,7 +232,11 @@
 .filter-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
 .filter-bar-right { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 
-/* ── Inputs ───────────────────────────────────────────────────── */
+/* ── Inputs ───────────────────────────────────────────────────────
+   Single owner of the field's own geometry (ds/Input). index.css used to
+   restate this rule verbatim; what remains elsewhere is theme work, not a
+   copy: the borderless ambience shadow (app-glue.css), the light/dark fill
+   (workspace.css) and the compact search field (operations.css). */
 .glass-input {
   background: rgba(3, 5, 14, 0.32);
   border: 1px solid var(--line);
@@ -184,16 +244,49 @@
   padding: 8px 12px;
   color: var(--text-1);
   font-size: var(--fs-body);
-  outline: none;
   transition: border-color var(--t-med), box-shadow var(--t-med), background var(--t-med);
   width: 100%;
 }
 .glass-input:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-subtle);
-  background: rgba(3, 5, 14, 0.42);
+  /* Token, not a near-black wash: this rule outranks the themed `input.glass-input`
+     fill in workspace.css, so a literal here turns every light-theme field mid-grey. */
+  background: var(--surface-3);
+}
+.glass-input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 .glass-input::placeholder { color: var(--text-3); }
+/* Validation state (ds/Input `invalid`, ds/Field `error`): the field itself
+   says it failed, not only the message under it. Outranks the themed
+   `input.glass-input` border and the borderless ambience shadow. */
+.glass-input[aria-invalid="true"] {
+  border-color: var(--danger);
+  box-shadow: inset 0 0 0 1px var(--danger);
+}
+.glass-input[aria-invalid="true"]:focus {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px var(--danger-sub);
+}
+
+/* ── ds/Field — label + requirement hint + control + help/error ── */
+.ds-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ds-field-label { display: flex; align-items: baseline; gap: 6px; }
+/* The requirement marker: quieter than the label it qualifies. */
+.ds-field-label em {
+  color: var(--text-3);
+  font-style: normal;
+  font-weight: 500;
+  font-size: var(--fs-tiny);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.ds-field-help,
+.ds-field-error { margin: 0; font-size: var(--fs-tiny); line-height: 1.45; }
+.ds-field-help { color: var(--text-3); }
+.ds-field-error { color: var(--danger-text); }
 
 .search-wrap { position: relative; display: flex; align-items: center; }
 .search-wrap .search-icon { position: absolute; left: 10px; color: var(--text-3); pointer-events: none; display: flex; }

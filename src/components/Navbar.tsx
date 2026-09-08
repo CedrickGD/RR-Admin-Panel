@@ -8,6 +8,8 @@ import {
   Inbox,
   Megaphone,
   PackageCheck,
+  PanelLeftClose,
+  PanelLeftOpen,
   ChevronDown,
   ChevronRight,
   CircleHelp,
@@ -26,7 +28,15 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+} from "react";
 import type {
   AuthMode,
   AuthUser,
@@ -35,60 +45,112 @@ import type {
   SummaryPayload,
 } from "../types/telemetry";
 import { canVisit } from "../../shared/panel-policy";
+import { PAGE_META, type PageGroup } from "../pageMeta";
 import { useAppearance } from "../hooks/useAppearance";
 import { useChartColors } from "../hooks/useChartColors";
-import { useWorkspaceSearch } from "../hooks/useWorkspaceSearch";
-import { Modal } from "./ds/Modal";
-import { Button } from "./ds/Button";
+import { useSignOut } from "../hooks/useSignOut";
+import {
+  matchSearchRecords,
+  SEARCH_SCOPES,
+  setWorkspaceSearch,
+  useSearchRecords,
+  useWorkspaceSearch,
+  type SearchScope,
+} from "../hooks/useWorkspaceSearch";
+import { openCustomerWorkspace } from "../utils/customerNavigation";
+import { SearchResults, searchOptionId } from "./SearchResults";
+import { IconButton } from "./ds/Button";
 const logo = new URL("../img/logo.ico", import.meta.url).href;
+/* Sidebar structure (group order, item order, icons) only. Every visible
+   name comes from PAGE_META, so the rail, the breadcrumb, the page H1 and the
+   tab title can never disagree. */
 const GROUPS: Array<{
-  label: string;
+  label: PageGroup;
   icon: ReactNode;
-  items: Array<[PageKey, string, ReactNode]>;
+  items: Array<[PageKey, ReactNode]>;
 }> = [
   {
     label: "Customers",
     icon: <UsersRound />,
     items: [
-      ["customers", "Customer directory", <UsersRound />],
-      ["licenses", "Licenses & orders", <KeyRound />],
+      ["customers", <UsersRound />],
+      ["licenses", <KeyRound />],
     ],
   },
   {
     label: "Monitoring",
     icon: <Activity />,
     items: [
-      ["overview", "Overview", <LayoutDashboard />],
-      ["live", "Live sessions", <Radio />],
-      ["workers", "Session history", <History />],
-      ["traffic", "Traffic", <BarChart3 />],
-      ["versions", "Versions", <PackageCheck />],
-      ["heatmap", "World map", <Globe2 />],
+      ["overview", <LayoutDashboard />],
+      ["live", <Radio />],
+      ["workers", <History />],
+      ["traffic", <BarChart3 />],
+      ["versions", <PackageCheck />],
+      ["heatmap", <Globe2 />],
     ],
   },
   {
     label: "Communication",
     icon: <MessageSquare />,
     items: [
-      ["announcements", "Announcements", <Megaphone />],
-      ["feedback", "Feedback inbox", <Inbox />],
+      ["announcements", <Megaphone />],
+      ["feedback", <Inbox />],
     ],
   },
   {
     label: "Diagnostics",
     icon: <CircleHelp />,
-    items: [["errors", "Application errors", <Bug />]],
+    items: [["errors", <Bug />]],
   },
   {
     label: "Administration",
     icon: <ShieldCheck />,
     items: [
-      ["team", "Panel access", <ShieldCheck />],
-      ["system", "Backend status", <Server />],
-      ["settings", "Settings", <Settings2 />],
+      ["team", <ShieldCheck />],
+      ["system", <Server />],
+      ["settings", <Settings2 />],
     ],
   },
 ];
+/* The one box searches four different directories depending on the page, so it
+   has to say which one — the label is the accessible name, the placeholder the
+   visible promise, the target the noun the Enter hint uses. */
+const SEARCH_LABEL: Record<SearchScope, string> = {
+  customers: "Search customers",
+  licenses: "Search licenses",
+  workers: "Search session history",
+  live: "Search live sessions",
+};
+const SEARCH_PLACEHOLDER: Record<SearchScope, string> = {
+  customers: "Search customer, PC, Discord or HWID…",
+  licenses: "Search licenses, customers, orders…",
+  workers: "Search session history by customer or PC…",
+  live: "Search live sessions by customer or PC…",
+};
+const SEARCH_TARGET: Record<SearchScope, string> = {
+  customers: "customers",
+  licenses: "licenses",
+  workers: "session history",
+  live: "live sessions",
+};
+const SEARCH_LIMIT = 8;
+
+/* Icon rail. Between 901px and 1200px the full 244px sidebar leaves ~850px for
+   tables that want 1180px, so the rail is the default there — until the admin
+   states a preference, which then holds at every width. */
+const RAIL_KEY = "rr:sidebar-rail";
+const RAIL_AUTO_QUERY = "(min-width: 901px) and (max-width: 1200px)";
+type RailPreference = "expanded" | "collapsed" | null;
+
+function readRailPreference(): RailPreference {
+  try {
+    const stored = localStorage.getItem(RAIL_KEY);
+    return stored === "expanded" || stored === "collapsed" ? stored : null;
+  } catch {
+    return null;
+  }
+}
+
 export interface NavbarProps {
   page: PageKey;
   onNavigate: (p: PageKey) => void;
@@ -103,7 +165,7 @@ export interface NavbarProps {
 export function Navbar({ page, onNavigate, user, onLogout }: NavbarProps) {
   useChartColors();
   const [mobile, setMobile] = useState(false);
-  const [confirmLogout, setConfirmLogout] = useState(false);
+  const signOut = useSignOut(onLogout);
   const expansionKey = `rr:navigation:${user.email}`;
   const [expanded, setExpanded] = useState<string[]>(() => {
     try {
@@ -115,16 +177,68 @@ export function Navbar({ page, onNavigate, user, onLogout }: NavbarProps) {
     }
     return GROUPS.map((g) => g.label);
   });
-  const searchScope =
+  const searchScope: SearchScope =
     page === "licenses" || page === "workers" || page === "live" ? page : "customers";
-  const searchLabel = {
-    customers: "Search customers",
-    licenses: "Search licenses",
-    workers: "Search session history",
-    live: "Search live sessions",
-  }[searchScope];
+  const searchLabel = SEARCH_LABEL[searchScope];
   const [search, setSearch] = useWorkspaceSearch(searchScope);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const searchSources = useSearchRecords();
+  const listId = useId();
   const { appearance, updateAppearance } = useAppearance();
+
+  /* ── Icon rail ─── */
+  const [railPreference, setRailPreference] = useState<RailPreference>(readRailPreference);
+  const [autoRail, setAutoRail] = useState(() => window.matchMedia(RAIL_AUTO_QUERY).matches);
+  useEffect(() => {
+    const query = window.matchMedia(RAIL_AUTO_QUERY);
+    const onChange = () => setAutoRail(query.matches);
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
+  }, []);
+  const railCollapsed = railPreference ? railPreference === "collapsed" : autoRail;
+  useEffect(() => {
+    // --sb-w and every offset that reads it (topbar, main, Customer 360) follow
+    // this class; the rail rules themselves are scoped to (min-width: 901px),
+    // so it is inert while the mobile drawer owns the sidebar.
+    const root = document.documentElement;
+    root.classList.toggle("sb-collapsed", railCollapsed);
+    return () => root.classList.remove("sb-collapsed");
+  }, [railCollapsed]);
+  function toggleRail() {
+    const next: RailPreference = railCollapsed ? "expanded" : "collapsed";
+    setRailPreference(next);
+    try {
+      localStorage.setItem(RAIL_KEY, next);
+    } catch {
+      /* The rail still toggles when storage is unavailable. */
+    }
+  }
+
+  /* ── Search suggestions ─── */
+  const trimmedSearch = search.trim();
+  const options = useMemo(() => {
+    if (!trimmedSearch) return [];
+    // The scope of the current page first, then whatever else happens to be
+    // loaded — nothing here triggers a request.
+    const ordered = [searchScope, ...SEARCH_SCOPES.filter((scope) => scope !== searchScope)];
+    return matchSearchRecords(
+      ordered.map((scope) => searchSources[scope]),
+      trimmedSearch,
+      SEARCH_LIMIT,
+    );
+  }, [searchSources, searchScope, trimmedSearch]);
+  const hintSelectable = page !== searchScope;
+  const hint = options.length
+    ? undefined
+    : hintSelectable
+      ? `Press Enter to search ${SEARCH_TARGET[searchScope]}`
+      : `No quick matches — the ${SEARCH_TARGET[searchScope]} list below already shows every hit.`;
+  const optionCount = options.length + (hint && hintSelectable ? 1 : 0);
+  const popoverOpen = searchOpen && trimmedSearch.length > 0;
+  useEffect(() => {
+    setActiveIndex(-1);
+  }, [trimmedSearch, searchScope]);
   useEffect(() => {
     try {
       localStorage.setItem(expansionKey, JSON.stringify(expanded));
@@ -161,6 +275,45 @@ export function Navbar({ page, onNavigate, user, onLogout }: NavbarProps) {
 
   useEffect(() => {
     setMobile(false);
+    setSearchOpen(false);
+  }, [page]);
+
+  // The header query filters exactly one directory. Leaving that directory drops
+  // it, so a filter typed on Customers can never come back on a page that does
+  // not show what it filtered (the value is persisted per scope in
+  // sessionStorage). A search that navigates lands ON its scope, so it survives.
+  const previousScope = useRef(searchScope);
+  useEffect(() => {
+    const left = previousScope.current;
+    previousScope.current = searchScope;
+    if (left !== searchScope) setWorkspaceSearch(left, "");
+    if (page !== searchScope) setWorkspaceSearch(searchScope, "");
+  }, [page, searchScope]);
+
+  // Closing the drawer unmounts its close button (and hides the rail), which would drop
+  // focus on <body>. Hand it back to the control that opened the drawer.
+  const menuRef = useRef<HTMLButtonElement>(null);
+  const drawerWasOpen = useRef(false);
+  useEffect(() => {
+    if (mobile) {
+      drawerWasOpen.current = true;
+      return;
+    }
+    if (!drawerWasOpen.current) return;
+    drawerWasOpen.current = false;
+    if (menuRef.current?.offsetParent !== null) menuRef.current?.focus();
+  }, [mobile]);
+
+  // The rail scrolls on short viewports: keep the current page's item (or its
+  // collapsed group) in view after every navigation — search, deep links and
+  // the brand button can land on a page whose item sits below the fold.
+  const navRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const nav = navRef.current;
+    const target =
+      nav?.querySelector<HTMLElement>(".sb-item.active") ??
+      nav?.querySelector<HTMLElement>(".nav-parent.has-active");
+    target?.scrollIntoView({ block: "nearest" });
   }, [page]);
 
   function navigate(key: PageKey) {
@@ -168,36 +321,105 @@ export function Navbar({ page, onNavigate, user, onLogout }: NavbarProps) {
     onNavigate(key);
     setMobile(false);
   }
-  const activeGroup = GROUPS.find((g) => g.items.some(([key]) => key === page));
-  const title =
-    page === "overview"
-      ? "Overview"
-      : (activeGroup?.items.find(([key]) => key === page)?.[1] ?? "Workspace");
+
+  /**
+   * Runs one row of the popover. A match opens the Customer 360 workspace over
+   * the current page; the hint row (or Enter with nothing highlighted) keeps the
+   * old contract — apply the query to its directory and go there.
+   */
+  function selectSearchOption(index: number) {
+    const record = options[index];
+    setSearchOpen(false);
+    setActiveIndex(-1);
+    if (record) {
+      openCustomerWorkspace(record.target);
+      return;
+    }
+    setSearch(search);
+    if (page !== searchScope) navigate(searchScope);
+  }
+
+  function onSearchKeyDown(event: ReactKeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Enter") {
+      // Explicit, not implicit form submission: a form whose only submit-shaped
+      // children are the popover's option buttons does not always fire submit.
+      event.preventDefault();
+      selectSearchOption(popoverOpen ? activeIndex : -1);
+      return;
+    }
+    if (event.key === "Escape") {
+      if (!popoverOpen) return;
+      // type="search" would clear the field on Escape; closing the popover first
+      // is the smaller, reversible step.
+      event.preventDefault();
+      event.stopPropagation();
+      setSearchOpen(false);
+      setActiveIndex(-1);
+      return;
+    }
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+    if (!trimmedSearch) return;
+    event.preventDefault();
+    if (!searchOpen) {
+      setSearchOpen(true);
+      return;
+    }
+    if (optionCount === 0) return;
+    const step = event.key === "ArrowDown" ? 1 : -1;
+    setActiveIndex((current) => {
+      const next = current + step;
+      if (next < 0) return optionCount - 1;
+      if (next >= optionCount) return 0;
+      return next;
+    });
+  }
+
+  const meta = PAGE_META[page];
   return (
     <>
-      <aside className={`sidebar ${mobile ? "open" : ""}`} aria-label="Primary navigation">
+      <aside
+        id="sidebar-nav"
+        className={`sidebar ${mobile ? "open" : ""}`}
+        aria-label="Primary navigation"
+      >
         <div className="sb-brand-row">
           <button
             type="button"
             className="sb-brand"
+            // The rail hides `.sb-brand-text` and the logo is decorative, which
+            // left the button with no accessible name at all in that layout —
+            // and the rail is the default between 901 and 1200px.
+            aria-label="RazorReaper Operations Console — go to overview"
+            title={railCollapsed ? "RazorReaper — Operations Console" : undefined}
             onClick={() => navigate(canVisit("overview", user) ? "overview" : "settings")}
           >
             <img className="sb-brand-img" src={logo} alt="" />
             <span className="sb-brand-text">
               <strong>RazorReaper</strong>
-              <small>Admin workspace</small>
+              <small>Operations Console</small>
             </span>
           </button>
-          <button
-            type="button"
-            className="btn-icon sb-close"
-            onClick={() => setMobile(false)}
-            aria-label="Close navigation"
-          >
-            <X size={18} />
-          </button>
+          {mobile ? (
+            <IconButton
+              className="sb-close"
+              icon={<X />}
+              size={18}
+              onClick={() => setMobile(false)}
+              aria-label="Close navigation"
+            />
+          ) : (
+            /* Desktop only (CSS hides it below 901px, where the X owns this slot). */
+            <IconButton
+              className="sb-rail-toggle"
+              icon={railCollapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
+              size={16}
+              onClick={toggleRail}
+              title={railCollapsed ? "Expand navigation" : "Collapse navigation"}
+              aria-label={railCollapsed ? "Expand navigation" : "Collapse navigation"}
+            />
+          )}
         </div>
-        <nav className="sb-nav" aria-label="Main">
+        <nav className="sb-nav" aria-label="Main" ref={navRef}>
           {GROUPS.map((group) => {
             const items = group.items.filter(([key]) => canVisit(key, user));
             if (!items.length) return null;
@@ -208,6 +430,8 @@ export function Navbar({ page, onNavigate, user, onLogout }: NavbarProps) {
                 <button
                   type="button"
                   className={`sb-item nav-parent ${active ? "has-active" : ""}`}
+                  // The rail hides every label, so the tooltip carries the name.
+                  title={railCollapsed ? group.label : undefined}
                   onClick={() =>
                     setExpanded((current) =>
                       current.includes(group.label)
@@ -227,16 +451,17 @@ export function Navbar({ page, onNavigate, user, onLogout }: NavbarProps) {
                 </button>
                 {open && (
                   <div className="nav-children">
-                    {items.map(([key, label, icon]) => (
+                    {items.map(([key, icon]) => (
                       <button
                         type="button"
                         key={key}
                         className={`sb-item ${page === key ? "active" : ""}`}
+                        title={railCollapsed ? PAGE_META[key].label : undefined}
                         onClick={() => navigate(key)}
                         aria-current={page === key ? "page" : undefined}
                       >
                         {icon}
-                        <span>{label}</span>
+                        <span>{PAGE_META[key].label}</span>
                       </button>
                     ))}
                   </div>
@@ -246,90 +471,103 @@ export function Navbar({ page, onNavigate, user, onLogout }: NavbarProps) {
           })}
         </nav>
         <div className="sb-foot">
-          <div className="account-row">
+          {/* The row shows the local part only; the title carries the address it
+              stands for, which is otherwise buried in Settings › Account. */}
+          <div className="account-row" title={`${user.email} · ${user.panelRole ?? user.role}`}>
             <span className="account-avatar">{user.email.slice(0, 1).toUpperCase()}</span>
             <span className="account-text">
               <strong>{user.email.split("@")[0]}</strong>
               <small>{user.panelRole ?? user.role}</small>
             </span>
-            <button
-              className="btn-icon"
-              onClick={() => setConfirmLogout(true)}
+            <IconButton
+              icon={<LogOut />}
+              size={16}
+              onClick={signOut.requestSignOut}
               title="Sign out"
               aria-label="Sign out"
-            >
-              <LogOut size={16} />
-            </button>
+            />
           </div>
         </div>
       </aside>
       <header className="workspace-bar">
-        <button
-          className="btn-icon mobile-menu"
-          aria-label="Open navigation"
+        <IconButton
+          ref={menuRef}
+          className="mobile-menu"
+          icon={mobile ? <X /> : <Menu />}
+          size={18}
+          aria-label={mobile ? "Close navigation" : "Open navigation"}
+          aria-expanded={mobile}
+          aria-controls="sidebar-nav"
           onClick={() => setMobile(!mobile)}
-        >
-          {mobile ? <X /> : <Menu />}
-        </button>
+        />
         <div className="workspace-breadcrumb">
-          <span>{activeGroup?.label ?? "Workspace"}</span>
-          <ChevronRight size={13} />
-          <strong>{title}</strong>
+          {/* A page named after its own group shows the name once, never twice. */}
+          {meta.group === meta.label ? null : (
+            <>
+              <span>{meta.group}</span>
+              <ChevronRight size={13} />
+            </>
+          )}
+          <strong>{meta.label}</strong>
         </div>
         {canVisit(searchScope, user) && (
           <form
             className="workspace-search"
             onSubmit={(e) => {
               e.preventDefault();
-              setSearch(search);
-              if (page !== searchScope) navigate(searchScope);
+              selectSearchOption(popoverOpen ? activeIndex : -1);
+            }}
+            onBlur={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget)) setSearchOpen(false);
             }}
           >
-            <Search size={16} />
+            <Search size={16} aria-hidden="true" />
             <input
               aria-label={searchLabel}
-              placeholder={
-                searchScope === "licenses"
-                  ? "Search licenses, customers, orders…"
-                  : "Search customer, PC, Discord or HWID…"
-              }
+              placeholder={SEARCH_PLACEHOLDER[searchScope]}
               type="search"
+              role="combobox"
+              aria-expanded={popoverOpen}
+              aria-controls={listId}
+              aria-autocomplete="list"
+              aria-activedescendant={
+                popoverOpen && activeIndex >= 0 ? searchOptionId(listId, activeIndex) : undefined
+              }
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setSearchOpen(e.target.value.trim().length > 0);
+              }}
+              onFocus={() => setSearchOpen(trimmedSearch.length > 0)}
+              onKeyDown={onSearchKeyDown}
             />
             {page !== searchScope && <kbd>↵</kbd>}
+            {popoverOpen && (
+              <SearchResults
+                id={listId}
+                aria-label={`${searchLabel} results`}
+                options={options}
+                activeIndex={activeIndex}
+                hint={hint}
+                hintSelectable={hintSelectable}
+                onHover={setActiveIndex}
+                onSelect={selectSearchOption}
+              />
+            )}
           </form>
         )}
-        <button
-          className="btn-icon theme-toggle"
+        <IconButton
+          className="theme-toggle"
+          icon={appearance.theme === "dark" ? <Sun /> : <Moon />}
+          size={18}
           onClick={() =>
             updateAppearance({ theme: appearance.theme === "dark" ? "light" : "dark" })
           }
           title={appearance.theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
           aria-label={appearance.theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-        >
-          {appearance.theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
-        </button>
+        />
       </header>
-      <Modal
-        open={confirmLogout}
-        onClose={() => setConfirmLogout(false)}
-        title="Sign out?"
-        sub="You will need to sign in again to access the panel."
-      >
-        <div className="row-actions">
-          <Button onClick={() => setConfirmLogout(false)}>Stay signed in</Button>
-          <Button
-            variant="primary"
-            onClick={() => {
-              setConfirmLogout(false);
-              onLogout();
-            }}
-          >
-            Sign out
-          </Button>
-        </div>
-      </Modal>
+      {signOut.dialog}
     </>
   );
 }

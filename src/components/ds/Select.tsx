@@ -8,10 +8,14 @@ interface Props {
   disabled?: boolean;
   className?: string;
   style?: CSSProperties;
+  /** Lands on the trigger button, so a ds/Field `<label for>` actually works. */
   id?: string;
   name?: string;
   required?: boolean;
   "aria-label"?: string;
+  /** Forwarded by ds/Field when the field carries help text or an error. */
+  "aria-describedby"?: string;
+  "aria-invalid"?: boolean | "true" | "false";
 }
 export function Select({
   children,
@@ -25,6 +29,8 @@ export function Select({
   name,
   required,
   "aria-label": label,
+  "aria-describedby": describedBy,
+  "aria-invalid": invalid,
 }: Props) {
   const ownId = useId();
   const options = Children.toArray(children)
@@ -37,15 +43,19 @@ export function Select({
       };
     });
   const selected = String(value ?? defaultValue ?? options[0]?.value ?? "");
+  // The id goes on the trigger button, not on this wrapper: a `<label for>`
+  // pointing at a <div> is inert (ds/Field), so clicking the label did nothing
+  // and the control had no programmatic label — only a duplicated aria-label.
   return (
     <div
-      id={id ?? ownId}
       className={`custom-select ${className}`}
       style={style}
-      aria-label={label}
       aria-disabled={disabled || undefined}
     >
       <GlassDropdown
+        triggerId={id ?? ownId}
+        describedBy={describedBy}
+        invalid={invalid === true || invalid === "true"}
         allowClear={options.some((o) => o.value === "")}
         placeholder={options.find((o) => o.value === "")?.label ?? "Choose…"}
         options={options.filter((o) => o.value !== "").map((o) => o.value)}

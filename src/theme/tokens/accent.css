@@ -17,6 +17,8 @@
   --accent-dim:    hsl(var(--ah) 55% 28%);
   --accent-subtle: hsl(var(--ah) var(--as) var(--al) / 0.12);
   --accent-glow:   hsl(var(--ah) var(--as) var(--al) / 0.32);
+  /* Hue-dependent: --al, --on-accent and --accent-text are rewritten inline on
+     <html> per hue+theme by src/utils/accentContrast. This stays the fallback. */
   --accent-text:   hsl(var(--ah) 90% 80%);
 
   /* Glow intensity multiplier — set to 0 to kill all accent glows */

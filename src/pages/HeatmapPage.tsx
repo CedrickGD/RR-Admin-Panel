@@ -12,6 +12,8 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { WorldHeatmap } from "../components/charts/WorldHeatmap";
 import { EmptyState } from "../components/ds/EmptyState";
 import { MetaRow, PageHeader } from "../components/ds/PageHeader";
+import { RelativeTime } from "../components/ds/RelativeTime";
+import { SegmentedControl, type TabItem } from "../components/ds/SegmentedControl";
 import { GlassDropdown } from "../components/GlassDropdown";
 import { KpiStatCard } from "../components/KpiStatCard";
 import type {
@@ -47,6 +49,18 @@ const REGION_SHORT: Record<string, string> = {
   Oceania: "OC",
 };
 
+/** `regionFilter === null` in radiogroup terms: no region narrows the map. */
+const ALL_REGIONS_KEY = "all";
+/** The chips stay two letters; `title` spells each one out. */
+const REGION_FILTERS: TabItem[] = [
+  { key: ALL_REGIONS_KEY, label: "All", title: "All regions" },
+  ...ALL_REGIONS.map((region) => ({
+    key: region,
+    label: REGION_SHORT[region] ?? region,
+    title: region,
+  })),
+];
+
 export interface MapFocusTarget {
   /** "session" flies the Live view to a session dot; "user" flies the All-time view to a rollup dot. */
   kind: "session" | "user";
@@ -72,6 +86,8 @@ interface StatChip {
   /** Lucide icon for the tile's right-side well (DS tile anatomy, 14px). */
   icon: ReactNode;
   tone?: "danger";
+  /** Data still in flight — the tile shows skeletons, never a "…loading" sub line. */
+  loading?: boolean;
 }
 
 interface MappedUser {
@@ -273,7 +289,7 @@ export function HeatmapPage({
         const displayName =
           entry.user.discordUser?.trim() ||
           entry.user.userLabel?.trim() ||
-          `User ${entry.user.identity.slice(0, 8)}`;
+          `Customer ${entry.user.identity.slice(0, 8)}`;
         const version = formatVersionTag(entry.user.displayVersion ?? entry.user.appVersion);
         const city = entry.user.city?.trim();
 
@@ -427,31 +443,31 @@ export function HeatmapPage({
     view === "live"
       ? [
           {
-            label: "Active Users",
+            label: "Active customers",
             val: formatNumber(liveSessions.length),
             sub: "Online right now",
             icon: <Activity size={14} />,
           },
           {
-            label: "Mapped Dots",
+            label: "Mapped dots",
             val: formatNumber(dots.length),
             sub: filtersActive ? "Matching filters" : "With geo data",
             icon: <MapPin size={14} />,
           },
           {
-            label: "Regions Online",
+            label: "Regions online",
             val: `${regionsActive} / ${regionRows.length}`,
             sub: "Macro regions active",
             icon: <Earth size={14} />,
           },
           {
-            label: "Countries Live",
+            label: "Countries live",
             val: formatNumber(markets.length),
             sub: topMarket ? `Top: ${topMarket.label}` : "No data",
             icon: <MapIcon size={14} />,
           },
           {
-            label: "Active Errors",
+            label: "Active errors",
             val: formatNumber(errorTotal),
             sub: "Across live sessions",
             icon: <AlertTriangle size={14} />,
@@ -466,19 +482,20 @@ export function HeatmapPage({
         ]
       : [
           {
-            label: "Total Users",
+            label: "Total customers",
             val: formatNumber(totalUsers),
-            sub: users ? "All-time rollup" : "Rollup loading…",
+            sub: "All-time rollup",
             icon: <Users size={14} />,
+            loading: !users,
           },
           {
-            label: "Mapped Users",
+            label: "Mapped customers",
             val: formatNumber(dots.length),
             sub: filtersActive ? "Matching filters" : "With coordinates",
             icon: <MapPin size={14} />,
           },
           {
-            label: "Regions Reached",
+            label: "Regions reached",
             val: `${regionsActive} / ${regionRows.length}`,
             sub: "Macro regions ever",
             icon: <Earth size={14} />,
@@ -490,9 +507,9 @@ export function HeatmapPage({
             icon: <MapIcon size={14} />,
           },
           {
-            label: "Lifetime Errors",
+            label: "Lifetime errors",
             val: formatNumber(errorTotal),
-            sub: "Across mapped users",
+            sub: "Across mapped customers",
             icon: <AlertTriangle size={14} />,
             tone: errorTotal > 0 ? "danger" : undefined,
           },
@@ -509,7 +526,7 @@ export function HeatmapPage({
       {/* Header — view seg + country filter + meta right; region chips on their own row */}
       <PageHeader
         kicker="Geography"
-        title="Heatmap"
+        page="heatmap"
         right={
           <>
             {filterBar}
@@ -535,9 +552,11 @@ export function HeatmapPage({
                 { label: "Errors", value: formatNumber(errorTotal) },
                 {
                   label: "Ingest",
-                  value: summary.stats.lastIngestAt
-                    ? timeAgo(summary.stats.lastIngestAt)
-                    : "Waiting",
+                  value: summary.stats.lastIngestAt ? (
+                    <RelativeTime iso={summary.stats.lastIngestAt} />
+                  ) : (
+                    "Waiting"
+                  ),
                 },
               ]}
             />
@@ -545,29 +564,16 @@ export function HeatmapPage({
         }
       />
 
-      {/* Region chips */}
+      {/* Region chips — a filter over the map that is already drawn, so
+          radiogroup semantics: "All" is the way back, not a second click on
+          the selected chip. */}
       <div className="filters">
-        <div className="seg-control">
-          <button
-            type="button"
-            title="All regions"
-            className={`seg-btn${regionFilter === null ? " active" : ""}`}
-            onClick={() => selectRegion(null)}
-          >
-            All
-          </button>
-          {ALL_REGIONS.map((region) => (
-            <button
-              key={region}
-              type="button"
-              title={region}
-              className={`seg-btn${regionFilter === region ? " active" : ""}`}
-              onClick={() => selectRegion(regionFilter === region ? null : region)}
-            >
-              {REGION_SHORT[region] ?? region}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          aria-label="Region filter"
+          items={REGION_FILTERS}
+          value={regionFilter ?? ALL_REGIONS_KEY}
+          onChange={(key) => selectRegion(key === ALL_REGIONS_KEY ? null : key)}
+        />
       </div>
 
       {/* KPI row */}
@@ -580,6 +586,7 @@ export function HeatmapPage({
             sub={s.sub}
             icon={s.icon}
             tone={s.tone}
+            loading={s.loading}
           />
         ))}
       </div>
@@ -592,7 +599,7 @@ export function HeatmapPage({
           <div className="panel-head">
             <div className="panel-head-left">
               <p className="kicker">Map</p>
-              <h2 className="section-title">World View</h2>
+              <h2 className="section-title">World view</h2>
             </div>
             <div className="panel-head-right">
               <span className="section-sub">
@@ -624,11 +631,11 @@ export function HeatmapPage({
           <div className="panel-head">
             <div className="panel-head-left">
               <p className="kicker">Regions</p>
-              <h2 className="section-title">Regional Load</h2>
+              <h2 className="section-title">Regional load</h2>
             </div>
             <div className="panel-head-right">
               <span className="section-sub">
-                {view === "live" ? "Live sessions" : "All-time users"}
+                {view === "live" ? "Live sessions" : "All-time customers"}
               </span>
             </div>
           </div>
@@ -678,14 +685,14 @@ export function HeatmapPage({
                     ? "No matching data"
                     : view === "live"
                       ? "No live geography"
-                      : "No mapped users"
+                      : "No mapped customers"
                 }
               >
                 {filtersActive
                   ? "No geographic data matches the active filters."
                   : view === "live"
-                    ? "No active sessions with geo data. Dots surface here as users come online."
-                    : "No mapped users yet. Users appear once coordinates are ingested."}
+                    ? "No active sessions with geo data. Dots surface here as customers come online."
+                    : "No mapped customers yet. Customers appear once coordinates are ingested."}
               </EmptyState>
             )}
           </div>

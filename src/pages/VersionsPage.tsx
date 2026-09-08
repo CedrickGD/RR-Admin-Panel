@@ -11,12 +11,13 @@ import { KvList } from "../components/ds/KvList";
 import { PageHeader } from "../components/ds/PageHeader";
 import { RadialGauge } from "../components/ds/RadialGauge";
 import { RankList } from "../components/ds/RankList";
+import { Skeleton } from "../components/ds/Skeleton";
 import { Tag } from "../components/ds/Tag";
 import { useChartColors } from "../hooks/useChartColors";
 import { useLatestVersion } from "../hooks/useLatestVersion";
 import { useReleaseVersions } from "../hooks/useReleaseVersions";
 import type { StatsPayload, SummaryPayload, ThemeMode } from "../types/telemetry";
-import { formatNumber } from "../utils/format";
+import { formatDay, formatNumber } from "../utils/format";
 import { applyChartColorOverride, buildDashboardChartPalette } from "./dashboardShared";
 
 interface VersionsPageProps {
@@ -88,17 +89,6 @@ function maxIso(a: string | null, b: string | null): string | null {
   return Date.parse(a) >= Date.parse(b) ? a : b;
 }
 
-function formatDay(value: string | null): string {
-  if (!value) return "—";
-  const ts = Date.parse(value);
-  if (!Number.isFinite(ts)) return value;
-  return new Date(ts).toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
-
 function statusBadge(row: VersionRow) {
   if (row.isLatest) return <Badge tone="accent">Latest</Badge>;
   if (row.currentUsers > 0) return <Badge tone="success">Active</Badge>;
@@ -112,22 +102,37 @@ const RELEASE_COLUMNS: Array<DataTableColumn<VersionRow>> = [
     header: "Version",
     render: (row) => <Tag accent={row.isLatest}>{row.label}</Tag>,
   },
-  { key: "currentUsers", header: "Current Users", render: (row) => formatNumber(row.currentUsers) },
+  {
+    key: "currentUsers",
+    header: "Current customers",
+    numeric: true,
+    render: (row) => formatNumber(row.currentUsers),
+  },
   {
     key: "allTimeUsers",
-    header: "All-Time Users",
+    header: "All-time customers",
+    numeric: true,
     render: (row) => formatNumber(row.allTimeUsers),
   },
-  { key: "sessions", header: "Sessions", muted: true, render: (row) => formatNumber(row.sessions) },
+  {
+    key: "sessions",
+    header: "Sessions",
+    muted: true,
+    numeric: true,
+    render: (row) => formatNumber(row.sessions),
+  },
   {
     key: "firstSeen",
-    header: "First Seen",
+    header: "First seen",
     muted: true,
     render: (row) => formatDay(row.firstSeen),
   },
-  { key: "lastSeen", header: "Last Seen", muted: true, render: (row) => formatDay(row.lastSeen) },
+  { key: "lastSeen", header: "Last seen", muted: true, render: (row) => formatDay(row.lastSeen) },
   { key: "status", header: "Status", render: (row) => statusBadge(row) },
 ];
+
+/** The four adoption tiles, so the loading state reserves their exact labels. */
+const VERSION_KPI_LABELS = ["On latest", "Outdated", "Versions tracked", "Top version"];
 
 export function VersionsPage({ stats, theme, accentHue = 217, filterBar }: VersionsPageProps) {
   const latestVersion = useLatestVersion();
@@ -247,8 +252,8 @@ export function VersionsPage({ stats, theme, accentHue = 217, filterBar }: Versi
         value: formatNumber(row.currentUsers),
         share: outdatedUsers > 0 ? row.currentUsers / outdatedUsers : 0,
       })),
-      breakdownTitle: "Outdated users by version",
-      note: `Known current users whose latest session is not on v${latestVersion}.`,
+      breakdownTitle: "Outdated customers by version",
+      note: `Known current customers whose latest session is not on v${latestVersion}.`,
     };
   }, [versionRows, outdatedUsers, latestVersion]);
 
@@ -257,7 +262,7 @@ export function VersionsPage({ stats, theme, accentHue = 217, filterBar }: Versi
     return {
       breakdown: currentBreakdown,
       breakdownTitle: "Current version distribution",
-      note: `Share is computed over the ${formatNumber(totalCurrentKnown)} users with a known current version.`,
+      note: `Share is computed over the ${formatNumber(totalCurrentKnown)} customers with a known current version.`,
     };
   }, [stats, currentBreakdown, totalCurrentKnown]);
 
@@ -274,12 +279,12 @@ export function VersionsPage({ stats, theme, accentHue = 217, filterBar }: Versi
     return {
       breakdown: [
         { label: "Latest release", value: "1", share: 1 / total },
-        { label: "Active (current users)", value: String(active), share: active / total },
+        { label: "Active (current customers)", value: String(active), share: active / total },
         { label: "Retired (all-time only)", value: String(retired), share: retired / total },
         { label: "No telemetry", value: String(silent), share: silent / total },
       ],
       breakdownTitle: "Release status",
-      note: "Merged from server telemetry and GitHub releases — zero-user releases stay visible.",
+      note: "Merged from server telemetry and GitHub releases — releases with zero customers stay visible.",
     };
   }, [versionRows]);
 
@@ -287,15 +292,15 @@ export function VersionsPage({ stats, theme, accentHue = 217, filterBar }: Versi
     if (!topVersion) return null;
     return {
       timespans: [
-        { label: "Current users", value: formatNumber(topVersion.currentUsers) },
-        { label: "All-time users", value: formatNumber(topVersion.allTimeUsers) },
+        { label: "Current customers", value: formatNumber(topVersion.currentUsers) },
+        { label: "All-time customers", value: formatNumber(topVersion.allTimeUsers) },
         { label: "Sessions", value: formatNumber(topVersion.sessions) },
         { label: "Last seen", value: formatDay(topVersion.lastSeen) },
       ],
       note:
         view === "current"
-          ? "Ranked by users currently on the version."
-          : "Ranked by distinct users who ever ran the version.",
+          ? "Ranked by customers currently on the version."
+          : "Ranked by distinct customers who ever ran the version.",
     };
   }, [topVersion, view]);
 
@@ -341,15 +346,11 @@ export function VersionsPage({ stats, theme, accentHue = 217, filterBar }: Versi
   if (!stats) {
     return (
       <div className="page-content page-stack-lg">
-        <PageHeader kicker="Distribution" title="Versions" right={filterBar} />
+        <PageHeader kicker="Distribution" page="versions" right={filterBar} />
 
         <div className="stat-grid stat-grid-4">
-          {[0, 1, 2, 3].map((i) => (
-            <div className="stat-card" key={i}>
-              <div className="skeleton" style={{ height: 12, width: "55%" }} />
-              <div className="skeleton" style={{ height: 26, width: "40%", marginTop: 12 }} />
-              <div className="skeleton" style={{ height: 10, width: "70%", marginTop: 10 }} />
-            </div>
+          {VERSION_KPI_LABELS.map((label) => (
+            <KpiStatCard key={label} label={label} value="" sub="" loading />
           ))}
         </div>
 
@@ -357,12 +358,12 @@ export function VersionsPage({ stats, theme, accentHue = 217, filterBar }: Versi
           <div className="panel-head">
             <div className="panel-head-left">
               <p className="kicker">Distribution</p>
-              <h2 className="section-title">Users by Version</h2>
+              <h2 className="section-title">Customers by version</h2>
               <p className="section-sub">Fetching server-side aggregates…</p>
             </div>
           </div>
           <div className="panel-body">
-            <div className="skeleton" style={{ height: 300 }} />
+            <Skeleton height={300} />
           </div>
         </section>
       </div>
@@ -374,7 +375,7 @@ export function VersionsPage({ stats, theme, accentHue = 217, filterBar }: Versi
       {/* Header — mandate kicker left; latest badge + view toggle + global filters right */}
       <PageHeader
         kicker="Distribution"
-        title="Versions"
+        page="versions"
         right={
           <>
             <Select
@@ -393,7 +394,7 @@ export function VersionsPage({ stats, theme, accentHue = 217, filterBar }: Versi
       {/* Adoption KPIs — version-specific only (lifetime totals live on Overview) */}
       <div className="stat-grid stat-grid-4">
         <KpiStatCard
-          label="On Latest"
+          label="On latest"
           value={formatNumber(onLatestUsers)}
           sub={`${onLatestSharePct}% of known · v${latestVersion}`}
           icon={<CircleCheck size={14} />}
@@ -411,20 +412,20 @@ export function VersionsPage({ stats, theme, accentHue = 217, filterBar }: Versi
           chartColor={chartPalette.sessionsLine}
         />
         <KpiStatCard
-          label="Versions Tracked"
+          label="Versions tracked"
           value={String(versionRows.length)}
-          sub="Incl. zero-user releases"
+          sub="Incl. releases with no customers"
           icon={<Layers size={14} />}
           tone="primary"
           drilldown={trackedDrilldown}
           chartColor={chartPalette.sessionsLine}
         />
         <KpiStatCard
-          label="Top Version"
+          label="Top version"
           value={topVersion?.label ?? "—"}
           sub={
             topVersion
-              ? `${formatNumber(topVersion.value)} ${view === "current" ? "current" : "all-time"} users`
+              ? `${formatNumber(topVersion.value)} ${view === "current" ? "current" : "all-time"} customers`
               : "No data"
           }
           icon={<Crown size={14} />}
@@ -438,11 +439,11 @@ export function VersionsPage({ stats, theme, accentHue = 217, filterBar }: Versi
       <div className="main-side">
         <CollapsiblePanel
           kicker="Distribution"
-          title="Users by Version"
+          title="Customers by version"
           sub={
             view === "current"
-              ? "Users whose latest session ran each version — adoption right now."
-              : "Distinct users who ever ran each version — all-time."
+              ? "Customers whose latest session ran each version — adoption right now."
+              : "Distinct customers who ever ran each version — all-time."
           }
           padding="body"
         >
@@ -460,7 +461,7 @@ export function VersionsPage({ stats, theme, accentHue = 217, filterBar }: Versi
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <RadialGauge
                 ratio={totalCurrentKnown > 0 ? onLatestUsers / totalCurrentKnown : 0}
-                title="On Latest"
+                title="On latest"
                 sub={`${formatNumber(onLatestUsers)} of ${formatNumber(totalCurrentKnown)} known current`}
               />
               <RadialGauge
@@ -469,22 +470,22 @@ export function VersionsPage({ stats, theme, accentHue = 217, filterBar }: Versi
                     ? stats.totals.rpcEnabledUsers / stats.totals.rpcKnownUsers
                     : 0
                 }
-                title="Discord RPC On"
+                title="Discord RPC on"
                 sub={`${formatNumber(stats.totals.rpcEnabledUsers)} of ${formatNumber(stats.totals.rpcKnownUsers)} reporting`}
               />
             </div>
           </CollapsiblePanel>
 
           {latestRow ? (
-            <CollapsiblePanel kicker="Release" title="Latest Release" padding="tight">
+            <CollapsiblePanel kicker="Release" title="Latest release" padding="tight">
               <KvList
                 items={[
                   { k: "Version", v: latestRow.label, tag: "accent" },
-                  { k: "Current Users", v: formatNumber(latestRow.currentUsers) },
-                  { k: "All-Time Users", v: formatNumber(latestRow.allTimeUsers) },
+                  { k: "Current customers", v: formatNumber(latestRow.currentUsers) },
+                  { k: "All-time customers", v: formatNumber(latestRow.allTimeUsers) },
                   { k: "Sessions", v: formatNumber(latestRow.sessions) },
-                  { k: "First Seen", v: formatDay(latestRow.firstSeen) },
-                  { k: "Last Seen", v: formatDay(latestRow.lastSeen) },
+                  { k: "First seen", v: formatDay(latestRow.firstSeen) },
+                  { k: "Last seen", v: formatDay(latestRow.lastSeen) },
                 ]}
               />
             </CollapsiblePanel>
@@ -495,7 +496,7 @@ export function VersionsPage({ stats, theme, accentHue = 217, filterBar }: Versi
       {/* Release table */}
       <CollapsiblePanel
         kicker="Releases"
-        title="Release History"
+        title="Release history"
         sub="Every known release · current vs. all-time adoption."
         defaultOpen={false}
         padding="flush"
@@ -504,6 +505,7 @@ export function VersionsPage({ stats, theme, accentHue = 217, filterBar }: Versi
         {versionRows.length > 0 ? (
           <DataTable<VersionRow>
             flush
+            caption="Every known release with its current and all-time adoption"
             columns={RELEASE_COLUMNS}
             rows={versionRows}
             rowKey={(row) => row.key}

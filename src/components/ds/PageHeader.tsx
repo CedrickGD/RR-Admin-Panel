@@ -4,31 +4,46 @@
  * Compact command-bar page header: kicker over title on the left,
  * filters/meta on the right. One per page, above the first panel row.
  *
- * Deviation from the DS contract: an optional `sub` prop is accepted for the
- * legacy page subtitles. It renders as `.page-subtitle`, which the v2 glue CSS
- * hides (subtitles are considered filler in v2) — the prop exists so pages
- * migrate without dropping copy or breaking compiles.
+ * Top-level pages pass `page` and get their H1 from PAGE_META — the same name
+ * the sidebar, the breadcrumb and the tab title use — instead of a `title`.
+ *
+ * Deviation from the DS contract: an optional `sub` prop is accepted for a
+ * subtitle line (`.page-subtitle`, shown by operations/workspace CSS). Use it
+ * only when it carries a fact, e.g. "Checked automatically every 15 seconds".
  */
 import type { ReactNode } from "react";
+import { PAGE_META } from "../../pageMeta";
+import type { PageKey } from "../../types/telemetry";
 
-export interface PageHeaderProps {
+export type PageHeaderProps = {
   /** Uppercase accent micro-label above the title, e.g. "Production Operations", "Realtime" */
   kicker?: string;
-  /** One or two words: "Overview", "Live Sessions" */
-  title: ReactNode;
-  /** Legacy subtitle line — rendered as .page-subtitle (hidden by the v2 glue). */
+  /** Subtitle line — rendered as .page-subtitle. */
   sub?: ReactNode;
   /** Filter bar, badges, MetaRow */
   right?: ReactNode;
-}
+} & (
+  | {
+      /** Top-level page: the H1 defaults to PAGE_META[page].label. */
+      page: PageKey;
+      /** Override for sub-views only — omit so the page keeps its one name. */
+      title?: ReactNode;
+    }
+  | {
+      page?: undefined;
+      /** Free title for headers that are not a top-level page. */
+      title: ReactNode;
+    }
+);
 
-export function PageHeader({ kicker, title, sub, right }: PageHeaderProps) {
+export function PageHeader({ kicker, page, title, sub, right }: PageHeaderProps) {
+  const heading = title ?? (page ? PAGE_META[page].label : null);
   return (
     <section className="page-header">
       <div>
         <h1 className="page-title">
           {kicker ? <span className="kicker">{kicker}</span> : null}
-          {title}
+          {heading}
         </h1>
         {sub ? <p className="page-subtitle">{sub}</p> : null}
       </div>
@@ -38,8 +53,11 @@ export function PageHeader({ kicker, title, sub, right }: PageHeaderProps) {
 }
 
 export interface MetaRowProps {
-  /** e.g. [{ label: "Peak Users/h", value: "14" }, { label: "Errors", value: "3" }] */
-  items: Array<{ label: string; value: string }>;
+  /**
+   * e.g. [{ label: "Peak customers/h", value: "14" }, { label: "Errors", value: "3" }].
+   * `value` is a ReactNode so a stat can be a live element, e.g. <RelativeTime iso={…} />.
+   */
+  items: Array<{ label: string; value: ReactNode }>;
 }
 
 /** Right-aligned label/value stat pairs for page or panel headers. */

@@ -153,21 +153,6 @@ body::after {
   margin: 0 -6px;
 }
 
-/* FilterBar mobile — replaces the index.css ≤640px rules that were
-   scoped to the removed .filter-bar wrapper (the seg control now
-   lives inside .filter-bar-right). */
-@media (max-width: 640px) {
-  .filter-bar-right .seg-control {
-    width: 100%;
-    justify-content: space-between;
-  }
-  .filter-bar-right .seg-btn {
-    flex: 1;
-    padding: 5px 6px;
-    text-align: center;
-  }
-}
-
 /* Chart tooltip: uppercase micro time label (DS tooltip anatomy —
    extends the .chart-tip-label base in components.css). */
 .chart-tip-label {
@@ -318,7 +303,7 @@ body::after {
 }
 @media (max-width: 900px) {
   .stat-grid-3 {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   }
 }
 
@@ -551,28 +536,6 @@ body::after {
   line-height: 1.65;
 }
 
-/* Scope / Mode meta strip — inset kv cells */
-.auth-meta {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 16px;
-  padding: 11px 14px;
-  background: rgba(3, 5, 14, 0.25);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-}
-.auth-meta > div {
-  display: grid;
-  gap: 3px;
-  min-width: 0;
-}
-.auth-meta strong {
-  font-size: var(--fs-small);
-  font-weight: 600;
-  color: var(--text-1);
-  white-space: nowrap;
-}
-
 /* Auth error — align legacy .inline-error with DS danger tokens */
 .auth-card .inline-error {
   border-radius: var(--r-sm);
@@ -625,7 +588,6 @@ body::after {
   min-width: 0;
   padding: 9px 0;
   border: none;
-  outline: none;
   background: none;
   color: var(--text-1);
   font-size: var(--fs-body);
@@ -677,8 +639,9 @@ body::after {
   --r-sm: 12px;
   --r-ctl: 12px;
 
-  /* Compact tiles — the hero-number experiment was "insanely huge" */
-  --fs-stat: 1.25rem;
+  /* --fs-stat is not redefined here: tokens/typography.css is the single
+     source for the KPI value size (the copy that stood here silently
+     outranked it). */
 
   /* Breathing room at the page edges, tight inside KPI grids */
   --gap-panel: 16px;
@@ -838,7 +801,7 @@ svg * {
   z-index: 120;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   padding: 18px 12px 16px;
   /* Translucent, not opaque — the liquid background flows through so the rail
      reads as part of the page instead of a separate slab. (No backdrop blur:
@@ -918,6 +881,15 @@ html.sb-collapsed .sb-group-label {
 .sb-close {
   display: none;
   margin-left: auto;
+}
+/* Desktop guard — operations.css restyles every .btn-icon with
+   `display: inline-flex` at the same specificity later in the cascade, which
+   used to resurrect this mobile-only button on every desktop page. Navbar
+   also renders it only while the drawer is open. */
+@media (min-width: 901px) {
+  .sidebar .sb-close {
+    display: none;
+  }
 }
 
 .sb-nav {
@@ -1062,20 +1034,57 @@ html.sb-collapsed .sb-group-label {
 }
 
 /* ── Icon-only collapsed rail ─────────────────────────────────────
-   Dragging the sidebar edge below the snap threshold sets --sb-w to
-   64px and puts .sb-collapsed on <html>: only the logo and the page
-   icons remain, centered. Double-click on the resize edge restores
-   the full rail (Navbar.resetResize). Desktop only — the mobile
-   drawer keeps its full layout. */
+   The rail toggle in the sidebar header (Navbar) puts .sb-collapsed on
+   <html>: --sb-w drops to 64px and only the logo and the page icons
+   remain, centered, each carrying its label as a tooltip. Between 901px
+   and 1200px this is the default until the admin states a preference.
+   Desktop only — the mobile drawer keeps its full layout. */
 @media (min-width: 901px) {
+  html.sb-collapsed {
+    /* Everything that offsets content — .sidebar, .workspace-bar, .v2-main,
+       .customer-workspace — is sized from this one custom property. */
+    --sb-w: 64px;
+  }
   html.sb-collapsed .sidebar {
     padding: 18px 8px 14px;
     gap: 10px;
+  }
+  html.sb-collapsed .sb-brand-row {
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+  html.sb-collapsed .sb-rail-toggle {
+    margin-top: 0;
   }
   html.sb-collapsed .sb-brand {
     justify-content: center;
     padding: 2px 0 13px;
     gap: 0;
+  }
+  /* An 11px scrollbar eats a sixth of a 64px rail and pushes every icon off
+     centre; the rail still scrolls by wheel, keyboard and scrollIntoView. */
+  html.sb-collapsed .sb-nav {
+    scrollbar-width: none;
+  }
+  html.sb-collapsed .sb-nav::-webkit-scrollbar {
+    width: 0;
+  }
+  /* No room for the guide rail and its indent at 64px. */
+  html.sb-collapsed .nav-children {
+    margin: 3px 0 5px;
+    padding-left: 0;
+    border-left: 0;
+  }
+  html.sb-collapsed .nav-chevron {
+    display: none;
+  }
+  html.sb-collapsed .account-row {
+    flex-direction: column;
+    gap: 6px;
+  }
+  html.sb-collapsed .account-text {
+    display: none;
   }
   html.sb-collapsed .sb-brand-img {
     width: 30px;
@@ -1087,6 +1096,9 @@ html.sb-collapsed .sb-group-label {
   html.sb-collapsed .sb-item {
     justify-content: center;
     padding: 10px 0;
+    /* Without the label the button would shrink to its icon, and hover/active
+       fills would end up ragged from row to row. */
+    width: 100%;
     gap: 0;
   }
   html.sb-collapsed .sb-item span {
@@ -1208,31 +1220,6 @@ html.sb-collapsed .sb-group-label {
   transform: translateY(0) scale(0.97);
 }
 
-.seg-control {
-  background: rgba(255, 255, 255, 0.05);
-  border: none;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
-  border-radius: var(--r-pill);
-  padding: 3px;
-}
-.seg-btn {
-  border-radius: var(--r-pill);
-  border: none;
-  transition:
-    background var(--t-med) var(--ease-smooth),
-    color var(--t-med),
-    transform var(--t-fast);
-}
-.seg-btn:active {
-  transform: scale(0.96);
-}
-.seg-btn.active {
-  background: hsl(var(--ah) var(--as) var(--al) / 0.22);
-  color: var(--text-1);
-  font-weight: 600;
-  box-shadow: inset 0 0 0 1px hsl(var(--ah) var(--as) var(--al) / 0.5);
-}
-
 .gdrop-trigger {
   background: rgba(255, 255, 255, 0.065);
   border: none;
@@ -1243,10 +1230,8 @@ html.sb-collapsed .sb-group-label {
     box-shadow var(--t-med),
     transform var(--t-fast);
 }
-.gdrop-trigger:hover {
-  background: rgba(255, 255, 255, 0.11);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
-}
+/* The hover fill is themed in operations.css next to the other controls — a literal
+   white wash here is invisible in light mode and follows no token in dark. */
 .gdrop-trigger:active {
   transform: scale(0.98);
 }
@@ -1333,8 +1318,9 @@ select.glass-input {
   color: var(--accent-text);
 }
 
+/* Type sizes live in theme/css/components.css (one scale, from the tokens);
+   these rules keep only the ambience pass's layout. */
 .stat-card .stat-value {
-  font-size: 1.05rem;
   line-height: 1.15;
   display: flex;
   align-items: baseline;
@@ -1343,17 +1329,18 @@ select.glass-input {
   min-width: 0;
 }
 .stat-card .stat-label {
-  font-size: 0.6rem;
   letter-spacing: 0.1em;
 }
 .stat-card .stat-sub {
-  font-size: 0.66rem;
   margin-top: 1px;
 }
 /* Narrow phone cards truncate almost every sub-line mid-word — let them wrap
-   to two clamped lines instead of ellipsizing the information away. */
+   to two clamped lines instead of ellipsizing the information away. The clamp
+   goes on the text span, since the sub line is now a flex row (text + the
+   drill-down chevron). */
 @media (max-width: 480px) {
-  .stat-card .stat-sub {
+  .stat-card .stat-sub { align-items: flex-start; }
+  .stat-card .stat-sub-text {
     white-space: normal;
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -1382,30 +1369,6 @@ select.glass-input {
   gap: 8px;
 }
 
-/* Sidebar resize handle: thin grab strip on the right edge */
-.sb-resize {
-  position: absolute;
-  top: 0;
-  right: -3px;
-  bottom: 0;
-  width: 7px;
-  cursor: col-resize;
-  touch-action: none;
-}
-.sb-resize:hover,
-.sb-resize:active {
-  background: linear-gradient(
-    90deg,
-    transparent,
-    hsl(var(--ah) var(--as) var(--al) / 0.35),
-    transparent
-  );
-}
-@media (max-width: 900px) {
-  .sb-resize {
-    display: none;
-  }
-}
 
 /* ── Page switch: quick rise so navigation feels alive ──────────── */
 /* No fill mode: a filling transform animation keeps .page-enter a containing
@@ -1514,7 +1477,7 @@ select.glass-input {
 }
 @media (max-width: 900px) {
   .stat-grid-5 {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   }
 }
 
@@ -1656,15 +1619,6 @@ select.glass-input {
   transform-origin: top right;
   animation: popover-in 0.16s var(--ease-out);
 }
-.filter-pop .seg-control {
-  display: flex;
-  width: 100%;
-  justify-content: space-between;
-}
-.filter-pop .seg-btn {
-  flex: 1;
-  text-align: center;
-}
 .filter-pop .gdrop {
   width: 100%;
 }
@@ -1691,12 +1645,23 @@ select.glass-input {
   /* Tall lists scroll INSIDE the panel: the header row stays pinned and the
      horizontal scrollbar sits at the panel's bottom edge — always on screen,
      instead of hiding below a 50-row list where nobody ever saw it. Sized to
-     the viewport minus the typical chrome above (page header + KPI row +
-     panel head ≈ 310px) with a floor so it never gets uselessly short. Short
-     tables are unaffected (max-height only bites when content exceeds it). */
-  max-height: max(340px, calc(100vh - 310px));
-  max-height: max(340px, calc(100dvh - 310px));
+     the viewport minus the chrome above (--table-top) and the pager below
+     (--table-footer), with a floor so it never gets uselessly short. Short
+     tables are unaffected (max-height only bites when content exceeds it).
+     TableFrame measures --table-top onto this element (its distance from the
+     viewport top) and re-measures on resize, because the chrome above a table
+     ranges from a bare panel head to header + tabs + KPI row + filter bar; the
+     310px here is only the fallback until that first write. The first
+     declaration is the fallback for engines without dvh. */
+  max-height: max(340px, calc(100vh - var(--table-top, 310px) - var(--table-footer, 0px)));
+  max-height: max(340px, calc(100dvh - var(--table-top, 310px) - var(--table-footer, 0px)));
   overflow: auto;
+}
+/* A pager only takes room when TablePagination actually renders one (it returns
+   null for single-page lists), so the reservation follows the footer, not the prop. */
+.panel:has(.table-pagination) .data-table-wrap,
+.monitor-surface:has(.table-pagination) .data-table-wrap {
+  --table-footer: 56px;
 }
 .data-table thead th {
   position: sticky;
@@ -1794,28 +1759,8 @@ select.glass-input {
 .customer-directory-table {
   min-width: 1040px;
 }
-.customer-directory-table .sort-th {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  letter-spacing: inherit;
-  text-transform: inherit;
-  cursor: pointer;
-}
-.customer-directory-table .sort-th:hover,
-.customer-directory-table .sort-th-active {
-  color: var(--text-1);
-}
-.customer-directory-table .sort-th svg {
-  width: 12px;
-  height: 12px;
-  color: var(--accent);
-}
+/* The directory's own sortable-header styles are gone: the table now uses the
+   shared ds SortHeader, styled once by `.table-sort` in operations.css. */
 .customer-directory-table .btn {
   white-space: nowrap;
 }
@@ -1854,9 +1799,6 @@ select.glass-input {
 }
 .customer-directory-last-seen .status-dot {
   margin-right: 6px;
-}
-.customer-directory-skeleton {
-  height: 34px;
 }
 @media (max-width: 900px) {
   .user-directory-controls {

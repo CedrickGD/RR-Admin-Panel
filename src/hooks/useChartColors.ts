@@ -13,7 +13,12 @@ export function useChartColors() {
     () => ({
       label: "Workspace",
       users: `hsl(${appearance.hue} 70% ${appearance.theme === "dark" ? 68 : 42}%)`,
-      sessions: `hsl(${appearance.hue} 65% 55% / 0.25)`,
+      /* 0.55, not 0.25: the bar series is drawn through a 1 → 0.35 gradient, so a
+         quarter-alpha base left short bars indistinguishable from the grid. The
+         light theme darkens the base as well — 55% lightness at that alpha
+         composites to ~2.3:1 on a white panel, under the 3:1 WCAG 1.4.11 asks
+         of a graphical object. */
+      sessions: `hsl(${appearance.hue} 65% ${appearance.theme === "dark" ? 55 : 40}% / 0.55)`,
       errors: `hsl(${appearance.hue} 15% ${appearance.theme === "dark" ? 85 : 24}%)`,
     }),
     [appearance.hue, appearance.theme],

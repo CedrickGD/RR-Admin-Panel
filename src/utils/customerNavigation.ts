@@ -1,4 +1,12 @@
-const SELECTORS = new Set([
+export type CustomerSelector =
+  | "session_id"
+  | "hwid"
+  | "install_id"
+  | "license_key"
+  | "order_id"
+  | "feedback_id";
+
+const SELECTORS = new Set<string>([
   "session_id",
   "hwid",
   "install_id",
@@ -6,6 +14,27 @@ const SELECTORS = new Set([
   "order_id",
   "feedback_id",
 ]);
+
+/**
+ * What a row hands to the Customer 360 workspace. Structurally a
+ * `Customer360Anchor` — `label`/`detail` stay nullable so an anchor built from a
+ * record with missing copy passes straight through without a cast.
+ */
+export interface CustomerWorkspaceTarget {
+  selector: CustomerSelector;
+  value: string;
+  label?: string | null;
+  detail?: string | null;
+}
+
+/**
+ * Single entry point into the addressable Customer 360 workspace.
+ * CustomerWorkspaceRouter listens for this event, pushes the customer/customerBy
+ * query pair and mounts the overlay over whatever page is open.
+ */
+export function openCustomerWorkspace(target: CustomerWorkspaceTarget) {
+  window.dispatchEvent(new CustomEvent("rr:open-customer", { detail: target }));
+}
 
 export function customerActionUrl(current: URL, tab: string): URL {
   const previous = new URL(current);

@@ -19,12 +19,20 @@ export interface EmptyStateProps {
   allClear?: boolean;
   /** lucide-react element for the neutral variant. Default <Inbox />; use <Radio /> for no live sessions. */
   icon?: ReactNode;
+  /** Sentence case, e.g. "No customers match" — never Title Case (see docs/panel-workspace.md, Copy rules). */
   title?: string;
   /** One short, factual line: what's empty and when it will fill. */
   children?: ReactNode;
+  /**
+   * The one next step out of the empty state, rendered under the copy — a
+   * ds/Button, e.g. "Clear filters" on a search with no matches or "Add
+   * member" on Team. Without it pages fell back to bare `.empty-copy`
+   * paragraphs that offered no way forward.
+   */
+  action?: ReactNode;
 }
 
-export function EmptyState({ allClear = false, icon, title, children }: EmptyStateProps) {
+export function EmptyState({ allClear = false, icon, title, children, action }: EmptyStateProps) {
   if (allClear) {
     return (
       <div className="empty-state" style={{ padding: "26px 16px 28px" }}>
@@ -37,6 +45,7 @@ export function EmptyState({ allClear = false, icon, title, children }: EmptySta
             {children}
           </p>
         ) : null}
+        {action ? <div className="empty-state-action">{action}</div> : null}
       </div>
     );
   }
@@ -45,6 +54,7 @@ export function EmptyState({ allClear = false, icon, title, children }: EmptySta
       <div className="empty-state-icon">{sizedIcon(icon ?? <Inbox />, 20)}</div>
       {title ? <strong>{title}</strong> : null}
       {children ? <p>{children}</p> : null}
+      {action ? <div className="empty-state-action">{action}</div> : null}
     </div>
   );
 }

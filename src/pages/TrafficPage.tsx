@@ -9,10 +9,14 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { ChartLegend } from "../components/charts/ChartLegend";
+import { CHART_MARGIN } from "../components/charts/chartMargin";
 import { TelemetryChartTooltip } from "../components/charts/TelemetryChartTooltip";
 import { TimezoneUsageChart } from "../components/charts/TimezoneUsageChart";
 import { CollapsiblePanel } from "../components/CollapsiblePanel";
 import { MetaRow, PageHeader } from "../components/ds/PageHeader";
+import { RelativeTime } from "../components/ds/RelativeTime";
+import { SegmentedControl, type TabItem } from "../components/ds/SegmentedControl";
 import { KpiStatCard } from "../components/KpiStatCard";
 import type { StatsPayload, SummaryPayload, ThemeMode } from "../types/telemetry";
 import {
@@ -20,7 +24,7 @@ import {
   buildTimezoneActivity,
   buildTrafficTimeline,
 } from "../utils/dashboardInsights";
-import { formatDuration, formatNumber, timeAgo } from "../utils/format";
+import { formatDuration, formatNumber } from "../utils/format";
 import { TIMEZONE_PANELS } from "./dashboardShared";
 
 interface TrafficPageProps {
@@ -30,6 +34,17 @@ interface TrafficPageProps {
   accentHue?: number;
   filterBar?: ReactNode;
 }
+
+/** Matches the two <Area> series below: solid actuals, dashed projection. */
+const DAILY_LEGEND = [
+  { label: "Unique customers", color: "var(--chart-users)" },
+  { label: "Forecast", color: "var(--chart-users)", dashed: true },
+];
+
+const INSIGHT_VIEWS: TabItem[] = [
+  { key: "daily", label: "Daily customers" },
+  { key: "timezones", label: "Timezones" },
+];
 
 interface DailySeriesPoint {
   label: string;
@@ -146,7 +161,7 @@ export function TrafficPage({ summary, stats, theme, filterBar }: TrafficPagePro
       {/* Header — kicker + title left, global filters right */}
       <PageHeader
         kicker="Telemetry"
-        title="Traffic"
+        page="traffic"
         sub="Daily trends, forecast, and timezone activity."
         right={filterBar}
       />
@@ -154,21 +169,21 @@ export function TrafficPage({ summary, stats, theme, filterBar }: TrafficPagePro
       {/* Stat cards — traffic-specific only (lifetime totals live on Overview) */}
       <div className="stat-grid stat-grid-5">
         <KpiStatCard
-          label="Active Right Now"
+          label="Active right now"
           value={formatNumber(stats?.totals.activeNow ?? summary.stats.activeUsers)}
           sub="Live sessions"
           icon={<Radio size={14} />}
           tone="primary"
         />
         <KpiStatCard
-          label="Started Today"
+          label="Started today"
           value={formatNumber(summary.stats.sessionsStartedToday)}
           sub="Since midnight UTC"
           icon={<TrendingUp size={14} />}
           tone="primary"
         />
         <KpiStatCard
-          label="Peak Users/h"
+          label="Peak customers/h"
           value={formatNumber(peakHourlyUsers)}
           sub="Busiest hour · last 24 h"
           icon={<Gauge size={14} />}
@@ -177,15 +192,15 @@ export function TrafficPage({ summary, stats, theme, filterBar }: TrafficPagePro
           spark={hourlyUsers}
         />
         <KpiStatCard
-          label="Avg Duration"
+          label="Avg duration"
           value={formatDuration(stats?.totals.averageSessionDurationSeconds ?? summary.stats.averageSessionDurationSeconds)}
           sub={stats ? "In range · legacy excluded" : "Per session"}
           icon={<Clock size={14} />}
           tone="primary"
         />
         <KpiStatCard
-          label="Last Ingest"
-          value={timeAgo(summary.stats.lastIngestAt ?? null)}
+          label="Last ingest"
+          value={<RelativeTime iso={summary.stats.lastIngestAt ?? null} />}
           sub="Most recent event"
           icon={<Activity size={14} />}
           tone="primary"
@@ -195,35 +210,42 @@ export function TrafficPage({ summary, stats, theme, filterBar }: TrafficPagePro
       {/* Daily / Timezone toggle — the main chart */}
       <CollapsiblePanel
         kicker="Trends"
-        title={insightView === "daily" ? "Daily Users" : "Timezone Activity"}
+        title={insightView === "daily" ? "Daily customers" : "Timezone activity"}
         sub={insightView === "daily"
           ? stats
-            ? `Daily unique users in range · ${forecastDays} d forecast (dashed).`
-            : `Daily unique users · ${forecastDays} d forecast (dashed).`
+            ? `Daily unique customers in range · ${forecastDays} d forecast (dashed).`
+            : `Daily unique customers · ${forecastDays} d forecast (dashed).`
           : "Timezone-local activity from the loaded event window."}
         right={
-          <MetaRow
-            items={[
-              { label: "Peak Users/d", value: formatNumber(peakDailyUsers) },
-              { label: "Sessions", value: formatNumber(metaSessions) },
-              { label: "Errors", value: formatNumber(metaErrors) },
-            ]}
-          />
+          <div className="chart-head-tools">
+            {/* Names the two curves the daily chart draws; the timezone grid labels its own. */}
+            {insightView === "daily" ? <ChartLegend items={DAILY_LEGEND} /> : null}
+            <MetaRow
+              items={[
+                { label: "Peak customers/d", value: formatNumber(peakDailyUsers) },
+                { label: "Sessions", value: formatNumber(metaSessions) },
+                { label: "Errors", value: formatNumber(metaErrors) },
+              ]}
+            />
+          </div>
         }
       >
         <div className="panel-body">
-          {/* View switch — segmented control */}
+          {/* View switch — both views answer "who was active", so this narrows
+              the panel rather than swapping panels: radiogroup, not tablist. */}
           <div style={{ display: "flex", paddingBottom: 6 }}>
-            <div className="seg-control">
-              <button type="button" className={`seg-btn${insightView === "daily" ? " active" : ""}`} onClick={() => setInsightView("daily")}>Daily Users</button>
-              <button type="button" className={`seg-btn${insightView === "timezones" ? " active" : ""}`} onClick={() => setInsightView("timezones")}>Timezones</button>
-            </div>
+            <SegmentedControl
+              aria-label="Traffic insight view"
+              value={insightView}
+              onChange={(key) => setInsightView(key as "daily" | "timezones")}
+              items={INSIGHT_VIEWS}
+            />
           </div>
 
           {insightView === "daily" ? (
             <div className="chart-wrap chart-wrap-tall">
               <ResponsiveContainer width="100%" height={320}>
-                <AreaChart data={chartData} margin={{ top: 8, right: 8, left: -14, bottom: 0 }}>
+                <AreaChart data={chartData} margin={CHART_MARGIN}>
                   <defs>
                     <linearGradient id="dailyFill" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%"   stopColor="var(--chart-users)" stopOpacity={0.22} />
@@ -246,7 +268,7 @@ export function TrafficPage({ summary, stats, theme, filterBar }: TrafficPagePro
                     isAnimationActive={false}
                     type="monotone"
                     dataKey="users"
-                    name="Unique users"
+                    name="Unique customers"
                     stroke="var(--chart-users)"
                     strokeWidth={2.2}
                     fill="url(#dailyFill)"

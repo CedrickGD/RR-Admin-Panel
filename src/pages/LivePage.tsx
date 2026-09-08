@@ -14,21 +14,28 @@ import {
   X,
 } from "lucide-react";
 import { GlassDropdown } from "../components/GlassDropdown";
-import { MonitoringSummary } from "../components/MonitoringSummary";
+import { KpiStatCard } from "../components/KpiStatCard";
 import {
   isSessionLive,
   latestSessions,
   compareVersionsNewestFirst,
 } from "../utils/monitoringDirectory";
-import { buildSessionDirectoryOptions, filterAndSortSessions } from "../utils/sessionDirectory";
+import {
+  buildSessionDirectoryOptions,
+  defaultSessionSortDirection,
+  filterAndSortSessions,
+  type SessionDirectorySortKey,
+} from "../utils/sessionDirectory";
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CollapsiblePanel } from "../components/CollapsiblePanel";
 import { StatusBadge } from "../components/StatusBadge";
 import { Badge, LiveBadge } from "../components/ds/Badge";
 import { Button, IconButton } from "../components/ds/Button";
-import { DetailGrid } from "../components/ds/DataTable";
+import { DetailGrid, SortHeader, type SortState } from "../components/ds/DataTable";
 import { EmptyState } from "../components/ds/EmptyState";
 import { MetaRow, PageHeader } from "../components/ds/PageHeader";
+import { RelativeTime } from "../components/ds/RelativeTime";
+import { SegmentedControl, type TabItem } from "../components/ds/SegmentedControl";
 import type { AppSessionRecord, SummaryPayload, TelemetryEvent } from "../types/telemetry";
 import {
   formatAccuracy,
@@ -37,8 +44,8 @@ import {
   formatEventName,
   formatGeoSource,
   formatNumber,
-  timeAgo,
 } from "../utils/format";
+import { openCustomerWorkspace } from "../utils/customerNavigation";
 import { resolveCountry } from "../utils/geography";
 import { prefersReducedMotion } from "../utils/motion";
 
@@ -51,6 +58,11 @@ interface LivePageProps {
   onOpenMapSession: (sessionId: string) => void;
   filterBar?: ReactNode;
 }
+
+const LIVE_SCOPES: TabItem[] = [
+  { key: "all", label: "All live" },
+  { key: "errors", label: "With errors" },
+];
 
 const LIVE_SESSION_MAX_AGE_MS = 6 * 60 * 1000;
 const APP_ERROR = "app_error";
@@ -168,6 +180,8 @@ export function LivePage({
   const [version, setVersion] = useState<string | null>(null);
   const [country, setCountry] = useState<string | null>(null);
   const [onlyErrors, setOnlyErrors] = useState(false);
+  const [sortKey, setSortKey] = useState<SessionDirectorySortKey>("user");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const rowRefs = useRef(new Map<string, HTMLElement>());
@@ -194,12 +208,22 @@ export function LivePage({
         active,
         query,
         { version, country, continent: null },
-        "user",
-        "asc",
+        sortKey,
+        sortDirection,
         true,
       ).filter((s) => !onlyErrors || s.errorCount > 0),
-    [active, query, version, country, onlyErrors],
+    [active, query, version, country, onlyErrors, sortKey, sortDirection],
   );
+  const sort: SortState = { key: sortKey, direction: sortDirection };
+  /** SortHeader hands back the column key; the page owns the direction toggle. */
+  function changeSort(next: string) {
+    const key = next as SessionDirectorySortKey;
+    if (key === sortKey) setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+    else {
+      setSortKey(key);
+      setSortDirection(defaultSessionSortDirection(key));
+    }
+  }
   const hasFilters = Boolean(query || version || country || onlyErrors);
   function clear() {
     setQuery("");
@@ -225,63 +249,56 @@ export function LivePage({
   return (
     <div className="page-content monitor-workspace">
       <PageHeader
-        title="Live sessions"
-        sub="Who's online, what they're running, and what needs attention."
+        page="live"
         right={
           <span className="live-update">
             <i />
-            Updating automatically · {timeAgo(summary.generatedAt)}
+            <span>
+              Updating automatically · <RelativeTime iso={summary.generatedAt} />
+            </span>
           </span>
         }
       />
-      <MonitoringSummary
-        items={[
-          {
-            label: "Online now",
-            value: formatNumber(rows.length),
-            icon: <Radio />,
-            tone: "green",
-            note: hasFilters ? "Matching filters" : "Active in the last 6 min",
-          },
-          {
-            label: "Discord RPC",
-            value: formatNumber(rpcCount),
-            icon: <RadioTower />,
-            tone: "violet",
-            note: "Currently enabled",
-          },
-          {
-            label: "With errors",
-            value: formatNumber(errorCount),
-            icon: <AlertTriangle />,
-            tone: errorCount ? "rose" : "blue",
-          },
-          {
-            label: "Countries",
-            value: formatNumber(new Set(rows.map((s) => s.clientCountry).filter(Boolean)).size),
-            icon: <Globe2 />,
-            tone: "amber",
-          },
-        ]}
-      />
+      <div className="stat-grid stat-grid-4">
+        <KpiStatCard
+          density="compact"
+          label="Online now"
+          value={formatNumber(rows.length)}
+          sub={hasFilters ? "Matching the current filters" : "Active in the last 6 minutes"}
+          icon={<Radio />}
+          tone="success"
+        />
+        <KpiStatCard
+          density="compact"
+          label="Discord RPC"
+          value={formatNumber(rpcCount)}
+          sub="Rich presence currently enabled"
+          icon={<RadioTower />}
+        />
+        <KpiStatCard
+          density="compact"
+          label="With errors"
+          value={formatNumber(errorCount)}
+          sub="Live sessions reporting a failure"
+          icon={<AlertTriangle />}
+          tone={errorCount ? "danger" : "success"}
+        />
+        <KpiStatCard
+          density="compact"
+          label="Countries"
+          value={formatNumber(new Set(rows.map((s) => s.clientCountry).filter(Boolean)).size)}
+          sub="Distinct countries online"
+          icon={<Globe2 />}
+        />
+      </div>
       <section className="monitor-surface" aria-label="Live activity">
         <div className="monitor-toolbar">
-          <div className="monitor-scopes">
-            <button
-              className={!onlyErrors ? "selected" : ""}
-              aria-pressed={!onlyErrors}
-              onClick={() => setOnlyErrors(false)}
-            >
-              All live
-            </button>
-            <button
-              className={onlyErrors ? "selected" : ""}
-              aria-pressed={onlyErrors}
-              onClick={() => setOnlyErrors(true)}
-            >
-              With errors
-            </button>
-          </div>
+          <SegmentedControl
+            aria-label="Live session filter"
+            items={LIVE_SCOPES}
+            value={onlyErrors ? "errors" : "all"}
+            onChange={(key) => setOnlyErrors(key === "errors")}
+          />
         </div>
         <div className="monitor-filter-row">
           <div className="monitor-filter">
@@ -308,17 +325,36 @@ export function LivePage({
               Clear filters
             </Button>
           )}
-          <span className="monitor-results">{rows.length} live · stable alphabetical order</span>
+          <span className="monitor-results">
+            {rows.length} live · expand a row for session details
+          </span>
         </div>
-        <TableFrame>
+        <TableFrame stickyActions mobileLayout="stack">
+          <caption className="table-caption">Live sessions, sortable by column</caption>
           <thead>
             <tr>
-              <th>User</th>
-              <th>Version</th>
-              <th>Session time</th>
-              <th>Location</th>
-              <th>Status</th>
-              <th aria-label="Session actions" />
+              <SortHeader sortKey="user" label="Customer" sort={sort} onSortChange={changeSort} />
+              <SortHeader
+                sortKey="version"
+                label="Version"
+                sort={sort}
+                onSortChange={changeSort}
+              />
+              <SortHeader
+                sortKey="duration"
+                label="Session time"
+                sort={sort}
+                onSortChange={changeSort}
+                className="numeric"
+              />
+              <SortHeader
+                sortKey="location"
+                label="Location"
+                sort={sort}
+                onSortChange={changeSort}
+              />
+              <th scope="col">Status</th>
+              <th scope="col" aria-label="Session actions" />
             </tr>
           </thead>
           <tbody>
@@ -341,6 +377,7 @@ export function LivePage({
                         className="person-cell"
                         onClick={() => setExpanded(open ? null : session.id)}
                         aria-expanded={open}
+                        aria-label={`${open ? "Hide" : "Show"} session details for ${label}`}
                       >
                         <CustomerAvatar
                           profile={findProfile(session.installId, session.hwid)}
@@ -356,10 +393,14 @@ export function LivePage({
                         </span>
                       </button>
                     </td>
-                    <td>{session.displayVersion || session.appVersion || "Unknown"}</td>
-                    <td>{resolveSessionDuration(session)}</td>
-                    <td>{displayLocation(session)}</td>
-                    <td>
+                    <td data-label="Version">
+                      {session.displayVersion || session.appVersion || "Unknown"}
+                    </td>
+                    <td className="numeric" data-label="Session time">
+                      {resolveSessionDuration(session)}
+                    </td>
+                    <td data-label="Location">{displayLocation(session)}</td>
+                    <td data-label="Status">
                       <div className="live-session-status">
                         <LiveStatusDot />
                         <RecordCell
@@ -387,7 +428,7 @@ export function LivePage({
                         <IconButton
                           icon={open ? <ChevronUp /> : <ChevronDown />}
                           aria-expanded={open}
-                          aria-label={`${open ? "Collapse" : "Expand"} session for ${label}`}
+                          aria-label={`${open ? "Hide" : "Show"} session details for ${label}`}
                           onClick={() => setExpanded(open ? null : session.id)}
                         />
                       </div>
@@ -408,11 +449,10 @@ export function LivePage({
                               variant="accent"
                               icon={<ArrowUpRight />}
                               onClick={() =>
-                                window.dispatchEvent(
-                                  new CustomEvent("rr:open-customer", {
-                                    detail: { selector: "session_id", value: session.id },
-                                  }),
-                                )
+                                openCustomerWorkspace({
+                                  selector: "session_id",
+                                  value: session.id,
+                                })
                               }
                             >
                               Customer workspace
@@ -425,7 +465,9 @@ export function LivePage({
                             </div>
                             <div>
                               <span>Last seen</span>
-                              <strong>{timeAgo(session.lastSeenAt)}</strong>
+                              <strong>
+                                <RelativeTime iso={session.lastSeenAt} />
+                              </strong>
                             </div>
                             <div>
                               <span>Latest event</span>
@@ -495,12 +537,17 @@ export function LivePage({
           <EmptyState
             icon={<Radio />}
             title={hasFilters ? "No matching live sessions" : "All quiet"}
+            action={
+              hasFilters ? (
+                <Button icon={<X />} onClick={clear}>
+                  Clear filters
+                </Button>
+              ) : undefined
+            }
           >
-            {hasFilters ? (
-              <Button onClick={clear}>Clear filters</Button>
-            ) : (
-              "New sessions appear automatically."
-            )}
+            {hasFilters
+              ? "Nothing matches the current search and filters."
+              : "New sessions appear automatically."}
           </EmptyState>
         )}
       </section>

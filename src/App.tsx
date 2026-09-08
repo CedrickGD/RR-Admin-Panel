@@ -1,5 +1,5 @@
 import { AlertTriangle, RefreshCw } from "lucide-react";
-import { lazy, Suspense, useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { LoginForm } from "./components/LoginForm";
 import { Navbar } from "./components/Navbar";
 import { useAdminStats, DEFAULT_STATS_FILTERS } from "./hooks/useAdminStats";
@@ -10,9 +10,15 @@ import { CustomerWorkspaceRouter } from "./components/CustomerWorkspaceRouter";
 import { canVisit } from "../shared/panel-policy";
 import { PanelIdentity } from "./hooks/usePanelPermission";
 import { CustomerProfilesProvider } from "./components/CustomerProfiles";
-import { setWorkspaceSearch } from "./hooks/useWorkspaceSearch";
+import {
+  customerSearchRecords,
+  liveSessionSearchRecords,
+  setWorkspaceSearch,
+  useSearchRecordSource,
+} from "./hooks/useWorkspaceSearch";
 import type { MapFocusTarget } from "./pages/HeatmapPage";
 import type { PageKey } from "./types/telemetry";
+import { PAGE_META } from "./pageMeta";
 
 const AccessPage = lazy(() =>
   import("./pages/AccessPage").then((module) => ({ default: module.AccessPage })),
@@ -199,6 +205,14 @@ export default function App() {
     if (user && !canVisit(page, user))
       setPage(PAGE_KEYS.find((key) => canVisit(key, user)) ?? "settings");
   }, [user, page]);
+  // Tab title per page so open tabs and bookmarks can be told apart; the
+  // login screen keeps the product title from index.html.
+  const signedIn = Boolean(user);
+  useEffect(() => {
+    document.title = signedIn
+      ? `${PAGE_META[page].label} · RazorReaper`
+      : "RazorReaper — Operations Console";
+  }, [page, signedIn]);
   const { stats, users } = useAdminStats(
     {
       stats: Boolean(user && canVisit(page, user)) && STATS_PAGES.has(page),
@@ -207,6 +221,15 @@ export default function App() {
     },
     page === "overview" ? { ...DEFAULT_STATS_FILTERS, range: "today" } : DEFAULT_STATS_FILTERS,
     JSON.stringify([user?.email, user?.role, user?.panelRole, user?.permissions]),
+  );
+
+  // What the header search may offer without asking the network for anything:
+  // the all-time rollup while a page that needs it has it loaded, and the live
+  // sessions that every page's summary already carries.
+  useSearchRecordSource("customers", useMemo(() => customerSearchRecords(users), [users]));
+  useSearchRecordSource(
+    "live",
+    useMemo(() => liveSessionSearchRecords(summary?.activeSessions ?? null), [summary]),
   );
 
   // Data refreshes automatically; page-specific lists own their search filters.
@@ -473,8 +496,6 @@ export default function App() {
                     <SettingsPage
                       user={user}
                       authMode={authMode}
-                      summary={summary}
-                      health={health}
                       onLogout={() => void logout()}
                       filterBar={refreshButton}
                     />

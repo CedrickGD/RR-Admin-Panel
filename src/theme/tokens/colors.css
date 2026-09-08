@@ -53,7 +53,7 @@
   /* Chart palette — defaults; users can swap presets at runtime (see readme).
      Chart series colors are a SEPARATE user preference from the accent. */
   --chart-users:    #5fd6f2;
-  --chart-sessions: rgba(95, 214, 242, 0.22);
+  --chart-sessions: rgba(95, 214, 242, 0.55);
   --chart-errors:   #e06b6b;
   --chart-grid:     hsl(220 70% 85% / 0.07);
   --chart-axis:     rgba(235, 240, 254, 0.58);

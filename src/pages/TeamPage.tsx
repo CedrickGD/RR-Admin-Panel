@@ -1,7 +1,19 @@
 import { TableFrame, RecordCell } from "../components/ds/TableFrame";
 import { Select } from "../components/ds/Select";
-import { useEffect, useState } from "react";
-import { Check, Clock3, LogOut, Plus, Search, ShieldCheck, UsersRound, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import {
+  Check,
+  ChevronDown,
+  Clock3,
+  Eye,
+  EyeOff,
+  LogOut,
+  Plus,
+  Search,
+  ShieldCheck,
+  UsersRound,
+  X,
+} from "lucide-react";
 import {
   PERMISSIONS,
   ROLE_LABELS,
@@ -10,7 +22,13 @@ import {
   type PermissionOverrides,
 } from "../../shared/panel-policy";
 import { PageHeader } from "../components/ds/PageHeader";
-import { Modal } from "../components/ds/Modal";
+import { Button, IconButton } from "../components/ds/Button";
+import { EmptyState } from "../components/ds/EmptyState";
+import { Field } from "../components/ds/Field";
+import { Input } from "../components/ds/Input";
+import { Modal, ModalActions } from "../components/ds/Modal";
+import { Skeleton, SkeletonRows } from "../components/ds/Skeleton";
+import { Tabs, type TabItem } from "../components/ds/Tabs";
 import { apiUrl } from "../utils/api";
 type Member = {
   email: string;
@@ -64,6 +82,11 @@ const emptyEditor = (): Editor => ({
   password: "",
   existing: false,
 });
+const TEAM_TABS: TabItem[] = [
+  { key: "members", label: "Members", panelId: "team-panel-members" },
+  { key: "sessions", label: "Active sessions", panelId: "team-panel-sessions" },
+  { key: "audit", label: "Access history", panelId: "team-panel-audit" },
+];
 function localDate(iso: string | null) {
   if (!iso) return "";
   const date = new Date(iso);
@@ -71,6 +94,16 @@ function localDate(iso: string | null) {
 }
 function displayDate(iso: string) {
   return new Date(iso).toLocaleString();
+}
+const PASSWORD_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%&*";
+/**
+ * 16 characters from a CSPRNG. The owner has to read the password out to the
+ * new member, so the alphabet leaves out the glyph pairs that get misread
+ * (0/O, 1/l/I).
+ */
+function generatePassword(): string {
+  const bytes = crypto.getRandomValues(new Uint32Array(16));
+  return [...bytes].map((n) => PASSWORD_ALPHABET[n % PASSWORD_ALPHABET.length]).join("");
 }
 export function TeamPage() {
   const [data, setData] = useState<Data | null>(null),
@@ -81,6 +114,16 @@ export function TeamPage() {
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [confirm, setConfirm] = useState<{ email: string; sessionId?: string } | null>(null);
+  // What the editor opened with (overrides nest, so compare serialised) — anything
+  // beyond it is unsaved work the Modal must not discard.
+  const editorBaseline = useRef("");
+  // A password is only readable while the owner is setting it, never on reopen.
+  const [showPassword, setShowPassword] = useState(false);
+  function openEditor(next: Editor) {
+    editorBaseline.current = JSON.stringify(next);
+    setShowPassword(false);
+    setEditor(next);
+  }
   async function load() {
     try {
       const response = await fetch(apiUrl("/api/admin/team"), {
@@ -135,7 +178,7 @@ export function TeamPage() {
   const allowed = editor ? effectivePermissions(editor.role, editor.overrides) : [];
   function edit(m: Member) {
     setError("");
-    setEditor({
+    openEditor({
       email: m.email,
       displayName: m.display_name,
       role: m.role,
@@ -149,19 +192,19 @@ export function TeamPage() {
   return (
     <div className="page-content page-stack-lg">
       <PageHeader
-        title="Panel access"
-        sub="The right people. The right permissions. For the right amount of time."
+        page="team"
         right={
-          <button
-            className="btn btn-primary"
+          <Button
+            variant="primary"
+            size="sm"
+            icon={<Plus size={16} />}
             onClick={() => {
               setError("");
-              setEditor(emptyEditor());
+              openEditor(emptyEditor());
             }}
           >
-            <Plus size={16} />
             Add member
-          </button>
+          </Button>
         }
       />
       <div className="team-summary">
@@ -186,9 +229,9 @@ export function TeamPage() {
       {error && !editor && !confirm && (
         <div className="inline-notice danger" role="alert">
           {error}
-          <button className="btn btn-ghost btn-sm" onClick={() => void load()}>
+          <Button size="sm" onClick={() => void load()}>
             Retry
-          </button>
+          </Button>
         </div>
       )}
       {notice && (
@@ -197,21 +240,16 @@ export function TeamPage() {
           {notice}
         </div>
       )}
-      <div className="workspace-tabs">
-        {[
-          ["members", "Members"],
-          ["sessions", "Active sessions"],
-          ["audit", "Access history"],
-        ].map(([key, label]) => (
-          <button key={key} className={tab === key ? "active" : ""} onClick={() => setTab(key)}>
-            {label}
-          </button>
-        ))}
-      </div>
+      <Tabs aria-label="Panel access sections" items={TEAM_TABS} value={tab} onChange={setTab} />
       {tab === "members" && (
-        <section className="panel">
+        <section
+          className="panel"
+          role="tabpanel"
+          id="team-panel-members"
+          aria-labelledby="team-panel-members-tab"
+        >
           <div className="panel-head">
-            <h2 className="section-title">Your team</h2>
+            <h2 className="section-title">Members</h2>
             <label className="search-field">
               <Search size={16} />
               <input
@@ -222,115 +260,165 @@ export function TeamPage() {
               />
             </label>
           </div>
-          <div className="table-scroll">
-            <TableFrame>
-              <thead>
-                <tr>
-                  <th>Member</th>
-                  <th>Role</th>
-                  <th>Access</th>
-                  <th>Valid until</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {shown.map((m) => {
-                  const expired = !!m.expires_at && Date.parse(m.expires_at) <= Date.now();
-                  return (
-                    <tr key={m.email}>
-                      <td>
-                        <RecordCell
-                          primary={m.display_name || m.email.split("@")[0]}
-                          secondary={m.email}
-                        />
-                      </td>
-                      <td>{ROLE_LABELS[m.role]}</td>
-                      <td>
-                        <span
-                          className={`status-text ${m.enabled && !expired ? "success" : "danger"}`}
-                        >
-                          <i />
-                          {!m.enabled ? "Disabled" : expired ? "Expired" : "Active"}
-                        </span>
-                      </td>
-                      <td>{m.expires_at ? displayDate(m.expires_at) : "No expiry"}</td>
-                      <td>
-                        {m.role === "owner" ? (
-                          <span className="text-muted">Protected owner</span>
-                        ) : (
-                          <div className="row-actions">
-                            <button className="btn btn-secondary btn-sm" onClick={() => edit(m)}>
-                              Manage
-                            </button>
-                            <button
-                              className="btn-icon"
-                              title="End all sessions"
-                              aria-label={`End all sessions for ${m.email}`}
-                              onClick={() => setConfirm({ email: m.email })}
-                            >
-                              <LogOut size={16} />
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </TableFrame>
-          </div>
-          {!shown.length && (
-            <p className="empty-copy">{data ? "No matching members." : "Loading panel members…"}</p>
+          <TableFrame stickyActions mobileLayout="stack" aria-busy={!data || undefined}>
+            <caption className="table-caption">Panel members and their access</caption>
+            <thead>
+              <tr>
+                <th scope="col">Member</th>
+                <th scope="col">Role</th>
+                <th scope="col">Access</th>
+                <th scope="col">Valid until</th>
+                <th scope="col" aria-label="Member actions" />
+              </tr>
+            </thead>
+            <tbody>
+              {!data && <SkeletonRows columns={5} rows={4} />}
+              {shown.map((m) => {
+                const expired = !!m.expires_at && Date.parse(m.expires_at) <= Date.now();
+                return (
+                  <tr key={m.email}>
+                    <td>
+                      <RecordCell
+                        primary={m.display_name || m.email.split("@")[0]}
+                        secondary={m.email}
+                      />
+                    </td>
+                    <td data-label="Role">{ROLE_LABELS[m.role]}</td>
+                    <td data-label="Access">
+                      <span className={`status-text ${m.enabled && !expired ? "success" : "danger"}`}>
+                        <i />
+                        {!m.enabled ? "Disabled" : expired ? "Expired" : "Active"}
+                      </span>
+                    </td>
+                    <td data-label="Valid until">
+                      {m.expires_at ? displayDate(m.expires_at) : "No expiry"}
+                    </td>
+                    <td>
+                      {m.role === "owner" ? (
+                        <span className="text-muted">Protected owner</span>
+                      ) : (
+                        <div className="row-actions">
+                          <Button size="sm" onClick={() => edit(m)}>
+                            Manage
+                          </Button>
+                          <IconButton
+                            icon={<LogOut />}
+                            size={16}
+                            title="End all sessions"
+                            aria-label={`End all sessions for ${m.email}`}
+                            onClick={() => setConfirm({ email: m.email })}
+                          />
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </TableFrame>
+          {data && !shown.length && (
+            <EmptyState
+              icon={<UsersRound />}
+              title={query ? "No matching members" : "No panel members yet"}
+              action={
+                query ? (
+                  <Button size="sm" onClick={() => setQuery("")}>
+                    Clear search
+                  </Button>
+                ) : (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    icon={<Plus size={16} />}
+                    onClick={() => {
+                      setError("");
+                      openEditor(emptyEditor());
+                    }}
+                  >
+                    Add member
+                  </Button>
+                )
+              }
+            >
+              {query
+                ? "No member matches this search. Clear it to see everyone with panel access."
+                : "Add a member to give someone access to this panel."}
+            </EmptyState>
           )}
         </section>
       )}
       {tab === "sessions" && (
-        <section className="panel">
+        <section
+          className="panel"
+          role="tabpanel"
+          id="team-panel-sessions"
+          aria-labelledby="team-panel-sessions-tab"
+        >
           <div className="panel-head">
             <h2 className="section-title">Signed-in devices</h2>
           </div>
-          <div className="table-scroll">
-            <TableFrame>
-              <thead>
-                <tr>
-                  <th>Member / browser</th>
-                  <th>Last activity</th>
-                  <th>Expires</th>
-                  <th />
+          <TableFrame stickyActions mobileLayout="stack" aria-busy={!data || undefined}>
+            <caption className="table-caption">Panel sessions that are currently signed in</caption>
+            <thead>
+              <tr>
+                <th scope="col">Member / browser</th>
+                <th scope="col">Last activity</th>
+                <th scope="col">Expires</th>
+                <th scope="col" aria-label="Session actions" />
+              </tr>
+            </thead>
+            <tbody>
+              {!data && <SkeletonRows columns={4} rows={3} />}
+              {data?.sessions.map((s) => (
+                <tr key={s.id}>
+                  <td>
+                    <RecordCell primary={s.email} secondary={s.user_agent} />
+                  </td>
+                  <td data-label="Last activity">{displayDate(s.last_seen_at)}</td>
+                  <td data-label="Expires">{displayDate(s.expires_at)}</td>
+                  <td>
+                    {s.email !== data.actor && (
+                      <Button
+                        size="sm"
+                        onClick={() => setConfirm({ email: s.email, sessionId: s.id })}
+                      >
+                        End session
+                      </Button>
+                    )}
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {data?.sessions.map((s) => (
-                  <tr key={s.id}>
-                    <td>
-                      <RecordCell primary={s.email} secondary={s.user_agent} />
-                    </td>
-                    <td>{displayDate(s.last_seen_at)}</td>
-                    <td>{displayDate(s.expires_at)}</td>
-                    <td>
-                      {s.email !== data.actor && (
-                        <button
-                          className="btn btn-secondary btn-sm"
-                          onClick={() => setConfirm({ email: s.email, sessionId: s.id })}
-                        >
-                          End session
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </TableFrame>
-          </div>
-          {data && !data.sessions.length && <p className="empty-copy">No active sessions.</p>}
+              ))}
+            </tbody>
+          </TableFrame>
+          {data && !data.sessions.length && (
+            <EmptyState icon={<Clock3 />} title="No active sessions">
+              Nobody is signed in to the panel right now.
+            </EmptyState>
+          )}
         </section>
       )}
       {tab === "audit" && (
-        <section className="panel">
+        <section
+          className="panel"
+          role="tabpanel"
+          id="team-panel-audit"
+          aria-labelledby="team-panel-audit-tab"
+        >
           <div className="panel-head">
             <h2 className="section-title">Recent access changes</h2>
           </div>
-          <div className="audit-list">
+          <div className="audit-list" aria-busy={!data || undefined}>
+            {!data && (
+              <div>
+                <span className="audit-icon">
+                  <ShieldCheck size={16} />
+                </span>
+                <div>
+                  <Skeleton width={160} />
+                  <Skeleton width="40%" style={{ marginTop: 6 }} />
+                </div>
+              </div>
+            )}
             {data?.audit.map((a) => (
               <div key={a.id}>
                 <span className="audit-icon">
@@ -359,14 +447,17 @@ export function TeamPage() {
             ))}
           </div>
           {data && !data.audit.length && (
-            <p className="empty-copy">Access changes will appear here.</p>
+            <EmptyState icon={<ShieldCheck />} title="No access changes yet">
+              Role and permission changes are recorded here as they happen.
+            </EmptyState>
           )}
         </section>
       )}
       <Modal
         open={!!editor}
         onClose={() => !busy && setEditor(null)}
-        size="viewport"
+        dismissOnScrim={false}
+        isDirty={() => !!editor && JSON.stringify(editor) !== editorBaseline.current}
         className="team-editor"
         title={editor?.existing ? "Manage access" : "Add panel member"}
         sub="Changes apply to this panel account only."
@@ -389,26 +480,24 @@ export function TeamPage() {
               </div>
             )}
             <div className="member-fields">
-              <label>
-                Display name
-                <input
+              <Field label="Display name" hint="optional">
+                <Input
                   value={editor.displayName}
                   onChange={(e) => setEditor({ ...editor, displayName: e.target.value })}
                 />
-              </label>
-              <label>
-                Email
-                <input
+              </Field>
+              <Field label="Email" hint="required">
+                <Input
                   type="email"
                   required
                   readOnly={editor.existing}
                   value={editor.email}
                   onChange={(e) => setEditor({ ...editor, email: e.target.value })}
                 />
-              </label>
-              <label>
-                Base role
+              </Field>
+              <Field label="Base role">
                 <Select
+                  aria-label="Base role"
                   value={editor.role}
                   onValueChange={(value) => setEditor({ ...editor, role: value as PanelRole })}
                 >
@@ -418,29 +507,56 @@ export function TeamPage() {
                     </option>
                   ))}
                 </Select>
-              </label>
-              <label>
-                Access expires
-                <input
+              </Field>
+              <Field
+                label="Access expires"
+                hint="optional"
+                help="Leave empty for unlimited access. Your local time."
+              >
+                <Input
                   type="datetime-local"
                   value={editor.expiresAt}
                   onChange={(e) => setEditor({ ...editor, expiresAt: e.target.value })}
                 />
-                <small>Leave empty for unlimited access. Your local time.</small>
-              </label>
+              </Field>
               {data?.authMode === "app" && (
-                <label>
-                  {editor.existing ? "Reset password (optional)" : "Initial password"}
-                  <input
-                    type="password"
-                    autoComplete="new-password"
-                    required={!editor.existing}
-                    value={editor.password}
-                    onChange={(e) => setEditor({ ...editor, password: e.target.value })}
-                  />
-                </label>
+                <Field
+                  label={editor.existing ? "Reset password" : "Initial password"}
+                  hint={editor.existing ? "optional" : "required"}
+                  htmlFor="member-password"
+                >
+                  {/* The owner reads this password out to the member, so it can be
+                      revealed and generated instead of typed blind. */}
+                  <div className="input-with-action" id="member-password-controls">
+                    <Input
+                      id="member-password"
+                      type={showPassword ? "text" : "password"}
+                      autoComplete="new-password"
+                      required={!editor.existing}
+                      value={editor.password}
+                      onChange={(e) => setEditor({ ...editor, password: e.target.value })}
+                    />
+                    <IconButton
+                      icon={showPassword ? <EyeOff /> : <Eye />}
+                      size={16}
+                      title={showPassword ? "Hide password" : "Show password"}
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                      aria-pressed={showPassword}
+                      onClick={() => setShowPassword((visible) => !visible)}
+                    />
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setEditor({ ...editor, password: generatePassword() });
+                        setShowPassword(true);
+                      }}
+                    >
+                      Generate
+                    </Button>
+                  </div>
+                </Field>
               )}
-              <label className="toggle-row">
+              <label className="toggle-row member-toggle">
                 <span>Panel access enabled</span>
                 <input
                   type="checkbox"
@@ -455,99 +571,102 @@ export function TeamPage() {
                 allow their email.
               </p>
             )}
-            <div className="permissions-heading">
-              <h3>Individual permissions</h3>
-              <span>{allowed.length} effective permissions</span>
-            </div>
-            <p className="settings-caption">
-              Inherit the role, explicitly allow, or deny. Optional expiry applies to the override;
-              the role applies again afterward.
-            </p>
-            <div className="table-scroll">
-              <TableFrame className="clean-table permission-table">
-                <thead>
-                  <tr>
-                    <th>Permission</th>
-                    <th>Rule</th>
-                    <th>Override expires</th>
-                    <th>Effective now</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {PERMISSIONS.map((p) => (
-                    <tr key={p.key}>
-                      <td>
-                        {p.label}
-                        <small>{p.group}</small>
-                      </td>
-                      <td>
-                        <Select
-                          aria-label={`Rule for ${p.label}`}
-                          value={editor.overrides[p.key]?.effect ?? "inherit"}
-                          onValueChange={(value) => {
-                            const overrides = { ...editor.overrides };
-                            if (value === "inherit") delete overrides[p.key];
-                            else
-                              overrides[p.key] = {
-                                effect: value as "allow" | "deny",
-                                expiresAt: overrides[p.key]?.expiresAt ?? null,
-                              };
-                            setEditor({ ...editor, overrides });
-                          }}
-                        >
-                          <option value="inherit">Inherit role</option>
-                          <option value="allow">Allow</option>
-                          <option value="deny">Deny</option>
-                        </Select>
-                      </td>
-                      <td>
-                        <input
-                          aria-label={`Expiry for ${p.label}`}
-                          type="datetime-local"
-                          disabled={!editor.overrides[p.key]}
-                          value={localDate(editor.overrides[p.key]?.expiresAt ?? null)}
-                          onChange={(e) =>
-                            setEditor({
-                              ...editor,
-                              overrides: {
-                                ...editor.overrides,
-                                [p.key]: {
-                                  effect: editor.overrides[p.key]!.effect,
-                                  expiresAt: e.target.value
-                                    ? new Date(e.target.value).toISOString()
-                                    : null,
-                                },
-                              },
-                            })
-                          }
-                        />
-                      </td>
-                      <td>
-                        <span
-                          className={`status-text ${allowed.includes(p.key) ? "success" : "muted"}`}
-                        >
-                          {allowed.includes(p.key) ? <Check size={14} /> : <X size={14} />}{" "}
-                          {allowed.includes(p.key) ? "Allowed" : "Denied"}
-                        </span>
-                      </td>
+            {/* The matrix is the exception, not the rule: it stays folded until
+                someone wants to deviate from the base role. */}
+            <details className="member-permissions">
+              <summary className="permissions-heading">
+                <ChevronDown className="member-permissions-chevron" size={14} aria-hidden="true" />
+                <h3>Individual permissions</h3>
+                <span>{allowed.length} effective permissions</span>
+              </summary>
+              <p className="settings-caption">
+                Inherit the role, explicitly allow, or deny. Optional expiry applies to the
+                override; the role applies again afterward.
+              </p>
+              <div className="table-scroll">
+                <TableFrame className="clean-table permission-table" minWidth="auto">
+                  <caption className="table-caption">
+                    Permissions for this member, with any override and its effect
+                  </caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Permission</th>
+                      <th scope="col">Rule</th>
+                      <th scope="col">Override expires</th>
+                      <th scope="col">Effective now</th>
                     </tr>
-                  ))}
-                </tbody>
-              </TableFrame>
-            </div>
-            <div className="form-footer">
-              <button
-                type="button"
-                className="btn btn-secondary"
-                disabled={busy}
-                onClick={() => setEditor(null)}
-              >
+                  </thead>
+                  <tbody>
+                    {PERMISSIONS.map((p) => (
+                      <tr key={p.key}>
+                        <td>
+                          {p.label}
+                          <small>{p.group}</small>
+                        </td>
+                        <td data-label="Rule">
+                          <Select
+                            aria-label={`Rule for ${p.label}`}
+                            value={editor.overrides[p.key]?.effect ?? "inherit"}
+                            onValueChange={(value) => {
+                              const overrides = { ...editor.overrides };
+                              if (value === "inherit") delete overrides[p.key];
+                              else
+                                overrides[p.key] = {
+                                  effect: value as "allow" | "deny",
+                                  expiresAt: overrides[p.key]?.expiresAt ?? null,
+                                };
+                              setEditor({ ...editor, overrides });
+                            }}
+                          >
+                            <option value="inherit">Inherit role</option>
+                            <option value="allow">Allow</option>
+                            <option value="deny">Deny</option>
+                          </Select>
+                        </td>
+                        <td data-label="Override expires">
+                          <input
+                            aria-label={`Expiry for ${p.label}`}
+                            type="datetime-local"
+                            disabled={!editor.overrides[p.key]}
+                            value={localDate(editor.overrides[p.key]?.expiresAt ?? null)}
+                            onChange={(e) =>
+                              setEditor({
+                                ...editor,
+                                overrides: {
+                                  ...editor.overrides,
+                                  [p.key]: {
+                                    effect: editor.overrides[p.key]!.effect,
+                                    expiresAt: e.target.value
+                                      ? new Date(e.target.value).toISOString()
+                                      : null,
+                                  },
+                                },
+                              })
+                            }
+                          />
+                        </td>
+                        <td data-label="Effective now">
+                          <span
+                            className={`status-text ${allowed.includes(p.key) ? "success" : "muted"}`}
+                          >
+                            {allowed.includes(p.key) ? <Check size={14} /> : <X size={14} />}{" "}
+                            {allowed.includes(p.key) ? "Allowed" : "Denied"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </TableFrame>
+              </div>
+            </details>
+            <ModalActions>
+              <Button variant="ghost" disabled={busy} onClick={() => setEditor(null)}>
                 Cancel
-              </button>
-              <button className="btn btn-primary" disabled={busy}>
+              </Button>
+              <Button type="submit" variant="primary" disabled={busy}>
                 {busy ? "Saving…" : "Save access"}
-              </button>
-            </div>
+              </Button>
+            </ModalActions>
           </form>
         )}
       </Modal>
@@ -566,12 +685,13 @@ export function TeamPage() {
           The selected session access ends immediately. The member can sign in again if their panel
           access is still enabled.
         </p>
-        <div className="form-footer">
-          <button className="btn btn-secondary" disabled={busy} onClick={() => setConfirm(null)}>
+        <ModalActions>
+          <Button variant="ghost" disabled={busy} onClick={() => setConfirm(null)}>
             Cancel
-          </button>
-          <button
-            className="btn btn-danger"
+          </Button>
+          <Button
+            variant="danger"
+            icon={<LogOut />}
             disabled={busy}
             onClick={() =>
               confirm &&
@@ -579,8 +699,8 @@ export function TeamPage() {
             }
           >
             {busy ? "Ending…" : "End access"}
-          </button>
-        </div>
+          </Button>
+        </ModalActions>
       </Modal>
     </div>
   );

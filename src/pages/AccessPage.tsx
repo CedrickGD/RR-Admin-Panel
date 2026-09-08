@@ -1,17 +1,24 @@
-import { TableFrame, RecordCell } from "../components/ds/TableFrame";
-import { Ban, ShieldAlert, ShieldCheck, Clock, User, RotateCcw } from "lucide-react";
+import { TableFrame, RecordCell, RecordLink } from "../components/ds/TableFrame";
+import { Ban, ShieldAlert, ShieldCheck, Clock, User, RotateCcw, X } from "lucide-react";
 import { useDeferredValue, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  CustomerAccessDialog,
+  type CustomerAccessTarget,
+} from "../components/CustomerAccessDialog";
 import { Badge } from "../components/ds/Badge";
 import { Button } from "../components/ds/Button";
+import { SortHeader, type SortState } from "../components/ds/DataTable";
 import { EmptyState } from "../components/ds/EmptyState";
-import { Modal } from "../components/ds/Modal";
+import { Modal, ModalActions } from "../components/ds/Modal";
 import { PageHeader } from "../components/ds/PageHeader";
+import { RelativeTime } from "../components/ds/RelativeTime";
 import { SearchInput } from "../components/ds/SearchInput";
+import { SegmentedControl, type TabItem } from "../components/ds/SegmentedControl";
+import { Skeleton, SkeletonRows } from "../components/ds/Skeleton";
 import { TablePagination } from "../components/ds/TablePagination";
-import { GlassDropdown } from "../components/GlassDropdown";
-import { fetchAdminSuspensions, postSuspend, postLiftSuspension } from "../utils/api";
+import { fetchAdminSuspensions, postLiftSuspension } from "../utils/api";
 import { useRefreshSignal } from "../utils/refreshBus";
-import { timeAgo, formatDate } from "../utils/format";
+import { formatDate, formatDay } from "../utils/format";
 import type { SuspensionRecord, UserRollupRecord } from "../types/telemetry";
 import { paginate } from "../utils/pagination";
 
@@ -23,19 +30,41 @@ interface AccessPageProps {
   filterBar?: ReactNode;
 }
 
-type SortMode = "last_seen" | "first_seen" | "active";
+/** Column keys the customer table sorts by — the header row owns the choice. */
+type SortKey = "access" | "first_seen" | "last_seen";
 
-const SORT_LABELS: Record<SortMode, string> = {
-  last_seen: "Last seen",
-  first_seen: "First seen",
-  active: "Active first",
-};
+const TIER_FILTERS: TabItem[] = [
+  { key: "all", label: "All" },
+  { key: "paid", label: "Paid" },
+  { key: "suspended", label: "Suspended" },
+];
+
+const ACCESS_COLUMNS = 5;
 
 /** A suspension counts as in force when active and either permanent or still inside its window. */
 function isEffective(row: SuspensionRecord, nowMs: number): boolean {
   if (row.is_active !== 1) return false;
   if (!row.banned_until) return true;
   return new Date(row.banned_until).getTime() > nowMs;
+}
+
+/**
+ * The row states its access before anyone opens the dialog: allowed, banned, or
+ * suspended with the date it lifts itself.
+ */
+function accessBadge(row: SuspensionRecord | undefined) {
+  if (!row) return <Badge tone="success">Allowed</Badge>;
+  if (row.mode === "ban") return <Badge tone="danger">Banned</Badge>;
+  return (
+    <Badge
+      tone="warning"
+      title={
+        row.banned_until ? `Lifts automatically on ${formatDate(row.banned_until)}` : undefined
+      }
+    >
+      {row.banned_until ? `Suspended until ${formatDay(row.banned_until)}` : "Suspended"}
+    </Badge>
+  );
 }
 
 function paidKeysOf(user: UserRollupRecord): string[] {
@@ -54,14 +83,12 @@ export function AccessPage({ users = null, onOpenWorker, filterBar }: AccessPage
   const deferredQuery = useDeferredValue(query);
   const [userPage, setUserPage] = useState(1);
   const [tierFilter, setTierFilter] = useState<"all" | "paid" | "suspended">("all");
-  const [sortMode, setSortMode] = useState<SortMode>("last_seen");
+  const [sortKey, setSortKey] = useState<SortKey>("last_seen");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
 
-  const [suspendTarget, setSuspendTarget] = useState<UserRollupRecord | null>(null);
-  const [mode, setMode] = useState<"ban" | "suspend">("ban");
-  const [until, setUntil] = useState("");
-  const [reason, setReason] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
+  // Restricting or restoring access is the same dialog everywhere in the panel
+  // (Customer 360, the customer directory, this page) — see CustomerAccessDialog.
+  const [accessTarget, setAccessTarget] = useState<CustomerAccessTarget | null>(null);
 
   const [liftTarget, setLiftTarget] = useState<{ identity: string; label: string } | null>(null);
   const [lifting, setLifting] = useState(false);
@@ -123,17 +150,21 @@ export function AccessPage({ users = null, onOpenWorker, filterBar }: AccessPage
       );
     });
 
+    const factor = sortDirection === "asc" ? 1 : -1;
+    const restricted = (u: UserRollupRecord) =>
+      activeByKey.get(u.identity) ?? (u.hwid ? activeByKey.get(u.hwid) : undefined) ? 1 : 0;
+
     return list.sort((a, b) => {
-      if (sortMode === "active") {
-        if (a.isActive !== b.isActive) return a.isActive ? -1 : 1;
+      if (sortKey === "access") {
+        // Ties keep the recency order, so a page of "Allowed" rows still reads newest first.
+        const compared = restricted(a) - restricted(b);
+        if (compared !== 0) return compared * factor;
         return new Date(b.lastSeen).getTime() - new Date(a.lastSeen).getTime();
       }
-      if (sortMode === "first_seen") {
-        return new Date(b.firstSeen).getTime() - new Date(a.firstSeen).getTime();
-      }
-      return new Date(b.lastSeen).getTime() - new Date(a.lastSeen).getTime();
+      const field = sortKey === "first_seen" ? "firstSeen" : "lastSeen";
+      return (new Date(a[field]).getTime() - new Date(b[field]).getTime()) * factor;
     });
-  }, [users, deferredQuery, tierFilter, activeByKey, sortMode]);
+  }, [users, deferredQuery, tierFilter, activeByKey, sortKey, sortDirection]);
 
   const paginatedUsers = useMemo(
     () => paginate(filteredUsers, userPage, ACCESS_USER_PAGE_SIZE),
@@ -153,58 +184,40 @@ export function AccessPage({ users = null, onOpenWorker, filterBar }: AccessPage
     setUserPage(1);
   }
 
+  function clearFilters() {
+    setQuery("");
+    setTierFilter("all");
+    setUserPage(1);
+  }
+
+  const sort: SortState = { key: sortKey, direction: sortDirection };
+  /** SortHeader hands back the column key; the page owns the direction toggle. */
+  function changeSort(next: string) {
+    const key = next as SortKey;
+    if (key === sortKey) setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+    else {
+      setSortKey(key);
+      setSortDirection("desc");
+    }
+    setUserPage(1);
+  }
+
   const activeSuspensions = useMemo(
     () => suspensions.filter((r) => isEffective(r, nowMs)),
     [suspensions, nowMs],
   );
 
-  function openSuspend(user: UserRollupRecord) {
-    setSuspendTarget(user);
-    setMode("ban");
-    setUntil("");
-    setReason("");
-    setFormError(null);
-  }
-
-  async function confirmSuspend() {
-    if (!suspendTarget || busy) return;
-    setFormError(null);
-
-    let bannedUntil: string | null = null;
-    if (mode === "suspend") {
-      if (!until) {
-        setFormError("Pick a date/time for the suspension to end.");
-        return;
-      }
-      const parsed = new Date(until);
-      if (Number.isNaN(parsed.getTime()) || parsed.getTime() <= nowMs) {
-        setFormError("The suspension end must be in the future.");
-        return;
-      }
-      bannedUntil = parsed.toISOString();
-    }
-
-    setBusy(true);
-    try {
-      const res = await postSuspend({
-        identity: suspendTarget.identity,
-        hwid: suspendTarget.hwid,
-        user_label: suspendTarget.userLabel,
-        mode,
-        reason: reason.trim() || null,
-        banned_until: bannedUntil,
-      });
-      if (!res.ok) {
-        setFormError(res.data?.error ?? "Failed to apply. Please try again.");
-        return;
-      }
-      setSuspendTarget(null);
-      await loadSuspensions();
-    } catch (e) {
-      setFormError(e instanceof Error ? e.message : "Unexpected error.");
-    } finally {
-      setBusy(false);
-    }
+  function openAccess(user: UserRollupRecord) {
+    const keys = paidKeysOf(user);
+    setAccessTarget({
+      identity: user.identity,
+      hwid: user.hwid,
+      label: user.userLabel || user.identity,
+      paid: keys.length > 0,
+      // "(active license)" is the placeholder for a premium tier with no key on
+      // record — the dialog only lists keys it can actually show.
+      paidKeys: user.paidLicenseKeys,
+    });
   }
 
   async function confirmLift() {
@@ -221,88 +234,98 @@ export function AccessPage({ users = null, onOpenWorker, filterBar }: AccessPage
     }
   }
 
-  const targetPaidKeys = suspendTarget ? paidKeysOf(suspendTarget) : [];
-
   return (
     <div className="page-content page-stack-lg">
-      <PageHeader kicker="Access" title="App suspensions" right={filterBar} />
+      <PageHeader page="access" right={filterBar} />
 
       {/* ── Users ── */}
       <section className="panel" style={{ marginBottom: 24 }}>
         <div className="panel-head">
           <div className="panel-head-left">
-            <h2 className="section-title">Users</h2>
+            <h2 className="section-title">Customers</h2>
             <p className="section-sub">
-              Suspend or ban a user's access to the app — paid users are flagged before you do.
+              Suspend or ban a customer's access to the app — paying customers are flagged before
+              you do.
             </p>
           </div>
           <div
             className="panel-head-right"
             style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}
           >
-            <div className="seg-control">
-              {(
-                [
-                  ["all", "All"],
-                  ["paid", "Paid"],
-                  ["suspended", "Suspended"],
-                ] as const
-              ).map(([key, label]) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => {
-                    setTierFilter(key);
-                    setUserPage(1);
-                  }}
-                  className={"seg-btn" + (tierFilter === key ? " active" : "")}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <GlassDropdown
-              placeholder="Last seen"
-              options={["last_seen", "first_seen", "active"]}
-              value={sortMode === "last_seen" ? null : sortMode}
-              onChange={(next) => {
-                setSortMode((next as SortMode) ?? "last_seen");
+            <SegmentedControl
+              aria-label="Customer filter"
+              items={TIER_FILTERS}
+              value={tierFilter}
+              onChange={(key) => {
+                setTierFilter(key as "all" | "paid" | "suspended");
                 setUserPage(1);
               }}
-              renderOption={(o) => SORT_LABELS[o as SortMode]}
             />
             <SearchInput
               value={query}
               onChange={changeQuery}
-              placeholder="Search user, HWID, Discord…"
+              placeholder="Search customer, HWID, Discord…"
               style={{ maxWidth: 240 }}
             />
             <Badge tone="muted">{filteredUsers.length}</Badge>
           </div>
         </div>
 
-        {users === null ? (
-          <div className="panel-body" aria-label="Loading user directory">
-            <div className="skeleton" style={{ height: 14, width: 220 }} />
-          </div>
-        ) : filteredUsers.length === 0 ? (
-          <EmptyState icon={<User />} title="No users">
-            {query
-              ? "No users match your search."
-              : "No users have reported in the selected range yet."}
+        {users !== null && filteredUsers.length === 0 ? (
+          <EmptyState
+            icon={<User />}
+            title="No customers"
+            action={
+              query || tierFilter !== "all" ? (
+                <Button size="sm" icon={<X size={14} />} onClick={clearFilters}>
+                  Clear filters
+                </Button>
+              ) : undefined
+            }
+          >
+            {query || tierFilter !== "all"
+              ? "Nothing matches the current search and filter."
+              : "No customers have reported in the selected range yet."}
           </EmptyState>
         ) : (
           <>
-            <TableFrame paginated>
+            <TableFrame
+              paginated
+              stickyActions
+              mobileLayout="stack"
+              aria-busy={users === null || undefined}
+            >
+              <caption className="table-caption">
+                Customers and their app access, sortable by column
+              </caption>
               <thead>
                 <tr>
-                  <th>User</th>
-                  <th>Access</th>
-                  <th>{sortMode === "first_seen" ? "First seen" : "Last seen"}</th>
-                  <th style={{ textAlign: "right" }}>Action</th>
+                  <th scope="col">Customer</th>
+                  <SortHeader
+                    label="Access"
+                    sortKey="access"
+                    sort={sort}
+                    onSortChange={changeSort}
+                  />
+                  <SortHeader
+                    label="First seen"
+                    sortKey="first_seen"
+                    sort={sort}
+                    onSortChange={changeSort}
+                  />
+                  <SortHeader
+                    label="Last seen"
+                    sortKey="last_seen"
+                    sort={sort}
+                    onSortChange={changeSort}
+                  />
+                  <th scope="col" style={{ textAlign: "right" }}>
+                    Action
+                  </th>
                 </tr>
               </thead>
               <tbody>
+                {users === null && <SkeletonRows columns={ACCESS_COLUMNS} />}
                 {paginatedUsers.items.map((u) => {
                   const susp = suspensionForUser(u);
                   const paid = paidKeysOf(u).length > 0;
@@ -311,51 +334,42 @@ export function AccessPage({ users = null, onOpenWorker, filterBar }: AccessPage
                       <td>
                         <RecordCell
                           primary={
-                            <button
-                              className="record-link"
-                              type="button"
+                            <RecordLink
                               onClick={() => onOpenWorker?.(u.identity)}
-                              title="View user details"
+                              title="View customer details"
                             >
-                              {u.userLabel || "Unknown user"}
-                            </button>
+                              {u.userLabel || "Unknown customer"}
+                            </RecordLink>
                           }
                           secondary={[u.discordUser, paid ? "Premium" : "Free"]
                             .filter(Boolean)
                             .join(" · ")}
                         />
                       </td>
-                      <td>{susp ? (susp.mode === "ban" ? "Banned" : "Suspended") : "Allowed"}</td>
-                      <td className="muted" style={{ whiteSpace: "nowrap" }}>
-                        {timeAgo(sortMode === "first_seen" ? u.firstSeen : u.lastSeen)}
+                      <td data-label="Access">
+                        {/* The suspensions list is the authority; until it lands the
+                            cell stays a skeleton rather than claiming "Allowed". */}
+                        {loading ? <Skeleton width={72} height={14} /> : accessBadge(susp)}
+                      </td>
+                      <td className="muted" data-label="First seen" style={{ whiteSpace: "nowrap" }}>
+                        <RelativeTime iso={u.firstSeen} />
+                      </td>
+                      <td className="muted" data-label="Last seen" style={{ whiteSpace: "nowrap" }}>
+                        {u.isActive ? (
+                          <span className="status-dot" title="Customer is online right now" />
+                        ) : null}{" "}
+                        <RelativeTime iso={u.lastSeen} />
                       </td>
                       <td style={{ textAlign: "right" }}>
-                        {susp ? (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            permission="access.write"
-                            icon={<RotateCcw size={14} />}
-                            onClick={() =>
-                              setLiftTarget({
-                                identity: susp.identity,
-                                label: u.userLabel || susp.identity,
-                              })
-                            }
-                          >
-                            Lift
-                          </Button>
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            icon={<Ban size={14} />}
-                            permission="access.write"
-                            onClick={() => openSuspend(u)}
-                          >
-                            Suspend
-                          </Button>
-                        )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          permission="access.read"
+                          icon={<ShieldCheck size={14} />}
+                          onClick={() => openAccess(u)}
+                        >
+                          Manage access
+                        </Button>
                       </td>
                     </tr>
                   );
@@ -368,7 +382,7 @@ export function AccessPage({ users = null, onOpenWorker, filterBar }: AccessPage
               start={paginatedUsers.start}
               end={paginatedUsers.end}
               total={paginatedUsers.total}
-              itemLabel="users"
+              itemLabel="customers"
               onPageChange={changeUserPage}
             />
           </>
@@ -389,45 +403,38 @@ export function AccessPage({ users = null, onOpenWorker, filterBar }: AccessPage
           </div>
         </div>
 
-        {loading ? (
-          <div style={{ padding: 48, textAlign: "center", color: "var(--text-2)" }}>
-            <div className="spinner spinner-md" style={{ margin: "0 auto 12px" }} />
-            Loading…
-          </div>
-        ) : activeSuspensions.length === 0 ? (
+        {!loading && activeSuspensions.length === 0 ? (
           <EmptyState allClear title="No one is suspended">
-            Every user currently has access.
+            Every customer currently has access.
           </EmptyState>
         ) : (
-          <TableFrame>
+          <TableFrame stickyActions mobileLayout="stack" aria-busy={loading || undefined}>
+            <caption className="table-caption">Suspensions and bans currently in force</caption>
             <thead>
               <tr>
-                <th>User</th>
-                <th>Type</th>
-                <th className="col-md">Reason</th>
-                <th className="col-lg">By</th>
-                <th>Action</th>
+                <th scope="col">Customer</th>
+                <th scope="col">Type</th>
+                <th scope="col" className="col-md">
+                  Reason
+                </th>
+                <th scope="col" className="col-lg">
+                  By
+                </th>
+                <th scope="col">Action</th>
               </tr>
             </thead>
             <tbody>
+              {loading && <SkeletonRows columns={ACCESS_COLUMNS} rows={3} />}
               {activeSuspensions.map((row) => (
                 <tr key={row.id}>
                   <td>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <button
-                        type="button"
+                      <RecordLink
                         onClick={() => onOpenWorker?.(row.identity)}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.textDecoration = "underline";
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.textDecoration = "none";
-                        }}
-                        className="record-link"
-                        title="View user details"
+                        title="View customer details"
                       >
-                        {row.user_label || "Unknown user"}
-                      </button>
+                        {row.user_label || "Unknown customer"}
+                      </RecordLink>
                       {row.had_paid_license === 1 ? (
                         <Badge tone="warning" title="Had an active paid license when suspended">
                           Paid
@@ -445,7 +452,7 @@ export function AccessPage({ users = null, onOpenWorker, filterBar }: AccessPage
                       {(row.hwid ?? row.identity).slice(0, 16)}…
                     </div>
                   </td>
-                  <td style={{ whiteSpace: "nowrap" }}>
+                  <td data-label="Type" style={{ whiteSpace: "nowrap" }}>
                     {row.mode === "ban" ? (
                       <span
                         style={{
@@ -472,6 +479,7 @@ export function AccessPage({ users = null, onOpenWorker, filterBar }: AccessPage
                   </td>
                   <td
                     className="muted col-md"
+                    data-label="Reason"
                     style={{
                       maxWidth: 260,
                       overflow: "hidden",
@@ -486,6 +494,7 @@ export function AccessPage({ users = null, onOpenWorker, filterBar }: AccessPage
                   </td>
                   <td
                     className="muted col-lg"
+                    data-label="By"
                     style={{
                       maxWidth: 180,
                       overflow: "hidden",
@@ -519,123 +528,10 @@ export function AccessPage({ users = null, onOpenWorker, filterBar }: AccessPage
         )}
       </section>
 
-      {/* ── Suspend modal ── */}
-      <Modal
-        open={!!suspendTarget}
-        onClose={() => (busy ? undefined : setSuspendTarget(null))}
-        kicker="Restrict access"
-        title={mode === "ban" ? "Ban user" : "Suspend user"}
-        sub={suspendTarget?.userLabel || suspendTarget?.identity}
-      >
-        {suspendTarget ? (
-          <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 16 }}>
-            {targetPaidKeys.length > 0 ? (
-              <div
-                style={{
-                  display: "flex",
-                  gap: 10,
-                  padding: "12px 14px",
-                  borderRadius: 10,
-                  background: "var(--warning-sub)",
-                  border: "1px solid color-mix(in srgb, var(--warning) 32%, transparent)",
-                }}
-              >
-                <ShieldAlert
-                  size={16}
-                  style={{ color: "var(--warning)", flexShrink: 0, marginTop: 2 }}
-                />
-                <div style={{ fontSize: "0.8125rem", color: "var(--text-1)", lineHeight: 1.5 }}>
-                  <strong style={{ color: "var(--warning)" }}>This user has paid.</strong> An active
-                  license is bound to this machine
-                  {targetPaidKeys[0] !== "(active license)" ? (
-                    <>
-                      {" "}
-                      (
-                      <span style={{ fontFamily: "ui-monospace, Menlo, Consolas, monospace" }}>
-                        {targetPaidKeys.join(", ")}
-                      </span>
-                      )
-                    </>
-                  ) : null}
-                  . Removing access revokes something they paid for — proceed only if you're sure.
-                </div>
-              </div>
-            ) : (
-              <div
-                style={{
-                  display: "flex",
-                  gap: 8,
-                  alignItems: "center",
-                  fontSize: "0.8125rem",
-                  color: "var(--text-2)",
-                }}
-              >
-                <ShieldCheck size={15} style={{ color: "var(--text-3)" }} /> Free user — no
-                purchased license found on this machine.
-              </div>
-            )}
-
-            {/* mode toggle */}
-            <div className="seg-control">
-              {(["ban", "suspend"] as const).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setMode(m)}
-                  className={"seg-btn" + (mode === m ? " active" : "")}
-                >
-                  {m === "ban" ? "Permanent ban" : "Timed suspend"}
-                </button>
-              ))}
-            </div>
-
-            {mode === "suspend" ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <label className="label-sm">Suspended until</label>
-                <input
-                  type="datetime-local"
-                  className="glass-input"
-                  value={until}
-                  onChange={(e) => setUntil(e.target.value)}
-                />
-              </div>
-            ) : null}
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <label className="label-sm">Reason (shown to the user)</label>
-              <textarea
-                className="glass-input"
-                rows={3}
-                value={reason}
-                maxLength={500}
-                onChange={(e) => setReason(e.target.value)}
-                placeholder="e.g. Sharing releases outside the community"
-                style={{ resize: "vertical" }}
-              />
-            </div>
-
-            {formError ? (
-              <p style={{ color: "var(--danger)", fontSize: "0.8125rem", margin: 0 }}>
-                {formError}
-              </p>
-            ) : null}
-
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
-              <Button variant="ghost" onClick={() => setSuspendTarget(null)} disabled={busy}>
-                Cancel
-              </Button>
-              <Button
-                variant="danger"
-                permission="access.write"
-                onClick={() => void confirmSuspend()}
-                disabled={busy}
-              >
-                {busy ? "Applying…" : mode === "ban" ? "Ban access" : "Suspend access"}
-              </Button>
-            </div>
-          </div>
-        ) : null}
-      </Modal>
+      {/* ── Restrict or restore access — the panel-wide dialog ── */}
+      {accessTarget ? (
+        <CustomerAccessDialog target={accessTarget} onClose={() => setAccessTarget(null)} />
+      ) : null}
 
       {/* ── Lift confirm ── */}
       <Modal
@@ -646,9 +542,9 @@ export function AccessPage({ users = null, onOpenWorker, filterBar }: AccessPage
         sub={liftTarget?.label}
       >
         <p style={{ fontSize: "0.8125rem", color: "var(--text-2)", lineHeight: 1.6, marginTop: 4 }}>
-          This restores the user's access. Their app unlocks within one status-poll interval.
+          This restores the customer's access. Their app unlocks within one status-poll interval.
         </p>
-        <div style={{ marginTop: 20, display: "flex", justifyContent: "flex-end", gap: 12 }}>
+        <ModalActions>
           <Button variant="ghost" onClick={() => setLiftTarget(null)} disabled={lifting}>
             Cancel
           </Button>
@@ -660,7 +556,7 @@ export function AccessPage({ users = null, onOpenWorker, filterBar }: AccessPage
           >
             {lifting ? "Lifting…" : "Lift now"}
           </Button>
-        </div>
+        </ModalActions>
       </Modal>
     </div>
   );

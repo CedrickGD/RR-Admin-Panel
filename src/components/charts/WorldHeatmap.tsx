@@ -1314,7 +1314,7 @@ export function WorldHeatmap({
           <div className="world-heatmap-floating-panel">
             <div className="world-heatmap-floating-head">
               <Globe2 className="h-4 w-4" />
-              <span>Live Earth</span>
+              <span>Live sessions</span>
               <button
                 type="button"
                 className="btn-icon"
@@ -1339,10 +1339,17 @@ export function WorldHeatmap({
             </p>
             {activePoint ? (
               <div className="world-heatmap-floating-actions">
-                <button type="button" className="btn-primary" onClick={openActiveSession}>
+                {/* `btn` base class, not the variant alone: ds/Button always
+                    emits `btn ${variant}`, and without it these two missed the
+                    shared sizing, radius and focus ring. */}
+                <button type="button" className="btn btn-primary" onClick={openActiveSession}>
                   Open live session
                 </button>
-                <button type="button" className="btn-ghost" onClick={() => updateActiveKey(null)}>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={() => updateActiveKey(null)}
+                >
                   Clear
                 </button>
               </div>

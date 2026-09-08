@@ -5,34 +5,40 @@ import {
   Clock,
   Download,
   Globe2,
+  Minus,
+  Plus,
   RotateCcw,
   TrendingUp,
   Users,
   X,
 } from "lucide-react";
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useState, type ComponentProps, type ReactNode } from "react";
 import {
   Area,
   Bar,
   CartesianGrid,
   ComposedChart,
+  Rectangle,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
+import { ChartLegend } from "../components/charts/ChartLegend";
+import { CHART_MARGIN } from "../components/charts/chartMargin";
 import { TelemetryChartTooltip } from "../components/charts/TelemetryChartTooltip";
 import { CollapsiblePanel } from "../components/CollapsiblePanel";
 import { Badge } from "../components/ds/Badge";
+import { Button, IconButton } from "../components/ds/Button";
 import { EmptyState } from "../components/ds/EmptyState";
-import { KvList, type KvListItem } from "../components/ds/KvList";
 import { MetaRow, PageHeader } from "../components/ds/PageHeader";
+import { RelativeTime } from "../components/ds/RelativeTime";
 import { KpiStatCard, type KpiDrilldown } from "../components/KpiStatCard";
 import { useChartZoom } from "../hooks/useChartZoom";
 import { usePanelPermission } from "../hooks/usePanelPermission";
 import type { DayPoint, StatsPayload, SummaryPayload, ThemeMode } from "../types/telemetry";
 import { buildRegionBreakdown, buildTrafficTimeline } from "../utils/dashboardInsights";
-import { formatDuration, formatNumber, timeAgo } from "../utils/format";
+import { formatDuration, formatNumber } from "../utils/format";
 import { isOverviewErrorInWindow } from "../utils/overviewErrors";
 
 interface OverviewPageProps {
@@ -52,6 +58,29 @@ const TIME_WINDOWS = [
 ] as const;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Series identity for the header legend — same colors the plot is drawn with. */
+const ACTIVITY_LEGEND = [
+  { label: "Active customers", color: "var(--chart-users)" },
+  { label: "New sessions", color: "var(--chart-sessions)" },
+  { label: "Errors", color: "var(--chart-errors)" },
+];
+
+/**
+ * Bars keep their rounded caps only once they are tall enough to show them.
+ * A 6px radius on a 1-unit bar renders as a dot, which made the session series
+ * read as decoration rather than data.
+ */
+function sessionBarShape(props: unknown) {
+  const bar = props as ComponentProps<typeof Rectangle>;
+  const height = typeof bar.height === "number" ? bar.height : 0;
+  return <Rectangle {...bar} radius={height >= 10 ? [3, 3, 0, 0] : 0} />;
+}
+
+/** Floor of 2px so a 1-session hour stays visible — but a zero hour paints nothing. */
+function sessionBarMinSize(value: number | undefined | null): number {
+  return value ? 2 : 0;
+}
 
 function versionLabel(version: string): string {
   return version === "legacy" ? "Legacy (pre-1.4)" : version;
@@ -75,7 +104,7 @@ export function OverviewPage({ summary, stats, filterBar }: OverviewPageProps) {
 
   const [dismissedErrors, setDismissedErrors] = useState<Set<string>>(new Set());
 
-  const zoom = useChartZoom(traffic.length);
+  const zoom = useChartZoom(traffic.length, "Activity chart");
   const activeWindow = zoom.visibleEnd - zoom.visibleStart;
   const visibleTraffic = useMemo(
     () => traffic.slice(zoom.visibleStart, zoom.visibleEnd),
@@ -103,7 +132,6 @@ export function OverviewPage({ summary, stats, filterBar }: OverviewPageProps) {
   );
   const latestError = recentErrors24h[0];
   const recentSignals = recentErrors24h.slice(0, 6).filter((e) => !dismissedErrors.has(e.id));
-  const windowHours = zoom.visibleEnd - zoom.visibleStart;
 
   // True lifetime event counter; summary.stats.totalEvents is only the retained window.
   const lifetimeEvents = summary.stats.lifetimeEvents ?? summary.stats.totalEvents;
@@ -137,8 +165,8 @@ export function OverviewPage({ summary, stats, filterBar }: OverviewPageProps) {
         value: formatNumber(v.users),
         share: v.users / totalUsers,
       })),
-      breakdownTitle: "Users by current version",
-      note: `${formatNumber(stats.totals.rpcLiveNow)} live with Discord RPC · RPC status reported by ${formatNumber(stats.totals.rpcKnownUsers)} of ${formatNumber(stats.totals.lifetimeUsers)} users`,
+      breakdownTitle: "Customers by current version",
+      note: `${formatNumber(stats.totals.rpcLiveNow)} live with Discord RPC · RPC status reported by ${formatNumber(stats.totals.rpcKnownUsers)} of ${formatNumber(stats.totals.lifetimeUsers)} customers`,
     };
   }, [stats]);
 
@@ -218,7 +246,7 @@ export function OverviewPage({ summary, stats, filterBar }: OverviewPageProps) {
         value: formatNumber(c.users),
         share: c.users / totalUsers,
       })),
-      breakdownTitle: "Users by country",
+      breakdownTitle: "Customers by country",
     };
   }, [stats]);
 
@@ -229,36 +257,17 @@ export function OverviewPage({ summary, stats, filterBar }: OverviewPageProps) {
     ? stats.totals.averageSessionDurationSeconds
     : summary.stats.averageSessionDurationSeconds;
 
-  const directives: KvListItem[] = [
-    { k: "Traffic Clock", v: "UTC fixed", tag: "default" },
-    {
-      k: "Geography Source",
-      v: summary.activeSessions.length > 0 ? "Active-first" : "Recent sessions",
-      tag: "accent",
-    },
-    { k: "Storage Backend", v: summary.storage.toUpperCase(), tag: "default" },
-    {
-      k: "Last Ingest",
-      v: summary.stats.lastIngestAt ? timeAgo(summary.stats.lastIngestAt) : "Waiting",
-    },
-    { k: "Generated", v: timeAgo(summary.generatedAt) },
-  ];
-
   return (
     <div className="page-content page-stack-lg">
-      {/* Page header — kicker + title left, global filters right */}
-      <PageHeader
-        title="Workspace overview"
-        sub="A clear view of activity, health and the work ahead."
-        right={filterBar}
-      />
+      {/* Page header — title from PAGE_META left, global filters right */}
+      <PageHeader page="overview" right={filterBar} />
 
       {/* Two-column grid: left (stats + chart), right (side panels) */}
 
       {/* KPI grid */}
       <div className="stat-grid stat-grid-4 overview-kpis">
         <KpiStatCard
-          label="Active Users"
+          label="Active customers"
           value={formatNumber(activeUsersValue)}
           sub={
             canMonitor
@@ -284,7 +293,7 @@ export function OverviewPage({ summary, stats, filterBar }: OverviewPageProps) {
           spark={stats?.series.sessionsPerDay.map((p) => p.sessions)}
         />
         <KpiStatCard
-          label="Avg Session"
+          label="Avg session"
           value={formatDuration(avgDurationSeconds)}
           sub={
             stats
@@ -314,70 +323,70 @@ export function OverviewPage({ summary, stats, filterBar }: OverviewPageProps) {
             <CollapsiblePanel
               kicker="Traffic"
               title={`Activity · ${activeWindow} ${activeWindow === 1 ? "hour" : "hours"}`}
-              sub={
-                zoom.isZoomed
-                  ? `Viewing ${windowHours}h window — scroll to adjust`
-                  : "Scroll inside chart to zoom in"
-              }
+              sub={zoom.hint}
               padding="body"
               right={
-                <MetaRow
-                  items={[
-                    { label: "Peak Users/h", value: formatNumber(totals.peakUsers) },
-                    { label: "Sessions", value: formatNumber(totals.started) },
-                    { label: "Errors", value: formatNumber(totals.errors) },
-                  ]}
-                />
+                /* Range and zoom controls live in the header, not over the plot. */
+                <div className="chart-head-tools">
+                  <ChartLegend items={ACTIVITY_LEGEND} />
+                  <MetaRow
+                    items={[
+                      { label: "Peak customers/h", value: formatNumber(totals.peakUsers) },
+                      { label: "Sessions", value: formatNumber(totals.started) },
+                      { label: "Errors", value: formatNumber(totals.errors) },
+                    ]}
+                  />
+                  <div className="chart-zoom-controls">
+                    <Select
+                      aria-label="Time window"
+                      value={activeWindow}
+                      onValueChange={(value) => handleTimeWindow(Number(value))}
+                    >
+                      {!TIME_WINDOWS.some((tw) => tw.hours === activeWindow) && (
+                        /* One text child: Select reads the label with String(children). */
+                        <option value={activeWindow}>{`${activeWindow} hours`}</option>
+                      )}
+                      {TIME_WINDOWS.map((tw) => (
+                        <option key={tw.hours} value={tw.hours}>
+                          {tw.label}
+                        </option>
+                      ))}
+                    </Select>
+                    <IconButton
+                      icon={<Minus />}
+                      aria-label="Zoom out"
+                      title="Zoom out"
+                      onClick={zoom.zoomOut}
+                      disabled={!zoom.canZoomOut}
+                    />
+                    <IconButton
+                      icon={<Plus />}
+                      aria-label="Zoom in"
+                      title="Zoom in"
+                      onClick={zoom.zoomIn}
+                      disabled={!zoom.canZoomIn}
+                    />
+                    {/* Always rendered so the row does not reflow when zooming. */}
+                    <Button
+                      size="sm"
+                      icon={<RotateCcw />}
+                      onClick={zoom.resetZoom}
+                      disabled={!zoom.isZoomed}
+                      title="Reset zoom"
+                    >
+                      Reset
+                    </Button>
+                  </div>
+                </div>
               }
             >
-              {/* Time window buttons */}
               <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 8,
-                  paddingBottom: 6,
-                }}
-              >
-                <Select
-                  aria-label="Time window"
-                  value={activeWindow}
-                  onValueChange={(value) => handleTimeWindow(Number(value))}
-                >
-                  {!TIME_WINDOWS.some((tw) => tw.hours === activeWindow) && (
-                    <option value={activeWindow}>{activeWindow} hours</option>
-                  )}
-                  {TIME_WINDOWS.map((tw) => (
-                    <option key={tw.hours} value={tw.hours}>
-                      {tw.label}
-                    </option>
-                  ))}
-                </Select>
-                {zoom.isZoomed && (
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-sm"
-                    onClick={() => {
-                      zoom.resetZoom();
-                    }}
-                    title="Reset zoom"
-                  >
-                    <RotateCcw size={12} /> Reset
-                  </button>
-                )}
-              </div>
-
-              <div
-                className="chart-wrap chart-wrap-tall"
+                className="chart-wrap chart-wrap-tall chart-zoom"
                 ref={zoom.containerRef}
-                style={{ cursor: "ns-resize" }}
+                {...zoom.containerProps}
               >
                 <ResponsiveContainer width="100%" height={300}>
-                  <ComposedChart
-                    data={visibleTraffic}
-                    margin={{ top: 16, right: 8, left: 0, bottom: 0 }}
-                  >
+                  <ComposedChart data={visibleTraffic} margin={CHART_MARGIN}>
                     <defs>
                       {/* Series colors come from the user-preset chart tokens — never the accent. */}
                       <linearGradient id="usersFillOverview" x1="0" y1="0" x2="0" y2="1">
@@ -435,7 +444,7 @@ export function OverviewPage({ summary, stats, filterBar }: OverviewPageProps) {
                       isAnimationActive={false}
                       type="natural"
                       dataKey="users"
-                      name="Active users"
+                      name="Active customers"
                       stroke="var(--chart-users)"
                       strokeWidth={2.4}
                       fill="url(#usersFillOverview)"
@@ -453,7 +462,8 @@ export function OverviewPage({ summary, stats, filterBar }: OverviewPageProps) {
                       dataKey="started"
                       name="New sessions"
                       fill="url(#startedFillOverview)"
-                      radius={[6, 6, 0, 0]}
+                      shape={sessionBarShape}
+                      minPointSize={sessionBarMinSize}
                       barSize={zoom.isZoomed ? 18 : 10}
                     />
                     <Area
@@ -505,7 +515,9 @@ export function OverviewPage({ summary, stats, filterBar }: OverviewPageProps) {
               </div>
               <div>
                 <span>Last update</span>
-                <strong>{timeAgo(summary.generatedAt)}</strong>
+                <strong>
+                  <RelativeTime iso={summary.generatedAt} />
+                </strong>
               </div>
             </div>
           </section>
@@ -514,7 +526,7 @@ export function OverviewPage({ summary, stats, filterBar }: OverviewPageProps) {
           {canReadSupport && (
             <CollapsiblePanel
               kicker="Failures"
-              title="Recent Errors"
+              title="Recent errors"
               collapsible={false}
               padding="tight"
               style={{ flex: 1 }}
@@ -541,7 +553,9 @@ export function OverviewPage({ summary, stats, filterBar }: OverviewPageProps) {
                           {error.source} · {error.message ?? "No message"}
                         </p>
                       </div>
-                      <span className="feed-time">{timeAgo(error.timestamp)}</span>
+                      <span className="feed-time">
+                        <RelativeTime iso={error.timestamp} />
+                      </span>
                       <button
                         type="button"
                         className="feed-dismiss"

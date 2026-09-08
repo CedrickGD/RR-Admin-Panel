@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { InstallRecord } from "../types/telemetry";
 import { fetchInstalls, revokeInstall } from "../utils/api";
-import { formatDate, timeAgo } from "../utils/format";
+import { formatDate } from "../utils/format";
 import { Badge } from "./ds/Badge";
 import { Button } from "./ds/Button";
+import { RelativeTime } from "./ds/RelativeTime";
 function versionLabel(version: string | null) {
   return version === "legacy" ? "Legacy" : version || "—";
 }
@@ -141,9 +142,14 @@ export function InstallsPanel({ hwid }: InstallsPanelProps) {
               ) : null}
               <span
                 style={{ fontSize: "0.71875rem", color: "var(--text-3)", whiteSpace: "nowrap" }}
-                title={install.lastSeenAt ? formatDate(install.lastSeenAt) : undefined}
               >
-                {install.lastSeenAt ? `seen ${timeAgo(install.lastSeenAt)}` : "not seen yet"}
+                {install.lastSeenAt ? (
+                  <>
+                    seen <RelativeTime iso={install.lastSeenAt} />
+                  </>
+                ) : (
+                  "not seen yet"
+                )}
               </span>
               {!revoked ? (
                 <span

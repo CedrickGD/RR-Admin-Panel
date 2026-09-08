@@ -2,8 +2,6 @@ import { Select } from "../components/ds/Select";
 import { TableFrame } from "../components/ds/TableFrame";
 import {
   AlertTriangle,
-  ArrowDown,
-  ArrowUp,
   ChevronDown,
   ChevronRight,
   ChevronUp,
@@ -12,6 +10,7 @@ import {
   Search,
   Timer,
   Users as UsersIcon,
+  X,
 } from "lucide-react";
 import { Fragment, useMemo, useState } from "react";
 import { CollapsiblePanel } from "../components/CollapsiblePanel";
@@ -19,18 +18,23 @@ import { RowExpandClip } from "../components/RowExpandClip";
 import { KpiStatCard } from "../components/KpiStatCard";
 import { Badge } from "../components/ds/Badge";
 import { Button, IconButton } from "../components/ds/Button";
-import { DetailGrid } from "../components/ds/DataTable";
+import { DetailGrid, SortHeader, type SortState } from "../components/ds/DataTable";
 import { EmptyState } from "../components/ds/EmptyState";
 import { PageHeader } from "../components/ds/PageHeader";
+import { RelativeTime } from "../components/ds/RelativeTime";
 import { SearchInput } from "../components/ds/SearchInput";
+import { SegmentedControl, type TabItem } from "../components/ds/SegmentedControl";
+import { Skeleton, SkeletonRows } from "../components/ds/Skeleton";
 import { Tag } from "../components/ds/Tag";
 import { useAdminErrors } from "../hooks/useAdminErrors";
 import type { ErrorEventDetail, ErrorsRangeKey, ErrorUserGroup } from "../types/telemetry";
-import { formatDate, formatNumber, timeAgo } from "../utils/format";
+import { formatDate, formatNumber } from "../utils/format";
 
 type ViewKey = "users" | "failures";
 type SortKey = "errors" | "firstError" | "lastError";
 type SortDir = "asc" | "desc";
+/** One exclusive page state: banner, KPIs, panel subtitle and body all key off it. */
+type PageState = "loading" | "error" | "empty" | "data";
 
 const RANGES: Array<{ key: ErrorsRangeKey; label: string; title: string }> = [
   { key: "1h", label: "1 h", title: "Last hour" },
@@ -51,7 +55,7 @@ const EVENTS_PREVIEW_COUNT = 25;
 const FAILURE_OCCURRENCES_SHOWN = 50;
 
 const KIND_LABELS: Record<string, string> = {
-  background: "Background Task",
+  background: "Background task",
   unhandled: "Unhandled",
 };
 
@@ -145,55 +149,10 @@ function topType(group: VisibleGroup): { type: string; more: number } | null {
 
 /* ── presentational pieces ──────────────────────────────────── */
 
-interface SortableThProps {
-  label: string;
-  sortKey: SortKey;
-  activeKey: SortKey;
-  dir: SortDir;
-  onSort: (key: SortKey) => void;
-  /** Column-priority tag (col-xl / col-lg / col-md) — hides with its tds on narrow viewports. */
-  className?: string;
-}
-
-function SortableTh({ label, sortKey, activeKey, dir, onSort, className }: SortableThProps) {
-  const isActive = activeKey === sortKey;
-  return (
-    <th
-      className={className}
-      onClick={() => onSort(sortKey)}
-      style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}
-      title={`Sort by ${label.toLowerCase()}`}
-      aria-sort={isActive ? (dir === "asc" ? "ascending" : "descending") : undefined}
-    >
-      <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-        {label}
-        {isActive ? (
-          dir === "asc" ? (
-            <ArrowUp size={12} style={{ color: "var(--accent)" }} />
-          ) : (
-            <ArrowDown size={12} style={{ color: "var(--accent)" }} />
-          )
-        ) : null}
-      </span>
-    </th>
-  );
-}
-
-function SkeletonRows() {
-  return (
-    <>
-      {Array.from({ length: SKELETON_ROWS }, (_, row) => (
-        <tr key={`skeleton-${row}`}>
-          {Array.from({ length: USER_COLUMN_COUNT }, (_, col) => (
-            <td key={col}>
-              <div className="skeleton" style={{ height: 12, width: col === 0 ? 120 : 48 }} />
-            </td>
-          ))}
-        </tr>
-      ))}
-    </>
-  );
-}
+const VIEW_TABS: TabItem[] = [
+  { key: "users", label: "By customer" },
+  { key: "failures", label: "By failure" },
+];
 
 /** One collected error, rendered in full: type, kind, message, and every leftover metric. */
 function ErrorEventCard({ event }: { event: ErrorEventDetail }) {
@@ -226,7 +185,7 @@ function ErrorEventCard({ event }: { event: ErrorEventDetail }) {
           }}
           title={event.receivedAt ? `Received ${formatDate(event.receivedAt)}` : undefined}
         >
-          {formatDate(event.timestamp)} · {timeAgo(event.timestamp)}
+          {formatDate(event.timestamp)} · <RelativeTime iso={event.timestamp} />
         </span>
       </div>
       <p
@@ -412,8 +371,22 @@ export function ErrorsPage() {
   const rangeTitle = RANGES.find((r) => r.key === range)?.title ?? "Selected range";
   const backgroundTotal = current?.totals.backgroundErrors ?? 0;
 
+  // No usable payload for this range: a failure owns the screen, otherwise it's
+  // loading. Never both — a skeleton or "None" must not sit beside the alert.
+  const pageState: PageState = !visibleGroups
+    ? error
+      ? "error"
+      : "loading"
+    : visibleGroups.length === 0
+      ? "empty"
+      : "data";
+  const unavailable = pageState === "error";
+
   /* ── interactions ─────────────────────────────────────────── */
-  function handleSort(key: SortKey) {
+  const sort: SortState = { key: sortKey, direction: sortDir };
+  /** SortHeader hands back the column key; the page owns the direction toggle. */
+  function handleSort(next: string) {
+    const key = next as SortKey;
     if (key === sortKey) {
       setSortDir((d) => (d === "desc" ? "asc" : "desc"));
     } else {
@@ -452,12 +425,27 @@ export function ErrorsPage() {
   }
 
   /* ── render ───────────────────────────────────────────────── */
+  const loadFailed = (
+    <EmptyState
+      icon={<AlertTriangle />}
+      title="Couldn't load errors"
+      action={
+        <Button size="sm" onClick={refresh} disabled={loading}>
+          {loading ? "Retrying…" : "Retry"}
+        </Button>
+      }
+    >
+      {/* No data to show, so the banner stays hidden and the reason lives here. */}
+      {error}
+    </EmptyState>
+  );
+
   return (
     <div className="page-content page-stack-lg">
       <PageHeader
         kicker="Failures"
-        title="Errors"
-        sub="Every collected error, linked to the user it came from."
+        page="errors"
+        sub="Every collected error, linked to the customer it came from."
         right={
           <>
             <Select
@@ -471,23 +459,14 @@ export function ErrorsPage() {
                 </option>
               ))}
             </Select>
-            <div className="seg-control">
-              {(
-                [
-                  { key: "users", label: "By User" },
-                  { key: "failures", label: "By Failure" },
-                ] as Array<{ key: ViewKey; label: string }>
-              ).map((t) => (
-                <button
-                  key={t.key}
-                  type="button"
-                  className={`seg-btn${view === t.key ? " active" : ""}`}
-                  onClick={() => setView(t.key)}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
+            {/* Panel switch, not a filter — pill look, tab semantics. */}
+            <SegmentedControl
+              as="tablist"
+              aria-label="Error grouping"
+              items={VIEW_TABS}
+              value={view}
+              onChange={(key) => setView(key as ViewKey)}
+            />
           </>
         }
       />
@@ -495,40 +474,54 @@ export function ErrorsPage() {
       {/* KPIs */}
       <div className="stat-grid stat-grid-3">
         <KpiStatCard
-          label="Errors in Range"
+          label="Errors in range"
           value={kpis ? formatNumber(kpis.errorsInRange) : "—"}
-          sub={`${rangeTitle}${showBackground ? " · background included" : " · background hidden"}`}
+          sub={
+            unavailable
+              ? "Unavailable"
+              : `${rangeTitle}${showBackground ? " · background included" : " · background hidden"}`
+          }
           tone={kpis && kpis.errorsInRange > 0 ? "danger" : "primary"}
           icon={<AlertTriangle size={14} />}
+          loading={pageState === "loading"}
         />
         <KpiStatCard
-          label="Affected Users"
+          label="Affected customers"
           value={kpis ? formatNumber(kpis.affectedUsers) : "—"}
-          sub="Users with at least one error in range"
+          sub={unavailable ? "Unavailable" : "Customers with at least one error in range"}
           tone={kpis && kpis.affectedUsers > 0 ? "warning" : "primary"}
           icon={<UsersIcon size={14} />}
+          loading={pageState === "loading"}
         />
         <KpiStatCard
-          label="Last Failure"
-          value={kpis?.lastErrorAt ? timeAgo(kpis.lastErrorAt) : "None"}
-          sub={kpis?.lastErrorAt ? formatDate(kpis.lastErrorAt) : "No failures in range"}
+          label="Last failure"
+          value={kpis ? (kpis.lastErrorAt ? <RelativeTime iso={kpis.lastErrorAt} /> : "None") : "—"}
+          sub={
+            unavailable
+              ? "Unavailable"
+              : kpis
+                ? kpis.lastErrorAt
+                  ? formatDate(kpis.lastErrorAt)
+                  : "No failures in range"
+                : rangeTitle
+          }
           tone={kpis?.lastErrorAt ? "warning" : "primary"}
           icon={<Timer size={14} />}
+          loading={pageState === "loading"}
         />
       </div>
 
-      {error ? (
+      {/* Stale data on screen: warn next to it. With no data the panel's
+          empty state carries the failure instead, so it is never reported twice. */}
+      {error && current ? (
         <div
           className="inline-danger-note"
           role="alert"
           style={{ display: "flex", alignItems: "center", gap: 10 }}
         >
-          <span style={{ flex: 1 }}>
-            {error}
-            {current ? " Showing the last loaded data." : ""}
-          </span>
-          <Button size="sm" onClick={refresh}>
-            Retry
+          <span style={{ flex: 1 }}>{error} Showing the last loaded data.</span>
+          <Button size="sm" onClick={refresh} disabled={loading}>
+            {loading ? "Retrying…" : "Retry"}
           </Button>
         </div>
       ) : null}
@@ -541,20 +534,22 @@ export function ErrorsPage() {
       ) : null}
       {current?.usersTruncated ? (
         <p style={{ fontSize: "0.75rem", color: "var(--text-3)", margin: "-8px 0 0" }}>
-          Showing the most recently affected users — totals still count everyone; narrow the
+          Showing the most recently affected customers — totals still count everyone; narrow the
           timespan to see the rest.
         </p>
       ) : null}
 
       <CollapsiblePanel
         kicker={view === "users" ? "Linked" : "Grouped"}
-        title={view === "users" ? "Users with Errors" : "Failures"}
+        title={view === "users" ? "Customers with errors" : "Failures"}
         sub={
-          rows
-            ? view === "users"
-              ? `${formatNumber(rows.length)} of ${formatNumber(visibleGroups?.length ?? 0)} affected users shown · expand a row for every error`
-              : `${formatNumber(failures?.length ?? 0)} distinct failures · expand for occurrences with the user behind each one`
-            : "Loading errors…"
+          pageState === "loading"
+            ? "Loading errors…"
+            : pageState === "data"
+              ? view === "users"
+                ? `${formatNumber(rows?.length ?? 0)} of ${formatNumber(visibleGroups?.length ?? 0)} affected customers shown · expand a row for every error`
+                : `${formatNumber(failures?.length ?? 0)} distinct failures · expand for occurrences with the customer behind each one`
+              : undefined
         }
         padding="flush"
         right={
@@ -563,7 +558,7 @@ export function ErrorsPage() {
               value={query}
               onChange={setQuery}
               placeholder={
-                view === "users" ? "Search user, Discord, error…" : "Search failure, user…"
+                view === "users" ? "Search customer, Discord, error…" : "Search failure, customer…"
               }
               style={{ width: "min(280px,100%)" }}
             />
@@ -584,39 +579,50 @@ export function ErrorsPage() {
         }
       >
         {view === "users" ? (
-          rows === null || rows.length > 0 ? (
-            <TableFrame>
+          unavailable ? (
+            loadFailed
+          ) : pageState === "loading" || (rows && rows.length > 0) ? (
+            <TableFrame stickyActions mobileLayout="stack" aria-busy={rows === null || undefined}>
+              <caption className="table-caption">
+                Customers with errors in {rangeTitle.toLowerCase()}, sortable by column
+              </caption>
               <thead>
                 <tr>
-                  <th>User</th>
-                  <th className="col-lg">Discord</th>
-                  <th>Version</th>
-                  <th className="col-lg">Platform</th>
-                  <th className="col-md">Location</th>
-                  <SortableTh
+                  <th scope="col">Customer</th>
+                  <th scope="col" className="col-lg">
+                    Discord
+                  </th>
+                  <th scope="col">Version</th>
+                  <th scope="col" className="col-lg">
+                    Platform
+                  </th>
+                  <th scope="col" className="col-md">
+                    Location
+                  </th>
+                  <SortHeader
                     label="Errors"
                     sortKey="errors"
-                    activeKey={sortKey}
-                    dir={sortDir}
-                    onSort={handleSort}
+                    sort={sort}
+                    onSortChange={handleSort}
+                    className="numeric"
                   />
-                  <th>Top Type</th>
-                  <SortableTh
-                    label="First Error"
+                  <th scope="col">Top type</th>
+                  <SortHeader
+                    label="First error"
                     sortKey="firstError"
-                    activeKey={sortKey}
-                    dir={sortDir}
-                    onSort={handleSort}
+                    sort={sort}
+                    onSortChange={handleSort}
                     className="col-xl"
                   />
-                  <SortableTh
-                    label="Last Error"
+                  <SortHeader
+                    label="Last error"
                     sortKey="lastError"
-                    activeKey={sortKey}
-                    dir={sortDir}
-                    onSort={handleSort}
+                    sort={sort}
+                    onSortChange={handleSort}
                   />
-                  <th></th>
+                  <th scope="col">
+                    <span className="sr-only">Actions</span>
+                  </th>
                 </tr>
               </thead>
               <tbody
@@ -624,10 +630,11 @@ export function ErrorsPage() {
                 className={rows === null ? undefined : "dt-settle"}
               >
                 {rows === null ? (
-                  <SkeletonRows />
+                  <SkeletonRows columns={USER_COLUMN_COUNT} rows={SKELETON_ROWS} />
                 ) : (
                   rows.map((user) => {
                     const isExpanded = expandedUsers.includes(user.identity);
+                    const name = displayName(user);
                     const top = topType(user);
                     const showAll = showAllEvents.has(user.identity);
                     const events = showAll
@@ -637,77 +644,65 @@ export function ErrorsPage() {
 
                     return (
                       <Fragment key={user.identity}>
-                        <tr
-                          className={isExpanded ? "row-expanded" : ""}
-                          onClick={() => toggleUser(user.identity)}
-                          style={{ cursor: "pointer" }}
-                        >
-                          <td style={{ whiteSpace: "nowrap" }}>
-                            <span
-                              style={{
-                                fontFamily: "var(--font-display)",
-                                fontWeight: 600,
-                                fontSize: "0.8125rem",
-                                marginRight: 6,
-                              }}
+                        <tr className={isExpanded ? "row-expanded" : ""}>
+                          <td>
+                            <button
+                              type="button"
+                              className="person-cell"
+                              onClick={() => toggleUser(user.identity)}
+                              aria-expanded={isExpanded}
+                              aria-label={`${isExpanded ? "Hide" : "Show"} errors for ${name}`}
                             >
-                              {displayName(user)}
-                            </span>
-                            {!isUnattributed(user) ? (
-                              <>
-                                {user.licenseTier === "premium" ? (
-                                  <span
-                                    style={{
-                                      fontSize: "0.625rem",
-                                      padding: "2px 6px",
-                                      borderRadius: "4px",
-                                      background: "var(--accent-subtle)",
-                                      color: "var(--accent-text)",
-                                      fontWeight: 700,
-                                      letterSpacing: "0.05em",
-                                      verticalAlign: "middle",
-                                    }}
-                                  >
-                                    PREMIUM
-                                  </span>
+                              <span>
+                                <strong title={name}>{name}</strong>
+                                {!isUnattributed(user) ? (
+                                  <small>
+                                    {user.licenseTier === "premium" ? (
+                                      <span
+                                        style={{
+                                          fontSize: "0.625rem",
+                                          padding: "2px 6px",
+                                          borderRadius: "4px",
+                                          background: "var(--accent-subtle)",
+                                          color: "var(--accent-text)",
+                                          fontWeight: 700,
+                                          letterSpacing: "0.05em",
+                                          verticalAlign: "middle",
+                                        }}
+                                      >
+                                        PREMIUM
+                                      </span>
+                                    ) : (
+                                      <span
+                                        style={{
+                                          fontSize: "0.625rem",
+                                          padding: "2px 6px",
+                                          borderRadius: "4px",
+                                          background: "var(--bg-subtle)",
+                                          color: "var(--text-muted)",
+                                          fontWeight: 700,
+                                          letterSpacing: "0.05em",
+                                          verticalAlign: "middle",
+                                        }}
+                                      >
+                                        FREE
+                                      </span>
+                                    )}
+                                    <span className="mono" style={{ marginLeft: 8 }}>
+                                      {user.identity.slice(0, 8)}
+                                    </span>
+                                  </small>
                                 ) : (
-                                  <span
-                                    style={{
-                                      fontSize: "0.625rem",
-                                      padding: "2px 6px",
-                                      borderRadius: "4px",
-                                      background: "var(--bg-subtle)",
-                                      color: "var(--text-muted)",
-                                      fontWeight: 700,
-                                      letterSpacing: "0.05em",
-                                      verticalAlign: "middle",
-                                    }}
-                                  >
-                                    FREE
-                                  </span>
+                                  <small title="These events carried no install id or hwid">
+                                    No identity in payload
+                                  </small>
                                 )}
-                                <span
-                                  style={{
-                                    fontFamily: "var(--font-mono)",
-                                    fontSize: "0.6875rem",
-                                    color: "var(--text-3)",
-                                    marginLeft: 8,
-                                  }}
-                                >
-                                  {user.identity.slice(0, 8)}
-                                </span>
-                              </>
-                            ) : (
-                              <span
-                                style={{ fontSize: "0.6875rem", color: "var(--text-3)" }}
-                                title="These events carried no install id or hwid"
-                              >
-                                no identity in payload
                               </span>
-                            )}
+                            </button>
                           </td>
                           <td
                             className="col-lg"
+                            data-label="Discord"
                             style={{
                               whiteSpace: "nowrap",
                               maxWidth: 160,
@@ -726,14 +721,17 @@ export function ErrorsPage() {
                               <span style={{ color: "var(--text-3)", opacity: 0.55 }}>—</span>
                             )}
                           </td>
-                          <td>
+                          <td data-label="Version">
                             <Badge tone="muted" title={user.appVersion ?? undefined}>
                               {versionLabel(user.displayVersion ?? user.appVersion)}
                             </Badge>
                           </td>
-                          <td className="muted col-lg">{user.platform ?? "—"}</td>
+                          <td className="muted col-lg" data-label="Platform">
+                            {user.platform ?? "—"}
+                          </td>
                           <td
                             className="muted col-md"
+                            data-label="Location"
                             style={{
                               whiteSpace: "nowrap",
                               maxWidth: 150,
@@ -744,7 +742,7 @@ export function ErrorsPage() {
                           >
                             {userLocation(user) || "—"}
                           </td>
-                          <td>
+                          <td className="numeric" data-label="Errors">
                             <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                               <Badge tone="danger">{formatNumber(user.visibleCount)}</Badge>
                               {showBackground && user.backgroundCount > 0 ? (
@@ -758,6 +756,7 @@ export function ErrorsPage() {
                             </span>
                           </td>
                           <td
+                            data-label="Top type"
                             style={{
                               whiteSpace: "nowrap",
                               maxWidth: 200,
@@ -780,34 +779,23 @@ export function ErrorsPage() {
                               <span className="muted">—</span>
                             )}
                           </td>
-                          <td
-                            className="muted col-xl"
-                            style={{ whiteSpace: "nowrap" }}
-                            title={formatDate(user.firstAt)}
-                          >
-                            {timeAgo(user.firstAt)}
+                          <td className="muted col-xl" data-label="First error" style={{ whiteSpace: "nowrap" }}>
+                            <RelativeTime iso={user.firstAt} />
                           </td>
-                          <td
-                            className="muted"
-                            style={{ whiteSpace: "nowrap" }}
-                            title={formatDate(user.lastAt)}
-                          >
+                          <td className="muted" data-label="Last error" style={{ whiteSpace: "nowrap" }}>
                             <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                               {user.isActive ? (
-                                <span className="status-dot" title="User is online right now" />
+                                <span className="status-dot" title="Customer is online right now" />
                               ) : null}
-                              {timeAgo(user.lastAt)}
+                              <RelativeTime iso={user.lastAt} />
                             </span>
                           </td>
                           <td>
                             <IconButton
                               icon={isExpanded ? <ChevronUp /> : <ChevronDown />}
-                              style={{ padding: 4 }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleUser(user.identity);
-                              }}
-                              aria-label={isExpanded ? "Collapse" : "Expand"}
+                              aria-expanded={isExpanded}
+                              aria-label={`${isExpanded ? "Hide" : "Show"} errors for ${name}`}
+                              onClick={() => toggleUser(user.identity)}
                             />
                           </td>
                         </tr>
@@ -832,23 +820,23 @@ export function ErrorsPage() {
                                           ? discordHandle(user.discordUser)
                                           : "—",
                                       },
-                                      { k: "Device Model", v: user.deviceModel ?? "—" },
-                                      { k: "OS Version", v: user.osVersion ?? "—" },
+                                      { k: "Device model", v: user.deviceModel ?? "—" },
+                                      { k: "OS version", v: user.osVersion ?? "—" },
                                       { k: "Timezone", v: user.timezone ?? "—" },
                                       {
-                                        k: "App Version",
+                                        k: "App version",
                                         v: user.displayVersion ?? user.appVersion ?? "—",
                                       },
                                       {
-                                        k: "Last Seen",
+                                        k: "Last seen",
                                         v: user.lastSeen ? formatDate(user.lastSeen) : "—",
                                       },
                                       {
-                                        k: "Errors in Range",
+                                        k: "Errors in range",
                                         v: `${formatNumber(user.errorCount)} real · ${formatNumber(user.backgroundCount)} background`,
                                       },
-                                      { k: "First Error", v: formatDate(user.firstAt) },
-                                      { k: "Last Error", v: formatDate(user.lastAt) },
+                                      { k: "First error", v: formatDate(user.firstAt) },
+                                      { k: "Last error", v: formatDate(user.lastAt) },
                                     ]}
                                   />
                                 </div>
@@ -908,9 +896,16 @@ export function ErrorsPage() {
               </tbody>
             </TableFrame>
           ) : query ? (
-            <EmptyState icon={<Search />} title="No users match">
-              No affected user matches “{query}”. Clear the search to see everyone with errors in
-              range.
+            <EmptyState
+              icon={<Search />}
+              title="No customers match"
+              action={
+                <Button size="sm" icon={<X />} onClick={() => setQuery("")}>
+                  Clear search
+                </Button>
+              }
+            >
+              No affected customer matches “{query}”.
             </EmptyState>
           ) : (
             <EmptyState allClear>
@@ -918,7 +913,9 @@ export function ErrorsPage() {
               surface here within seconds of ingest.
             </EmptyState>
           )
-        ) : failures === null || failures.length > 0 ? (
+        ) : unavailable ? (
+          loadFailed
+        ) : pageState === "loading" || (failures && failures.length > 0) ? (
           <div className="error-group-list">
             {failures === null
               ? Array.from({ length: 4 }, (_, i) => (
@@ -926,9 +923,9 @@ export function ErrorsPage() {
                     key={`skeleton-${i}`}
                     style={{ padding: "12px 16px", display: "flex", gap: 10, alignItems: "center" }}
                   >
-                    <div className="skeleton" style={{ height: 12, width: 160 }} />
-                    <div className="skeleton" style={{ height: 12, flex: 1, maxWidth: 420 }} />
-                    <div className="skeleton" style={{ height: 12, width: 60 }} />
+                    <Skeleton width={160} />
+                    <Skeleton style={{ flex: 1, maxWidth: 420 }} />
+                    <Skeleton width={60} />
                   </div>
                 ))
               : failures.map((failure) => {
@@ -940,6 +937,8 @@ export function ErrorsPage() {
                         type="button"
                         className="error-group-row"
                         onClick={() => toggleFailure(failure.key)}
+                        aria-expanded={isOpen}
+                        aria-label={`${isOpen ? "Hide" : "Show"} occurrences of ${failure.type}`}
                       >
                         <div className="error-group-chevron">
                           {isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
@@ -960,14 +959,12 @@ export function ErrorsPage() {
                           >
                             {failure.count}×
                           </Badge>
-                          <Badge tone="muted" title="Distinct users hit by this failure">
-                            {failure.identities.size} user{failure.identities.size !== 1 ? "s" : ""}
+                          <Badge tone="muted" title="Distinct customers hit by this failure">
+                            {failure.identities.size} customer
+                            {failure.identities.size !== 1 ? "s" : ""}
                           </Badge>
-                          <span
-                            className="error-group-time muted-text"
-                            title={formatDate(failure.latest.timestamp)}
-                          >
-                            {timeAgo(failure.latest.timestamp)}
+                          <span className="error-group-time muted-text">
+                            <RelativeTime iso={failure.latest.timestamp} />
                           </span>
                         </div>
                       </button>
@@ -986,7 +983,7 @@ export function ErrorsPage() {
                             {failure.code ? <Tag>{failure.code}</Tag> : null}
                             <span className="muted-text" style={{ fontSize: "0.75rem" }}>
                               {failure.count} occurrence{failure.count !== 1 ? "s" : ""} across{" "}
-                              {failure.identities.size} user
+                              {failure.identities.size} customer
                               {failure.identities.size !== 1 ? "s" : ""}
                             </span>
                           </div>
@@ -997,7 +994,7 @@ export function ErrorsPage() {
                                   type="button"
                                   className="btn btn-ghost btn-xs"
                                   onClick={() => jumpToUser(user.identity)}
-                                  title={`Open ${displayName(user)} in the user view`}
+                                  title={`Open ${displayName(user)} in the customer view`}
                                 >
                                   {displayName(user)}
                                 </button>
@@ -1005,7 +1002,7 @@ export function ErrorsPage() {
                                   {formatDate(event.timestamp)}
                                 </span>
                                 <span className="muted-text" style={{ fontSize: "0.75rem" }}>
-                                  {timeAgo(event.timestamp)}
+                                  <RelativeTime iso={event.timestamp} />
                                 </span>
                                 {event.appVersion ? <Tag>{event.appVersion}</Tag> : null}
                               </div>
@@ -1030,8 +1027,16 @@ export function ErrorsPage() {
                 })}
           </div>
         ) : query ? (
-          <EmptyState icon={<Search />} title="No failures match">
-            Nothing in range matches “{query}”. Clear the search to see every failure.
+          <EmptyState
+            icon={<Search />}
+            title="No failures match"
+            action={
+              <Button size="sm" icon={<X />} onClick={() => setQuery("")}>
+                Clear search
+              </Button>
+            }
+          >
+            Nothing in range matches “{query}”.
           </EmptyState>
         ) : (
           <EmptyState allClear>

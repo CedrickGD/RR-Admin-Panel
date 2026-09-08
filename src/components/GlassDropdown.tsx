@@ -17,6 +17,15 @@ interface GlassDropdownProps {
   searchThreshold?: number;
   /** Popover anchor edge. Default "right". */
   align?: "left" | "right";
+  /**
+   * `id` of the trigger button. ds/Field points its `<label for>` at it, so it
+   * has to land on the button — a `<label for>` aimed at a wrapper div is inert.
+   */
+  triggerId?: string;
+  /** Description wiring from ds/Field (help text or validation message). */
+  describedBy?: string;
+  /** Marks the trigger invalid, again from ds/Field. */
+  invalid?: boolean;
 }
 
 /**
@@ -35,6 +44,9 @@ export function GlassDropdown({
   disabled,
   label: accessibleLabel,
   allowClear = true,
+  triggerId,
+  describedBy,
+  invalid,
 }: GlassDropdownProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -134,7 +146,10 @@ export function GlassDropdown({
       <button
         type="button"
         disabled={disabled}
+        id={triggerId}
         aria-label={accessibleLabel}
+        aria-describedby={describedBy}
+        aria-invalid={invalid || undefined}
         className="gdrop-trigger"
         onClick={() => setOpen((current) => !current)}
         aria-expanded={open}

@@ -12,6 +12,18 @@ export function formatDate(value: string | null): string {
   return new Date(ts).toLocaleString();
 }
 
+/** Calendar day only ("8 Sep 2026") — for cells and badges with no room for a clock time. */
+export function formatDay(value: string | null): string {
+  if (!value) return "—";
+  const ts = Date.parse(value);
+  if (!Number.isFinite(ts)) return value;
+  return new Date(ts).toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
 export function formatUtc(value: string): string {
   const ts = Date.parse(value);
   if (!Number.isFinite(ts)) return value;

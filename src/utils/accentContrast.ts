@@ -13,7 +13,7 @@
    each verified against WCAG AA (4.5:1) before it is handed out.
    Pure functions, no DOM — useAppearance is the one writer of the result as
    inline custom properties on <html>. The static formulas in
-   theme/tokens/accent.css and theme/workspace.css stay as the
+   theme/tokens/accent.css (the single token source) stay as the
    pre-hydration fallback and are tuned to the same numbers.
    ═══════════════════════════════════════════════════════════════ */
 
@@ -46,7 +46,7 @@ const INK_LIGHTNESS = 10;
 const ACCENT_SUBTLE_ALPHA = 0.12;
 
 interface ThemeAccent {
-  /** --al from theme/workspace.css. */
+  /** --al from theme/tokens/accent.css. */
   baseLightness: number;
   /** How far --al may travel when neither ink clears AA at the base. */
   minLightness: number;

@@ -133,9 +133,7 @@ h1, h2, h3, h4, h5, h6 {
   margin: 0;
 }
 
-.accent-text { color: var(--accent-text); }
 .muted-text  { color: var(--text-2); }
-.subtle-text { color: var(--text-3); }
 
 /* Stable digits wherever numbers live */
 .stat-value, .kpi-timespan-value, .kpi-breakdown-value,
@@ -187,8 +185,6 @@ h1, h2, h3, h4, h5, h6 {
 /* All layout tracks use minmax(0, 1fr), never bare 1fr: a bare 1fr track can
    never shrink below its content's min-content width, which on narrow phones
    silently widens the whole page and pans the layout viewport. */
-.two-col   { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gap-panel); }
-.three-col { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--gap-panel); }
 .main-side    { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: var(--gap-panel); align-items: start; }
 .main-side-lg { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: var(--gap-panel); align-items: start; }
 .main-side.main-side-stretch, .main-side-lg.main-side-stretch { align-items: stretch; }
@@ -197,15 +193,12 @@ h1, h2, h3, h4, h5, h6 {
 .stat-grid { display: grid; gap: var(--gap-tile); grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
 .stat-grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .stat-grid-6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
-.stat-grid-7 { grid-template-columns: repeat(7, minmax(0, 1fr)); }
 
-@media (max-width: 1280px) { .stat-grid-7 { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 @media (max-width: 1180px) { .stat-grid-6 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@media (max-width: 1100px) { .main-side, .main-side-lg { grid-template-columns: minmax(0, 1fr); } .three-col { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 1100px) { .main-side, .main-side-lg { grid-template-columns: minmax(0, 1fr); } }
 /* Below 900px the fixed column counts strand tiles (a 5-tile row became
    2+2+1); auto-fit fills what fits and gives a phone one full-width column. */
-@media (max-width: 900px)  { .stat-grid-4, .stat-grid-6, .stat-grid-7 { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); } }
-@media (max-width: 700px)  { .two-col, .three-col { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 900px)  { .stat-grid-4, .stat-grid-6 { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); } }
 
 /* ── Motion: staggered entrances ──────────────────────────────── */
 .v2-rise { animation: v2rise var(--t-rise) var(--ease-rise) backwards; }
@@ -231,8 +224,3 @@ h1, h2, h3, h4, h5, h6 {
   .v2-rise { animation: v2fade 0.2s ease-out backwards; }
 }
 
-/* ── Misc utilities ───────────────────────────────────────────── */
-.divider { height: 1px; background: var(--line); border: none; margin: 0; }
-.scroll-x { overflow-x: auto; }
-.scroll-y { overflow-y: auto; }
-.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

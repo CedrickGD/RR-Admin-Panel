@@ -60,8 +60,8 @@ function apply() {
   document.documentElement.style.setProperty("--ah-tertiary", String((state.hue + 180) % 360));
   /* --al, --on-accent, --accent-text and the primary button's hover pair
      (--accent-hover / --on-accent-hover) are hue-dependent: the static formulas
-     in theme/tokens/accent.css and theme/workspace.css only clear WCAG AA around
-     violet. Recomputed here on every hue *and* theme change — apply() runs on
+     in theme/tokens/accent.css (their single declaration site) only clear WCAG
+     AA around violet. Recomputed here on every hue *and* theme change — apply() runs on
      both — and written inline so they outrank the html[data-theme] fallbacks. */
   const accent = accentCustomProperties(state.hue, state.theme);
   for (const name of Object.keys(accent))

@@ -3,28 +3,22 @@
    Load order: src/index.css (legacy base) → src/theme/styles.css
    (the DS) → this file. This file owns the final word.
    Rules here are either (a) app-only layout tweaks the DS doesn't
-   ship, (b) neutralization of legacy index.css visuals that fight
-   the DS, or (c) token bridges for not-yet-migrated corners.
+   ship or (b) neutralization of legacy index.css visuals that fight
+   the DS. The token bridges that used to be category (c) — the
+   legacy --glass-* and --chart-N aliases — moved to
+   src/theme/tokens/colors.css, the single declaration site.
+
+   !important ALLOWLIST — three declarations on two rules, the only
+   ones left in this file. Everything a later layer can simply
+   outrank was un-!important-ed; these cannot be, so they stay and
+   each carries its reason at the rule:
+     • `*, *::before, *::after { backdrop-filter: none }` — the perf
+       ban. Global by design; a plain declaration would lose to every
+       component rule it exists to cancel.
+     • `svg, svg * { filter: none }` — beats recharts' INLINE
+       `style={{ filter: "drop-shadow(…)" }}` on activeDot props
+       (OverviewPage, TrafficPage); only !important outranks inline.
    ═══════════════════════════════════════════════════════════════ */
-
-/* ── (c) Token bridge: legacy var names → DS tokens ──────────────
-   index.css still references the old glass vocabulary in untouched
-   corners. Point those names at the DS frost ladder so everything
-   renders in the new palette until pages migrate, then drop these. */
-:root {
-  --glass-1: var(--surface-1);
-  --glass-2: var(--surface-2);
-  --glass-3: var(--surface-3);
-  --glass-border: var(--line);
-  --glass-border2: var(--line-hi);
-
-  /* Legacy chart series aliases — keep in lockstep with the DS
-     chart tokens (useChartColors writes both sets at runtime). */
-  --chart-1: var(--chart-users);
-  --chart-2: var(--chart-sessions);
-  --chart-3: var(--chart-errors);
-  --chart-4: var(--chart-axis);
-}
 
 /* ── (b) Legacy neutralization ───────────────────────────────────
    The aurora owns the ground: kill index.css's radial washes and
@@ -43,12 +37,10 @@ body::after {
   display: none;
 }
 
-/* Old fixed top navbar + its content offset. The DS .topnav is
-   sticky and in-flow, so main needs no padding compensation. */
-.navbar,
-.navbar-mobile-drawer {
-  display: none;
-}
+/* index.css sized .main-area for a fixed top navbar (52px of padding and a
+   100vh floor). The app has no top bar — the sidebar is in-flow beside the
+   main column — so both are zeroed here. This is the only .main-area rule
+   left that sets either property. */
 .main-area {
   padding-top: 0;
   min-height: 0;
@@ -63,7 +55,6 @@ body::after {
 /* Panels have no drop shadows — frost is the depth. Only floating
    surfaces (menus, modals) keep --shadow-float. */
 .panel,
-.glass,
 .stat-card,
 .stat-card:hover,
 .login-card {
@@ -72,28 +63,17 @@ body::after {
 
 /* Old stat-card bottom glow line — the DS signature is the 2px
    accent tick on the LEFT edge (components.css ::before). */
-.stat-card::after,
-.stat-card.tone-success::after,
-.stat-card.tone-warning::after,
-.stat-card.tone-danger::after {
+.stat-card::after {
   display: none;
 }
-/* Old floating top-right icon chip — DS tiles use .tile-icon wells. */
-.stat-icon {
-  position: static;
-  width: auto;
-  height: auto;
-  background: none;
-  border: none;
-  box-shadow: none;
-}
+/* The label reclaims the gutter the old floating top-right icon chip used to
+   reserve; DS tiles put the icon in a .tile-icon well instead. */
 .stat-label {
   padding-right: 0;
 }
 
 /* Static accent glow hairlines on panel edges — retired (no static
    glows; the aurora is the only ambience). */
-.glow-top::before,
 .panel-glow-accent::before,
 .panel-glow-success::before {
   content: none;
@@ -112,11 +92,6 @@ body::after {
 }
 .kicker {
   text-shadow: none;
-}
-
-/* Page subtitles were filler — the title row stays lean. */
-.page-subtitle {
-  display: none;
 }
 
 /* index.css's legacy page-entrance animation is retired here; the single
@@ -315,13 +290,6 @@ body::after {
   color: var(--accent-text);
 }
 
-/* LogsPage: the expandable filter panel sits first in the flush panel
-   body — the panel head already draws a bottom hairline, so drop the
-   panel's own top border to avoid a double line. */
-.panel-body-flush > .error-filter-panel:first-child {
-  border-top: 0;
-}
-
 /* ── Settings page (SettingsPage.tsx) ─────────────────────────── */
 
 /* Kicker with a leading 12px lucide icon */
@@ -333,22 +301,6 @@ body::after {
 
 /* Copyable kv values (backend build info) — button reset only;
    typography stays on .kv-val so machine values keep their mono */
-.kv-val-copy {
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: copy;
-}
-.kv-val-copy:hover {
-  color: var(--accent-text);
-}
-.kv-copied {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--success-text);
-  animation: kv-pop 0.13s var(--ease-pop);
-}
 @keyframes kv-pop {
   from {
     opacity: 0;
@@ -358,107 +310,6 @@ body::after {
     opacity: 1;
     transform: none;
   }
-}
-
-/* Current-accent chip in the Appearance panel head — follows the
-   live accent vars and the --glow multiplier */
-.accent-current {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.accent-current-chip {
-  width: 28px;
-  height: 28px;
-  border-radius: var(--r-sm);
-  background: var(--accent);
-  border: 2px solid rgba(255, 255, 255, 0.15);
-  box-shadow: 0 0 16px hsl(var(--ah) var(--as) var(--al) / calc(0.5 * var(--glow)));
-}
-.accent-current-value {
-  font-family: var(--font-mono);
-  font-size: var(--fs-small);
-  color: var(--text-2);
-}
-
-/* Inline mono suffix on .label-sm micro-labels ("262° — Purple") */
-.label-sm-suffix {
-  margin-left: 8px;
-  font-family: var(--font-mono);
-  font-weight: 400;
-  text-transform: none;
-  letter-spacing: 0;
-  color: var(--text-2);
-}
-
-/* Hue slider end-stop scale */
-.hue-scale {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 6px;
-  font-size: var(--fs-tiny);
-  color: var(--text-3);
-}
-
-/* Accent preview chip in the Appearance preview row */
-.accent-preview-card {
-  padding: 8px 14px;
-  border-radius: var(--r-sm);
-  background: var(--accent-subtle);
-  border: 1px solid var(--accent-glow);
-  font-size: var(--fs-body);
-  color: var(--accent-text);
-}
-
-/* Chart/donut color preset chips (Settings) */
-.preset-row {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.preset-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 16px;
-  border-radius: var(--r-ctl);
-  background: var(--surface-1);
-  border: 1px solid var(--line);
-  color: var(--text-2);
-  font-size: var(--fs-small);
-  cursor: pointer;
-  transition:
-    background var(--t-med),
-    border-color var(--t-med),
-    color var(--t-med);
-}
-.preset-chip:hover {
-  background: var(--surface-2);
-  border-color: var(--line-hi);
-  color: var(--text-1);
-}
-.preset-chip.active {
-  background: var(--surface-3);
-  border-color: var(--line-hi);
-  color: var(--text-1);
-  font-weight: 500;
-}
-.preset-chip-dots {
-  display: flex;
-  gap: 4px;
-}
-.preset-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-}
-.preset-dot-sm {
-  width: 10px;
-  height: 10px;
-}
-.preset-check {
-  display: flex;
-  color: var(--accent-text);
 }
 
 /* ── Auth screen — centered frosted card on the aurora ground ── */
@@ -630,34 +481,13 @@ body::after {
    the stutter.
    ═══════════════════════════════════════════════════════════════ */
 
-:root {
-  --sb-w: 236px;
-  --glass-blur: 14px;
-
-  /* Rounded cards */
-  --r: 18px;
-  --r-sm: 12px;
-  --r-ctl: 12px;
-
-  /* --fs-stat is not redefined here: tokens/typography.css is the single
-     source for the KPI value size (the copy that stood here silently
-     outranked it). */
-
-  /* Breathing room at the page edges, tight inside KPI grids */
-  --gap-panel: 16px;
-  --gap-tile: 10px;
-  --page-pad: clamp(24px, 3vw, 52px);
-
-  /* Lift the whole console out of the murk: lighter ground, lighter
-     glass, brighter secondary text */
-  --bg: #0b0d17;
-  --text-2: rgba(236, 241, 255, 0.7);
-  --text-3: rgba(236, 241, 255, 0.42);
-  --surface-1: hsl(238 30% 16% / 0.55);
-  --surface-2: hsl(236 32% 20% / 0.62);
-  --surface-3: hsl(234 34% 25% / 0.68);
-  --line: hsl(215 75% 82% / 0.14);
-}
+/* No tokens are declared here any more. This block used to restate
+   --sb-w, --glass-blur, the radii, --gap-*, --page-pad and the
+   ground/surface/text/line colours; every one of them was shadowed
+   by workspace/operations/consistency, so it documented an ambience
+   the app stopped rendering. The values that ship live in
+   src/theme/tokens/*.css — same reason --fs-stat was already left to
+   tokens/typography.css. */
 
 /* ── Liquid aurora — three blended layers, transform-only motion ──
    Layer boxes are 2x the viewport (inset -50%): gradient positions
@@ -778,9 +608,11 @@ svg,
 svg * {
   filter: none !important;
 }
-/* MapLibre canvas had a per-frame saturate/contrast filter. */
+/* MapLibre canvas had a per-frame saturate/contrast filter (index.css's
+   `.world-heatmap-map canvas`, deleted); this keeps the canvas unfiltered at
+   the same specificity, one layer later. */
 .world-heatmap-map canvas {
-  filter: none !important;
+  filter: none;
 }
 .stat-card {
   background: var(--surface-1);
@@ -814,23 +646,6 @@ svg * {
   container: sidebar / inline-size;
 }
 
-/* Group micro-labels between nav sections; vanish on the icon rail. */
-.sb-group-label {
-  padding: 10px 12px 3px;
-  font-size: var(--fs-micro);
-  font-weight: 500;
-  letter-spacing: var(--track-caps);
-  text-transform: uppercase;
-  color: var(--text-3);
-  white-space: nowrap;
-  overflow: hidden;
-}
-html.sb-collapsed .sb-group-label {
-  visibility: hidden;
-  padding: 4px 0 0;
-  height: 8px;
-}
-
 /* Brand lockup — must NEVER overflow the rail: the text column clips with
    ellipsis, and below ~210px the "Operations Console" sub-line disappears
    entirely instead of jutting into the page. */
@@ -851,35 +666,6 @@ html.sb-collapsed .sb-group-label {
 .sb-brand-text {
   min-width: 0;
   overflow: hidden;
-}
-.sb-brand-name {
-  display: block;
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 0.95rem;
-  letter-spacing: -0.01em;
-  color: var(--text-1);
-  line-height: 1.15;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.sb-brand-sub {
-  display: block;
-  font-size: var(--fs-micro);
-  font-weight: 500;
-  letter-spacing: var(--track-caps);
-  text-transform: uppercase;
-  color: var(--accent-text);
-  margin-top: 2px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-@container sidebar (max-width: 210px) {
-  .sb-brand-sub {
-    display: none;
-  }
 }
 .sb-close {
   display: none;
@@ -959,28 +745,6 @@ html.sb-collapsed .sb-group-label {
   padding: 14px 8px 0;
   border-top: 1px solid var(--line);
 }
-.sb-meta {
-  font-size: 0.65625rem;
-  color: var(--text-3);
-  font-family: var(--font-mono);
-}
-.sb-actions {
-  display: flex;
-  gap: 8px;
-}
-
-/* Mobile bar + drawer */
-.mobilebar {
-  display: none;
-}
-.sb-scrim {
-  display: none !important;
-  pointer-events: none !important;
-}
-.sb-scrim-open {
-  display: none !important;
-  pointer-events: none !important;
-}
 
 /* Content sits right of the sidebar and owns the FULL remaining width.
    No max-width cap: wide tables (Users / Sessions) need every pixel, and
@@ -995,6 +759,10 @@ html.sb-collapsed .sb-group-label {
   padding: 22px var(--page-pad) 56px;
 }
 
+/* Phone/tablet: the sidebar becomes an off-canvas drawer. It has NO dimming
+   scrim by design — it slides over the page, its own shadow separates it, and
+   a tap outside closes it (Navbar). The .sb-scrim / .sb-scrim-open rules that
+   used to sit here declared a scrim nothing ever rendered; they are gone. */
 @media (max-width: 900px) {
   .v2-main {
     margin-left: 0;
@@ -1009,30 +777,6 @@ html.sb-collapsed .sb-group-label {
   }
   .sb-close {
     display: inline-flex;
-  }
-  .mobilebar {
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px var(--page-pad);
-    background: hsl(240 38% 8% / 0.92);
-    border-bottom: 1px solid var(--line);
-  }
-  .mobilebar-brand {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    margin: 0 auto;
-    font-family: var(--font-display);
-    font-weight: 700;
-    color: var(--text-1);
-  }
-  .mobilebar-logo {
-    width: 24px;
-    height: 24px;
   }
 }
 
@@ -1111,27 +855,14 @@ html.sb-collapsed .sb-group-label {
     padding: 12px 0 0;
     align-items: center;
   }
-  html.sb-collapsed .sb-meta {
-    display: none;
-  }
-  /* Live pill shrinks to just its dot */
-  html.sb-collapsed .tn-live {
-    font-size: 0;
-    gap: 0;
-  }
-  html.sb-collapsed .tn-live .tn-live-dot {
-    width: 8px;
-    height: 8px;
-  }
 }
 
-/* Phones: the 24px desktop floor wastes ~12% of a 400px screen in gutters,
-   and right-aligned meta stats read wrong once the panel head wraps. */
+/* Phones: right-aligned meta stats read wrong once the panel head wraps.
+   (The gutter/gap tokens this block used to narrow now step down in
+   tokens/spacing.css, which owns every breakpoint of --page-pad and
+   --gap-panel; the --page-pad step here was dead — workspace's
+   max-width:900px rule outranked it at every width it matched.) */
 @media (max-width: 640px) {
-  :root {
-    --page-pad: 14px;
-    --gap-panel: 12px;
-  }
   .meta-row {
     gap: 14px;
   }
@@ -1196,7 +927,6 @@ html.sb-collapsed .sb-group-label {
 .btn-icon {
   background: rgba(255, 255, 255, 0.065);
   border: none;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
   border-radius: 12px;
   transition:
     background var(--t-med) var(--ease-smooth),
@@ -1226,7 +956,6 @@ html.sb-collapsed .sb-group-label {
 .gdrop-trigger {
   background: rgba(255, 255, 255, 0.065);
   border: none;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
   border-radius: var(--r-pill);
   transition:
     background var(--t-med) var(--ease-smooth),
@@ -1237,9 +966,6 @@ html.sb-collapsed .sb-group-label {
    white wash here is invisible in light mode and follows no token in dark. */
 .gdrop-trigger:active {
   transform: scale(0.98);
-}
-.gdrop-active .gdrop-trigger {
-  box-shadow: inset 0 0 0 1px hsl(var(--ah) var(--as) var(--al) / 0.5);
 }
 
 .search-wrap,
@@ -1351,28 +1077,6 @@ select.glass-input {
   }
 }
 
-/* Tones recolor the icon (the tick is gone) */
-.stat-card.tone-danger .tile-icon,
-.stat-card.tone-danger:hover .tile-icon {
-  color: var(--danger-text);
-}
-.stat-card.tone-warning .tile-icon,
-.stat-card.tone-warning:hover .tile-icon {
-  color: var(--warning-text);
-}
-.stat-card.tone-success .tile-icon,
-.stat-card.tone-success:hover .tile-icon {
-  color: var(--success-text);
-}
-
-/* Header tools: filter pill + refresh side by side in page headers */
-.header-tools {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-
 /* ── Page switch: quick rise so navigation feels alive ──────────── */
 /* No fill mode: a filling transform animation keeps .page-enter a containing
    block for fixed descendants in Chromium forever, which trapped the heatmap's
@@ -1406,7 +1110,6 @@ select.glass-input {
   border-color: transparent;
   color: #fff;
   font-weight: 600;
-  box-shadow: 0 6px 22px -8px hsl(var(--ah) var(--as) var(--al) / calc(0.55 * var(--glow)));
 }
 .btn-primary:hover:not(:disabled) {
   background: linear-gradient(
@@ -1440,14 +1143,6 @@ select.glass-input {
   background: none;
   border: none;
   box-shadow: none;
-}
-
-/* Refresh lives beside the brand now, not buried in the footer */
-.sb-brand-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: auto;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -1546,91 +1241,6 @@ select.glass-input {
     transform: none;
     transition: opacity 0.15s var(--ease-out);
   }
-}
-
-/* ── FilterBar compact pill + popover ───────────────────────────── */
-.filter-bar-right {
-  position: relative;
-}
-.filter-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 6px 13px;
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid var(--line);
-  border-radius: var(--r-pill, 999px);
-  color: var(--text-2);
-  font-size: 0.8125rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition:
-    border-color 0.18s,
-    color 0.18s,
-    background 0.18s,
-    transform 0.13s;
-}
-.filter-pill:active {
-  transform: scale(0.97);
-}
-.filter-pill:hover {
-  border-color: rgba(255, 255, 255, 0.18);
-  color: var(--text-1);
-}
-.filter-pill[aria-expanded="true"] {
-  border-color: rgba(255, 255, 255, 0.18);
-  color: var(--text-1);
-  background: rgba(255, 255, 255, 0.06);
-}
-.filter-pill-active,
-.filter-pill-active:hover {
-  border-color: hsl(var(--ah) var(--as) var(--al) / 0.5);
-  color: var(--accent-text);
-  background: var(--accent-subtle);
-}
-.filter-pill-sep {
-  opacity: 0.45;
-}
-.filter-pill-count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
-  border-radius: 999px;
-  background: hsl(var(--ah) var(--as) var(--al) / 0.25);
-  color: var(--accent-text);
-  font-size: 0.65rem;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-.filter-pop {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  z-index: 70;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-width: 232px;
-  padding: 12px;
-  background: hsl(240 30% 11% / 0.97);
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  box-shadow: 0 16px 48px -12px rgba(0, 0, 0, 0.6);
-  transform-origin: top right;
-  animation: popover-in 0.16s var(--ease-out);
-}
-.filter-pop .gdrop {
-  width: 100%;
-}
-.filter-pop .gdrop-trigger {
-  width: 100%;
-  justify-content: space-between;
-}
-.filter-pop .btn {
-  justify-content: center;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -1767,31 +1377,18 @@ select.glass-input {
 .customer-directory-table .btn {
   white-space: nowrap;
 }
-.customer-directory-identity,
 .customer-directory-stacked {
   display: flex;
   min-width: 0;
   flex-direction: column;
   gap: 3px;
 }
-.customer-directory-name {
-  max-width: 220px;
-  overflow: hidden;
-  color: var(--text-1);
-  font-family: var(--font-display);
-  font-size: var(--fs-body);
-  font-weight: 650;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.customer-directory-badges,
 .customer-directory-support {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 4px;
 }
-.customer-directory-id,
 .customer-directory-stacked small {
   color: var(--text-3);
   font-family: var(--font-mono);
@@ -1867,8 +1464,7 @@ select.glass-input {
    indication on a tiny element is a deliberate keep.) ── */
 @media (prefers-reduced-motion: reduce) {
   /* Popovers: keep the fade, drop the movement */
-  .gdrop-menu,
-  .filter-pop {
+  .gdrop-menu {
     animation: kpi-overlay-fade 0.12s ease-out;
   }
   /* Drawer: instant (position change), scrim keeps its opacity transition */

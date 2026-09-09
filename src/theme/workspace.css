@@ -1,99 +1,32 @@
-/* Workspace foundation. Neutral surfaces keep every optional background readable. */
-:root {
-  --bg: #09090b;
-  --surface-1: rgba(22, 22, 25, 0.97);
-  --surface-2: #1c1c20;
-  --surface-3: #25252a;
-  --surface-float: #1b1b1f;
-  --line: #ffffff13;
-  --line-hi: #ffffff26;
-  --line-row: #ffffff0c;
-  --text-1: #f4f4f5;
-  --text-2: #b0b0bb;
-  --text-3: #898994;
-  --text-4: #71717a;
-  --sb-w: 244px;
-  --page-pad: 32px;
-  --r: 14px;
-  --r-sm: 10px;
-  --r-ctl: 8px;
-  --glass-blur: 0px;
-  --glow: 0;
-  --fs-micro: 0.6875rem;
-  --fs-tiny: 0.75rem;
-  --fs-small: 0.8125rem;
-  --fs-body: 0.875rem;
-  --fs-section: 1.05rem;
-  --fs-page: 1.65rem;
-  --track-caps: 0.03em;
-  --chart-grid: #ffffff0c;
-  --chart-axis: #a1a1aa;
-  --chart-axis-soft: #81818c;
-  --sidebar-bg: rgba(16, 16, 19, 0.98);
-  --header-bg: rgba(9, 9, 11, 0.96);
-  /* Pre-hydration fallback. --al, --on-accent, --accent-text and the hover pair
-     are hue-dependent and get rewritten inline on <html> by
-     src/utils/accentContrast (through useAppearance.apply); the values here and
-     in the two theme blocks below are the violet-safe defaults that hold until
-     that first write. */
-  --on-accent: #fff;
-  --on-accent-hover: #fff;
-}
+/* Workspace foundation. Neutral surfaces keep every optional background
+   readable: no frost, no accent glow, no aurora — see the pseudo-element kill
+   right below. The token values that carry that decision (--glass-blur: 0,
+   --glow: 0, the neutral surface/text ladder, the radii, --page-pad, --sb-w,
+   the --fs-* scale and both themes' chart and status colours) moved to
+   src/theme/tokens/*.css, which is now their single declaration site. What
+   stays here is the machinery — starting with the color-scheme switch each
+   theme needs for native form controls and scrollbars.
+
+   !important ALLOWLIST — the only two left in this file, both on the same
+   rule: `html[data-theme="light"] .recharts-default-tooltip`. Recharts writes
+   that element's colours as INLINE styles from its own DefaultTooltipContent,
+   and no selector outranks an inline style. Every other !important this file
+   used to carry was removed by deleting the declaration it was fighting. */
 html[data-theme="light"] {
   color-scheme: light;
-  --bg: #f5f5f7;
-  --surface-1: rgba(255, 255, 255, 0.98);
-  --surface-2: #f4f4f6;
-  --surface-3: #eaeaef;
-  --surface-float: #fff;
-  --line: #18181b16;
-  --line-hi: #18181b32;
-  --line-row: #18181b0d;
-  --text-1: #18181b;
-  --text-2: #555560;
-  --text-3: #686874;
-  --text-4: #777782;
-  --sidebar-bg: rgba(255, 255, 255, 0.98);
-  --header-bg: rgba(245, 245, 247, 0.96);
-  --al: 47%;
-  /* 32% is the light-theme floor from the contrast audit — 38% measured 2.8:1 on
-     white for warm hues. accentContrast lowers it further per hue when needed. */
-  --accent-text: hsl(var(--ah) 66% 32%);
-  --accent-bright: hsl(var(--ah) 75% 42%);
-  --success: #168143;
-  --success-text: #12743a;
-  --warning: #996000;
-  --warning-text: #8b5700;
-  --danger: #cb3535;
-  --danger-text: #b32626;
-  --info: #176cba;
-  --info-text: #176cba;
-  --chart-grid: #18181b0c;
-  --chart-axis: #62626d;
-  --chart-axis-soft: #737380;
-  /* Series defaults are dark-theme tints in tokens/colors.css (#5fd6f2 is
-     1.70:1 on a white panel) and nothing redefined them for this theme, so the
-     pre-hydration frame and the ChartLegend swatches were near-invisible.
-     useChartColors rewrites all three from the accent once it mounts. */
-  --chart-users: #0e7490;
-  --chart-sessions: rgba(14, 116, 144, 0.55);
-  --chart-errors: #b3261e;
-  --shadow-float: 0 12px 36px #18181b16;
-  --shadow-overlay: 0 24px 70px #18181b25;
 }
 html[data-theme="dark"] {
   color-scheme: dark;
-  --al: 58%;
-  /* 80% is the dark-theme floor from the contrast audit; accentContrast raises it
-     per hue when 80% misses 4.5:1 on --surface-1. */
-  --accent-text: hsl(var(--ah) 85% 80%);
 }
+/* No aurora, no liquid: base.css and app-glue.css both generate and animate the
+   root pseudos, and both load before this file — so the same selector at the
+   same specificity, later, is enough to cancel them. */
 html::before,
 html::after,
 body::before,
 body::after {
-  content: none !important;
-  animation: none !important;
+  content: none;
+  animation: none;
 }
 html,
 body {
@@ -238,9 +171,6 @@ body {
   letter-spacing: -0.5px;
   color: var(--text-1);
 }
-.brand-dot {
-  color: var(--accent);
-}
 .sb-brand-text small {
   font-size: 11px;
   color: var(--text-3);
@@ -287,9 +217,15 @@ body {
 }
 .nav-chevron {
   margin-left: auto;
-  width: 13px !important;
-  height: 13px !important;
   color: var(--text-3);
+}
+/* The group chevron stays smaller than the item icons at every width. It is an
+   svg inside the same .sb-item, so it outranks `.sb-item > svg` above — and the
+   18px touch bump in the max-width 900px block below, which repeats this
+   exception — on specificity rather than !important. */
+.sb-item > svg.nav-chevron {
+  width: 13px;
+  height: 13px;
 }
 .nav-children {
   margin: 3px 0 5px 18px;
@@ -303,11 +239,6 @@ body {
   min-height: 32px;
   padding: 7px 10px;
 }
-.nav-divider {
-  height: 1px;
-  background: var(--line);
-  margin: 13px 8px;
-}
 .sb-foot {
   margin-top: auto;
   border-top: 1px solid var(--line);
@@ -315,23 +246,12 @@ body {
   display: grid;
   gap: 16px;
 }
-.workspace-status {
-  font-size: 11px;
-  color: var(--text-3);
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-.workspace-status i,
 .status-text i {
   height: 6px;
   width: 6px;
   background: var(--text-3);
   border-radius: 50%;
   display: inline-block;
-}
-.workspace-status i.online {
-  background: var(--success);
 }
 .account-row {
   display: flex;
@@ -429,16 +349,19 @@ body {
 .page-content {
   padding: 30px var(--page-pad) 50px;
 }
-.page-header,
-.v2-page-header {
-  background: none !important;
-  backdrop-filter: none !important;
+/* The page header is bare type on the page ground — no card, no frost. Nothing
+   else declares a background on it, and the backdrop-filter line here was a
+   duplicate of app-glue.css's global perf ban, so neither needs forcing. The
+   image/aurora backgrounds re-introduce a surface further down this file, at
+   `html[data-background=...] .page-header`, which outranks this on specificity. */
+.page-header {
+  background: none;
   border: none;
   box-shadow: none;
   position: static;
 }
 .page-title {
-  color: var(--text-1) !important;
+  color: var(--text-1);
   -webkit-text-fill-color: var(--text-1);
   background: none;
   font-weight: 650;
@@ -446,18 +369,15 @@ body {
 }
 .page-header .kicker,
 .panel .kicker,
-.stat-card .kicker,
-.modal-head .kicker {
+.stat-card .kicker {
   display: none;
 }
-.page-sub,
 .section-sub {
   color: var(--text-3);
   line-height: 1.65;
   font-size: 12px;
 }
 .panel,
-.glass,
 .stat-card,
 .login-card,
 .auth-card,
@@ -523,6 +443,20 @@ body {
   margin-top: 7px;
   color: var(--text-1);
 }
+/* The two mobile steps used to live in index.css and needed !important twice:
+   from an earlier layer they lost both to the size above and to the DS's
+   `.stat-card-compact .stat-value`. One class deeper, in this layer, they
+   outrank both. Keep the 480px block after the 768px one — equal specificity. */
+@media (max-width: 768px) {
+  .stat-card .stat-value {
+    font-size: 1.3rem;
+  }
+}
+@media (max-width: 480px) {
+  .stat-card .stat-value {
+    font-size: 1.1rem;
+  }
+}
 .stat-sub {
   color: var(--text-3);
   font-size: 11px;
@@ -547,13 +481,15 @@ body {
   background: var(--success-sub);
   color: var(--success-text);
 }
-.btn,
-.btn-icon,
-.gdrop-trigger,
-.search-input {
-  box-shadow: none !important;
-}
+/* Controls are flat. This used to be `box-shadow: none !important` on .btn,
+   .btn-icon, .gdrop-trigger and .search-input at once, which also killed any
+   focus ring or state ring a component might legitimately want. Everything it
+   was beating is gone — the inset hairlines and the primary glow in
+   app-glue.css, the .gdrop-active ring there, and the primary/danger hover
+   glows in index.css and css/controls.css — so the flat look is stated once,
+   on the button, and a control that needs a shadow can now just declare one. */
 .btn {
+  box-shadow: none;
   font-size: 12px;
   font-weight: 550;
   min-height: 35px;
@@ -583,7 +519,6 @@ body {
   color: var(--text-1);
 }
 .gdrop-trigger,
-.search-input,
 .auth-input {
   background: var(--surface-2);
   border: 1px solid var(--line);
@@ -611,10 +546,7 @@ select.glass-input {
   color: var(--text-2);
 }
 .gdrop-menu,
-.dropdown-menu,
-.modal,
-.modal-card,
-.modal-dialog {
+.modal {
   background: var(--surface-float);
   border: 1px solid var(--line-hi);
   color: var(--text-1);
@@ -622,10 +554,13 @@ select.glass-input {
 table {
   font-size: 12px;
 }
+/* Sentence case, no tracking. The uppercase + 0.1em this had to beat lived in
+   `.data-table thead th` in index.css and css/components.css and is deleted
+   there, so a plain type selector in this layer is the last word on it. */
 th {
   font-size: 11px;
-  text-transform: none !important;
-  letter-spacing: 0 !important;
+  text-transform: none;
+  letter-spacing: 0;
   font-weight: 500;
   color: var(--text-3);
 }
@@ -788,7 +723,7 @@ td {
   padding: 0;
 }
 .toggle-row {
-  display: flex !important;
+  display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
@@ -801,7 +736,7 @@ td {
   margin-top: 3px;
 }
 .toggle-row input {
-  width: 17px !important;
+  width: 17px;
   height: 17px;
 }
 .upload-box {
@@ -822,31 +757,6 @@ td {
   color: var(--text-3);
   line-height: 1.7;
   margin: 14px 0;
-}
-.palette-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
-  margin-top: 14px;
-}
-.palette-chip {
-  border: 1px solid var(--line);
-  padding: 7px 10px;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 11px;
-  color: var(--text-2);
-}
-.palette-chip i {
-  height: 7px;
-  width: 7px;
-  border-radius: 50%;
-}
-.palette-chip.selected {
-  border-color: var(--accent);
-  background: var(--accent-subtle);
 }
 .clean-details {
   display: grid;
@@ -974,12 +884,6 @@ td {
 }
 /* `.empty-copy` is gone — every empty state on Panel access is a ds/EmptyState,
    which offers the next step (add member, clear search) instead of a dead line. */
-.session-agent {
-  max-width: 440px;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
 /* The member editor is a five-field form in the default dialog width, not a
    viewport-filling work surface: one column, so no input stretches to 640px
    and no control ends up half a screen from its label. */
@@ -1178,10 +1082,6 @@ td {
 .customer360-info-grid {
   gap: 16px;
 }
-.customer360-field-label {
-  text-transform: none;
-  letter-spacing: 0;
-}
 .customer360-json {
   background: var(--surface-2);
   color: var(--text-2);
@@ -1199,14 +1099,11 @@ td {
 }
 .customer360-feedback,
 .license-workflow-success > code,
-.license-lookup-card,
-.user-detail,
-.row-detail {
+.license-lookup-card {
   background: var(--surface-2);
 }
 html[data-theme="light"] .auth-input,
-html[data-theme="light"] .gdrop-menu,
-html[data-theme="light"] .modal-box {
+html[data-theme="light"] .gdrop-menu {
   background: var(--surface-float);
   color: var(--text-1);
 }
@@ -1214,6 +1111,10 @@ html[data-theme="light"] .license-action-explainer,
 html[data-theme="light"] .license-lookup-results {
   background: var(--surface-2);
 }
+/* KEPT !important (see the allowlist at the top of this file): recharts renders
+   its default tooltip with inline `backgroundColor`/`color`, and nothing but
+   !important outranks an inline style. Every chart here passes custom `content`,
+   so this is the safety net for the day one of them stops. */
 html[data-theme="light"] .recharts-default-tooltip {
   background: var(--surface-float) !important;
   color: var(--text-1) !important;
@@ -1233,9 +1134,6 @@ html[data-theme="light"] .recharts-default-tooltip {
   }
 }
 @media (max-width: 900px) {
-  :root {
-    --page-pad: 16px;
-  }
   .workspace-bar {
     margin-left: 0;
     gap: 10px;
@@ -1280,23 +1178,19 @@ html[data-theme="light"] .recharts-default-tooltip {
   .settings-controls {
     order: 1;
   }
-  .sb-scrim {
-    display: none !important;
-    pointer-events: none !important;
-  }
   .sidebar {
     position: fixed;
     top: 0;
     bottom: 0;
     left: 0;
-    z-index: 150 !important;
+    z-index: 150;
     width: min(290px, 85vw);
     max-width: 320px;
     height: 100%;
     height: 100dvh;
     padding: calc(env(safe-area-inset-top, 0px) + 14px) 12px calc(env(safe-area-inset-bottom, 0px) + 14px);
-    background: #0d0e15 !important;
-    background: var(--surface-1, #0d0e15) !important;
+    background: #0d0e15;
+    background: var(--surface-1, #0d0e15);
     border-right: 1px solid var(--line-hi, rgba(255, 255, 255, 0.12));
     box-shadow: 6px 0 36px rgba(0, 0, 0, 0.9);
     transform: translateX(-102%);
@@ -1311,7 +1205,7 @@ html[data-theme="light"] .recharts-default-tooltip {
   .sidebar.open {
     transform: translateX(0);
     visibility: visible;
-    pointer-events: auto !important;
+    pointer-events: auto;
   }
   .sb-brand-row {
     display: flex;
@@ -1364,6 +1258,11 @@ html[data-theme="light"] .recharts-default-tooltip {
     height: 18px;
     flex-shrink: 0;
   }
+  /* ...except the group chevron - see `.sb-item > svg.nav-chevron` above. */
+  .sidebar .sb-item > svg.nav-chevron {
+    width: 13px;
+    height: 13px;
+  }
   .sidebar .nav-children .sb-item {
     padding-left: 20px;
     min-height: 42px;
@@ -1380,9 +1279,6 @@ html[data-theme="light"] .recharts-default-tooltip {
   }
 }
 @media (max-width: 600px) {
-  :root {
-    --page-pad: 14px;
-  }
   .workspace-bar {
     padding: 0 10px;
     gap: 8px;
@@ -1413,7 +1309,7 @@ html[data-theme="light"] .recharts-default-tooltip {
     padding: 8px 10px;
   }
   .data-table-wrap {
-    max-height: none !important;
+    max-height: none;
   }
   .table-pagination {
     flex-direction: column;
@@ -1501,9 +1397,6 @@ html[data-theme="light"] .recharts-default-tooltip {
   white-space: normal;
   overflow: visible;
   line-height: 1.55;
-}
-.stat-card .stat-top {
-  gap: 8px;
 }
 .stat-card .sparkline {
   display: none;
@@ -1611,11 +1504,13 @@ button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
+/* The scroll-driven frost bar (app-glue.css, inside @supports animation-timeline)
+   is off: same selector, same specificity, one layer later. */
 .page-header::before,
 .page-header::after {
-  content: none !important;
-  display: none !important;
-  animation: none !important;
+  content: none;
+  display: none;
+  animation: none;
 }
 .page-header {
   z-index: auto;
@@ -1629,8 +1524,7 @@ button:disabled {
   color: var(--text-3);
   font-size: 11px;
 }
-.customer360-info dt,
-.customer360-summary-grid span {
+.customer360-info dt {
   text-transform: none;
   letter-spacing: 0;
   font-size: 11px;
@@ -1650,10 +1544,6 @@ button:disabled {
 .customer360-info-grid {
   column-gap: 28px;
 }
-.customer360-summary-card > span {
-  text-transform: none;
-  letter-spacing: 0;
-}
 .customer-workspace h1:focus {
   outline: 0;
 }
@@ -1667,7 +1557,7 @@ html[data-background="aurora"] .settings-controls {
 html[data-background="image"] .page-header,
 html[data-background="aurora"] .page-header {
   padding: 18px 22px;
-  background: var(--workspace-surface) !important;
+  background: var(--workspace-surface);
   border: 1px solid var(--line);
   border-radius: 12px;
 }

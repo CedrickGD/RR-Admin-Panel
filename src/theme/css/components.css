@@ -2,15 +2,6 @@
    COMPONENTS — panels, tiles, badges, tables, widgets, modal
    ═══════════════════════════════════════════════════════════════ */
 
-/* ── Glass utility — same recipe as .panel, for ad-hoc boxes ────── */
-.glass {
-  background: var(--surface-1);
-  backdrop-filter: blur(var(--glass-blur)) saturate(150%);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
-  border: 1px solid var(--line);
-  border-radius: var(--r);
-}
-
 /* ── Panel: icy frosted glass — the core surface ─────────────── */
 .panel {
   position: relative;
@@ -95,9 +86,6 @@
   .stat-card:hover { transform: translateY(-1px); }
   .stat-card:hover::before { transform: scaleY(1.2); }
 }
-.stat-card.tone-success::before { background: hsl(142 71% 45% / 0.7); }
-.stat-card.tone-warning::before { background: hsl(37 91% 55% / 0.7); }
-.stat-card.tone-danger::before  { background: hsl(4 86% 58% / 0.7); }
 /* Compact density (KpiStatCard density="compact") — the denser monitoring row
    on Session history / Live. Same tile, lower floor and a smaller number, so
    those pages need no second tile component. Padding is deliberately not
@@ -131,8 +119,6 @@
   color: var(--text-1);
   line-height: 1.1;
 }
-.stat-value-unit { font-size: 0.72em; font-weight: 600; color: var(--text-2); margin-left: 1px; }
-.stat-value-ok { color: var(--success-text); }
 /* One line, ellipsised — the full text is on the tile's title attribute. The
    drill-down chevron sits outside the truncating span so it is never the part
    that gets cut (or stranded on a second line). */
@@ -214,17 +200,6 @@
 .status-dot.err  { background: var(--danger); }
 .status-dot.idle { background: var(--text-3); animation: none; }
 
-.ok-dot {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--success);
-  box-shadow: 0 0 6px var(--success);
-  margin-right: 5px;
-  vertical-align: 1px;
-}
-
 /* kv tags — small squared chips for config values */
 .kv-tag {
   display: inline-flex;
@@ -279,8 +254,6 @@
   text-align: left;
   font-size: var(--fs-tiny);
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
   color: var(--text-3);
   background: hsl(238 36% 12% / 0.45);
   border-bottom: 1px solid var(--line);
@@ -326,7 +299,10 @@
 }
 .row-expand-clip[data-collapsed="true"] { grid-template-rows: 0fr; }
 .row-expand-clip > .row-expand-inner { overflow: hidden; min-height: 0; }
-.row-expand-td { padding: 0 !important; }
+/* The expanded row's cell is flush: `.record-table td.row-expand-panel` in
+   consistency.css (last layer) already zeroes its padding at a specificity no
+   table rule reaches, in both the desktop grid and the stacked mobile card, so
+   the `.row-expand-td` opt-out class needs no rule — and no !important — here. */
 .row-expand-collapsed .row-expand-panel { border-top-color: transparent; }
 .glass-inset { background: rgba(3, 5, 12, 0.28); border: 1px solid var(--line); border-radius: 10px; }
 
@@ -589,12 +565,13 @@
 .customer360-info dd,
 .customer360-record-fields dd { min-width: 0; margin: 0; color: var(--text-1); font-size: var(--fs-small); overflow-wrap: anywhere; white-space: pre-wrap; }
 /* The mono face is shared by read-only machine values and by `<Input mono>`
-   (license keys, HWIDs). Only the read-only ones may shrink with !important:
-   an !important size on a FIELD outranks the 16px touch floor at the end of
-   consistency.css and brings back Safari's focus-zoom. Fields get their small
-   size at plain specificity instead, so the mobile floor still wins. */
+   (license keys, HWIDs). Only the read-only ones shrink: a size on a FIELD
+   must stay beatable by the 16px touch floor at the end of consistency.css,
+   or Safari's focus-zoom comes back. The themed size that actually paints is
+   `html[data-theme] .customer360-mono:not(input, textarea)` in consistency.css;
+   this is the un-themed fallback, so it needs no !important either. */
 .customer360-mono { font-family: var(--font-mono); }
-.customer360-mono:not(input, textarea) { font-size: var(--fs-tiny) !important; }
+.customer360-mono:not(input, textarea) { font-size: var(--fs-tiny); }
 .customer360-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
 .customer360-metrics > div { padding: 13px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); }
 .customer360-metrics span { display: block; color: var(--text-3); font-size: var(--fs-tiny); text-transform: uppercase; letter-spacing: 0.07em; }
@@ -920,7 +897,6 @@
 /* ── Chart container ──────────────────────────────────────────── */
 .chart-wrap { padding: 6px 4px 4px; }
 .chart-wrap-tall { min-height: 280px; }
-.chart-wrap-med  { min-height: 200px; }
 
 /* Zoomable plot (hooks/useChartZoom): focusable, because an unmodified wheel
    scrolls the page and zooming needs Ctrl/⌘ *or* focus. `zoom-in` replaces the

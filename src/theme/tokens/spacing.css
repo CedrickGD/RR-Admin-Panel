@@ -1,19 +1,23 @@
 /* ═══════════════════════════════════════════════════════════════
-   SPACING · RADII · MOTION TOKENS
+   SPACING · RADII · MOTION TOKENS — the single declaration site.
+   app-glue.css and workspace.css both used to redefine the radii,
+   --page-pad and the sidebar width; the values that actually shipped
+   (workspace's) are the ones below, breakpoints included.
    ═══════════════════════════════════════════════════════════════ */
 :root {
-  /* Radii — one family: 12 outer, 8–9 inner, pill for chips */
-  --r:      12px;   /* panels, tiles, modals */
-  --r-sm:   8px;    /* inner elements, icon wells */
-  --r-ctl:  9px;    /* buttons, inputs, dropdown triggers, nav items */
+  /* Radii — one family: 14 outer, 8–10 inner, pill for chips */
+  --r:      14px;   /* panels, tiles, modals */
+  --r-sm:   10px;   /* inner elements, icon wells */
+  --r-ctl:  8px;    /* buttons, inputs, dropdown triggers, nav items */
   --r-pill: 999px;  /* badges, tracks, scrollbars */
 
   /* Layout */
   --nav-h: 54px;            /* top navbar height */
-  --gap-panel: 14px;        /* gap between panels / grid cells */
+  --sb-w: 244px;            /* sidebar width; app-glue.css narrows it on html.sb-collapsed */
+  --gap-panel: 16px;        /* gap between panels / grid cells */
   --gap-tile: 10px;         /* gap inside KPI grids */
   --pad-panel-x: 16px;      /* panel horizontal padding */
-  --page-pad: clamp(14px, 1.6vw, 26px);
+  --page-pad: 32px;         /* page gutter; see the breakpoints below */
 
   /* Motion — purposeful, fast, no bounce except value pops */
   --ease-rise:   cubic-bezier(0.21, 0.9, 0.35, 1);   /* @kind other */ /* entrances */
@@ -25,4 +29,24 @@
   --t-collapse: 0.32s; /* @kind other */ /* panel collapse */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);        /* @kind other */ /* strong ease-out: entrances, fills */
   --t-fill: 0.3s;      /* @kind other */ /* data fills: gauges, rank bars, progress */
+}
+
+/* Narrow viewports spend far too much of their width on a 32px gutter — the
+   older 24px floor already cost ~12% of a 400px screen — so the page padding
+   steps down twice and the panel gap once. Order matters: 600px must come after
+   900px, both are :root. */
+@media (max-width: 900px) {
+  :root {
+    --page-pad: 16px;
+  }
+}
+@media (max-width: 640px) {
+  :root {
+    --gap-panel: 12px;
+  }
+}
+@media (max-width: 600px) {
+  :root {
+    --page-pad: 14px;
+  }
 }

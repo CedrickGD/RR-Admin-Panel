@@ -8,7 +8,7 @@
  * the sidebar, the breadcrumb and the tab title use — instead of a `title`.
  *
  * Deviation from the DS contract: an optional `sub` prop is accepted for a
- * subtitle line (`.page-subtitle`, shown by operations/workspace CSS). Use it
+ * subtitle line (`.page-subtitle`, styled by theme/workspace.css). Use it
  * only when it carries a fact, e.g. "Checked automatically every 15 seconds".
  */
 import type { ReactNode } from "react";

@@ -29,7 +29,6 @@
 }
 .btn-primary:hover:not(:disabled) {
   background: var(--accent-bright);
-  box-shadow: 0 0 0 3px var(--accent-glow);
 }
 
 .btn-ghost {
@@ -56,7 +55,6 @@
 .btn-danger { background: var(--danger); color: #fff; border-color: var(--danger); }
 .btn-danger:hover:not(:disabled) {
   background: hsl(4 86% 65%);
-  box-shadow: 0 0 0 5px hsl(4 86% 58% / 0.25);
 }
 
 .btn-sm { padding: 5px 10px; font-size: var(--fs-small); border-radius: 7px; }
@@ -228,10 +226,6 @@
 .gdrop-item-selected, .gdrop-item-selected:hover { color: var(--accent-text); background: var(--accent-subtle); }
 .gdrop-empty { padding: 10px 12px; font-size: var(--fs-small); color: var(--text-2); margin: 0; }
 
-/* ── Filter bar (seg control + dropdowns row) ─────────────────── */
-.filter-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
-.filter-bar-right { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-
 /* ── Inputs ───────────────────────────────────────────────────────
    Single owner of the field's own geometry (ds/Input). index.css used to
    restate this rule verbatim; what remains elsewhere is theme work, not a
@@ -295,52 +289,3 @@
 .search-wrap .search-icon { position: absolute; left: 10px; color: var(--text-3); pointer-events: none; display: flex; }
 .search-wrap .glass-input { padding-left: 32px; }
 
-/* ── Accent hue picker (Settings) ─────────────────────────────── */
-.accent-picker-swatches { display: flex; flex-wrap: wrap; gap: 8px; }
-.accent-swatch {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  border: 2px solid transparent;
-  cursor: pointer;
-  transition: transform 0.15s, border-color 0.15s;
-}
-@media (hover: hover) and (pointer: fine) {
-  .accent-swatch:hover { transform: scale(1.15); }
-}
-.accent-swatch:active { transform: scale(1.05); }
-.accent-swatch.active { border-color: rgba(255, 255, 255, 0.8); transform: scale(1.1); }
-
-.accent-hue-slider {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 100%;
-  height: 8px;
-  border-radius: var(--r-pill);
-  outline: none;
-  cursor: pointer;
-  background: linear-gradient(90deg,
-    hsl(0 83% 62%), hsl(30 83% 62%), hsl(60 83% 62%), hsl(90 83% 62%),
-    hsl(120 83% 62%), hsl(150 83% 62%), hsl(180 83% 62%), hsl(210 83% 62%),
-    hsl(240 83% 62%), hsl(270 83% 62%), hsl(300 83% 62%), hsl(330 83% 62%), hsl(360 83% 62%));
-  border: 1px solid hsl(215 75% 80% / 0.12);
-}
-.accent-hue-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: #fff;
-  border: 2px solid rgba(0, 0, 0, 0.3);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-  cursor: pointer;
-}
-.accent-hue-slider::-moz-range-thumb {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: #fff;
-  border: 2px solid rgba(0, 0, 0, 0.3);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-  cursor: pointer;
-}

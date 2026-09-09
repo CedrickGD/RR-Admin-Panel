@@ -1,4 +1,9 @@
-/* Shared workspace anatomy: opaque surfaces, consistent controls, compact data. */
+/* Shared workspace anatomy: opaque surfaces, consistent controls, compact data.
+
+   !important ALLOWLIST — one declaration, on
+   `html[data-theme] .feedback-card.is-new { box-shadow }`. FeedbackPage.tsx
+   writes that card's box-shadow as an INLINE style, and only !important
+   outranks an inline style. Nothing else in this file forces anything. */
 .workspace-bar .mobile-menu {
   display: none;
 }
@@ -96,59 +101,16 @@
 .custom-select .gdrop-menu {
   min-width: 170px;
 }
-.btn-icon.danger-action {
-  color: var(--danger-text);
-}
 .custom-select[aria-disabled="true"] {
   opacity: 0.5;
 }
-:root,
-html[data-theme="dark"] {
-  --bg: #000;
-  --surface-1: #080808;
-  --surface-2: #101010;
-  --surface-3: #191919;
-  --surface-float: #101010;
-  --sidebar-bg: #050505;
-  --header-bg: #000;
-  --line: #ffffff18;
-  --line-hi: #ffffff30;
-  --line-row: #ffffff12;
-  --text-1: #fff;
-  --text-2: #c9c9ce;
-  --text-3: #9b9ba3;
-  --text-4: #8b8b94;
-  --ui-violet: #a78bfa;
-  --ui-blue: #60a5fa;
-  --ui-green: #34d399;
-  --ui-amber: #fbbf24;
-  --ui-rose: #fb7185;
-}
-html[data-theme="light"] {
-  --bg: #fff;
-  --surface-1: #fff;
-  --surface-2: #fafafa;
-  --surface-3: #f0f0f2;
-  --surface-float: #fff;
-  --sidebar-bg: #fff;
-  --header-bg: #fff;
-  --line: #00000018;
-  --line-hi: #00000030;
-  --line-row: #00000012;
-  --text-1: #080808;
-  --text-2: #35353b;
-  --text-3: #63636c;
-  --text-4: #74747d;
-  --ui-violet: #7540d8;
-  --ui-blue: #176bd1;
-  --ui-green: #07865a;
-  --ui-amber: #a76300;
-  --ui-rose: #d52950;
-}
+/* The ground/surface/hairline/text ladder and the categorical --ui-* hues were
+   restated here for both themes; consistency.css then overrode most of them
+   again. Both blocks now live once in src/theme/tokens/colors.css: --header-bg,
+   the light --surface-float and the --ui-* hues carry the values from here —
+   they were the last word — the rest carries consistency.css's. */
 html[data-theme] .glass-inset,
 html[data-theme] .feedback-card,
-html[data-theme] .modal-box,
-html[data-theme] .modal-dialog,
 html[data-theme] .auth-card {
   background: var(--surface-1);
   color: var(--text-1);
@@ -157,6 +119,10 @@ html[data-theme] .feedback-card {
   border: 1px solid var(--line);
   border-radius: 10px;
 }
+/* KEPT !important (see the allowlist at the top of this file): FeedbackPage.tsx
+   sets `style={{ boxShadow: "inset 2px 0 0 0 var(--accent)" }}` on the same
+   card, and an inline style outranks every selector. This restates the marker
+   in the themed blue at the themed width. */
 html[data-theme] .feedback-card.is-new {
   border-color: color-mix(in srgb, var(--ui-blue) 40%, var(--line));
   box-shadow: inset 3px 0 var(--ui-blue) !important;
@@ -183,8 +149,7 @@ html[data-theme] .feedback-card.is-new .badge-info {
   min-width: 0;
 }
 .page-header-right,
-.panel-head-right,
-.header-tools {
+.panel-head-right {
   flex-wrap: wrap;
   gap: 8px;
 }
@@ -192,13 +157,9 @@ html[data-theme] .feedback-card.is-new .badge-info {
   font-size: clamp(1.35rem, 1.6vw, 1.8rem);
   letter-spacing: -0.035em;
 }
-.page-subtitle {
-  display: block;
-  color: var(--text-3);
-  font-size: 12px;
-  margin-top: 4px;
-  line-height: 1.5;
-}
+/* The page subtitle is owned by theme/workspace.css's `.page-header
+   .page-subtitle` (0-2-0): PageHeader.tsx renders it only inside
+   .page-header, so a bare `.page-subtitle` rule here could never win. */
 .panel-head {
   min-height: 58px;
   padding: 15px 18px;
@@ -210,7 +171,6 @@ html[data-theme] .feedback-card.is-new .badge-info {
   padding: 18px;
 }
 .panel,
-.glass,
 .stat-card,
 .monitor-surface {
   min-width: 0;
@@ -219,8 +179,7 @@ html[data-theme] .feedback-card.is-new .badge-info {
 }
 .btn,
 .btn-sm,
-.gdrop-trigger,
-.filter-pill {
+.gdrop-trigger {
   min-height: 34px;
   height: 34px;
   padding: 0 12px;
@@ -237,8 +196,7 @@ html[data-theme] .feedback-card.is-new .badge-info {
   border-radius: 7px;
 }
 .btn > svg,
-.gdrop-trigger > svg,
-.filter-pill > svg {
+.gdrop-trigger > svg {
   flex: none;
   width: 15px;
   height: 15px;
@@ -262,8 +220,7 @@ html[data-theme] .feedback-card.is-new .badge-info {
   height: 15px;
 }
 .btn-ghost,
-.gdrop-trigger,
-.filter-pill {
+.gdrop-trigger {
   background: transparent;
   color: var(--text-1);
   border: 1px solid var(--line-hi);
@@ -290,8 +247,7 @@ html[data-theme] .feedback-card.is-new .badge-info {
 }
 .btn:not(:disabled):hover,
 .btn-icon:not(:disabled):hover,
-.gdrop-trigger:not(:disabled):hover,
-.filter-pill:not(:disabled):hover {
+.gdrop-trigger:not(:disabled):hover {
   border-color: var(--accent);
 }
 .btn-ghost:not(:disabled):hover,
@@ -318,7 +274,6 @@ html[data-theme] .feedback-card.is-new .badge-info {
   border-color: var(--danger);
   color: var(--danger-text);
 }
-.search-input,
 .search-wrap input.glass-input,
 .gdrop-search input {
   min-height: 34px;
@@ -329,8 +284,7 @@ html[data-theme] .feedback-card.is-new .badge-info {
   max-width: min(320px, calc(100vw - 36px));
 }
 .badge,
-.tag,
-.status-badge {
+.tag {
   min-height: 0;
   font-size: 10px;
   line-height: 1.45;
@@ -374,12 +328,6 @@ html[data-theme] .feedback-card.is-new .badge-info {
 .stat-card:nth-child(4n + 4) {
   --tile-color: var(--ui-amber);
 }
-.stat-card.tone-danger {
-  --tile-color: var(--ui-rose);
-}
-.stat-card.tone-warning {
-  --tile-color: var(--ui-amber);
-}
 /* Type sizes deliberately absent: the tile's scale is owned by
    theme/css/components.css (label --fs-small / value --fs-stat / sub
    --fs-tiny). What stays here is spacing and color. */
@@ -421,16 +369,14 @@ html[data-theme] .feedback-card.is-new .badge-info {
   margin-left: 5px;
 }
 .data-table,
-.clean-table,
-.monitor-table {
+.clean-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 12px;
   table-layout: auto;
 }
 .data-table th,
-.clean-table th,
-.monitor-table th {
+.clean-table th {
   background: var(--surface-2);
   color: var(--text-3);
   font-size: 11px;
@@ -442,8 +388,7 @@ html[data-theme] .feedback-card.is-new .badge-info {
   white-space: nowrap;
 }
 .data-table td,
-.clean-table td,
-.monitor-table td {
+.clean-table td {
   padding: 12px 16px;
   height: 58px;
   color: var(--text-2);
@@ -451,12 +396,10 @@ html[data-theme] .feedback-card.is-new .badge-info {
   vertical-align: middle;
 }
 .data-table tbody tr:hover > td,
-.clean-table tbody tr:hover > td,
-.monitor-table tbody tr:hover > td {
+.clean-table tbody tr:hover > td {
   background: var(--surface-2);
 }
-.data-table-wrap,
-.monitor-table-scroll {
+.data-table-wrap {
   width: 100%;
   max-width: 100%;
   overflow: auto;
@@ -482,16 +425,11 @@ html[data-theme] .feedback-card.is-new .badge-info {
 .table-pagination-page {
   font-size: 11px;
 }
-.detail-grid,
 .detail-facts {
   min-width: 0;
 }
-.detail-grid > *,
-.detail-grid code,
-.detail-grid dd,
 .detail-facts > *,
-.detail-facts code,
-.customer360-field-value {
+.detail-facts code {
   min-width: 0;
   overflow-wrap: anywhere;
 }
@@ -575,40 +513,6 @@ html.sb-collapsed .sb-brand-img {
   gap: 20px;
   flex-wrap: wrap;
 }
-.monitor-search {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  background: var(--surface-2);
-  border: 1px solid var(--line-hi);
-  border-radius: 7px;
-  min-height: 36px;
-  padding: 0 11px;
-  flex: 1;
-  min-width: 210px;
-}
-.monitor-search > svg {
-  width: 16px;
-  height: 16px;
-  color: var(--text-3);
-  flex: none;
-}
-.monitor-search input {
-  border: 0;
-  background: none;
-  width: 100%;
-  min-width: 0;
-  font-size: 12px;
-  height: 34px;
-}
-.monitor-search .btn-icon {
-  height: 24px;
-  width: 24px;
-  min-width: 24px;
-  padding: 4px;
-  border: 0;
-  background: none;
-}
 /* `.monitor-scopes` was the third hand-rolled "pick a sub-view" control (Session
    history, Live). Both rows are ds/SegmentedControl now, so only the dot is left. */
 .presence i,
@@ -641,9 +545,6 @@ html.sb-collapsed .sb-brand-img {
   color: var(--text-3);
   font-size: 11px;
   align-self: center;
-}
-.monitor-table {
-  min-width: 930px;
 }
 .table-sort {
   display: flex;
@@ -763,13 +664,9 @@ th:hover .table-sort .table-sort-icon-idle {
   display: block;
   margin-top: 3px;
 }
-.monitor-table .is-expanded > td {
-  background: var(--accent-subtle);
-}
-.history-expanded > td {
-  padding: 20px !important;
-  background: var(--surface-1) !important;
-}
+/* The expanded session-history cell is spaced and blanked from consistency.css
+   instead: the themed `.record-table` rules there outrank anything this file
+   can say about a td without !important. */
 .history-detail-head {
   display: flex;
   align-items: center;
@@ -844,60 +741,6 @@ th:hover .table-sort .table-sort-icon-idle {
   font-size: 11px;
   color: var(--text-3);
 }
-.live-record {
-  padding: 0 18px;
-  border-bottom: 1px solid var(--line-row);
-  min-width: 0;
-}
-.live-record:last-child {
-  border-bottom: 0;
-}
-.live-record-row {
-  display: grid;
-  grid-template-columns:
-    minmax(180px, 1.3fr) minmax(80px, 0.5fr) minmax(90px, 0.6fr) minmax(130px, 1fr)
-    110px 72px;
-  align-items: center;
-  gap: 22px;
-  padding: 16px 0;
-  min-width: 0;
-}
-.live-record-row:hover .person-cell strong {
-  color: var(--accent-text);
-}
-.live-record-row > * {
-  min-width: 0;
-}
-.live-avatar {
-  color: var(--ui-green);
-  background: color-mix(in srgb, var(--ui-green) 14%, transparent);
-}
-.live-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.live-field span {
-  color: var(--text-3);
-  font-size: 10px;
-}
-.live-field strong {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-1);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.live-state > small {
-  display: block;
-  color: var(--text-3);
-  font-size: 10px;
-  margin-top: 4px;
-}
-.live-state > small.row-error {
-  color: var(--ui-rose);
-}
 .live-record-detail {
   border-top: 1px solid var(--line);
   padding: 18px 0;
@@ -909,9 +752,6 @@ th:hover .table-sort .table-sort-icon-idle {
   font-size: 10px;
   color: var(--text-3);
   margin-top: 8px;
-}
-.live-record.is-expanded {
-  background: color-mix(in srgb, var(--accent) 3%, var(--surface-1));
 }
 .creation-notice {
   display: flex;
@@ -964,15 +804,6 @@ th:hover .table-sort .table-sort-icon-idle {
   border-radius: 4px;
   font-weight: 600;
 }
-@media (max-width: 1300px) {
-  .live-record-row {
-    gap: 14px;
-    grid-template-columns: minmax(170px, 1fr) 80px 95px 110px 70px;
-  }
-  .live-location {
-    display: none;
-  }
-}
 @media (max-width: 900px) {
   .settings-layout {
     grid-template-columns: minmax(0, 1fr);
@@ -989,10 +820,6 @@ th:hover .table-sort .table-sort-icon-idle {
   .monitor-toolbar {
     gap: 12px;
   }
-  .monitor-search {
-    flex-basis: 100%;
-    min-width: 0;
-  }
   .monitor-filter {
     flex: 1 1 140px;
     flex-direction: column;
@@ -1001,24 +828,6 @@ th:hover .table-sort .table-sort-icon-idle {
   }
   .monitor-filter .gdrop-trigger {
     width: 100%;
-  }
-  .live-record-row {
-    grid-template-columns: minmax(0, 1fr) 85px 65px;
-    gap: 10px;
-  }
-  .live-record-row > .person-cell {
-    grid-column: 1 / 3;
-  }
-  .live-record-row > .row-actions {
-    grid-column: 3;
-    grid-row: 1;
-  }
-  .live-field,
-  .live-state {
-    grid-row: 2;
-  }
-  .monitor-table {
-    min-width: 880px;
   }
   .history-detail-head {
     align-items: flex-start;

@@ -4,11 +4,21 @@
    for anything accent-colored. Always compose from --ah/--as/--al.
    Alpha variants MUST be written as hsl(var(--ah) var(--as) var(--al) / a)
    — var(--accent) is a complete color and cannot take an alpha.
+   This file is the ONLY declaration site of the accent family:
+   :root carries the dark theme, html[data-theme="light"] the light
+   overrides that used to sit in theme/workspace.css.
    ═══════════════════════════════════════════════════════════════ */
 :root {
   --ah: 262;   /* @kind other */ /* accent hue — user configurable 0–360 (current default: violet) */
   --as: 83%;   /* accent saturation */
-  --al: 62%;   /* accent lightness */
+  --al: 58%;   /* accent lightness — dark theme */
+
+  /* --ah and the two ambience hues derived from it are written inline on <html>
+     by src/hooks/useAppearance (apply()); theme/workspace.css reads the pair in
+     the network/aurora gradients. The values here are the pre-hydration
+     fallback for the default hue: (--ah + 65) and (--ah + 180), mod 360. */
+  --ah-secondary: 327;   /* @kind other */
+  --ah-tertiary: 82;     /* @kind other */
 
   /* Derived shades — always reference these, never raw hsl with literal hue */
   --accent:        hsl(var(--ah) var(--as) var(--al));
@@ -19,12 +29,25 @@
   --accent-glow:   hsl(var(--ah) var(--as) var(--al) / 0.32);
   /* Hue-dependent: --al, --on-accent, --accent-text and the two hover shades are
      rewritten inline on <html> per hue+theme by src/utils/accentContrast. These
-     stay the fallback. The hover fill steps AWAY from the ink so hovering never
-     erodes the label's contrast; darker is the right direction while the default
-     violet carries white ink (see HOVER_LIGHTNESS_STEP). */
-  --accent-text:   hsl(var(--ah) 90% 80%);
+     stay the fallback. 80% is the dark-theme floor from the contrast audit;
+     accentContrast raises it per hue when 80% misses 4.5:1 on --surface-1. The
+     hover fill steps AWAY from the ink so hovering never erodes the label's
+     contrast; darker is the right direction while the default violet carries
+     white ink (see HOVER_LIGHTNESS_STEP). */
+  --accent-text:   hsl(var(--ah) 85% 80%);
   --accent-hover:  hsl(var(--ah) var(--as) calc(var(--al) - 6%));
+  --on-accent:       #fff;
+  --on-accent-hover: #fff;
 
-  /* Glow intensity multiplier — set to 0 to kill all accent glows */
-  --glow: 1;   /* @kind other */
+  /* Glow intensity multiplier — set to 0 to kill all accent glows.
+     The console ships with the glows OFF: flat neutral surfaces are what keeps
+     the optional animated backgrounds readable (see tokens/colors.css). */
+  --glow: 0;   /* @kind other */
+}
+html[data-theme="light"] {
+  --al: 47%;
+  /* 32% is the light-theme floor from the contrast audit — 38% measured 2.8:1 on
+     white for warm hues. accentContrast lowers it further per hue when needed. */
+  --accent-text: hsl(var(--ah) 66% 32%);
+  --accent-bright: hsl(var(--ah) 75% 42%);
 }

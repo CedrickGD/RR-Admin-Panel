@@ -1,42 +1,89 @@
 /* ═══════════════════════════════════════════════════════════════
-   COLOR TOKENS — "Frost" language.
-   Deep blue-black ground with a slowly drifting violet/cyan aurora
-   behind everything; surfaces are icy translucent glass with crisp
-   cool hairlines. NEVER milky: glass fills are dark and cool-tinted,
-   never white-washed.
+   COLOR TOKENS — the single declaration site for every colour,
+   surface and hairline the console paints.
+   NOT the old "Frost" glass language this header used to describe:
+   the translucent aurora ground and the 22px backdrop-blurred glass
+   panels do not render any more. theme/workspace.css switched the
+   frost and the accent glow off (--glass-blur: 0, --glow: 0, and the
+   html::before/::after aurora pseudos removed) so that the optional
+   animated backgrounds stay readable behind data. What ships is a
+   flat NEUTRAL ladder: a near-black ground with opaque grey surfaces
+   in dark, near-white with white surfaces in light.
+   :root = dark theme · html[data-theme="light"] = light theme.
+   Nothing in app-glue / workspace / operations / consistency
+   redefines these any more — change a colour here or nowhere.
    ═══════════════════════════════════════════════════════════════ */
 :root {
-  /* Ground — deep blue-black, sits under the aurora layer */
-  --bg: #05060c;
+  /* Ground */
+  --bg: #050505;
+  --bg2: #080814;   /* legacy second ground; nothing reads it today */
 
-  /* Aurora ambience hues (background only — separate from accent) */
+  /* Aurora ambience hues (background only — separate from accent).
+     Only css/base.css's html::before/::after read these, and workspace.css
+     removes those pseudos, so they are inert until an aurora ships again. */
   --aur-1: 263;   /* @kind other */ /* violet drift blob */
   --aur-2: 191;   /* @kind other */ /* cyan drift blob */
 
-  /* Glass surface ladder — translucent, frosted via backdrop blur.
-     Dark cool tints only; no white-washed "milky" fills. */
-  --surface-1: hsl(240 34% 12% / 0.40);   /* primary glass panel */
-  --surface-2: hsl(237 36% 16% / 0.48);   /* raised / hover glass */
-  --surface-3: hsl(234 38% 21% / 0.55);   /* inset / active glass */
-  --glass-blur: 22px;                      /* frost strength for panels */
+  /* Surface ladder — opaque neutrals: panel, raised/hover, inset/active */
+  --surface-1: #09090b;
+  --surface-2: #0d0d10;
+  --surface-3: #17171b;
 
-  /* Ice hairlines — cool-tinted, crisp 1px */
-  --line:     hsl(215 75% 80% / 0.11);
-  --line-hi:  hsl(198 85% 78% / 0.22);   /* hover border — icy cyan lift */
-  --line-row: hsl(220 65% 80% / 0.06);   /* table row divider */
-
-  /* Text scale — cold white at stepped opacity */
-  --text-1: rgba(235, 240, 254, 0.96);
-  --text-2: rgba(235, 240, 254, 0.60);
-  --text-3: rgba(235, 240, 254, 0.34);
-  --text-4: rgba(235, 240, 254, 0.18);
-
-  /* Floating surfaces (menus, modals) — near-opaque frosted glass */
-  --surface-float:  hsl(var(--ah) 30% 9% / 0.88);
+  /* Floating surfaces (menus, modals) — opaque as well: the backdrop-filter
+     that used to hide the page behind them is banned for perf (app-glue.css). */
+  --surface-float:  #0c0c0f;
   --shadow-float:   0 18px 44px -14px rgba(2, 4, 12, 0.85);
   --shadow-overlay: 0 40px 80px -20px rgba(2, 4, 12, 0.65);
+  /* Frost strength. 0 = off (see header); the blur(var(--glass-blur)) call sites
+     in css/components.css, css/shell.css and app-glue.css therefore compose to a
+     no-op, on top of the global backdrop-filter ban in app-glue.css. */
+  --glass-blur: 0px;
 
-  /* Status / semantic — fixed, NOT themeable */
+  /* Hairlines */
+  --line: #303030;
+  /* Control borders have to clear WCAG 1.4.11 (3:1), same as the light theme:
+     #666 is 3.47:1 on the #09090b panels, 3.38:1 on --surface-2 and 3.11:1 on
+     --surface-3. #484848 was 2.18:1. */
+  --line-hi: #666;
+  --line-row: #292929;   /* table row divider */
+  --table-pin-shadow: rgb(0 0 0 / 60%);
+
+  /* Text ladder — 1 primary, 2 secondary, 3 meta, 4 placeholder/disabled */
+  --text-1: #f5f5f5;
+  --text-2: #d2d2d2;
+  --text-3: #adadad;
+  --text-4: #a0a0a0;
+
+  /* Shell chrome */
+  --sidebar-bg: rgb(0 0 0 / var(--sidebar-opacity, 0.75));
+  /* --sidebar-opacity is written inline on <html> by src/hooks/useAppearance
+     (1 - sidebarTransparency/100). This is the default-setting fallback. */
+  --sidebar-opacity: 0.75;   /* @kind other */
+  --header-bg: #000;
+  --scroll-thumb: #777;
+  --map-space: #090b10;   /* world map ocean/void */
+
+  /* Workspace surfaces — used when a non-plain background is active, so the
+     panels let a little of the canvas through (consistency.css picks them up). */
+  --workspace-surface: rgb(0 0 0 / 32%);
+  /* --workspace-surface already flattened onto the page ground: the tone a panel
+     resolves to, but opaque. For the two places that must hide what scrolls
+     behind them and would otherwise fall back to the raw page --bg — a slab of a
+     colour no panel wears (Customer 360's stuck bar, the pinned action column). */
+  --workspace-solid: #030303;
+  --workspace-chrome: rgb(0 0 0 / 48%);
+  /* Dialogs are opaque: the backdrop-filter that used to hide the page behind them is
+     banned for perf (app-glue.css), so a translucent fill just leaks the page through. */
+  --workspace-dialog: var(--surface-float);
+  --workspace-hover: rgb(0 0 0 / 18%);
+
+  /* Skeleton shimmer: a light tint reads on the dark panels, so the two stops
+     stay what components.css shipped (~4:1 against --surface-1). */
+  --skeleton-1: hsl(225 50% 75% / 0.05);
+  --skeleton-2: hsl(225 50% 75% / 0.11);
+
+  /* Status / semantic — fixed, NOT themeable.
+     The -sub tints are alpha fills and are deliberately shared by both themes. */
   --success:     hsl(142 71% 45%);
   --success-sub: hsl(142 71% 45% / 0.14);
   --success-text: hsl(142 60% 62%);
@@ -50,12 +97,99 @@
   --info-sub:    hsl(207 90% 60% / 0.14);
   --info-text:   hsl(207 90% 75%);
 
-  /* Chart palette — defaults; users can swap presets at runtime (see readme).
-     Chart series colors are a SEPARATE user preference from the accent. */
+  /* Categorical UI hues — the KPI tile ladder and the tone-* variants. Not the
+     accent: these have to stay distinguishable from each other at any hue. */
+  --ui-violet: #a78bfa;
+  --ui-blue:   #60a5fa;
+  --ui-green:  #34d399;
+  --ui-amber:  #fbbf24;
+  --ui-rose:   #fb7185;
+
+  /* Chart palette — defaults; useChartColors rewrites the three series inline on
+     <html> from the accent once it mounts, so these are the pre-hydration frame
+     and the ChartLegend swatch fallback. */
   --chart-users:    #5fd6f2;
   --chart-sessions: rgba(95, 214, 242, 0.55);
   --chart-errors:   #e06b6b;
-  --chart-grid:     hsl(220 70% 85% / 0.07);
-  --chart-axis:     rgba(235, 240, 254, 0.58);
-  --chart-axis-soft: rgba(235, 240, 254, 0.4);
+  --chart-grid:     #ffffff0c;
+  --chart-axis:     #a1a1aa;
+  --chart-axis-soft: #81818c;
+  /* Legacy chart series aliases — keep in lockstep with the tokens above
+     (nothing reads them today; kept for not-yet-migrated corners). */
+  --chart-1: var(--chart-users);
+  --chart-2: var(--chart-sessions);
+  --chart-3: var(--chart-errors);
+  --chart-4: var(--chart-axis);
+
+  /* Legacy glass vocabulary → neutral ladder. index.css still references these
+     old names in untouched corners; point them at the tokens above until those
+     pages migrate, then drop them. */
+  --glass-1: var(--surface-1);
+  --glass-2: var(--surface-2);
+  --glass-3: var(--surface-3);
+  --glass-border: var(--line);
+  --glass-border2: var(--line-hi);
+}
+html[data-theme="light"] {
+  --bg: #f5f5f5;
+  --surface-1: #fff;
+  --surface-2: #f5f5f5;
+  --surface-3: #e9e9e9;
+  --surface-float: #fff;
+  --shadow-float: 0 12px 36px #18181b16;
+  --shadow-overlay: 0 24px 70px #18181b25;
+
+  --line: #d4d4d4;
+  /* Control borders have to clear WCAG 1.4.11 (3:1): #8e8e8e is 3.28:1 on the
+     #fff panels and 3.01:1 on the #f5f5f5 page. #bcbcbc was 1.90:1. */
+  --line-hi: #8e8e8e;
+  --line-row: #e4e4e4;
+  --table-pin-shadow: rgb(0 0 0 / 20%);
+
+  --text-1: #141414;
+  --text-2: #383838;
+  --text-3: #595959;
+  --text-4: #666;
+
+  --sidebar-bg: rgb(255 255 255 / var(--sidebar-opacity, 0.75));
+  --header-bg: #fff;
+  --scroll-thumb: #aaa;
+  --map-space: #edf0f3;
+
+  --workspace-surface: rgb(255 255 255 / 60%);
+  --workspace-solid: #fbfbfb;
+  --workspace-chrome: rgb(255 255 255 / 76%);
+  --workspace-dialog: var(--surface-float);
+  --workspace-hover: rgb(255 255 255 / 35%);
+
+  /* The dark theme's translucent white tint composites to ~1.05:1 on the white
+     panels — an invisible loading state now that skeletons are the console-wide
+     one. Grey stops instead: #dcdcdc is 1.37:1 against --surface-1. */
+  --skeleton-1: #dcdcdc;
+  --skeleton-2: #ececec;
+
+  --success: #168143;
+  --success-text: #12743a;
+  --warning: #996000;
+  --warning-text: #8b5700;
+  --danger: #cb3535;
+  --danger-text: #b32626;
+  --info: #176cba;
+  --info-text: #176cba;
+
+  --ui-violet: #7540d8;
+  --ui-blue:   #176bd1;
+  --ui-green:  #07865a;
+  --ui-amber:  #a76300;
+  --ui-rose:   #d52950;
+
+  /* Series defaults above are dark-theme tints (#5fd6f2 is 1.70:1 on a white
+     panel) so the pre-hydration frame and the ChartLegend swatches would be
+     near-invisible without these. useChartColors rewrites all three on mount. */
+  --chart-users: #0e7490;
+  --chart-sessions: rgba(14, 116, 144, 0.55);
+  --chart-errors: #b3261e;
+  --chart-grid: #18181b0c;
+  --chart-axis: #62626d;
+  --chart-axis-soft: #737380;
 }

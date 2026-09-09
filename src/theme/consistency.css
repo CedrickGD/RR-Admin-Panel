@@ -3,8 +3,8 @@
 
    !important ALLOWLIST — one declaration, on
    `.page-content:has(.data-table-wrap) > .panel:last-of-type { margin-bottom }`.
-   AccessPage and LicensesPage set `style={{ marginBottom: 24 }}` on those
-   sections, and only !important outranks an inline style. */
+   LicensesPage sets `style={{ marginBottom: 24 }}` on those sections, and only
+   !important outranks an inline style. */
 .live-session-status {
   display: flex;
   align-items: center;
@@ -647,10 +647,10 @@ html[data-theme] .world-heatmap-hovbar-trigger > svg {
 .page-content:has(.data-table-wrap) {
   padding-bottom: 16px;
 }
-/* KEPT !important (see the allowlist at the top of this file): AccessPage and
-   LicensesPage write `style={{ marginBottom: 24 }}` on their panels, and an
-   inline style outranks every selector. The last panel above a table frame
-   must not add a second gap under the page's own bottom padding. */
+/* KEPT !important (see the allowlist at the top of this file): LicensesPage
+   writes `style={{ marginBottom: 24 }}` on its panel, and an inline style
+   outranks every selector. The last panel above a table frame must not add a
+   second gap under the page's own bottom padding. */
 .page-content:has(.data-table-wrap) > .panel:last-of-type {
   margin-bottom: 0 !important;
 }

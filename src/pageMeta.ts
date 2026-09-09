@@ -24,7 +24,10 @@ export const PAGE_META: Record<PageKey, PageMeta> = {
   // then render the group header and its first child as the same word and icon.
   customers: { group: "Customers", label: "Customer directory" },
   licenses: { group: "Customers", label: "Licenses & orders" },
-  access: { group: "Customers", label: "App access" },
+  // No "access" entry: the App access page was folded into the directory above
+  // and "#/access" is only an alias now (see src/utils/pageRouting.ts). A label
+  // here would put the retired page back in the rail, the breadcrumb and the
+  // tab title, which is exactly what retiring it was meant to stop.
   overview: { group: "Monitoring", label: "Overview" },
   live: { group: "Monitoring", label: "Live sessions" },
   workers: { group: "Monitoring", label: "Session history" },

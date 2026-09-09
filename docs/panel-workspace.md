@@ -48,7 +48,9 @@ Every KPI row is `KpiStatCard` (`src/components/KpiStatCard.tsx`) in a `.stat-gr
 
 ## Customer workspace
 
-One dialog owns app access: `CustomerAccessDialog` takes a `CustomerAccessTarget` (identity, hwid, install_id, label, and whether the customer has paid) and is opened from the customer directory row, the App access row, and Customer 360's "Manage app access" — the same allowed / suspend-until / ban form everywhere, with the paid warning built in. A row that can be restricted states its state before you open anything: a Badge reading "Allowed", "Banned" or "Suspended until \<date\>".
+One dialog owns app access: `CustomerAccessDialog` takes a `CustomerAccessTarget` (identity, hwid, install_id, label, and whether the customer has paid) and is opened from the customer directory row and from Customer 360's "Manage app access" — the same allowed / suspend-until / ban form in both places, with the paid warning built in. A row that can be restricted states its state before you open anything: a Badge reading "Allowed", "Banned" or "Suspended until \<date\>".
+
+There is no separate App access page. The directory's "Suspended or banned" scope is the enforcement overview: it loads `/api/admin/access` (permission `access.read`, the same gate the old page had), folds in the restrictions whose identity has no telemetry rollup row, and carries the reason and who issued it as a Restriction column. `#/access` still resolves — to the directory — so old bookmarks and a stored `rr:last-page` of `"access"` keep working, but `"access"` is not a `PageKey`, has no `PAGE_META` label and has no sidebar item; see `src/utils/pageRouting.ts`.
 
 Customer 360 embedded in the workspace scrolls inside itself, so its identity and action bar sit in one sticky `.customer-workspace-bar`, which goes opaque and compact once the record scrolls under it. Escape closes the workspace from anywhere on the page (a window listener that stands down while a dialog is open, exactly like `ds/Modal`), not only while focus happens to be inside it.
 

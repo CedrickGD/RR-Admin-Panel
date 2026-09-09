@@ -14,7 +14,6 @@ export type PageKey =
   | "errors"
   | "settings"
   | "licenses"
-  | "access"
   | "announcements"
   | "feedback";
 

@@ -1394,6 +1394,7 @@ select.glass-input {
   font-family: var(--font-mono);
   font-size: var(--fs-tiny);
 }
+.customer-directory-first-seen,
 .customer-directory-last-seen {
   white-space: nowrap;
 }

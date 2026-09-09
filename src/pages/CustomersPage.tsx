@@ -14,7 +14,15 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
-import { useDeferredValue, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { CollapsiblePanel } from "../components/CollapsiblePanel";
 import { Customer360Overlay, type Customer360Anchor } from "../components/Customer360Overlay";
 import {
@@ -27,13 +35,16 @@ import { Badge } from "../components/ds/Badge";
 import { Button, IconButton } from "../components/ds/Button";
 import { SortHeader, type SortState } from "../components/ds/DataTable";
 import { EmptyState } from "../components/ds/EmptyState";
-import { SkeletonRows } from "../components/ds/Skeleton";
+import { Skeleton, SkeletonRows } from "../components/ds/Skeleton";
 import { PageHeader } from "../components/ds/PageHeader";
 import { RelativeTime } from "../components/ds/RelativeTime";
+import { usePanelPermission } from "../hooks/usePanelPermission";
 import { useWorkspaceSearch } from "../hooks/useWorkspaceSearch";
 import { resolveCountry } from "../utils/geography";
 import { TablePagination } from "../components/ds/TablePagination";
-import type { UserRollupRecord } from "../types/telemetry";
+import type { SuspensionRecord, UserRollupRecord } from "../types/telemetry";
+import { fetchAdminSuspensions } from "../utils/api";
+import { useRefreshSignal } from "../utils/refreshBus";
 import { formatDate, formatDay, formatDuration, formatNumber } from "../utils/format";
 import { paginate } from "../utils/pagination";
 import {
@@ -116,11 +127,98 @@ function matchesScope(user: UserRollupRecord, scope: CustomerScope | null): bool
   }
 }
 
+/**
+ * A restriction is in force when it is active and either permanent or still
+ * inside its window — the same rule the server applies before it attaches
+ * `user.suspension` to a rollup row, so a telemetry row and its record agree.
+ */
+function isEffective(row: SuspensionRecord, nowMs: number): boolean {
+  if (row.is_active !== 1) return false;
+  if (!row.banned_until) return true;
+  return new Date(row.banned_until).getTime() > nowMs;
+}
+
+function identifierKey(value: string | null | undefined): string | null {
+  const normalized = value?.trim().toLowerCase();
+  return normalized ? normalized : null;
+}
+
+/** Every identifier a restriction may be matched to a directory row by. */
+function restrictionKeys(row: SuspensionRecord): string[] {
+  return [row.identity, row.hwid, row.install_id]
+    .map(identifierKey)
+    .filter((key): key is string => key !== null);
+}
+
+/** `paid_license_keys` is stored comma-joined (see the suspend endpoint). */
+function paidKeysOfRestriction(row: SuspensionRecord): string[] {
+  return (row.paid_license_keys ?? "")
+    .split(",")
+    .map((key) => key.trim())
+    .filter(Boolean);
+}
+
+/**
+ * A restriction whose identity has no rollup row, dressed as one so it can be
+ * searched, sorted and paginated with the rest of the directory. Everything the
+ * record cannot know stays empty and the row renders "—" for it: the rollup is
+ * built from app_sessions, and a customer can be banned from Customer 360
+ * before they ever launch the app (anchored by licence key or order id).
+ */
+function restrictionAsDirectoryRow(
+  row: SuspensionRecord,
+  label: string | null,
+  discordUser: string | null,
+): UserRollupRecord {
+  return {
+    identity: row.identity,
+    userLabel: label ?? row.user_label,
+    firstSeen: "",
+    lastSeen: "",
+    sessions: 0,
+    totalDurationSeconds: 0,
+    errors: 0,
+    isActive: false,
+    licenseTier: row.had_paid_license === 1 ? "premium" : undefined,
+    paidLicenseKeys: paidKeysOfRestriction(row),
+    suspension: {
+      mode: row.mode,
+      reason: row.reason,
+      bannedUntil: row.banned_until,
+      hadPaidLicense: row.had_paid_license === 1,
+      createdAt: row.created_at,
+    },
+    hwid: row.hwid,
+    appVersion: null,
+    displayVersion: null,
+    platform: null,
+    osVersion: null,
+    deviceModel: null,
+    country: null,
+    city: null,
+    timezone: null,
+    rpcEnabled: null,
+    discordUser,
+    latitude: null,
+    longitude: null,
+    lastStatus: null,
+    lastEvent: null,
+    features: {},
+    recentErrors: [],
+  };
+}
+
 /** What the shared app-access dialog needs from a directory row. */
-function accessTargetOf(user: UserRollupRecord): CustomerAccessTarget {
+function accessTargetOf(
+  user: UserRollupRecord,
+  restriction?: SuspensionRecord,
+): CustomerAccessTarget {
   return {
     identity: user.identity,
     hwid: user.hwid,
+    // A restriction-only row carries no rollup identifiers, so the record's own
+    // install_id is the third key the dialog can recognise the customer by.
+    install_id: restriction?.install_id ?? null,
     label: displayName(user),
     paid: user.licenseTier === "premium",
     paidKeys: user.paidLicenseKeys,
@@ -137,8 +235,11 @@ function customerAnchor(user: UserRollupRecord): Customer360Anchor {
   };
 }
 
-/** Column count of the directory table — keeps the skeleton in step with the head. */
-const DIRECTORY_COLUMNS = 10;
+/**
+ * Column count of the directory table — keeps the skeleton in step with the
+ * head. Eleven as standard; the restricted scope adds the "Restriction" column.
+ */
+const DIRECTORY_COLUMNS = 11;
 
 export function CustomersPage({ users: sourceUsers, filterBar }: CustomersPageProps) {
   const users = useCustomerDirectory(sourceUsers);
@@ -156,6 +257,56 @@ export function CustomersPage({ users: sourceUsers, filterBar }: CustomersPagePr
   const [selectedUser, setSelectedUser] = useState<UserRollupRecord | null>(null);
   const [accessTarget, setAccessTarget] = useState<CustomerAccessTarget | null>(null);
 
+  /*
+   * ── Enforcement overview ──────────────────────────────────────────────────
+   * The rollup this page lists is derived from app_sessions, so a restriction
+   * written against an identity that never opened the app has no row here and
+   * would be invisible forever. GET /api/admin/access is the authority on what
+   * is actually in force, so the restricted scope loads it and folds the
+   * records that match no rollup row into the table as ordinary rows.
+   *
+   * Only under that scope: leaving the default page load at exactly the
+   * requests it made before is worth more than pre-fetching a list that four
+   * scopes out of five never show.
+   *
+   * DECISION (F067, permission-shaped hole): this stays gated on access.read,
+   * the same permission as the row action and the badge, but the directory
+   * itself needs customers.read. A member granted access.read while
+   * customers.read is denied by override could reach the old App access page,
+   * which is now retired, and has no access surface left. That is accepted, not
+   * overlooked: no built-in role is in that position (support and viewer both
+   * carry customers.read), and widening the directory to access.read alone
+   * would mean serving /api/admin/users to someone deliberately denied the
+   * customer list. Such a member should be granted customers.read.
+   */
+  const canReadAccess = usePanelPermission("access.read");
+  const restrictedScope = scope === "restricted";
+  // null until the first answer lands — a failed or empty load settles on [],
+  // so a row can say "unavailable" instead of shimmering forever.
+  const [restrictions, setRestrictions] = useState<SuspensionRecord[] | null>(null);
+
+  const loadRestrictions = useCallback(async () => {
+    try {
+      const result = await fetchAdminSuspensions();
+      if (result.ok && result.suspensions) setRestrictions(result.suspensions);
+      else setRestrictions((current) => current ?? []);
+    } catch (error) {
+      console.error(error);
+      setRestrictions((current) => current ?? []);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!restrictedScope || !canReadAccess || restrictions !== null) return;
+    void loadRestrictions();
+  }, [restrictedScope, canReadAccess, restrictions, loadRestrictions]);
+
+  // Suspending or lifting from the dialog emits on the refresh bus, as does the
+  // header refresh button — re-pull in place, and never back to a skeleton.
+  useRefreshSignal(() => {
+    if (restrictedScope && canReadAccess && restrictions !== null) void loadRestrictions();
+  });
+
   const filterOptions = useMemo(
     () => buildUserDirectoryOptions(users ?? [], filters.continent),
     [users, filters.continent],
@@ -164,12 +315,56 @@ export function CustomersPage({ users: sourceUsers, filterBar }: CustomersPagePr
     () => new Map(filterOptions.countries.map((option) => [option.value, option.label])),
     [filterOptions.countries],
   );
+  /** Restrictions in force, indexed by every identifier they may be keyed by. */
+  const restrictionByKey = useMemo(() => {
+    const map = new Map<string, SuspensionRecord>();
+    const nowMs = Date.now();
+    for (const row of restrictions ?? []) {
+      if (!isEffective(row, nowMs)) continue;
+      for (const key of restrictionKeys(row)) map.set(key, row);
+    }
+    return map;
+  }, [restrictions]);
+
+  /** Restrictions whose identity has no rollup row — the rows only this fetch knows about. */
+  const restrictionOnlyUsers = useMemo(() => {
+    if (!restrictedScope || !canReadAccess || !restrictions || !users) return [];
+    const known = new Set<string>();
+    for (const user of users) {
+      for (const key of [identifierKey(user.identity), identifierKey(user.hwid)]) {
+        if (key) known.add(key);
+      }
+    }
+    const nowMs = Date.now();
+    const rows: UserRollupRecord[] = [];
+    for (const row of restrictions) {
+      if (!isEffective(row, nowMs)) continue;
+      if (restrictionKeys(row).some((key) => known.has(key))) continue;
+      const profile = findProfile(row.identity, row.hwid);
+      rows.push(
+        restrictionAsDirectoryRow(
+          row,
+          profile?.displayName ?? null,
+          profile?.discordUsername ?? null,
+        ),
+      );
+    }
+    return rows;
+  }, [restrictedScope, canReadAccess, restrictions, users, findProfile]);
+
+  /** True for a row that exists only because a restriction does. */
+  const restrictionOnlyIdentities = useMemo(
+    () => new Set(restrictionOnlyUsers.map((user) => user.identity)),
+    [restrictionOnlyUsers],
+  );
+
   const directoryUsers = useMemo(() => {
     if (!users) return null;
-    return filterAndSortUsers(users, deferredQuery, filters, sortKey, sortDirection).filter(
+    const source = restrictionOnlyUsers.length > 0 ? [...users, ...restrictionOnlyUsers] : users;
+    return filterAndSortUsers(source, deferredQuery, filters, sortKey, sortDirection).filter(
       (user) => matchesScope(user, scope),
     );
-  }, [users, deferredQuery, filters, sortKey, sortDirection, scope]);
+  }, [users, restrictionOnlyUsers, deferredQuery, filters, sortKey, sortDirection, scope]);
   const paginated = useMemo(
     () => (directoryUsers ? paginate(directoryUsers, page, PAGE_SIZE) : null),
     [directoryUsers, page],
@@ -231,6 +426,24 @@ export function CustomersPage({ users: sourceUsers, filterBar }: CustomersPagePr
 
   const sort: SortState = { key: sortKey, direction: sortDirection };
 
+  /** The record behind a restricted row — reason and issuer live only there. */
+  function restrictionFor(user: UserRollupRecord): SuspensionRecord | undefined {
+    return (
+      restrictionByKey.get(identifierKey(user.identity) ?? "") ??
+      restrictionByKey.get(identifierKey(user.hwid) ?? "")
+    );
+  }
+
+  /*
+   * Reason and issuer are shown in one "Restriction" column rather than in the
+   * access badge's tooltip: a tooltip is one row at a time and mouse-only,
+   * while the point of both is scanning a whole restricted list at once. The
+   * column carries content for restricted customers only, so it is mounted with
+   * the scope that selects them and the default view keeps its own columns.
+   */
+  const showRestrictions = restrictedScope && canReadAccess;
+  const columnCount = showRestrictions ? DIRECTORY_COLUMNS + 1 : DIRECTORY_COLUMNS;
+
   return (
     <div className="page-content page-stack-lg">
       <PageHeader kicker="Customer support" page="customers" right={filterBar} />
@@ -275,7 +488,7 @@ export function CustomersPage({ users: sourceUsers, filterBar }: CustomersPagePr
         collapsible={false}
         sub={
           directoryUsers
-            ? `${formatNumber(directoryUsers.length)} of ${formatNumber(users?.length ?? 0)} shown · all-time customer records`
+            ? `${formatNumber(directoryUsers.length)} of ${formatNumber((users?.length ?? 0) + restrictionOnlyUsers.length)} shown · all-time customer records`
             : "Loading all-time customer records…"
         }
         right={
@@ -377,6 +590,16 @@ export function CustomersPage({ users: sourceUsers, filterBar }: CustomersPagePr
                       sort={sort}
                       onSortChange={changeSort}
                     />
+                    {/* Untiered on purpose: this column is the reason the scope
+                        was selected, so it must survive the width at which
+                        .col-lg/.col-xl columns bow out. */}
+                    {showRestrictions ? <th scope="col">Restriction</th> : null}
+                    <SortHeader
+                      label="First seen"
+                      sortKey="firstSeen"
+                      sort={sort}
+                      onSortChange={changeSort}
+                    />
                     <SortHeader
                       label="Last seen"
                       sortKey="lastSeen"
@@ -388,114 +611,188 @@ export function CustomersPage({ users: sourceUsers, filterBar }: CustomersPagePr
                 </thead>
                 <tbody className={directoryUsers === null ? undefined : "dt-settle"}>
                   {directoryUsers === null ? (
-                    <SkeletonRows columns={DIRECTORY_COLUMNS} />
+                    <SkeletonRows columns={columnCount} />
                   ) : (
-                    (paginated?.items ?? []).map((user) => (
-                      <tr key={user.identity}>
-                        <td>
-                          <div className="person-cell">
-                            <CustomerAvatar
-                              profile={findProfile(user.identity, user.hwid)}
-                              label={displayName(user)}
-                            />
-                            <RecordCell
-                              primary={
-                                // The name opens the same workspace as the row action,
-                                // so Customer 360 is one click away from the first column.
-                                <RecordLink
-                                  title="Open customer workspace"
-                                  onClick={() => setSelectedUser(user)}
-                                >
-                                  {displayName(user)}
-                                </RecordLink>
-                              }
-                              secondary={user.licenseTier === "premium" ? "Premium" : "Free"}
-                            />
-                          </div>
-                        </td>
-                        <td
-                          className="muted col-md"
-                          data-label="Contact"
-                          title={user.discordUser ?? undefined}
-                        >
-                          {discordHandle(user.discordUser)}
-                        </td>
-                        <td data-label="Version">
-                          <Badge tone="muted">{versionLabel(user)}</Badge>
-                        </td>
-                        <td className="muted col-lg" data-label="Device / OS">
-                          <div className="customer-directory-stacked">
-                            <span>{user.deviceModel?.trim() || user.platform?.trim() || "—"}</span>
-                            <small>{user.osVersion?.trim() || "OS not reported"}</small>
-                          </div>
-                        </td>
-                        <td className="muted col-xl" data-label="Location" title={locationLabel(user)}>
-                          {locationLabel(user)}
-                        </td>
-                        <td className="muted numeric" data-label="Sessions">
-                          {formatNumber(user.sessions)}
-                        </td>
-                        <td className="muted col-lg numeric" data-label="Total time">
-                          {user.totalDurationSeconds > 0
-                            ? formatDuration(user.totalDurationSeconds)
-                            : "—"}
-                        </td>
-                        <td data-label="Support">
-                          <div className="customer-directory-support">
-                            {user.suspension ? (
-                              <Badge
-                                tone={user.suspension.mode === "ban" ? "danger" : "warning"}
-                                title={
-                                  user.suspension.bannedUntil
-                                    ? `Lifts automatically on ${formatDate(user.suspension.bannedUntil)}`
-                                    : undefined
+                    (paginated?.items ?? []).map((user) => {
+                      const restriction = restrictionFor(user);
+                      // No telemetry behind this row: everything the rollup
+                      // would have supplied renders as "—".
+                      const restrictionOnly = restrictionOnlyIdentities.has(user.identity);
+                      return (
+                        <tr key={user.identity}>
+                          <td>
+                            <div className="person-cell">
+                              <CustomerAvatar
+                                profile={findProfile(user.identity, user.hwid)}
+                                label={displayName(user)}
+                              />
+                              <RecordCell
+                                primary={
+                                  // The name opens the same workspace as the row action,
+                                  // so Customer 360 is one click away from the first column.
+                                  <RecordLink
+                                    title="Open customer workspace"
+                                    onClick={() => setSelectedUser(user)}
+                                  >
+                                    {displayName(user)}
+                                  </RecordLink>
                                 }
-                              >
-                                {user.suspension.mode === "ban"
-                                  ? "Banned"
-                                  : user.suspension.bannedUntil
-                                    ? `Suspended until ${formatDay(user.suspension.bannedUntil)}`
-                                    : "Suspended"}
-                              </Badge>
-                            ) : null}
-                            {user.errors > 0 ? (
-                              <Badge tone="warning">{formatNumber(user.errors)} errors</Badge>
-                            ) : null}
-                            {user.errors === 0 &&
-                            !user.suspension &&
-                            (user.lastStatus === "degraded" || user.lastStatus === "down") ? (
-                              <Badge tone={user.lastStatus === "down" ? "danger" : "warning"}>
-                                {user.lastStatus === "down" ? "Down" : "Degraded"}
-                              </Badge>
-                            ) : null}
-                            {!needsAttention(user) ? <Badge tone="success">Clear</Badge> : null}
-                          </div>
-                        </td>
-                        <td className="muted customer-directory-last-seen" data-label="Last seen">
-                          {user.isActive ? <span className="status-dot" /> : null}
-                          <RelativeTime iso={user.lastSeen} />
-                        </td>
-                        <td>
-                          <div className="row-actions">
-                            {/* Suspending is a directory action, not something
+                                secondary={
+                                  restrictionOnly
+                                    ? user.licenseTier === "premium"
+                                      ? "Premium · no app sessions on record"
+                                      : "No app sessions on record"
+                                    : user.licenseTier === "premium"
+                                      ? "Premium"
+                                      : "Free"
+                                }
+                              />
+                            </div>
+                          </td>
+                          <td
+                            className="muted col-md"
+                            data-label="Contact"
+                            title={user.discordUser ?? undefined}
+                          >
+                            {discordHandle(user.discordUser)}
+                          </td>
+                          <td
+                            className={restrictionOnly ? "muted" : undefined}
+                            data-label="Version"
+                          >
+                            {restrictionOnly ? (
+                              "—"
+                            ) : (
+                              <Badge tone="muted">{versionLabel(user)}</Badge>
+                            )}
+                          </td>
+                          <td className="muted col-lg" data-label="Device / OS">
+                            {restrictionOnly ? (
+                              "—"
+                            ) : (
+                              <div className="customer-directory-stacked">
+                                <span>
+                                  {user.deviceModel?.trim() || user.platform?.trim() || "—"}
+                                </span>
+                                <small>{user.osVersion?.trim() || "OS not reported"}</small>
+                              </div>
+                            )}
+                          </td>
+                          <td
+                            className="muted col-xl"
+                            data-label="Location"
+                            title={locationLabel(user)}
+                          >
+                            {locationLabel(user)}
+                          </td>
+                          <td className="muted numeric" data-label="Sessions">
+                            {restrictionOnly ? "—" : formatNumber(user.sessions)}
+                          </td>
+                          <td className="muted col-lg numeric" data-label="Total time">
+                            {user.totalDurationSeconds > 0
+                              ? formatDuration(user.totalDurationSeconds)
+                              : "—"}
+                          </td>
+                          <td data-label="Support">
+                            <div className="customer-directory-support">
+                              {user.suspension ? (
+                                <Badge
+                                  tone={user.suspension.mode === "ban" ? "danger" : "warning"}
+                                  title={
+                                    user.suspension.bannedUntil
+                                      ? `Lifts automatically on ${formatDate(user.suspension.bannedUntil)}`
+                                      : undefined
+                                  }
+                                >
+                                  {user.suspension.mode === "ban"
+                                    ? "Banned"
+                                    : user.suspension.bannedUntil
+                                      ? `Suspended until ${formatDay(user.suspension.bannedUntil)}`
+                                      : "Suspended"}
+                                </Badge>
+                              ) : null}
+                              {user.errors > 0 ? (
+                                <Badge tone="warning">{formatNumber(user.errors)} errors</Badge>
+                              ) : null}
+                              {user.errors === 0 &&
+                              !user.suspension &&
+                              (user.lastStatus === "degraded" || user.lastStatus === "down") ? (
+                                <Badge tone={user.lastStatus === "down" ? "danger" : "warning"}>
+                                  {user.lastStatus === "down" ? "Down" : "Degraded"}
+                                </Badge>
+                              ) : null}
+                              {!needsAttention(user) ? <Badge tone="success">Clear</Badge> : null}
+                            </div>
+                          </td>
+                          {showRestrictions ? (
+                            <td className="muted" data-label="Restriction">
+                              <div className="customer-directory-stacked">
+                                <span
+                                  className="cell-truncate"
+                                  style={{ "--cell-max": "260px" } as CSSProperties}
+                                  title={
+                                    restriction?.reason ?? user.suspension?.reason ?? undefined
+                                  }
+                                >
+                                  {restriction?.reason ||
+                                    user.suspension?.reason ||
+                                    "No reason given"}
+                                </span>
+                                {/* created_by is the only record of who issued a
+                                  restriction — the suspend endpoint writes no
+                                  panel_audit row. */}
+                                {restriction ? (
+                                  <small title={restriction.created_by ?? undefined}>
+                                    {restriction.created_by
+                                      ? `by ${restriction.created_by}`
+                                      : "issuer not recorded"}
+                                  </small>
+                                ) : restrictions === null ? (
+                                  <Skeleton width={96} height={10} />
+                                ) : (
+                                  <small>issuer unavailable</small>
+                                )}
+                              </div>
+                            </td>
+                          ) : null}
+                          <td
+                            className="muted customer-directory-first-seen"
+                            data-label="First seen"
+                          >
+                            {restrictionOnly ? "—" : <RelativeTime iso={user.firstSeen} />}
+                          </td>
+                          <td className="muted customer-directory-last-seen" data-label="Last seen">
+                            {restrictionOnly ? (
+                              "—"
+                            ) : (
+                              <>
+                                {user.isActive ? <span className="status-dot" /> : null}
+                                <RelativeTime iso={user.lastSeen} />
+                              </>
+                            )}
+                          </td>
+                          <td>
+                            <div className="row-actions">
+                              {/* Suspending is a directory action, not something
                                 buried one workspace deeper. */}
-                            <IconButton
-                              permission="access.read"
-                              title="Manage app access"
-                              icon={<ShieldCheck />}
-                              aria-label={`Manage app access for ${displayName(user)}`}
-                              onClick={() => setAccessTarget(accessTargetOf(user))}
-                            />
-                            <IconButton
-                              title="Open customer workspace"
-                              icon={<ScanSearch />}
-                              aria-label={`Open Customer 360 for ${displayName(user)}`}
-                              onClick={() => setSelectedUser(user)}
-                            />
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+                              <IconButton
+                                permission="access.read"
+                                title="Manage app access"
+                                icon={<ShieldCheck />}
+                                aria-label={`Manage app access for ${displayName(user)}`}
+                                onClick={() => setAccessTarget(accessTargetOf(user, restriction))}
+                              />
+                              <IconButton
+                                title="Open customer workspace"
+                                icon={<ScanSearch />}
+                                aria-label={`Open Customer 360 for ${displayName(user)}`}
+                                onClick={() => setSelectedUser(user)}
+                              />
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </TableFrame>

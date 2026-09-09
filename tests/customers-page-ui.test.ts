@@ -23,12 +23,31 @@ describe("Customers CRM page", () => {
       /customers:\s*\{\s*group:\s*"Customers",\s*label:\s*"Customer directory"\s*\}/,
     );
     expect(app).toContain('import("./pages/CustomersPage")');
-    expect(app).toContain('"workers", "customers", "heatmap", "access"');
+    expect(app).toContain('"workers", "customers", "heatmap"');
     expect(app).toContain('page === "customers"');
     expect(app).toContain("<CustomersPage users={users} filterBar={refreshButton} />");
     expect(page).toContain('page="customers"');
-    expect(page).toContain("filterAndSortUsers(users");
+    // Still the shared directory helper over the rollup — `source` is that
+    // rollup plus the restrictions that have no rollup row (see below).
+    expect(page).toContain("filterAndSortUsers(source");
     expect(page).toContain("all-time customer records");
+  });
+
+  it("lists restrictions the telemetry rollup cannot see, with reason, issuer and first seen", () => {
+    // The rollup comes from app_sessions, so a customer banned before they ever
+    // launched the app has no row in it; the restricted scope loads the
+    // enforcement records themselves and folds the orphans in.
+    expect(page).toContain('usePanelPermission("access.read")');
+    expect(page).toContain("fetchAdminSuspensions");
+    expect(page).toContain("restrictionAsDirectoryRow");
+    expect(page).toContain('const restrictedScope = scope === "restricted"');
+    // Reason and "who issued it" are a column, not a tooltip; it is mounted
+    // only with the scope that selects restricted customers.
+    expect(page).toContain('{showRestrictions ? <th scope="col">Restriction</th> : null}');
+    expect(page).toContain("restriction.created_by");
+    // First seen: the sort key existed in userDirectory, the header did not.
+    expect(page).toContain('label="First seen"');
+    expect(page).toContain('sortKey="firstSeen"');
   });
 
   it("provides support-focused search, filters, and summaries", () => {

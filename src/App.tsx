@@ -19,10 +19,15 @@ import {
 import type { MapFocusTarget } from "./pages/HeatmapPage";
 import type { PageKey } from "./types/telemetry";
 import { PAGE_META } from "./pageMeta";
+import {
+  hashPageToken,
+  isPageKey,
+  LAST_PAGE_STORAGE_KEY,
+  PAGE_KEYS,
+  resolvePageKey,
+  takeAccessSearch,
+} from "./utils/pageRouting";
 
-const AccessPage = lazy(() =>
-  import("./pages/AccessPage").then((module) => ({ default: module.AccessPage })),
-);
 const TeamPage = lazy(() =>
   import("./pages/TeamPage").then((module) => ({ default: module.TeamPage })),
 );
@@ -85,47 +90,29 @@ const WorkersPage = lazy(() =>
 
 type FocusedSession = { id: string; token: number } | null;
 
-/* ── Page persistence ────────────────────────────────────────────
-   The page lives in the URL hash (#/live) and localStorage, so any full
-   reload — F5, the guarded Cloudflare Access re-auth reload, a phone tab
-   being restored — lands back on the page the admin was on, never on
-   Overview. Hash also gives shareable deep links and back/forward nav. */
-const PAGE_KEYS: readonly PageKey[] = [
-  "team",
-  "overview",
-  "live",
-  "workers",
-  "customers",
-  "traffic",
-  "versions",
-  "heatmap",
-  "errors",
-  "licenses",
-  "access",
-  "feedback",
-  "announcements",
-  "system",
-  "settings",
-];
-const LAST_PAGE_STORAGE_KEY = "rr:last-page";
 const STATS_PAGES = new Set<PageKey>(["overview", "traffic", "versions", "workers"]);
-const USER_PAGES = new Set<PageKey>(["workers", "customers", "heatmap", "access"]);
+const USER_PAGES = new Set<PageKey>(["workers", "customers", "heatmap"]);
 
-function isPageKey(value: string | null | undefined): value is PageKey {
-  return typeof value === "string" && (PAGE_KEYS as readonly string[]).includes(value);
+/** The page this hash asks for — a live key, or one a retired key aliases to. */
+function pageFromHash(): PageKey | null {
+  return resolvePageKey(hashPageToken(window.location.hash));
 }
 
-function pageFromHash(): PageKey | null {
-  const raw = window.location.hash.replace(/^#\/?/, "").trim();
-  return isPageKey(raw) ? raw : null;
+/**
+ * True while the hash already names the page it shows. A hash that only
+ * resolves — a retired alias such as "#/access" — is rewritten in place, so
+ * Back never steps onto a URL that would just redirect again.
+ */
+function hashNamesItsPage(): boolean {
+  return isPageKey(hashPageToken(window.location.hash));
 }
 
 function readInitialPage(): PageKey {
   const fromHash = pageFromHash();
   if (fromHash) return fromHash;
   try {
-    const stored = localStorage.getItem(LAST_PAGE_STORAGE_KEY);
-    if (isPageKey(stored)) return stored;
+    const stored = resolvePageKey(localStorage.getItem(LAST_PAGE_STORAGE_KEY));
+    if (stored) return stored;
   } catch {
     /* ignore */
   }
@@ -136,29 +123,34 @@ export default function App() {
   const { appearance } = useAppearance();
   const accentHue = appearance.hue;
   const [page, setPage] = useState<PageKey>(readInitialPage);
+  /* The retired App access page could be opened on a search term, written to
+     sessionStorage as "rr:access-search" just before the jump. Those jumps land
+     on the directory now (src/utils/pageRouting.ts), which is the app-access
+     surface, so the term is handed to its search field and consumed once. */
   useEffect(() => {
-    if (page !== "access") return;
-    const search = sessionStorage.getItem("rr:access-search");
-    if (search) {
-      setWorkspaceSearch("customers", search);
-      sessionStorage.removeItem("rr:access-search");
+    if (page !== "customers") return;
+    let search: string | null = null;
+    try {
+      search = takeAccessSearch(window.sessionStorage);
+    } catch {
+      /* Storage blocked — there is nothing to carry over. */
     }
-    setPage("customers");
+    if (search) setWorkspaceSearch("customers", search);
   }, [page]);
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0 });
   }, [page]);
 
-  // Keep URL hash + storage in sync with the active page. The very first
-  // normalization (no valid hash yet) replaces instead of pushing so the
-  // back button never steps to a hashless duplicate of the same page.
+  // Keep URL hash + storage in sync with the active page. A hash that does not
+  // name this page itself — none yet, or a retired alias — is replaced instead
+  // of pushed, so the back button never steps to a duplicate or a redirect.
   useEffect(() => {
     const desired = `#/${page}`;
     if (window.location.hash !== desired) {
-      if (pageFromHash() === null) {
-        window.history.replaceState(null, "", desired);
-      } else {
+      if (hashNamesItsPage()) {
         window.location.hash = desired;
+      } else {
+        window.history.replaceState(null, "", desired);
       }
     }
     try {
@@ -171,8 +163,13 @@ export default function App() {
   // Browser back/forward (and hand-edited hashes) drive the page too.
   useEffect(() => {
     const onHashChange = () => {
-      const key = pageFromHash();
-      if (key) setPage(key);
+      const token = hashPageToken(window.location.hash);
+      const key = resolvePageKey(token);
+      if (!key) return;
+      setPage(key);
+      // An alias never stays in the address bar, even when it resolves to the
+      // page already on screen — the sync effect above only runs on a change.
+      if (!isPageKey(token)) window.history.replaceState(null, "", `#/${key}`);
     };
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
@@ -475,13 +472,6 @@ export default function App() {
                     <LicensesPage
                       summary={summary}
                       onOpenSession={handleOpenLiveSession}
-                      onOpenWorker={handleOpenWorker}
-                      filterBar={refreshButton}
-                    />
-                  ) : null}
-                  {page === "access" ? (
-                    <AccessPage
-                      users={users}
                       onOpenWorker={handleOpenWorker}
                       filterBar={refreshButton}
                     />

@@ -60,7 +60,10 @@ export const PAGE_PERMISSION: Record<string, Permission | "team.manage" | null> 
   overview: "overview.read",
   customers: "customers.read",
   licenses: "licenses.read",
-  access: "access.read",
+  // No "access" page: it was folded into the customer directory, so the key is
+  // an alias for "customers" now and never reaches canVisit. The access.read /
+  // access.write permissions above are untouched — the customer app-access
+  // feature (the row action, the dialog, /api/admin/access) still uses them.
   live: "monitoring.read",
   workers: "monitoring.read",
   traffic: "monitoring.read",
@@ -84,7 +87,7 @@ export function canVisit(
     return user.panelRole ? user.panelRole === "owner" : user.role === "admin";
   return user.permissions
     ? user.permissions.includes(permission)
-    : user.role === "admin" || !["customers", "licenses", "access"].includes(page);
+    : user.role === "admin" || !["customers", "licenses"].includes(page);
 }
 export function routePermissions(
   path: string,

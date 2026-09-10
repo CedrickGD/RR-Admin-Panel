@@ -48,11 +48,16 @@
   --line-row: #292929;   /* table row divider */
   --table-pin-shadow: rgb(0 0 0 / 60%);
 
-  /* Text ladder — 1 primary, 2 secondary, 3 meta, 4 placeholder/disabled */
+  /* Text ladder — 1 primary, 2 secondary, 3 meta, 4 placeholder/disabled.
+     On the #050505 ground: 18.7 / 13.5 / 9.1 / 4.7:1. Step 4 used to be
+     #a0a0a0 (7.8:1), a mere 1.17:1 from step 3 — meta and disabled read as
+     one tone and the four-step ladder was really three. #7a7a7a puts 1.9:1
+     between them and still clears the 4.5:1 body threshold, so nothing that
+     wears step 4 becomes hard to read. */
   --text-1: #f5f5f5;
   --text-2: #d2d2d2;
   --text-3: #adadad;
-  --text-4: #a0a0a0;
+  --text-4: #7a7a7a;
 
   /* Shell chrome */
   --sidebar-bg: rgb(0 0 0 / var(--sidebar-opacity, 0.75));
@@ -66,6 +71,14 @@
   /* Workspace surfaces — used when a non-plain background is active, so the
      panels let a little of the canvas through (consistency.css picks them up). */
   --workspace-surface: rgb(0 0 0 / 32%);
+  /* The reading surfaces — panels, monitor surfaces and the record-table body,
+     which is transparent and shows whatever the panel under it is wearing —
+     need more cover than the tiles do: at 32% the network background's edges
+     ran visibly through table rows. 55% still lets the canvas register behind
+     the data without drawing lines across it. Only the non-plain backgrounds
+     consume this (consistency.css); with the plain background the panels keep
+     --workspace-surface and render exactly as before. */
+  --workspace-surface-strong: rgb(0 0 0 / 55%);
   /* --workspace-surface already flattened onto the page ground: the tone a panel
      resolves to, but opaque. For the two places that must hide what scrolls
      behind them and would otherwise fall back to the raw page --bg — a slab of a
@@ -146,10 +159,21 @@ html[data-theme="light"] {
   --line-row: #e4e4e4;
   --table-pin-shadow: rgb(0 0 0 / 20%);
 
+  /* Same four steps, same reasoning as the dark block. On the #f5f5f5 page:
+     16.9 / 10.8 / 6.1 / 3.9:1; on the #fff panels: 18.4 / 11.7 / 6.7 / 4.3:1.
+     Step-to-step separation: 1.57 / 1.75 / 1.56. Step 4 was #666 — 5.3:1, but
+     only 1.22:1 from step 3, so meta and disabled read as one tone; #7a7a7a
+     opens that rung to 1.56:1. It lands under the 4.5:1 body threshold and
+     well above the 3:1 floor, which is the deal for step 4: placeholder and
+     disabled text only, never a value or a label someone has to read.
+     Step 3 stays at #595959. Nudging it to #5c5c5c was considered and dropped:
+     it costs contrast at 134 call sites (6.43:1 → 6.13:1 on the page, 7.00:1 →
+     6.69:1 on panels) and makes the rungs less even, not more — with #595959
+     the steps are 1.57 / 1.67 / 1.63, against 1.57 / 1.75 / 1.56 without it. */
   --text-1: #141414;
   --text-2: #383838;
   --text-3: #595959;
-  --text-4: #666;
+  --text-4: #7a7a7a;
 
   --sidebar-bg: rgb(255 255 255 / var(--sidebar-opacity, 0.75));
   --header-bg: #fff;
@@ -157,6 +181,7 @@ html[data-theme="light"] {
   --map-space: #edf0f3;
 
   --workspace-surface: rgb(255 255 255 / 60%);
+  --workspace-surface-strong: rgb(255 255 255 / 82%);
   --workspace-solid: #fbfbfb;
   --workspace-chrome: rgb(255 255 255 / 76%);
   --workspace-dialog: var(--surface-float);

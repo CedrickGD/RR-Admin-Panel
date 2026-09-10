@@ -242,7 +242,7 @@ html[data-theme] .feedback-card.is-new .badge-info {
 .badge,
 .tag {
   min-height: 0;
-  font-size: 10px;
+  font-size: var(--fs-micro);
   line-height: 1.45;
   padding: 2px 6px;
   border-radius: 4px;
@@ -418,7 +418,7 @@ html.sb-collapsed .sb-brand-img {
   letter-spacing: -0.5px;
 }
 .sb-brand-text small {
-  font-size: 10px;
+  font-size: var(--fs-micro);
 }
 .sb-item > svg {
   color: var(--accent-text);
@@ -578,6 +578,9 @@ th:hover .table-sort .table-sort-icon-idle {
   display: grid;
   place-items: center;
   flex: none;
+  /* The one 10px left in this layer. Initials are a decorative stand-in for a
+     photo, not text anyone reads, so they stay under the scale's 11px floor —
+     11px initials would not fit a 33px well at 650 weight. */
   font-size: 10px;
   font-weight: 650;
 }
@@ -616,7 +619,7 @@ th:hover .table-sort .table-sort-icon-idle {
 }
 .row-error {
   color: var(--ui-rose);
-  font-size: 10px;
+  font-size: var(--fs-micro);
   display: block;
   margin-top: 3px;
 }
@@ -705,7 +708,7 @@ th:hover .table-sort .table-sort-icon-idle {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  font-size: 10px;
+  font-size: var(--fs-micro);
   color: var(--text-3);
   margin-top: 8px;
 }
@@ -755,7 +758,7 @@ th:hover .table-sort .table-sort-icon-idle {
 .created-label {
   background: color-mix(in srgb, var(--ui-green) 18%, transparent);
   color: var(--ui-green);
-  font-size: 10px;
+  font-size: var(--fs-micro);
   padding: 2px 6px;
   border-radius: 4px;
   font-weight: 600;

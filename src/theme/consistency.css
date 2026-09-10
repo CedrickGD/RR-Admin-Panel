@@ -531,8 +531,11 @@ html[data-theme] .stat-card .tile-icon {
    tokens/colors.css; the rules that consume them stay here. */
 html[data-background]:not([data-background="plain"])
   :is(.panel, .monitor-surface, .customer360-card) {
-  background: var(--workspace-surface);
+  background: var(--workspace-surface-strong);
 }
+/* The tiles keep the lighter fill on purpose: the see-through look is the
+   point of picking an animated background, and a tile is one label over one
+   number — there is no grid of rows for the canvas to draw lines through. */
 html[data-background]:not([data-background="plain"]) .stat-card {
   background: var(--workspace-surface);
 }

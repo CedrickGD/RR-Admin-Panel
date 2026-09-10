@@ -200,6 +200,17 @@
 .status-dot.err  { background: var(--danger); }
 .status-dot.idle { background: var(--text-3); animation: none; }
 
+/* Phone bump. 11px status chips are the smallest functional text the console
+   ships and a phone held at arm's length is the worst place to read them, so
+   they step up one rung. The `html` prefix is there purely for specificity —
+   theme/operations.css restates a bare `.badge` in a later layer — and buys
+   it with one element selector instead of an !important. */
+@media (max-width: 600px) {
+  html :is(.badge, .badge-live, .error-tier-pill) {
+    font-size: var(--fs-tiny);
+  }
+}
+
 /* kv tags — small squared chips for config values */
 .kv-tag {
   display: inline-flex;
@@ -1230,13 +1241,14 @@
 .error-skeleton-row { display: flex; align-items: center; gap: 10px; padding: 12px 16px; }
 .error-skeleton-grow { flex: 1; max-width: 420px; }
 .error-group-icon { flex-shrink: 0; color: var(--danger); }
-/* The licence-tier chip beside a customer's identity. 0.625rem (10px) sits
-   below the scale's floor and has no token, so it stays a literal.
+/* The licence-tier chip beside a customer's identity. It was 0.625rem (10px),
+   below the scale's floor; it is a status pill like any other, so it reads the
+   floor token now.
    --bg-subtle and --text-muted are declared NOWHERE in src/ — exactly as in
    the inline style this replaces. Both declarations are invalid at
    computed-value time, so the FREE chip paints no background and inherits
-   `.person-cell small`'s --text-3. Kept verbatim so nothing moves. */
-.error-tier-pill { padding: 2px 6px; border-radius: 4px; font-size: 0.625rem; font-weight: 700; letter-spacing: 0.05em; vertical-align: middle; }
+   `.person-cell small`'s --text-3. */
+.error-tier-pill { padding: 2px 6px; border-radius: 4px; font-size: var(--fs-micro); font-weight: 700; letter-spacing: 0.05em; vertical-align: middle; }
 .error-tier-pill.is-premium { background: var(--accent-subtle); color: var(--accent-text); }
 .error-tier-pill.is-free { background: var(--bg-subtle); color: var(--text-muted); }
 .error-identity-id { margin-left: 8px; }

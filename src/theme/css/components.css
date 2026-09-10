@@ -94,12 +94,11 @@
 .stat-card-compact { min-height: 56px; }
 .stat-card-compact .stat-value { font-size: var(--fs-section); }
 
-/* One type scale for the tile, and it lives here: label var(--fs-small) 12px,
-   value var(--fs-stat), sub var(--fs-tiny) 11px — the sub is quieter than the
-   label it explains, which the three competing font-size rules in
-   app-glue/operations/consistency had inverted. Those are gone; this block is
-   the owner. `min-height` keeps a row of tiles aligned whether or not a tile
-   has a sub line. */
+/* One type scale for the tile: label var(--fs-small) 13px, value var(--fs-stat),
+   sub var(--fs-tiny) 12px — the sub is quieter than the label it explains, which
+   the three competing font-size rules in app-glue/operations/consistency had
+   inverted. Those are gone. `min-height` keeps a row of tiles aligned whether or
+   not a tile has a sub line. */
 .tile-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .stat-label {
   font-size: var(--fs-small);
@@ -218,7 +217,7 @@
   height: 21px;
   padding: 0 8px;
   border-radius: 6px;
-  font-size: 11px;
+  font-size: var(--fs-micro);
   font-weight: 550;
   color: var(--text-1);
   background: var(--surface-3);
@@ -344,7 +343,8 @@
 }
 .gauge-num { font-family: var(--font-display); font-weight: 700; font-size: var(--fs-strong); fill: var(--text-1); }
 .gauge-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.gauge-title { font-size: 0.78125rem; font-weight: 600; color: var(--text-1); }
+/* 12.5px sat between two steps of the scale; it rounds up to the 13px one. */
+.gauge-title { font-size: var(--fs-small); font-weight: 600; color: var(--text-1); }
 .gauge-sub { font-size: var(--fs-tiny); color: var(--text-3); }
 
 /* ── Activity / error feed ────────────────────────────────────── */
@@ -376,7 +376,8 @@
 .feed-body { min-width: 0; flex: 1; }
 .feed-title { font-size: var(--fs-small); font-weight: 550; color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0; }
 .feed-meta { font-size: var(--fs-tiny); color: var(--text-3); margin: 1px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.feed-time { flex: none; font-size: 0.65625rem; color: var(--text-3); font-family: var(--font-mono); margin-top: 2px; }
+/* 10.5px was under the scale's documented 11px floor; it reads the floor now. */
+.feed-time { flex: none; font-size: var(--fs-micro); color: var(--text-3); font-family: var(--font-mono); margin-top: 2px; }
 
 /* ═══════════════════════════════════════════════════════════════
    ds/Modal — THE DIALOG
@@ -667,6 +668,11 @@
   box-shadow: inset 0 1px 0 hsl(220 80% 95% / 0.035);
 }
 .customer360-section-heading { display: flex; align-items: center; gap: 8px; min-width: 0; margin-bottom: 12px; }
+/* The 0.875rem in this shorthand is dead: consistency.css sets font-size
+   var(--fs-strong) on the same selector from a later import, so 15px paints.
+   It stays because a font shorthand cannot drop its size, and splitting it into
+   longhands is not a no-op — the shorthand also resets line-height, font-style,
+   font-variant and font-stretch to normal. */
 .customer360-section-heading h3 { margin: 0; color: var(--text-1); font: 650 0.875rem var(--font-display); }
 .customer360-section-icon { display: inline-grid; place-items: center; color: var(--accent-text); }
 .customer360-section-icon svg { width: 15px; height: 15px; }
@@ -681,7 +687,7 @@
 }
 .customer360-info { min-width: 0; padding: 9px 10px; border-right: 1px solid var(--line-row); border-bottom: 1px solid var(--line-row); }
 .customer360-info dt,
-.customer360-record-fields dt { margin: 0 0 3px; color: var(--text-3); font-size: 0.65625rem; font-weight: 650; letter-spacing: 0.07em; text-transform: uppercase; }
+.customer360-record-fields dt { margin: 0 0 3px; color: var(--text-3); font-weight: 650; letter-spacing: 0.07em; text-transform: uppercase; }
 .customer360-info dd,
 .customer360-record-fields dd { min-width: 0; margin: 0; color: var(--text-1); font-size: var(--fs-small); overflow-wrap: anywhere; white-space: pre-wrap; }
 /* The mono face is shared by read-only machine values and by `<Input mono>`
@@ -695,7 +701,7 @@
 .customer360-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
 .customer360-metrics > div { padding: 13px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); }
 .customer360-metrics span { display: block; color: var(--text-3); font-size: var(--fs-tiny); text-transform: uppercase; letter-spacing: 0.07em; }
-.customer360-metrics strong { display: block; margin-top: 3px; color: var(--text-1); font: 700 1.05rem var(--font-display); }
+.customer360-metrics strong { display: block; margin-top: 3px; color: var(--text-1); font: 700 var(--fs-section) var(--font-display); }
 .customer360-metrics strong.is-danger { color: var(--danger-text); }
 .customer360-record-list { display: flex; flex-direction: column; gap: 7px; }
 .customer360-record { border: 1px solid var(--line-row); border-radius: 9px; background: hsl(225 50% 75% / 0.025); overflow: hidden; }
@@ -755,7 +761,8 @@
 .customer360-load-state .customer360-card,
 .customer360-load-state .customer360-callout { width: min(720px, 100%); text-align: left; }
 .customer360-activity-details { margin-top: 12px; }
-.customer360-json { max-height: calc(100dvh - 310px); margin: 0; padding: 13px; overflow: auto; border: 1px solid var(--line-row); border-radius: 9px; background: hsl(235 55% 4% / 0.56); color: var(--text-2); font: 0.71875rem/1.55 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+/* The dump's 11.5px sat between two steps of the scale; it rounds up to 12px. */
+.customer360-json { max-height: calc(100dvh - 310px); margin: 0; padding: 13px; overflow: auto; border: 1px solid var(--line-row); border-radius: 9px; background: hsl(235 55% 4% / 0.56); color: var(--text-2); font: var(--fs-tiny)/1.55 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
 
 @media (max-width: 900px) {
   .customer360-three-col { grid-template-columns: 1fr; }
@@ -942,7 +949,7 @@
   from { opacity: 0; transform: scale(0.9); }
   to   { opacity: 1; transform: none; }
 }
-.empty-title { font-family: var(--font-display); font-size: 0.875rem; font-weight: 600; color: var(--text-1); margin: 0; }
+.empty-title { font-family: var(--font-display); font-size: var(--fs-body); font-weight: 600; color: var(--text-1); margin: 0; }
 
 /* ── Timeline (session events) ────────────────────────────────── */
 .timeline-track {
@@ -1174,7 +1181,8 @@
   pointer-events: none;
   min-width: 120px;
 }
-.chart-tip-label { color: var(--text-3); font-family: var(--font-mono); font-size: 0.65625rem; margin: 0 0 5px; }
+/* 10.5px was under the scale's documented 11px floor; it reads the floor now. */
+.chart-tip-label { color: var(--text-3); font-family: var(--font-mono); font-size: var(--fs-micro); margin: 0 0 5px; }
 .chart-tip-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 2px 0; }
 .chart-tip-name { display: flex; align-items: center; gap: 6px; color: var(--text-2); }
 .chart-tip-dot { width: 7px; height: 7px; border-radius: 50%; }
@@ -1189,9 +1197,9 @@
    layer DOES contest it the declaration either stayed inline (the
    revoke-reason input's font-size, which beats consistency.css's
    16px mobile-zoom guard) or the selector here is compound on
-   purpose (noted at the rule). --fs-* stands in only where the
-   token resolves to exactly the literal it replaced; 0.71875rem
-   (11.5px) and 0.78125rem (12.5px) have no token and stay literal.
+   purpose (noted at the rule). Every size below is a token: the
+   two that sat between steps — 0.71875rem (11.5px) and 0.78125rem
+   (12.5px) — round up to --fs-tiny (12px) and --fs-small (13px).
    ═══════════════════════════════════════════════════════════════ */
 
 /* The two sizes pages reached for inline, as utilities. */
@@ -1230,13 +1238,13 @@
 .error-event-time { margin-left: auto; font-size: var(--fs-micro); color: var(--text-3); white-space: nowrap; }
 /* Compound on purpose: the message IS a `.glass-inset p`, so consistency.css
    sets line-height 1.5 on it at (0,1,1). 1.55 is the value that shipped. */
-.error-event-card .error-event-msg { margin: 6px 0 0; font-size: 0.78125rem; color: var(--text-1); line-height: 1.55; word-break: break-word; }
+.error-event-card .error-event-msg { margin: 6px 0 0; font-size: var(--fs-small); color: var(--text-1); line-height: 1.55; word-break: break-word; }
 .error-event-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
 .error-event-list { display: grid; gap: 8px; }
 .error-events-more { display: flex; justify-content: center; margin-top: 10px; }
-/* Two caps, two offsets — the values the two call sites shipped. */
-.error-events-note { margin-top: 10px; font-size: 0.71875rem; color: var(--text-3); }
-.error-occurrences-note { margin-top: 8px; font-size: 0.71875rem; color: var(--text-3); }
+/* Two caps, two offsets — the margins the two call sites shipped. */
+.error-events-note { margin-top: 10px; font-size: var(--fs-tiny); color: var(--text-3); }
+.error-occurrences-note { margin-top: 8px; font-size: var(--fs-tiny); color: var(--text-3); }
 .error-failure-summary { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
 .error-skeleton-row { display: flex; align-items: center; gap: 10px; padding: 12px 16px; }
 .error-skeleton-grow { flex: 1; max-width: 420px; }
@@ -1244,15 +1252,14 @@
 /* The licence-tier chip beside a customer's identity. It was 0.625rem (10px),
    below the scale's floor; it is a status pill like any other, so it reads the
    floor token now.
-   --bg-subtle and --text-muted are declared NOWHERE in src/ — exactly as in
-   the inline style this replaces. Both declarations are invalid at
-   computed-value time, so the FREE chip paints no background and inherits
-   `.person-cell small`'s --text-3. */
+   FREE is deliberately flat — the neutral counterpart to the accent-tinted
+   .is-premium chip beside it. --surface-3 is the token to reach for if it
+   should ever get a fill. */
 .error-tier-pill { padding: 2px 6px; border-radius: 4px; font-size: var(--fs-micro); font-weight: 700; letter-spacing: 0.05em; vertical-align: middle; }
 .error-tier-pill.is-premium { background: var(--accent-subtle); color: var(--accent-text); }
-.error-tier-pill.is-free { background: var(--bg-subtle); color: var(--text-muted); }
+.error-tier-pill.is-free { background: transparent; color: var(--text-3); }
 .error-identity-id { margin-left: 8px; }
-.error-cell-sub { font-size: 0.71875rem; color: var(--text-2); }
+.error-cell-sub { font-size: var(--fs-tiny); color: var(--text-2); }
 .error-cell-bg { font-size: var(--fs-micro); color: var(--text-3); }
 .error-cell-more { color: var(--text-3); }
 .error-cell-empty { color: var(--text-3); opacity: 0.55; }
@@ -1288,7 +1295,7 @@
 /* State, not data: the row was dimmed with an inline opacity. */
 .installs-row.is-revoked { opacity: 0.7; }
 .installs-id { font-family: var(--font-mono); font-size: var(--fs-tiny); color: var(--text-1); }
-.installs-seen { font-size: 0.71875rem; color: var(--text-3); white-space: nowrap; }
+.installs-seen { font-size: var(--fs-tiny); color: var(--text-3); white-space: nowrap; }
 .installs-actions { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
 
 /* ── Reduced motion — movement goes, opacity cues stay ─────────── */

@@ -12,7 +12,6 @@
   --r-pill: 999px;  /* badges, tracks, scrollbars */
 
   /* Layout */
-  --nav-h: 54px;            /* top navbar height */
   --sb-w: 244px;            /* sidebar width; app-glue.css narrows it on html.sb-collapsed */
   --gap-panel: 16px;        /* gap between panels / grid cells */
   --gap-tile: 10px;         /* gap inside KPI grids */

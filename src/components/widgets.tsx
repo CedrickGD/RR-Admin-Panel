@@ -121,7 +121,7 @@ interface RankListProps {
 export function RankList({ items }: RankListProps) {
   if (items.length === 0) {
     return (
-      <p style={{ padding: "10px 0", fontSize: "0.8125rem", color: "var(--text-2)", margin: 0 }}>
+      <p style={{ padding: "10px 0", fontSize: "var(--fs-small)", color: "var(--text-2)", margin: 0 }}>
         No data.
       </p>
     );

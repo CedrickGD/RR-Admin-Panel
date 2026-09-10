@@ -208,7 +208,8 @@ body::after {
 .timezone-card-subtitle {
   margin: 1px 0 0;
   font-family: var(--font-mono);
-  font-size: 0.65625rem;
+  /* Was 10.5px, under the scale's documented 11px floor — up to the micro step. */
+  font-size: var(--fs-micro);
   color: var(--text-3);
 }
 .timezone-card-metrics {
@@ -230,7 +231,8 @@ body::after {
 }
 .timezone-card-metrics strong {
   font-family: var(--font-display);
-  font-size: 0.85rem;
+  /* Was 13.6px, between the small and body steps — rounded up to body. */
+  font-size: var(--fs-body);
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--text-1);
@@ -1297,7 +1299,6 @@ select.glass-input {
 .table-pagination-summary,
 .table-pagination-page {
   color: var(--text-2);
-  font-size: 0.71875rem;
   white-space: nowrap;
 }
 .table-pagination-actions {
@@ -1379,34 +1380,17 @@ select.glass-input {
    wide directory tables must actually FIT. Windows display scaling
    (125–150 %) turns "1080p/1440p" hardware into 1280–1536 CSS px,
    where the 10–12 column tables overflowed even after the page cap
-   was removed. Two mechanisms close the gap:
-   1. a density ladder — cell padding and type tighten as the
-      viewport narrows (!important intentionally beats the inline
-      padding/font on the legacy ds-table pages);
-   2. column priority tiers — th/td pairs tagged .col-xl/.col-lg/
-      .col-md bow out when the viewport can no longer afford them.
-      Nothing is lost: every hidden field remains in the row's
-      expanded detail view. */
-@media (max-width: 1799px) {
-  .data-table-wrap table thead th {
-    padding: 9px 11px;
-  }
-  .data-table-wrap table tbody td {
-    padding: 9px 11px;
-  }
-}
-@media (max-width: 1599px) {
-  .data-table-wrap table {
-    font-size: 0.775rem;
-  }
-  .data-table-wrap table thead th {
-    padding: 8px 9px;
-    font-size: 0.625rem;
-  }
-  .data-table-wrap table tbody td {
-    padding: 8px 9px;
-  }
-}
+   was removed. What closes the gap is the column priority tiers:
+   th/td pairs tagged .col-xl/.col-lg/.col-md bow out when the
+   viewport can no longer afford them. Nothing is lost — every
+   hidden field remains in the row's expanded detail view.
+   A density ladder used to sit here too, tightening cell padding
+   and type as the viewport narrowed. It never rendered: every table
+   in the app is a .record-table, and consistency.css sets both
+   padding and font-size on `html[data-theme] .record-table > …` at
+   higher specificity from a later import. Deleted rather than left
+   documenting something the cascade always threw away — reviving it
+   is separate work. */
 /* Tier cutoffs sit ABOVE the common effective widths (1280 / 1366 / 1536 —
    what Windows 125–150 % scaling makes of 1080p/1440p panels), so each of
    those lands in a configuration that actually fits. */

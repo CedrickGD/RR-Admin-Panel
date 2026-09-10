@@ -20,9 +20,21 @@
   --fs-strong:  0.9375rem;   /* 15px — brand name, emphasized values */
   --fs-section: 1.05rem;     /* ~17px — section titles */
   --fs-page:    1.65rem;     /* ~26px — page title (command-bar row) */
-  --fs-stat:    1.4rem;      /* ~22px — KPI tile value; the one size, no per-layer overrides */
+  --fs-stat:    1.4rem;      /* ~22px — KPI tile value */
+
+  /* The floor above has one documented exception: the .person-avatar initials
+     at 10px in theme/operations.css, decorative and not read as text.
+     The display end is NOT rationalised. --fs-section does render (section
+     titles, compact KPI tiles), but every read of --fs-page and --fs-stat
+     loses to a later literal, and headline text ships at 17.6, 18, 19, 20,
+     20.8, 21.6, 23.04, 24, 26 and 28.8px — not one of them a step. Sites:
+     .stat-value, .page-title, .auth-title, .sb-brand-text strong,
+     .team-summary strong, .customer-workspace-head h1 (and its 18px
+     .customer-workspace-bar.is-stuck variant), .system-check-state,
+     .kpi-timespan-value, and the boot cards in App.tsx. Snapping ten sizes
+     onto three steps restyles the headline of every page, which is a design
+     call for the product owner, not a cleanup — left alone deliberately. */
 
   /* Tracking */
-  --track-display: -0.02em;       /* display text tightens */
   --track-caps: 0.03em;           /* uppercase micro-labels spread */
 }

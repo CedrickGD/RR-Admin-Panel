@@ -40,8 +40,9 @@ export function EmptyState({ allClear = false, icon, title, children, action }: 
           <Check size={18} strokeWidth={2.4} />
         </div>
         <p className="empty-title">{title ?? "All clear"}</p>
+        {/* Was 11.5px, between two steps of the scale — nudged up to the 12px step. */}
         {children ? (
-          <p style={{ fontSize: "0.71875rem", color: "var(--text-3)", maxWidth: 240, margin: "4px auto 0", lineHeight: 1.5 }}>
+          <p style={{ fontSize: "var(--fs-tiny)", color: "var(--text-3)", maxWidth: 240, margin: "4px auto 0", lineHeight: 1.5 }}>
             {children}
           </p>
         ) : null}

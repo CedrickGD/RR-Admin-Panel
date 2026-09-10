@@ -187,11 +187,12 @@ export function KpiStatCard({
                     </linearGradient>
                   </defs>
                   <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
+                  {/* Tick size is an SVG attribute, so no var(): 11 is --fs-micro, the scale's 11px floor, up from 10. */}
                   <XAxis
                     dataKey="day"
                     tickLine={false}
                     axisLine={false}
-                    tick={{ fill: "var(--chart-axis-soft)", fontSize: 10 }}
+                    tick={{ fill: "var(--chart-axis-soft)", fontSize: 11 }}
                     tickFormatter={(day: string) => day.slice(5)}
                     minTickGap={28}
                   />
@@ -199,7 +200,7 @@ export function KpiStatCard({
                     allowDecimals={false}
                     tickLine={false}
                     axisLine={false}
-                    tick={{ fill: "var(--chart-axis-soft)", fontSize: 10 }}
+                    tick={{ fill: "var(--chart-axis-soft)", fontSize: 11 }}
                   />
                   <Tooltip
                     isAnimationActive={false}

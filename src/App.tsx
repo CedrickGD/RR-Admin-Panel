@@ -280,7 +280,7 @@ export default function App() {
             Initializing
           </p>
           <h1 style={{ fontSize: "1.5rem", marginBottom: 8 }}>Preparing Console</h1>
-          <p style={{ fontSize: "0.875rem", color: "var(--text-2)", lineHeight: 1.7 }}>
+          <p style={{ fontSize: "var(--fs-body)", color: "var(--text-2)", lineHeight: 1.7 }}>
             Loading auth state and session data…
           </p>
         </div>
@@ -300,7 +300,7 @@ export default function App() {
             Session check unavailable
           </p>
           <h1 style={{ fontSize: "1.5rem", marginBottom: 8 }}>Still checking your sign-in</h1>
-          <p style={{ fontSize: "0.875rem", color: "var(--text-2)", lineHeight: 1.7 }}>
+          <p style={{ fontSize: "var(--fs-body)", color: "var(--text-2)", lineHeight: 1.7 }}>
             {sessionError}
           </p>
           <button
@@ -368,7 +368,7 @@ export default function App() {
                   <div style={{ flex: 1 }}>
                     <p
                       style={{
-                        fontSize: "0.75rem",
+                        fontSize: "var(--fs-tiny)",
                         fontWeight: 600,
                         color: "var(--danger)",
                         textTransform: "uppercase",
@@ -378,10 +378,10 @@ export default function App() {
                     >
                       Load error
                     </p>
-                    <p style={{ fontSize: "0.8125rem", color: "var(--text-1)", marginBottom: 4 }}>
+                    <p style={{ fontSize: "var(--fs-small)", color: "var(--text-1)", marginBottom: 4 }}>
                       The dashboard could not refresh.
                     </p>
-                    <p style={{ fontSize: "0.8125rem", color: "hsl(4 86% 68%)" }}>{loadError}</p>
+                    <p style={{ fontSize: "var(--fs-small)", color: "hsl(4 86% 68%)" }}>{loadError}</p>
                   </div>
                   <button type="button" className="btn btn-ghost btn-sm" onClick={refresh}>
                     Retry
@@ -509,7 +509,7 @@ export default function App() {
                     Loading
                   </p>
                   <h2 style={{ fontSize: "1.25rem", marginBottom: 8 }}>Fetching dashboard data</h2>
-                  <p style={{ fontSize: "0.8125rem", color: "var(--text-2)", lineHeight: 1.7 }}>
+                  <p style={{ fontSize: "var(--fs-small)", color: "var(--text-2)", lineHeight: 1.7 }}>
                     Loading session summary and telemetry…
                   </p>
                 </div>

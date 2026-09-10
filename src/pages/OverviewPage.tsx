@@ -411,19 +411,20 @@ export function OverviewPage({ summary, stats, filterBar }: OverviewPageProps) {
                       vertical={false}
                       strokeDasharray="3 6"
                     />
+                    {/* Tick size is an SVG attribute, so no var(): 11 is --fs-micro, the scale's 11px floor, up from 10.5. */}
                     <XAxis
                       dataKey="shortLabel"
                       tickLine={false}
                       axisLine={false}
                       minTickGap={20}
-                      tick={{ fill: "var(--chart-axis)", fontSize: 10.5 }}
+                      tick={{ fill: "var(--chart-axis)", fontSize: 11 }}
                     />
                     <YAxis
                       tickLine={false}
                       axisLine={false}
                       width={32}
                       allowDecimals={false}
-                      tick={{ fill: "var(--chart-axis-soft)", fontSize: 10.5 }}
+                      tick={{ fill: "var(--chart-axis-soft)", fontSize: 11 }}
                       tickFormatter={(v: number) => formatNumber(Number(v))}
                     />
                     <Tooltip

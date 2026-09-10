@@ -136,7 +136,7 @@ export function InstallsPanel({ hwid }: InstallsPanelProps) {
                         placeholder="Reason (optional)"
                         maxLength={500}
                         disabled={busy}
-                        style={{ height: 26, fontSize: "0.75rem", width: 180 }}
+                        style={{ height: 26, fontSize: "var(--fs-tiny)", width: 180 }}
                       />
                       <Button
                         size="xs"

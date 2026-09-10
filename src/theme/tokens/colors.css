@@ -16,7 +16,6 @@
 :root {
   /* Ground */
   --bg: #050505;
-  --bg2: #080814;   /* legacy second ground; nothing reads it today */
 
   /* Aurora ambience hues (background only — separate from accent).
      Only css/base.css's html::before/::after read these, and workspace.css
@@ -88,7 +87,6 @@
   /* Dialogs are opaque: the backdrop-filter that used to hide the page behind them is
      banned for perf (app-glue.css), so a translucent fill just leaks the page through. */
   --workspace-dialog: var(--surface-float);
-  --workspace-hover: rgb(0 0 0 / 18%);
 
   /* Skeleton shimmer: a light tint reads on the dark panels, so the two stops
      stay what components.css shipped (~4:1 against --surface-1). */
@@ -106,6 +104,8 @@
   --danger:      hsl(4 86% 58%);     /* #f04438 */
   --danger-sub:  hsl(4 86% 58% / 0.14);
   --danger-text: hsl(4 86% 75%);
+  /* --info has no reader today. It stays: --success/--warning/--danger are live
+     and a status family missing a rung is worse than an unused token. */
   --info:        hsl(207 90% 60%);
   --info-sub:    hsl(207 90% 60% / 0.14);
   --info-text:   hsl(207 90% 75%);
@@ -127,16 +127,11 @@
   --chart-grid:     #ffffff0c;
   --chart-axis:     #a1a1aa;
   --chart-axis-soft: #81818c;
-  /* Legacy chart series aliases — keep in lockstep with the tokens above
-     (nothing reads them today; kept for not-yet-migrated corners). */
-  --chart-1: var(--chart-users);
-  --chart-2: var(--chart-sessions);
-  --chart-3: var(--chart-errors);
-  --chart-4: var(--chart-axis);
 
   /* Legacy glass vocabulary → neutral ladder. index.css still references these
      old names in untouched corners; point them at the tokens above until those
-     pages migrate, then drop them. */
+     pages migrate, then drop them. --glass-3 alone has no reader left; it stays
+     so the alias ladder keeps all three rungs — retire the family together. */
   --glass-1: var(--surface-1);
   --glass-2: var(--surface-2);
   --glass-3: var(--surface-3);
@@ -185,7 +180,6 @@ html[data-theme="light"] {
   --workspace-solid: #fbfbfb;
   --workspace-chrome: rgb(255 255 255 / 76%);
   --workspace-dialog: var(--surface-float);
-  --workspace-hover: rgb(255 255 255 / 35%);
 
   /* The dark theme's translucent white tint composites to ~1.05:1 on the white
      panels — an invisible loading state now that skeletons are the console-wide

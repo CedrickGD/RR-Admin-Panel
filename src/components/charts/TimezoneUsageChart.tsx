@@ -84,13 +84,14 @@ export function TimezoneUsageChart({
               </linearGradient>
             </defs>
             <CartesianGrid stroke="var(--chart-grid)" strokeDasharray="3 6" vertical={false} />
+            {/* Tick size is an SVG attribute, so no var(): 11 is --fs-micro, the scale's 11px floor, up from 10.5. */}
             <XAxis
               dataKey="label"
               tickLine={false}
               axisLine={false}
               interval={3}
               tickMargin={7}
-              tick={{ fill: "var(--chart-axis)", fontSize: 10.5 }}
+              tick={{ fill: "var(--chart-axis)", fontSize: 11 }}
             />
             <YAxis
               tickLine={false}
@@ -98,7 +99,7 @@ export function TimezoneUsageChart({
               width={34}
               allowDecimals={false}
               tickMargin={4}
-              tick={{ fill: "var(--chart-axis-soft)", fontSize: 10.5 }}
+              tick={{ fill: "var(--chart-axis-soft)", fontSize: 11 }}
               tickFormatter={(value: number) => formatNumber(value)}
             />
             <Tooltip

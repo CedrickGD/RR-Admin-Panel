@@ -944,7 +944,7 @@ export function LicensesPage({
                           <strong
                             style={{
                               color: "var(--text-1)",
-                              fontSize: "0.8125rem",
+                              fontSize: "var(--fs-small)",
                               maxWidth: "120px",
                               whiteSpace: "nowrap",
                               overflow: "hidden",
@@ -961,7 +961,7 @@ export function LicensesPage({
                         style={{
                           color: "var(--text-2)",
                           fontStyle: "italic",
-                          fontSize: "0.8125rem",
+                          fontSize: "var(--fs-small)",
                         }}
                       >
                         Unbound

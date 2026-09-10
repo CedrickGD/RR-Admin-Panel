@@ -14,7 +14,6 @@ html.ds-card::before, html.ds-card::after { content: none; }
 body {
   margin: 0;
   font-family: var(--font-ui);
-  font-size: 14px;
   line-height: 1.6;
   color: var(--text-1);
   background: var(--bg);
@@ -175,7 +174,8 @@ h1, h2, h3, h4, h5, h6 {
 }
 .meta-item strong {
   font-family: var(--font-display);
-  font-size: 0.9rem;
+  /* 0.9rem (14.4px) sat just off the scale; snapped down 0.4px to the body step. */
+  font-size: var(--fs-body);
   font-weight: 700;
   color: var(--text-1);
   letter-spacing: -0.02em;

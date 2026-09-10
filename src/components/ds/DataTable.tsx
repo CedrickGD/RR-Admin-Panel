@@ -210,32 +210,20 @@ export interface DetailGridProps {
   items: Array<{ k: string; v: ReactNode }>;
 }
 
-/** Labeled mono-value cells for expanded row detail grids. */
+/**
+ * Labeled mono-value cells for expanded row detail grids.
+ * Anatomy in `.detail-grid` (theme/css/components.css). NOT the same
+ * primitive as <KvList>: that one is a vertical list of hairline-separated
+ * key/value rows (label left, value right); this is a wrapping grid of inset
+ * cards with the label above the value. Same data shape, different render.
+ */
 export function DetailGrid({ items }: DetailGridProps) {
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-        gap: 10,
-      }}
-    >
+    <div className="detail-grid">
       {items.map(({ k, v }) => (
-        <div key={k} className="glass-inset" style={{ padding: "8px 12px" }}>
-          <p className="label-sm" style={{ marginBottom: 3 }}>
-            {k}
-          </p>
-          <p
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: "0.75rem",
-              color: "var(--text-1)",
-              wordBreak: "break-all",
-              margin: 0,
-            }}
-          >
-            {v}
-          </p>
+        <div key={k} className="glass-inset">
+          <p className="label-sm">{k}</p>
+          <p className="detail-grid-val">{v}</p>
         </div>
       ))}
     </div>

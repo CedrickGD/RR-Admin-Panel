@@ -52,9 +52,11 @@ const FIELD_SELECTOR = [
 ].join(",");
 
 /**
- * Drill-down modal — opaque dark floating surface over a blurred scrim.
- * Used by KPI tiles and any detail view. Escape / scrim click closes unless
- * the caller opts out (dismissOnScrim) or reports unsaved edits (isDirty).
+ * The dialog. Every dialog in the console is this one component — confirms,
+ * forms, detail views and the KPI drill-downs it was first written for — an
+ * opaque floating surface over a blurred scrim. Escape / scrim click closes
+ * unless the caller opts out (dismissOnScrim) or reports unsaved edits
+ * (isDirty). Its CSS is one block in theme/css/components.css.
  */
 export function Modal({
   open,
@@ -227,13 +229,13 @@ export function Modal({
   // ancestor grid entrance rules historically outranked the overlay's own
   // entrance (the staggered grid's nth-child animation-delay made the modal
   // flash visible → blank → fade-in — the "double blink"). On <body> only the
-  // dedicated .kpi-overlay/.kpi-modal entrance applies, and it runs once per
+  // dedicated .dialog-overlay/.dialog entrance applies, and it runs once per
   // open (insertion-only; data polls update props without remounting, so it
   // never replays).
   return createPortal(
     <div
       ref={overlayRef}
-      className={`kpi-overlay${size === "viewport" ? " kpi-overlay-viewport" : ""}`}
+      className={`dialog-overlay${size === "viewport" ? " dialog-overlay-viewport" : ""}`}
       data-modal-root="true"
       data-state={open ? "open" : "closed"}
       onClick={
@@ -250,7 +252,7 @@ export function Modal({
     >
       <div
         ref={dialogRef}
-        className={`kpi-modal${size === "viewport" ? " kpi-modal-viewport" : ""}${className ? ` ${className}` : ""}`}
+        className={`dialog${size === "viewport" ? " dialog-viewport" : ""}${className ? ` ${className}` : ""}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelledBy}
@@ -258,7 +260,7 @@ export function Modal({
         tabIndex={-1}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="kpi-modal-head">
+        <div className="dialog-head">
           <div>
             {shown.kicker ? (
               <p className="kicker" id={kickerId}>
@@ -284,7 +286,7 @@ export function Modal({
           </button>
         </div>
         {confirmDiscard ? (
-          <div className="modal-discard" role="alert">
+          <div className="dialog-discard" role="alert">
             <p>Discard unsaved changes?</p>
             <div className="row-actions">
               <button
@@ -308,7 +310,7 @@ export function Modal({
             </div>
           </div>
         ) : null}
-        <div ref={contentRef} className="kpi-modal-content">
+        <div ref={contentRef} className="dialog-body">
           {shown.children}
         </div>
       </div>
@@ -336,7 +338,7 @@ export interface ModalActionsProps {
  */
 export function ModalActions({ children, align = "end" }: ModalActionsProps) {
   return (
-    <div className={`modal-actions${align === "between" ? " modal-actions-between" : ""}`}>
+    <div className={`dialog-actions${align === "between" ? " dialog-actions-between" : ""}`}>
       {children}
     </div>
   );

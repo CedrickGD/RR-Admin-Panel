@@ -172,7 +172,7 @@ body {
   color: var(--text-1);
 }
 .sb-brand-text small {
-  font-size: 11px;
+  font-size: var(--fs-micro);
   color: var(--text-3);
   letter-spacing: 0.02em;
 }
@@ -184,10 +184,10 @@ body {
   flex: 1;
 }
 .sb-item {
-  border-radius: 8px;
+  border-radius: var(--r-ctl);
   color: var(--text-2);
   min-height: 40px;
-  font-size: 13px;
+  font-size: var(--fs-small);
   padding: 8px 11px;
   gap: 11px;
   background: transparent;
@@ -261,7 +261,7 @@ body {
 .account-avatar {
   width: 33px;
   height: 33px;
-  border-radius: 10px;
+  border-radius: var(--r-sm);
   background: var(--accent-subtle);
   color: var(--accent-text);
   display: grid;
@@ -274,7 +274,7 @@ body {
   min-width: 0;
 }
 .account-text strong {
-  font-size: 12px;
+  font-size: var(--fs-tiny);
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -300,7 +300,7 @@ body {
   display: flex;
   gap: 12px;
   align-items: center;
-  font-size: 12px;
+  font-size: var(--fs-tiny);
   white-space: nowrap;
 }
 .workspace-breadcrumb > span,
@@ -319,7 +319,7 @@ body {
   align-items: center;
   gap: 9px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--r-ctl);
   padding: 7px 10px;
   color: var(--text-3);
   background: var(--surface-1);
@@ -375,7 +375,7 @@ body {
 .section-sub {
   color: var(--text-3);
   line-height: 1.65;
-  font-size: 12px;
+  font-size: var(--fs-tiny);
 }
 .panel,
 .stat-card,
@@ -431,7 +431,7 @@ body {
   color: var(--tile-color);
 }
 .stat-label {
-  font-size: 12px;
+  font-size: var(--fs-tiny);
   text-transform: none;
   letter-spacing: 0;
   font-weight: 500;
@@ -459,11 +459,11 @@ body {
 }
 .stat-sub {
   color: var(--text-3);
-  font-size: 11px;
+  font-size: var(--fs-micro);
 }
 .badge,
 .tag {
-  font-size: 11px;
+  font-size: var(--fs-micro);
   letter-spacing: 0;
   text-transform: none;
   font-weight: 500;
@@ -490,10 +490,10 @@ body {
    on the button, and a control that needs a shadow can now just declare one. */
 .btn {
   box-shadow: none;
-  font-size: 12px;
+  font-size: var(--fs-tiny);
   font-weight: 550;
   min-height: 35px;
-  border-radius: 8px;
+  border-radius: var(--r-ctl);
 }
 .btn-primary {
   background: var(--accent);
@@ -532,7 +532,7 @@ select.glass-input {
   background: var(--surface-2);
   color: var(--text-1);
   border: 1px solid var(--line-hi);
-  border-radius: 8px;
+  border-radius: var(--r-ctl);
   box-shadow: none;
 }
 .search-wrap {
@@ -542,23 +542,25 @@ select.glass-input {
 .label-sm {
   text-transform: none;
   letter-spacing: 0;
-  font-size: 12px;
+  font-size: var(--fs-tiny);
   color: var(--text-2);
 }
-.gdrop-menu,
-.modal {
+/* `.modal` used to ride along here; no component has ever rendered that class
+   (the app has one dialog and it is `.dialog`), so the selector is the menu
+   alone now. */
+.gdrop-menu {
   background: var(--surface-float);
   border: 1px solid var(--line-hi);
   color: var(--text-1);
 }
 table {
-  font-size: 12px;
+  font-size: var(--fs-tiny);
 }
 /* Sentence case, no tracking. The uppercase + 0.1em this had to beat lived in
    `.data-table thead th` in index.css and css/components.css and is deleted
    there, so a plain type selector in this layer is the last word on it. */
 th {
-  font-size: 11px;
+  font-size: var(--fs-micro);
   text-transform: none;
   letter-spacing: 0;
   font-weight: 500;
@@ -583,12 +585,12 @@ td {
   padding: 0 0 28px;
 }
 .settings-section h2 {
-  font-size: 15px;
+  font-size: var(--fs-strong);
   font-weight: 600;
   margin: 0 0 4px;
 }
 .settings-section > p {
-  font-size: 12px;
+  font-size: var(--fs-tiny);
   color: var(--text-3);
   margin-bottom: 19px;
 }
@@ -599,7 +601,7 @@ td {
 }
 .theme-option {
   border: 1px solid var(--line-hi);
-  border-radius: 10px;
+  border-radius: var(--r-sm);
   padding: 12px;
   text-align: left;
 }
@@ -648,7 +650,7 @@ td {
   align-items: center;
   gap: 7px;
   padding-top: 11px;
-  font-size: 12px;
+  font-size: var(--fs-tiny);
   color: var(--text-1);
 }
 .theme-option > span > svg:last-child {
@@ -687,7 +689,7 @@ td {
   border: 1px solid var(--line-hi);
   border-radius: 9px;
   color: var(--text-2);
-  font-size: 11px;
+  font-size: var(--fs-micro);
 }
 .background-options button svg {
   width: 21px;
@@ -706,7 +708,7 @@ td {
 .setting-slider {
   display: grid;
   gap: 10px;
-  font-size: 12px;
+  font-size: var(--fs-tiny);
   color: var(--text-2);
 }
 .setting-slider > span {
@@ -727,12 +729,12 @@ td {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  font-size: 12px;
+  font-size: var(--fs-tiny);
 }
 .toggle-row small {
   display: block;
   color: var(--text-3);
-  font-size: 11px;
+  font-size: var(--fs-micro);
   margin-top: 3px;
 }
 .toggle-row input {
@@ -749,11 +751,11 @@ td {
   margin-top: 15px;
 }
 .upload-box > span {
-  font-size: 11px;
+  font-size: var(--fs-micro);
   color: var(--text-3);
 }
 .settings-caption {
-  font-size: 11px;
+  font-size: var(--fs-micro);
   color: var(--text-3);
   line-height: 1.7;
   margin: 14px 0;
@@ -764,7 +766,7 @@ td {
   gap: 15px;
   margin: 22px 0;
   color: var(--text-2);
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 .clean-details dt {
   color: var(--text-3);
@@ -787,7 +789,7 @@ td {
   color: var(--text-2);
   border: 1px solid var(--line);
   border-radius: 9px;
-  font-size: 12px;
+  font-size: var(--fs-tiny);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -807,7 +809,7 @@ td {
   align-items: center;
   gap: 8px;
   color: var(--text-3);
-  font-size: 12px;
+  font-size: var(--fs-tiny);
 }
 .team-summary svg {
   width: 17px;
@@ -827,7 +829,7 @@ td {
 .search-field input {
   border: 0;
   background: none;
-  font-size: 12px;
+  font-size: var(--fs-tiny);
 }
 .clean-table {
   width: 100%;
@@ -843,13 +845,13 @@ td {
   border-bottom: 1px solid var(--line-row);
 }
 .clean-table td strong {
-  font-size: 12px;
+  font-size: var(--fs-tiny);
   font-weight: 550;
 }
 .clean-table td small {
   display: block;
   color: var(--text-3);
-  font-size: 11px;
+  font-size: var(--fs-micro);
   margin-top: 4px;
 }
 .clean-table tr:last-child td {
@@ -867,7 +869,7 @@ td {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  font-size: 12px;
+  font-size: var(--fs-tiny);
 }
 .status-text i {
   background: currentColor;
@@ -923,7 +925,7 @@ td {
   border-radius: 7px;
   min-width: 0;
   width: 100%;
-  font-size: 12px;
+  font-size: var(--fs-tiny);
 }
 /* The permission matrix is a deviation from the base role, so it stays folded
    until someone needs it. The summary is a flex row, which removes the native
@@ -952,11 +954,11 @@ td {
   gap: 10px;
 }
 .permissions-heading h3 {
-  font-size: 15px;
+  font-size: var(--fs-strong);
 }
 .permissions-heading > span {
   margin-left: auto;
-  font-size: 11px;
+  font-size: var(--fs-micro);
   color: var(--text-3);
 }
 .permission-table td {
@@ -973,7 +975,7 @@ td {
 .confirm-copy {
   padding: 10px 0;
   color: var(--text-2);
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 .audit-list > div {
   display: flex;
@@ -989,11 +991,11 @@ td {
   border-radius: 9px;
 }
 .audit-list strong {
-  font-size: 12px;
+  font-size: var(--fs-tiny);
 }
 .audit-list p,
 .audit-list time {
-  font-size: 11px;
+  font-size: var(--fs-micro);
   color: var(--text-3);
 }
 .audit-list time {
@@ -1001,7 +1003,7 @@ td {
   white-space: nowrap;
 }
 .audit-list details {
-  font-size: 11px;
+  font-size: var(--fs-micro);
   color: var(--text-3);
   margin-top: 6px;
 }
@@ -1029,7 +1031,7 @@ td {
   margin: 0;
 }
 .customer-workspace-head p {
-  font-size: 12px;
+  font-size: var(--fs-tiny);
   color: var(--text-3);
   margin-top: 3px;
 }
@@ -1055,7 +1057,7 @@ td {
   background: none;
   color: var(--text-3);
   padding: 14px 0;
-  font-size: 12px;
+  font-size: var(--fs-tiny);
   border: 0;
   border-bottom: 2px solid transparent;
 }
@@ -1094,7 +1096,7 @@ td {
 .customer-advanced > summary {
   cursor: pointer;
   color: var(--text-3);
-  font-size: 12px;
+  font-size: var(--fs-tiny);
   margin-bottom: 18px;
 }
 .customer360-feedback,
@@ -1148,14 +1150,14 @@ html[data-theme="light"] .recharts-default-tooltip {
     width: 38px;
     height: 38px;
     flex-shrink: 0;
-    border-radius: 8px;
+    border-radius: var(--r-ctl);
     z-index: 160;
     position: relative;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
   }
   .workspace-breadcrumb {
-    font-size: 12px;
+    font-size: var(--fs-tiny);
   }
   .workspace-search {
     width: auto;
@@ -1228,7 +1230,7 @@ html[data-theme="light"] .recharts-default-tooltip {
     justify-content: center;
     width: 36px;
     height: 36px;
-    border-radius: 8px;
+    border-radius: var(--r-ctl);
     color: var(--text-2);
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid var(--line);
@@ -1248,9 +1250,9 @@ html[data-theme="light"] .recharts-default-tooltip {
   .sidebar .sb-item {
     min-height: 44px;
     padding: 10px 14px;
-    font-size: 0.875rem;
+    font-size: var(--fs-body);
     gap: 12px;
-    border-radius: 10px;
+    border-radius: var(--r-sm);
     -webkit-tap-highlight-color: transparent;
   }
   .sidebar .sb-item svg {
@@ -1273,7 +1275,7 @@ html[data-theme="light"] .recharts-default-tooltip {
   }
   .sidebar .account-row {
     padding: 8px 10px;
-    border-radius: 10px;
+    border-radius: var(--r-sm);
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid var(--line);
   }
@@ -1418,7 +1420,7 @@ html[data-theme="light"] .recharts-default-tooltip {
   gap: 15px;
   padding: 12px 0;
   border-bottom: 1px solid var(--line-row);
-  font-size: 12px;
+  font-size: var(--fs-tiny);
 }
 .overview-glance span {
   color: var(--text-3);
@@ -1426,14 +1428,9 @@ html[data-theme="light"] .recharts-default-tooltip {
 .overview-glance strong {
   font-weight: 500;
 }
-.kpi-modal {
-  background: var(--surface-float);
-  color: var(--text-1);
-  border-color: var(--line-hi);
-}
-.kpi-modal-head {
-  border-color: var(--line);
-}
+/* The dialog surface and its head border moved into the one `.dialog` block in
+   theme/css/components.css, which is where the rest of it already lives. Both
+   rules restated values a later layer set again anyway. */
 @media (max-width: 1100px) {
   .overview-body {
     grid-template-columns: 1fr;
@@ -1451,9 +1448,11 @@ html[data-theme="light"] .recharts-default-tooltip {
     grid-template-columns: 1fr;
   }
 }
+/* Page subtitles render. They were hidden once, re-enabled from a later layer,
+   and documented as hidden in PageHeader.tsx; the hide is gone and the `sub`
+   prop is the DS contract now, so this owns the whole line. */
 .page-header .page-subtitle {
-  display: block;
-  font-size: 12px;
+  font-size: var(--fs-tiny);
   color: var(--text-3);
   margin-top: 7px;
   line-height: 1.65;
@@ -1472,7 +1471,7 @@ html[data-theme="light"] .recharts-default-tooltip {
   background: var(--surface-1);
 }
 .auth-field .label-sm {
-  font-size: 12px;
+  font-size: var(--fs-tiny);
   text-transform: none;
   letter-spacing: 0;
   color: var(--text-2);
@@ -1481,10 +1480,10 @@ html[data-theme="light"] .recharts-default-tooltip {
   margin-left: 0;
 }
 /* Wide enough for a form, far short of the viewport size it used to take. */
-.kpi-modal.team-editor {
+.dialog.team-editor {
   width: min(760px, 100%);
 }
-.team-editor > .kpi-modal-head {
+.team-editor > .dialog-head {
   padding: 20px 24px;
   margin: 0;
   border-bottom: 1px solid var(--line);
@@ -1496,7 +1495,7 @@ html[data-theme="light"] .recharts-default-tooltip {
   margin-bottom: 20px;
 }
 .customer-action-bar .btn {
-  font-size: 11px;
+  font-size: var(--fs-micro);
 }
 .btn:disabled,
 .btn-icon:disabled,
@@ -1522,12 +1521,12 @@ button:disabled {
 .page-content table th {
   background: var(--surface-2);
   color: var(--text-3);
-  font-size: 11px;
+  font-size: var(--fs-micro);
 }
 .customer360-info dt {
   text-transform: none;
   letter-spacing: 0;
-  font-size: 11px;
+  font-size: var(--fs-micro);
   color: var(--text-3);
 }
 .customer-directory-controls {
@@ -1552,7 +1551,7 @@ html[data-background="aurora"] .settings-controls {
   padding: 24px;
   background: var(--workspace-surface);
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--r);
 }
 html[data-background="image"] .page-header,
 html[data-background="aurora"] .page-header {
@@ -1565,12 +1564,12 @@ html[data-background="image"] .team-summary,
 html[data-background="aurora"] .team-summary {
   background: transparent;
   padding: 14px 20px;
-  border-radius: 10px;
+  border-radius: var(--r-sm);
 }
 html[data-background="image"] .settings-caption {
   background: transparent;
   padding: 10px;
-  border-radius: 8px;
+  border-radius: var(--r-ctl);
 }
 @media (max-width: 600px) {
   html[data-background="image"] .settings-controls,

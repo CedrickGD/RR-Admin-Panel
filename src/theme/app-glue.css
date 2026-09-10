@@ -120,11 +120,10 @@ body::after {
   height: 14px;
 }
 
-/* App extension to the DS drill-down modal: the recharts area section
-   between TimespanGrid and BreakdownList. (Currently also in
-   index.css; this copy keeps the modal chart styled if the legacy kpi
-   block is ever pruned.) */
-.kpi-modal-chart {
+/* App extension to the KPI drill-down: the recharts area section between
+   TimespanGrid and BreakdownList. (Currently also in index.css; this copy
+   keeps the chart styled if the legacy kpi block is ever pruned.) */
+.kpi-drilldown-chart {
   margin: 0 -6px;
 }
 
@@ -157,7 +156,7 @@ body::after {
   padding: 0;
   background: none;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--r-ctl);
   color: var(--text-3);
   cursor: pointer;
   transition:
@@ -201,7 +200,7 @@ body::after {
 .timezone-card-title {
   margin: 0;
   font-family: var(--font-display);
-  font-size: 0.875rem;
+  font-size: var(--fs-body);
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--text-1);
@@ -238,20 +237,28 @@ body::after {
   font-variant-numeric: tabular-nums;
 }
 /* Chart well inside the timezone card — pull the recharts plot toward
-   the card edges (same recipe as .kpi-modal-chart). */
+   the card edges (same recipe as .kpi-drilldown-chart). */
 .timezone-card-shell {
   margin: 0 -6px;
 }
 
 /* Inline danger note — one-line error banner under the KPI row
-   (WorkersPage TXT-export failures). */
+   (WorkersPage TXT-export failures). The row anatomy came from an inline
+   style object on ErrorsPage, the banner's only caller; the message takes
+   the free width so a trailing Retry button sits at the right edge. */
 .inline-danger-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   background: var(--danger-sub);
   border: 1px solid hsl(4 86% 58% / 0.25);
-  border-radius: 10px;
+  border-radius: var(--r-sm);
   padding: 10px 14px;
   font-size: var(--fs-body);
   color: var(--danger-text);
+}
+.inline-danger-note > span {
+  flex: 1;
 }
 
 /* Filter row below the page header (Heatmap region chips): wraps like
@@ -624,9 +631,9 @@ svg * {
 .gdrop-menu {
   background: hsl(240 30% 11% / 0.97);
 }
-.kpi-modal {
-  background: hsl(240 30% 10% / 0.97);
-}
+/* The dialog had a companion fill here; the `.dialog` block in
+   theme/css/components.css and consistency.css both set the same property from
+   a later point in the cascade, so this one never painted. */
 
 /* ── Sidebar shell (nav back on the left) ───────────────────────── */
 .sidebar {
@@ -694,7 +701,7 @@ svg * {
   gap: 10px;
   padding: 9px 12px;
   border-radius: 11px;
-  font-size: 0.8125rem;
+  font-size: var(--fs-small);
   font-weight: 500;
   color: var(--text-2);
   text-align: left;
@@ -1179,14 +1186,11 @@ select.glass-input {
   }
 }
 
-/* KPI drill-down modal — ONE clean enter/exit (overrides the duplicate
-   legacy entrance rules in index.css/components.css by source order).
-   Transitions keyed off data-state, not keyframes: rapid open/close must
-   retarget from the current opacity instead of restarting (AUDIT §4 — a
-   keyframe swap mid-entrance snapped the half-faded overlay to full opacity
-   before fading out). @starting-style supplies the entrance's from-frame;
-   Modal.tsx unmounts on the overlay's opacity transitionend. */
-@keyframes kpi-overlay-fade {
+/* The repo's plain opacity fade. Named for what it does, not for the dialog it
+   was first written for: the dialog's own enter/exit lives with the rest of
+   `.dialog` in theme/css/components.css and uses transitions, not keyframes —
+   the only callers left here are the reduced-motion fallbacks below. */
+@keyframes fade-in {
   from {
     opacity: 0;
   }
@@ -1202,44 +1206,6 @@ select.glass-input {
   to {
     opacity: 1;
     transform: none;
-  }
-}
-.kpi-overlay {
-  animation: none; /* keep suppressing the legacy components.css entrance */
-  opacity: 1;
-  transition: opacity 0.15s var(--ease-out);
-}
-.kpi-modal {
-  opacity: 1;
-  transform: none;
-  transition:
-    opacity 0.18s var(--ease-out),
-    transform 0.18s var(--ease-out);
-}
-@starting-style {
-  .kpi-overlay {
-    opacity: 0;
-  }
-  .kpi-modal {
-    opacity: 0;
-    transform: scale(0.97);
-  }
-}
-.kpi-overlay[data-state="closed"] {
-  opacity: 0;
-  pointer-events: none;
-}
-.kpi-overlay[data-state="closed"] .kpi-modal {
-  opacity: 0;
-  transform: scale(0.97);
-}
-@media (prefers-reduced-motion: reduce) {
-  /* Fade-only both ways: the scale movement goes, the opacity bridge stays
-     (transform isn't in the transition list, so it snaps to its final value). */
-  .kpi-modal,
-  .kpi-overlay[data-state="closed"] .kpi-modal {
-    transform: none;
-    transition: opacity 0.15s var(--ease-out);
   }
 }
 
@@ -1288,11 +1254,11 @@ select.glass-input {
 }
 .data-table-wrap::-webkit-scrollbar-track {
   background: rgba(255, 255, 255, 0.04);
-  border-radius: 999px;
+  border-radius: var(--r-pill);
 }
 .data-table-wrap::-webkit-scrollbar-thumb {
   background: hsl(var(--ah) var(--as) var(--al) / 0.45);
-  border-radius: 999px;
+  border-radius: var(--r-pill);
 }
 .data-table-wrap::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--ah) var(--as) var(--al) / 0.7);
@@ -1466,7 +1432,7 @@ select.glass-input {
 @media (prefers-reduced-motion: reduce) {
   /* Popovers: keep the fade, drop the movement */
   .gdrop-menu {
-    animation: kpi-overlay-fade 0.12s ease-out;
+    animation: fade-in 0.12s ease-out;
   }
   /* Drawer: instant (position change), scrim keeps its opacity transition */
   .sidebar {
@@ -1474,7 +1440,7 @@ select.glass-input {
   }
   /* Page switch: fade only */
   .page-enter {
-    animation: kpi-overlay-fade 0.2s ease-out;
+    animation: fade-in 0.2s ease-out;
   }
   /* Auth error entrance: fade only */
   .auth-card .inline-error {

@@ -8,17 +8,27 @@
  * the sidebar, the breadcrumb and the tab title use — instead of a `title`.
  *
  * Deviation from the DS contract: an optional `sub` prop is accepted for a
- * subtitle line (`.page-subtitle`, styled by theme/workspace.css). Use it
- * only when it carries a fact, e.g. "Checked automatically every 15 seconds".
+ * subtitle line. It RENDERS — `.page-subtitle` was hidden by the v2 glue CSS
+ * once and that rule is gone; theme/workspace.css's `.page-header
+ * .page-subtitle` owns the line now. Use it only when it carries a fact, e.g.
+ * "Checked automatically every 15 seconds"; the marketing sentences that made
+ * it worth hiding have been deleted.
  */
 import type { ReactNode } from "react";
 import { PAGE_META } from "../../pageMeta";
 import type { PageKey } from "../../types/telemetry";
 
 export type PageHeaderProps = {
-  /** Uppercase accent micro-label above the title, e.g. "Production Operations", "Realtime" */
+  /**
+   * Uppercase accent micro-label above the title, e.g. "Failures", "Geography".
+   * Eight call sites on seven pages still pass one, but nothing shows it:
+   * theme/workspace.css hides `.page-header .kicker` (together with the panel
+   * and stat-card ones) and the top-bar breadcrumb plays the role instead.
+   * Kept because it is used — deleting it is a visual decision, not a rename
+   * (audit F067). ds/Modal's `kicker` is a different prop and does render.
+   */
   kicker?: string;
-  /** Subtitle line — rendered as .page-subtitle. */
+  /** Subtitle line — rendered as .page-subtitle, and visible. */
   sub?: ReactNode;
   /** Filter bar, badges, MetaRow */
   right?: ReactNode;

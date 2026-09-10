@@ -238,7 +238,7 @@ export function FeedbackPage({ summary, filterBar }: FeedbackPageProps) {
               value={searchQuery}
               onChange={setSearchQuery}
               placeholder="Search message, customer, license…"
-              style={{ width: "min(280px, 100%)" }}
+              className="search-wrap-280"
             />
           </div>
         </div>
@@ -249,11 +249,7 @@ export function FeedbackPage({ summary, filterBar }: FeedbackPageProps) {
         )}
 
         {loading ? (
-          <div
-            className="panel-body"
-            style={{ display: "flex", flexDirection: "column", gap: 10 }}
-            aria-busy="true"
-          >
+          <div className="panel-body panel-body-stack" aria-busy="true">
             {[0, 1, 2].map((i) => (
               <div key={i} className="feedback-card">
                 <Skeleton width={120} />
@@ -286,7 +282,7 @@ export function FeedbackPage({ summary, filterBar }: FeedbackPageProps) {
               : "Feedback submitted from the app will show up here."}
           </EmptyState>
         ) : (
-          <div className="panel-body" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div className="panel-body panel-body-stack">
             {filtered.map((f) => {
               const isNew = f.status === "new";
               const long = isLongMessage(f.message);
@@ -298,39 +294,16 @@ export function FeedbackPage({ summary, filterBar }: FeedbackPageProps) {
                 : undefined;
 
               return (
-                <div
-                  key={f.id}
-                  className={`feedback-card ${isNew ? "is-new" : ""}`}
-                  style={{
-                    padding: "14px 16px",
-                    boxShadow: isNew ? "inset 2px 0 0 0 var(--accent)" : undefined,
-                  }}
-                >
+                <div key={f.id} className={`feedback-card feedback-item ${isNew ? "is-new" : ""}`}>
                   {/* header: status + time · actions */}
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      gap: 10,
-                      marginBottom: 8,
-                    }}
-                  >
-                    <div
-                      style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}
-                    >
+                  <div className="feedback-item-head">
+                    <div className="feedback-item-status">
                       <Badge tone={STATUS_TONE[f.status]}>{STATUS_LABEL[f.status]}</Badge>
-                      <span
-                        style={{
-                          fontSize: "var(--fs-tiny)",
-                          color: "var(--text-3)",
-                          fontFamily: "var(--font-mono)",
-                        }}
-                      >
+                      <span className="feedback-item-time">
                         <RelativeTime iso={f.created_at} />
                       </span>
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                    <div className="feedback-item-actions">
                       <Button
                         variant="ghost"
                         icon={<MessageSquare size={16} />}
@@ -370,17 +343,11 @@ export function FeedbackPage({ summary, filterBar }: FeedbackPageProps) {
                     </div>
                   </div>
 
-                  {/* message */}
+                  {/* message — anatomy in .feedback-item-msg; only the
+                      conditional 4-line clamp stays an inline style */}
                   <p
-                    style={{
-                      margin: "0 0 8px",
-                      fontSize: "var(--fs-body)",
-                      color: "var(--text-1)",
-                      lineHeight: 1.55,
-                      whiteSpace: "pre-wrap",
-                      wordBreak: "break-word",
-                      ...(long && !isExpanded ? CLAMP_STYLE : {}),
-                    }}
+                    className="feedback-item-msg"
+                    style={long && !isExpanded ? CLAMP_STYLE : undefined}
                   >
                     {f.message}
                   </p>
@@ -395,16 +362,7 @@ export function FeedbackPage({ summary, filterBar }: FeedbackPageProps) {
                   ) : null}
 
                   {/* meta: author link + context */}
-                  <div
-                    style={{
-                      display: "flex",
-                      flexWrap: "wrap",
-                      alignItems: "center",
-                      gap: "6px 14px",
-                      fontSize: "var(--fs-small)",
-                      color: "var(--text-3)",
-                    }}
-                  >
+                  <div className="feedback-item-meta">
                     {canOpenCustomer ? (
                       <a
                         href={`?customerBy=feedback_id&customer=${f.id}#/feedback`}
@@ -428,39 +386,22 @@ export function FeedbackPage({ summary, filterBar }: FeedbackPageProps) {
                         {liveSession ? <span className="status-dot" title="Online now" /> : null}
                       </a>
                     ) : f.machine_name ? (
-                      <span
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 5,
-                          color: "var(--text-2)",
-                        }}
-                      >
+                      <span className="feedback-item-fact">
                         <User size={12} />
                         {f.machine_name}
                       </span>
                     ) : null}
                     {f.contact ? (
-                      <span
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 5,
-                          color: "var(--text-2)",
-                        }}
-                        title="Contact for a reply"
-                      >
+                      <span className="feedback-item-fact" title="Contact for a reply">
                         <Mail size={12} />
                         {f.contact}
                       </span>
                     ) : null}
                     {f.app_version ? <span>v{f.app_version}</span> : null}
                     {f.platform ? <span>{f.platform}</span> : null}
-                    {f.license_key ? (
-                      <span style={{ fontFamily: "var(--font-mono)" }}>{f.license_key}</span>
-                    ) : null}
+                    {f.license_key ? <span className="mono">{f.license_key}</span> : null}
                     {f.hwid ? (
-                      <span style={{ fontFamily: "var(--font-mono)" }} title={f.hwid}>
+                      <span className="mono" title={f.hwid}>
                         HWID {f.hwid.slice(0, 10)}…
                       </span>
                     ) : null}

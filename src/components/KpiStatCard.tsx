@@ -166,7 +166,7 @@ export function KpiStatCard({
           ) : null}
 
           {drilldown.series && drilldown.series.length > 1 ? (
-            <div className="kpi-modal-chart">
+            <div className="kpi-drilldown-chart">
               <ResponsiveContainer width="100%" height={160}>
                 <AreaChart
                   data={drilldown.series}
@@ -241,7 +241,7 @@ export function KpiStatCard({
             <BreakdownList title={drilldown.breakdownTitle} rows={drilldown.breakdown} />
           ) : null}
 
-          {drilldown.note ? <p className="kpi-modal-note">{drilldown.note}</p> : null}
+          {drilldown.note ? <p className="kpi-drilldown-note">{drilldown.note}</p> : null}
         </Modal>
       ) : null}
     </>

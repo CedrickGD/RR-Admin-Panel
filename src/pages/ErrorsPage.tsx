@@ -158,8 +158,8 @@ const VIEW_TABS: TabItem<ViewKey>[] = [
 function ErrorEventCard({ event }: { event: ErrorEventDetail }) {
   const extras = Object.entries(event.extras);
   return (
-    <div className="glass-inset" style={{ padding: "10px 12px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+    <div className="glass-inset error-event-card">
+      <div className="error-event-head">
         <AlertTriangle
           size={13}
           style={{
@@ -167,40 +167,19 @@ function ErrorEventCard({ event }: { event: ErrorEventDetail }) {
             color: event.kind === BACKGROUND_KIND ? "var(--warning)" : "var(--danger)",
           }}
         />
-        <span
-          className="mono"
-          style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-1)" }}
-        >
-          {event.type?.trim() || "error"}
-        </span>
+        <span className="mono error-event-type">{event.type?.trim() || "error"}</span>
         <Badge tone={kindTone(event.kind)}>{kindLabel(event.kind)}</Badge>
         {event.code ? <Tag title="Error code">{event.code}</Tag> : null}
         <span
-          className="mono"
-          style={{
-            marginLeft: "auto",
-            fontSize: "0.6875rem",
-            color: "var(--text-3)",
-            whiteSpace: "nowrap",
-          }}
+          className="mono error-event-time"
           title={event.receivedAt ? `Received ${formatDate(event.receivedAt)}` : undefined}
         >
           {formatDate(event.timestamp)} · <RelativeTime iso={event.timestamp} />
         </span>
       </div>
-      <p
-        style={{
-          margin: "6px 0 0",
-          fontSize: "0.78125rem",
-          color: "var(--text-1)",
-          lineHeight: 1.55,
-          wordBreak: "break-word",
-        }}
-      >
-        {event.message?.trim() || "(no message)"}
-      </p>
+      <p className="error-event-msg">{event.message?.trim() || "(no message)"}</p>
       {event.appVersion || event.sessionId || extras.length > 0 ? (
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+        <div className="error-event-tags">
           {event.appVersion ? (
             <span className="error-metric-tag">version: {event.appVersion}</span>
           ) : null}
@@ -514,12 +493,8 @@ export function ErrorsPage() {
       {/* Stale data on screen: warn next to it. With no data the panel's
           empty state carries the failure instead, so it is never reported twice. */}
       {error && current ? (
-        <div
-          className="inline-danger-note"
-          role="alert"
-          style={{ display: "flex", alignItems: "center", gap: 10 }}
-        >
-          <span style={{ flex: 1 }}>{error} Showing the last loaded data.</span>
+        <div className="inline-danger-note" role="alert">
+          <span>{error} Showing the last loaded data.</span>
           <Button size="sm" onClick={refresh} disabled={loading}>
             {loading ? "Retrying…" : "Retry"}
           </Button>
@@ -527,13 +502,13 @@ export function ErrorsPage() {
       ) : null}
 
       {current?.scanTruncated ? (
-        <p style={{ fontSize: "0.75rem", color: "var(--text-3)", margin: "-8px 0 0" }}>
+        <p className="page-note">
           Heavy range — only the most recent error events are included; narrow the timespan for full
           coverage.
         </p>
       ) : null}
       {current?.usersTruncated ? (
-        <p style={{ fontSize: "0.75rem", color: "var(--text-3)", margin: "-8px 0 0" }}>
+        <p className="page-note">
           Showing the most recently affected customers — totals still count everyone; narrow the
           timespan to see the rest.
         </p>
@@ -560,7 +535,7 @@ export function ErrorsPage() {
               placeholder={
                 view === "users" ? "Search customer, Discord, error…" : "Search failure, customer…"
               }
-              style={{ width: "min(280px,100%)" }}
+              className="search-wrap-280"
             />
             <Button
               size="sm"
@@ -656,37 +631,11 @@ export function ErrorsPage() {
                                 {!isUnattributed(user) ? (
                                   <small>
                                     {user.licenseTier === "premium" ? (
-                                      <span
-                                        style={{
-                                          fontSize: "0.625rem",
-                                          padding: "2px 6px",
-                                          borderRadius: "4px",
-                                          background: "var(--accent-subtle)",
-                                          color: "var(--accent-text)",
-                                          fontWeight: 700,
-                                          letterSpacing: "0.05em",
-                                          verticalAlign: "middle",
-                                        }}
-                                      >
-                                        PREMIUM
-                                      </span>
+                                      <span className="error-tier-pill is-premium">PREMIUM</span>
                                     ) : (
-                                      <span
-                                        style={{
-                                          fontSize: "0.625rem",
-                                          padding: "2px 6px",
-                                          borderRadius: "4px",
-                                          background: "var(--bg-subtle)",
-                                          color: "var(--text-muted)",
-                                          fontWeight: 700,
-                                          letterSpacing: "0.05em",
-                                          verticalAlign: "middle",
-                                        }}
-                                      >
-                                        FREE
-                                      </span>
+                                      <span className="error-tier-pill is-free">FREE</span>
                                     )}
-                                    <span className="mono" style={{ marginLeft: 8 }}>
+                                    <span className="mono error-identity-id">
                                       {user.identity.slice(0, 8)}
                                     </span>
                                   </small>
@@ -705,13 +654,13 @@ export function ErrorsPage() {
                           >
                             {user.discordUser?.trim() ? (
                               <span
-                                style={{ fontSize: "0.71875rem", color: "var(--text-2)" }}
+                                className="error-cell-sub"
                                 title={`Discord: ${user.discordUser}`}
                               >
                                 {discordHandle(user.discordUser)}
                               </span>
                             ) : (
-                              <span style={{ color: "var(--text-3)", opacity: 0.55 }}>—</span>
+                              <span className="error-cell-empty">—</span>
                             )}
                           </td>
                           <td data-label="Version">
@@ -731,11 +680,11 @@ export function ErrorsPage() {
                             {userLocation(user) || "—"}
                           </td>
                           <td className="numeric" data-label="Errors">
-                            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                            <span className="cell-inline">
                               <Badge tone="danger">{formatNumber(user.visibleCount)}</Badge>
                               {showBackground && user.backgroundCount > 0 ? (
                                 <span
-                                  style={{ fontSize: "0.6875rem", color: "var(--text-3)" }}
+                                  className="error-cell-bg"
                                   title="Background task errors included in the count"
                                 >
                                   {formatNumber(user.backgroundCount)} bg
@@ -745,14 +694,10 @@ export function ErrorsPage() {
                           </td>
                           <td className="cell-truncate" data-label="Top type">
                             {top ? (
-                              <span
-                                className="mono"
-                                style={{ fontSize: "0.71875rem", color: "var(--text-2)" }}
-                                title={top.type}
-                              >
+                              <span className="mono error-cell-sub" title={top.type}>
                                 {top.type}
                                 {top.more > 0 ? (
-                                  <span style={{ color: "var(--text-3)" }}> +{top.more}</span>
+                                  <span className="error-cell-more"> +{top.more}</span>
                                 ) : null}
                               </span>
                             ) : (
@@ -763,7 +708,7 @@ export function ErrorsPage() {
                             <RelativeTime iso={user.firstAt} />
                           </td>
                           <td className="muted" data-label="Last error" style={{ whiteSpace: "nowrap" }}>
-                            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                            <span className="cell-inline">
                               {user.isActive ? (
                                 <span className="status-dot" title="Customer is online right now" />
                               ) : null}
@@ -788,7 +733,7 @@ export function ErrorsPage() {
                               className="row-expand-panel row-expand-td"
                             >
                               <RowExpandClip open={isExpanded}>
-                                <div style={{ marginBottom: 14 }}>
+                                <div className="detail-block">
                                   <DetailGrid
                                     items={[
                                       { k: "Identity", v: user.identity },
@@ -821,26 +766,20 @@ export function ErrorsPage() {
                                   />
                                 </div>
 
-                                <p className="label-sm" style={{ marginBottom: 8 }}>
+                                <p className="label-sm detail-label">
                                   Errors ({formatNumber(user.visibleEvents.length)}
                                   {hiddenBeyondCap > 0
                                     ? ` of ${formatNumber(user.visibleCount)}`
                                     : ""}
                                   )
                                 </p>
-                                <div style={{ display: "grid", gap: 8 }}>
+                                <div className="error-event-list">
                                   {events.map((event) => (
                                     <ErrorEventCard key={event.id} event={event} />
                                   ))}
                                 </div>
                                 {user.visibleEvents.length > EVENTS_PREVIEW_COUNT ? (
-                                  <div
-                                    style={{
-                                      display: "flex",
-                                      justifyContent: "center",
-                                      marginTop: 10,
-                                    }}
-                                  >
+                                  <div className="error-events-more">
                                     <Button
                                       size="sm"
                                       onClick={() => toggleShowAllEvents(user.identity)}
@@ -852,13 +791,7 @@ export function ErrorsPage() {
                                   </div>
                                 ) : null}
                                 {hiddenBeyondCap > 0 ? (
-                                  <p
-                                    style={{
-                                      fontSize: "0.71875rem",
-                                      color: "var(--text-3)",
-                                      marginTop: 10,
-                                    }}
-                                  >
+                                  <p className="error-events-note">
                                     Only the latest {formatNumber(user.visibleEvents.length)}{" "}
                                     occurrences ship to the dashboard —{" "}
                                     {formatNumber(hiddenBeyondCap)} older ones in this range are
@@ -899,12 +832,9 @@ export function ErrorsPage() {
           <div className="error-group-list">
             {failures === null
               ? Array.from({ length: 4 }, (_, i) => (
-                  <div
-                    key={`skeleton-${i}`}
-                    style={{ padding: "12px 16px", display: "flex", gap: 10, alignItems: "center" }}
-                  >
+                  <div key={`skeleton-${i}`} className="error-skeleton-row">
                     <Skeleton width={160} />
-                    <Skeleton style={{ flex: 1, maxWidth: 420 }} />
+                    <Skeleton className="error-skeleton-grow" />
                     <Skeleton width={60} />
                   </div>
                 ))
@@ -923,10 +853,7 @@ export function ErrorsPage() {
                         <div className="error-group-chevron">
                           {isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                         </div>
-                        <AlertTriangle
-                          size={14}
-                          style={{ flexShrink: 0, color: "var(--danger)" }}
-                        />
+                        <AlertTriangle size={14} className="error-group-icon" />
                         <div className="error-group-info">
                           <span className="error-group-type mono">{failure.type}</span>
                           <span className="error-group-msg">{failure.message}</span>
@@ -951,17 +878,9 @@ export function ErrorsPage() {
 
                       {isOpen ? (
                         <div className="error-group-detail">
-                          <div
-                            style={{
-                              display: "flex",
-                              gap: 8,
-                              flexWrap: "wrap",
-                              alignItems: "center",
-                              marginBottom: 10,
-                            }}
-                          >
+                          <div className="error-failure-summary">
                             {failure.code ? <Tag>{failure.code}</Tag> : null}
-                            <span className="muted-text" style={{ fontSize: "0.75rem" }}>
+                            <span className="muted-text text-tiny">
                               {failure.count} occurrence{failure.count !== 1 ? "s" : ""} across{" "}
                               {failure.identities.size} customer
                               {failure.identities.size !== 1 ? "s" : ""}
@@ -978,10 +897,10 @@ export function ErrorsPage() {
                                 >
                                   {displayName(user)}
                                 </button>
-                                <span className="mono muted-text" style={{ fontSize: "0.6875rem" }}>
+                                <span className="mono muted-text text-micro">
                                   {formatDate(event.timestamp)}
                                 </span>
-                                <span className="muted-text" style={{ fontSize: "0.75rem" }}>
+                                <span className="muted-text text-tiny">
                                   <RelativeTime iso={event.timestamp} />
                                 </span>
                                 {event.appVersion ? <Tag>{event.appVersion}</Tag> : null}
@@ -989,13 +908,7 @@ export function ErrorsPage() {
                             ))}
                           </div>
                           {failure.occurrences.length > shown.length ? (
-                            <p
-                              style={{
-                                fontSize: "0.71875rem",
-                                color: "var(--text-3)",
-                                marginTop: 8,
-                              }}
-                            >
+                            <p className="error-occurrences-note">
                               Showing the latest {FAILURE_OCCURRENCES_SHOWN} of{" "}
                               {formatNumber(failure.occurrences.length)} occurrences.
                             </p>

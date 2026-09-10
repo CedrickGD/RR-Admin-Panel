@@ -67,22 +67,10 @@ export function InstallsPanel({ hwid }: InstallsPanelProps) {
 
   let body: ReactNode;
   if (!hwid) {
-    body = (
-      <p style={{ fontSize: "0.75rem", color: "var(--text-3)" }}>
-        No hardware ID reported — installs are keyed by device.
-      </p>
-    );
+    body = <p className="installs-note">No hardware ID reported — installs are keyed by device.</p>;
   } else if (loadError) {
     body = (
-      <p
-        style={{
-          fontSize: "0.75rem",
-          color: "var(--danger)",
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-        }}
-      >
+      <p className="installs-error">
         {loadError}
         <Button size="xs" onClick={load}>
           Retry
@@ -90,16 +78,16 @@ export function InstallsPanel({ hwid }: InstallsPanelProps) {
       </p>
     );
   } else if (installs === null) {
-    body = <div className="skeleton" style={{ height: 12, width: 160 }} />;
+    body = <div className="skeleton installs-skeleton" />;
   } else if (installs.length === 0) {
     body = (
-      <p style={{ fontSize: "0.75rem", color: "var(--text-3)" }}>
+      <p className="installs-note">
         No registered installs yet — clients before 1.4.9 never register.
       </p>
     );
   } else {
     body = (
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <div className="installs-list">
         {installs.map((install) => {
           const revoked = install.revokedAt !== null;
           const confirming = confirmId === install.installId;
@@ -107,24 +95,9 @@ export function InstallsPanel({ hwid }: InstallsPanelProps) {
           return (
             <div
               key={install.installId}
-              className="glass-inset"
-              style={{
-                padding: "6px 12px",
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                flexWrap: "wrap",
-                opacity: revoked ? 0.7 : 1,
-              }}
+              className={`glass-inset installs-row${revoked ? " is-revoked" : ""}`}
             >
-              <span
-                style={{
-                  fontFamily: "var(--font-mono)",
-                  fontSize: "0.75rem",
-                  color: "var(--text-1)",
-                }}
-                title={install.installId}
-              >
+              <span className="installs-id" title={install.installId}>
                 {install.installId.slice(0, 8)}
               </span>
               <Badge tone="muted">{versionLabel(install.appVersion)}</Badge>
@@ -141,9 +114,7 @@ export function InstallsPanel({ hwid }: InstallsPanelProps) {
                   Revoked
                 </Badge>
               ) : null}
-              <span
-                style={{ fontSize: "0.71875rem", color: "var(--text-3)", whiteSpace: "nowrap" }}
-              >
+              <span className="installs-seen">
                 {install.lastSeenAt ? (
                   <>
                     seen <RelativeTime iso={install.lastSeenAt} />
@@ -153,16 +124,12 @@ export function InstallsPanel({ hwid }: InstallsPanelProps) {
                 )}
               </span>
               {!revoked ? (
-                <span
-                  style={{
-                    marginLeft: "auto",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                  }}
-                >
+                <span className="installs-actions">
                   {confirming ? (
                     <>
+                      {/* Stays inline: the font-size has to outrank
+                          consistency.css's 16px mobile-zoom guard, which it
+                          only does from a style attribute. */}
                       <Input
                         value={reason}
                         onChange={(e) => setReason(e.target.value)}
@@ -211,18 +178,14 @@ export function InstallsPanel({ hwid }: InstallsPanelProps) {
             </div>
           );
         })}
-        {actionError ? (
-          <p style={{ fontSize: "0.75rem", color: "var(--danger)", margin: 0 }}>{actionError}</p>
-        ) : null}
+        {actionError ? <p className="installs-action-error">{actionError}</p> : null}
       </div>
     );
   }
 
   return (
-    <div style={{ marginBottom: 14 }}>
-      <p className="label-sm" style={{ marginBottom: 8 }}>
-        Installs
-      </p>
+    <div className="detail-block">
+      <p className="label-sm detail-label">Installs</p>
       {body}
     </div>
   );

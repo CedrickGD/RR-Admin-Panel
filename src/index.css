@@ -54,7 +54,7 @@ html {
 body {
   margin: 0;
   font-family: "Inter", system-ui, sans-serif;
-  font-size: 14px;
+  font-size: var(--fs-body);
   line-height: 1.6;
   color: var(--text-1);
   background:
@@ -117,7 +117,7 @@ body::after {
 }
 ::-webkit-scrollbar-thumb {
   background: var(--accent-dim);
-  border-radius: 999px;
+  border-radius: var(--r-pill);
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--accent);
@@ -177,18 +177,18 @@ h6 {
 }
 .section-title {
   font-family: "Space Grotesk", system-ui, sans-serif;
-  font-size: 1.05rem;
+  font-size: var(--fs-section);
   font-weight: 700;
   letter-spacing: -0.025em;
   color: var(--text-1);
 }
 .section-sub {
-  font-size: 0.8125rem;
+  font-size: var(--fs-small);
   color: var(--text-2);
   line-height: 1.7;
 }
 .label-sm {
-  font-size: 0.6875rem;
+  font-size: var(--fs-micro);
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -257,7 +257,7 @@ h6 {
 .glass-inset {
   background: rgba(0, 0, 0, 0.18);
   border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 10px;
+  border-radius: var(--r-sm);
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -314,7 +314,7 @@ h6 {
 }
 
 .stat-label {
-  font-size: 0.6875rem;
+  font-size: var(--fs-micro);
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -335,7 +335,7 @@ h6 {
   line-height: 1.1;
 }
 .stat-sub {
-  font-size: 0.75rem;
+  font-size: var(--fs-tiny);
   color: var(--text-2);
   margin-top: 2px;
   /* One line always — wrapping sub-lines gave each page different card heights. */
@@ -352,7 +352,7 @@ h6 {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.02));
   border: 1px solid var(--glass-border);
   /* One radius family with the stat cards. */
-  border-radius: 14px;
+  border-radius: var(--r);
   overflow: hidden;
   transition: border-color 0.2s;
   box-shadow:
@@ -429,7 +429,7 @@ h6 {
   gap: 7px;
   padding: 7px 14px;
   border-radius: 9px;
-  font-size: 0.8125rem;
+  font-size: var(--fs-small);
   font-weight: 500;
   line-height: 1;
   white-space: nowrap;
@@ -488,17 +488,17 @@ h6 {
 
 .btn-sm {
   padding: 5px 10px;
-  font-size: 0.75rem;
+  font-size: var(--fs-tiny);
   border-radius: 7px;
 }
 .btn-xs {
   padding: 3px 8px;
-  font-size: 0.6875rem;
+  font-size: var(--fs-micro);
   border-radius: 6px;
 }
 .btn-icon {
   padding: 6px;
-  border-radius: 8px;
+  border-radius: var(--r-ctl);
   background: rgba(255, 255, 255, 0.05);
   color: var(--text-2);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -516,8 +516,8 @@ h6 {
   align-items: center;
   gap: 5px;
   padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 0.6875rem;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-micro);
   font-weight: 600;
   white-space: nowrap;
 }
@@ -551,8 +551,8 @@ h6 {
   align-items: center;
   gap: 5px;
   padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 0.6875rem;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-micro);
   font-weight: 600;
   background: hsl(142 71% 45% / 0.15);
   color: hsl(142 71% 65%);
@@ -591,20 +591,20 @@ h6 {
    ═══════════════════════════════════════════════════════════════ */
 .data-table-wrap {
   overflow-x: auto;
-  border-radius: 14px;
+  border-radius: var(--r);
   border: 1px solid var(--glass-border);
 }
 
 .data-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.8125rem;
+  font-size: var(--fs-small);
 }
 
 .data-table thead th {
   padding: 10px 14px;
   text-align: left;
-  font-size: 0.6875rem;
+  font-size: var(--fs-micro);
   font-weight: 600;
   color: var(--text-3);
   background: rgba(0, 0, 0, 0.18);
@@ -636,7 +636,7 @@ h6 {
 }
 .data-table tbody td.mono {
   font-family: "JetBrains Mono", monospace;
-  font-size: 0.75rem;
+  font-size: var(--fs-tiny);
 }
 
 /* Expansion panel */
@@ -704,13 +704,13 @@ h6 {
   border-bottom: none;
 }
 .kv-key {
-  font-size: 0.75rem;
+  font-size: var(--fs-tiny);
   color: var(--text-2);
   font-weight: 500;
 }
 .kv-val {
   font-family: "JetBrains Mono", monospace;
-  font-size: 0.75rem;
+  font-size: var(--fs-tiny);
   color: var(--text-1);
   font-weight: 500;
   text-align: right;
@@ -739,13 +739,13 @@ h6 {
   color: var(--text-3);
 }
 .empty-state p {
-  font-size: 0.8125rem;
+  font-size: var(--fs-small);
   color: var(--text-2);
   margin: 0;
 }
 .empty-state strong {
   font-family: "Space Grotesk", system-ui, sans-serif;
-  font-size: 0.9375rem;
+  font-size: var(--fs-strong);
   color: var(--text-1);
 }
 
@@ -801,12 +801,12 @@ h6 {
   gap: 2px;
 }
 .error-group-type {
-  font-size: 0.75rem;
+  font-size: var(--fs-tiny);
   color: var(--text-1);
   font-weight: 600;
 }
 .error-group-msg {
-  font-size: 0.8125rem;
+  font-size: var(--fs-small);
   color: var(--text-2);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -820,7 +820,7 @@ h6 {
 }
 .error-group-count {
   font-family: "JetBrains Mono", monospace;
-  font-size: 0.75rem;
+  font-size: var(--fs-tiny);
   font-weight: 700;
   color: var(--warning);
   background: var(--warning-sub);
@@ -828,7 +828,7 @@ h6 {
   border-radius: 6px;
 }
 .error-group-time {
-  font-size: 0.75rem;
+  font-size: var(--fs-tiny);
   white-space: nowrap;
 }
 
@@ -847,7 +847,7 @@ h6 {
 }
 .error-metric-tag {
   font-family: "JetBrains Mono", monospace;
-  font-size: 0.6875rem;
+  font-size: var(--fs-micro);
   color: var(--text-2);
   background: rgba(255, 255, 255, 0.05);
   padding: 2px 7px;
@@ -963,12 +963,12 @@ h6 {
   gap: 8px;
 }
 .progress-label {
-  font-size: 0.75rem;
+  font-size: var(--fs-tiny);
   color: var(--text-2);
   font-weight: 500;
 }
 .progress-val {
-  font-size: 0.75rem;
+  font-size: var(--fs-tiny);
   color: var(--text-1);
   font-weight: 600;
   font-family: "Space Grotesk", sans-serif;
@@ -976,12 +976,12 @@ h6 {
 .progress-track {
   height: 5px;
   background: rgba(255, 255, 255, 0.07);
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   overflow: hidden;
 }
 .progress-fill {
   height: 100%;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: var(--accent);
 }
 
@@ -992,14 +992,14 @@ h6 {
   position: relative;
   height: 6px;
   background: rgba(255, 255, 255, 0.07);
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   overflow: visible;
   margin: 6px 0;
 }
 .timeline-fill {
   height: 100%;
   background: linear-gradient(90deg, var(--accent-dim), var(--accent));
-  border-radius: 999px;
+  border-radius: var(--r-pill);
 }
 .timeline-marker {
   position: absolute;
@@ -1115,7 +1115,7 @@ h6 {
   min-width: 90px;
   padding: 8px;
   border: 1px solid var(--glass-border);
-  border-radius: 10px;
+  border-radius: var(--r-sm);
   background: var(--glass-1);
 }
 
@@ -1125,7 +1125,7 @@ h6 {
   max-width: 720px;
 }
 .world-heatmap-hint strong {
-  font-size: 13px;
+  font-size: var(--fs-small);
   line-height: 1.6;
 }
 
@@ -1134,7 +1134,7 @@ h6 {
   min-height: 520px;
   overflow: hidden;
   border: 1px solid var(--glass-border);
-  border-radius: 14px;
+  border-radius: var(--r);
   background: #080e18;
 }
 
@@ -1179,7 +1179,7 @@ h6 {
 .world-heatmap-floating-panel strong {
   display: block;
   margin-top: 8px;
-  font-size: 15px;
+  font-size: var(--fs-strong);
   font-weight: 700;
   line-height: 1.1;
   letter-spacing: -0.03em;
@@ -1187,7 +1187,7 @@ h6 {
 .world-heatmap-floating-session {
   margin-top: 6px;
   font-family: "JetBrains Mono", monospace;
-  font-size: 11px;
+  font-size: var(--fs-micro);
   color: var(--accent);
 }
 .world-heatmap-floating-actions {
@@ -1207,7 +1207,7 @@ h6 {
   gap: 6px;
   padding: 7px 12px;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: rgba(8, 12, 22, 0.88);
   backdrop-filter: blur(14px) saturate(160%);
   -webkit-backdrop-filter: blur(14px) saturate(160%);
@@ -1243,7 +1243,7 @@ h6 {
   width: 40px;
   height: 40px;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 10px;
+  border-radius: var(--r-sm);
   background: rgba(8, 12, 22, 0.82);
   backdrop-filter: blur(14px) saturate(160%);
   -webkit-backdrop-filter: blur(14px) saturate(160%);
@@ -1269,7 +1269,7 @@ h6 {
   margin-top: 0;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-top: none;
-  border-radius: 0 0 10px 10px;
+  border-radius: 0 0 var(--r-sm) var(--r-sm);
   background: rgba(8, 12, 22, 0.88);
   backdrop-filter: blur(14px) saturate(160%);
   -webkit-backdrop-filter: blur(14px) saturate(160%);
@@ -1282,7 +1282,7 @@ h6 {
     transform 0.2s;
 }
 .world-heatmap-hovbar:hover .world-heatmap-hovbar-trigger {
-  border-radius: 10px 10px 0 0;
+  border-radius: var(--r-sm) var(--r-sm) 0 0;
   border-bottom-color: transparent;
 }
 /* Deliberate keep: this :hover transform stays OUTSIDE the (hover: hover)
@@ -1302,7 +1302,7 @@ h6 {
   width: 34px;
   height: 34px;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--r-ctl);
   background: transparent;
   color: rgba(255, 255, 255, 0.7);
   cursor: pointer;
@@ -1357,7 +1357,7 @@ h6 {
 .world-heatmap-map .maplibregl-ctrl-group {
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
+  border-radius: var(--r-sm);
   background: rgba(8, 12, 22, 0.92);
   backdrop-filter: blur(12px);
 }
@@ -1374,7 +1374,7 @@ h6 {
 }
 .world-heatmap-map .maplibregl-ctrl-attrib {
   margin: 0 10px 10px 0;
-  border-radius: 8px;
+  border-radius: var(--r-ctl);
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(8, 12, 22, 0.92);
   color: rgba(191, 206, 224, 0.72);
@@ -1389,7 +1389,7 @@ h6 {
 }
 .map-node-popup-shell .maplibregl-popup-content {
   padding: 0;
-  border-radius: 10px;
+  border-radius: var(--r-sm);
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(8, 12, 22, 0.95);
   backdrop-filter: blur(16px);
@@ -1417,7 +1417,7 @@ h6 {
   border-radius: 6px;
   background: transparent;
   color: var(--text-3);
-  font-size: 14px;
+  font-size: var(--fs-body);
   line-height: 1;
   cursor: pointer;
   transition:
@@ -1440,24 +1440,24 @@ h6 {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 14px;
+  font-size: var(--fs-body);
   font-weight: 700;
   color: var(--text-1);
 }
 .map-node-popup-location {
-  font-size: 12px;
+  font-size: var(--fs-tiny);
   color: var(--text-2);
   margin-top: 2px;
 }
 .map-node-popup-session {
   margin-top: 4px;
   font-family: "JetBrains Mono", monospace;
-  font-size: 11px;
+  font-size: var(--fs-micro);
   color: var(--accent);
 }
 .map-node-popup-meta {
   margin-top: 6px;
-  font-size: 11px;
+  font-size: var(--fs-micro);
   color: var(--text-3);
 }
 .map-node-popup-hint {
@@ -1467,7 +1467,7 @@ h6 {
 }
 .map-node-popup-flag {
   display: inline-flex;
-  font-size: 15px;
+  font-size: var(--fs-strong);
 }
 
 /* ── Per-user behaviour analytics (Workers page, expanded row) ── */
@@ -1487,12 +1487,12 @@ h6 {
   gap: 8px;
 }
 .user-activity-note {
-  font-size: 0.75rem;
+  font-size: var(--fs-tiny);
   color: var(--text-3);
 }
 .user-activity-subtitle {
   margin: 0;
-  font-size: 0.6875rem;
+  font-size: var(--fs-micro);
   color: var(--text-3);
 }
 .user-activity-stats {
@@ -1515,7 +1515,7 @@ h6 {
 }
 .user-activity-stat-value {
   font-family: var(--font-mono, "JetBrains Mono", monospace);
-  font-size: 0.75rem;
+  font-size: var(--fs-tiny);
   color: var(--text-1);
 }
 .user-activity-selection {
@@ -1526,9 +1526,9 @@ h6 {
   margin-bottom: 8px;
   padding: 6px 9px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--r-ctl);
   background: rgba(255, 255, 255, 0.025);
-  font-size: 0.6875rem;
+  font-size: var(--fs-micro);
   color: var(--text-3);
 }
 .user-activity-selection strong {
@@ -1541,7 +1541,7 @@ h6 {
   overflow-x: auto;
   overscroll-behavior-inline: contain;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-sm);
   background: rgba(4, 7, 14, 0.28);
 }
 .user-activity-timeline {
@@ -1685,7 +1685,7 @@ h6 {
 }
 .user-activity-warning {
   margin: 8px 0 0;
-  font-size: 0.6875rem;
+  font-size: var(--fs-micro);
   color: var(--warning);
 }
 
@@ -1699,7 +1699,7 @@ h6 {
   border-radius: 12px;
   background: hsl(4 86% 58% / 0.1);
   color: hsl(4 86% 72%);
-  font-size: 0.8125rem;
+  font-size: var(--fs-small);
 }
 
 .input {
@@ -1708,7 +1708,7 @@ h6 {
   border: none;
   background: transparent;
   color: var(--text-1);
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 .input::placeholder {
   color: var(--text-3);
@@ -1814,7 +1814,7 @@ h6 {
     font-size: 0.95rem;
   }
   .section-sub {
-    font-size: 0.75rem;
+    font-size: var(--fs-tiny);
   }
 
   /* Stat cards — single column on very small screens */
@@ -1835,7 +1835,7 @@ h6 {
 
   /* Panels */
   .panel {
-    border-radius: 14px;
+    border-radius: var(--r);
   }
   .panel-head {
     padding: 12px 12px 10px;
@@ -1850,7 +1850,7 @@ h6 {
 
   /* Tables */
   .data-table-wrap {
-    border-radius: 10px;
+    border-radius: var(--r-sm);
   }
   .data-table thead th {
     padding: 7px 8px;
@@ -1903,7 +1903,7 @@ h6 {
   /* Buttons */
   .btn-sm {
     padding: 6px 10px;
-    font-size: 0.75rem;
+    font-size: var(--fs-tiny);
   }
 
   /* Badges */
@@ -1926,7 +1926,7 @@ h6 {
     font-size: 1.15rem;
   }
   .section-title {
-    font-size: 0.875rem;
+    font-size: var(--fs-body);
   }
   .panel {
     border-radius: 12px;
@@ -1955,7 +1955,7 @@ h6 {
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 9px;
   color: var(--text-2);
-  font-size: 0.8125rem;
+  font-size: var(--fs-small);
   cursor: pointer;
 }
 .gdrop-trigger:hover {
@@ -2001,7 +2001,7 @@ h6 {
   background: none;
   border: none;
   color: var(--text-1);
-  font-size: 0.8125rem;
+  font-size: var(--fs-small);
 }
 .gdrop-search input::placeholder {
   color: var(--text-3, var(--text-2));
@@ -2019,10 +2019,10 @@ h6 {
   width: 100%;
   padding: 7px 10px;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--r-ctl);
   background: none;
   color: var(--text-2);
-  font-size: 0.8125rem;
+  font-size: var(--fs-small);
   text-align: left;
   cursor: pointer;
 }
@@ -2040,7 +2040,7 @@ h6 {
 }
 .gdrop-empty {
   padding: 10px 12px;
-  font-size: 0.75rem;
+  font-size: var(--fs-tiny);
   color: var(--text-2);
 }
 
@@ -2059,38 +2059,10 @@ h6 {
   margin-left: 4px;
   opacity: 0.55;
 }
-.kpi-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 80;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-}
-.kpi-modal {
-  width: min(560px, 100%);
-  max-height: min(80vh, 640px);
-  overflow-y: auto;
-  padding: 20px 22px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  /* .panel's 3% glass is fine on the page background but see-through as a floating
-     surface — modals need a mostly opaque, hue-tinted base. */
-  background: hsl(var(--ah) 24% 8% / 0.97);
-  backdrop-filter: blur(24px) saturate(160%);
-  -webkit-backdrop-filter: blur(24px) saturate(160%);
-}
-.kpi-modal-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
+/* The dialog itself is `.dialog` and is declared once, in
+   theme/css/components.css. The three rules that stood here (`.kpi-overlay`,
+   `.kpi-modal`, `.kpi-modal-head`) were shadowed declaration-for-declaration
+   by that block from the next layer on, so they painted nothing. */
 .kpi-timespan-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
@@ -2101,12 +2073,12 @@ h6 {
   flex-direction: column;
   gap: 2px;
   padding: 10px 12px;
-  border-radius: 10px;
+  border-radius: var(--r-sm);
   background: rgba(0, 0, 0, 0.22);
   border: 1px solid rgba(255, 255, 255, 0.07);
 }
 .kpi-timespan-label {
-  font-size: 0.6875rem;
+  font-size: var(--fs-micro);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-2);
@@ -2116,10 +2088,10 @@ h6 {
   color: var(--text-1);
 }
 .kpi-timespan-hint {
-  font-size: 0.6875rem;
+  font-size: var(--fs-micro);
   color: var(--text-2);
 }
-.kpi-modal-chart {
+.kpi-drilldown-chart {
   margin: 0 -6px;
 }
 .kpi-breakdown {
@@ -2131,7 +2103,7 @@ h6 {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 0.8125rem;
+  font-size: var(--fs-small);
 }
 .kpi-breakdown-label {
   min-width: 92px;
@@ -2143,14 +2115,14 @@ h6 {
 .kpi-breakdown-track {
   flex: 1;
   height: 6px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: rgba(255, 255, 255, 0.07);
   overflow: hidden;
 }
 .kpi-breakdown-fill {
   display: block;
   height: 100%;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: linear-gradient(
     90deg,
     hsl(var(--ah) var(--as) var(--al) / 0.85),
@@ -2162,15 +2134,15 @@ h6 {
   text-align: right;
   color: var(--text-1);
 }
-.kpi-modal-note {
-  font-size: 0.75rem;
+.kpi-drilldown-note {
+  font-size: var(--fs-tiny);
   color: var(--text-2);
   line-height: 1.6;
 }
 
 /* ─── KpiStatCard delta badge ─── */
 .stat-card-delta {
-  font-size: 0.6875rem;
+  font-size: var(--fs-micro);
   font-weight: 600;
   margin-left: 8px;
   letter-spacing: 0;
@@ -2183,7 +2155,11 @@ h6 {
   color: var(--danger);
 }
 
-/* ─── Mobile: filter bar, dropdowns, KPI modal ─── */
+/* ─── Mobile: filter bar, dropdowns, KPI drill-down ───
+   The dialog's own small-screen sizing is not here: a media query adds no
+   specificity, so the `.dialog` rules in later layers beat this block anyway.
+   The two that stood here (`.kpi-overlay`, `.kpi-modal`) were dead for exactly
+   that reason and are gone. */
 @media (max-width: 640px) {
   .gdrop-trigger-label {
     overflow: hidden;
@@ -2193,15 +2169,6 @@ h6 {
   .gdrop-menu {
     min-width: 170px;
     max-width: min(260px, calc(100vw - 32px));
-  }
-  .kpi-overlay {
-    padding: 12px;
-    align-items: flex-end;
-  }
-  .kpi-modal {
-    max-height: 82vh;
-    padding: 16px;
-    border-radius: 16px 16px 12px 12px;
   }
   .kpi-timespan-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2276,7 +2243,7 @@ h6 {
   height: 21px;
   padding: 0 8px;
   border-radius: 6px;
-  font-size: 11px;
+  font-size: var(--fs-micro);
   font-weight: 550;
   color: var(--text-1);
   background: rgba(255, 255, 255, 0.047);
@@ -2297,7 +2264,7 @@ h6 {
   display: grid;
   place-items: center;
   margin: 0 auto 8px;
-  background: radial-gradient(closest-side, hsl(142 71% 45% / 0.14), hsl(142 71% 45% / 0.04));
+  background: radial-gradient(closest-side, var(--success-sub), hsl(142 71% 45% / 0.04));
   border: 1px solid hsl(142 71% 45% / 0.3);
   box-shadow:
     0 0 22px hsl(142 71% 45% / 0.18),
@@ -2306,7 +2273,7 @@ h6 {
 }
 .empty-title {
   font-family: "Space Grotesk", system-ui, sans-serif;
-  font-size: 0.875rem;
+  font-size: var(--fs-body);
   font-weight: 600;
   color: var(--text-1);
 }

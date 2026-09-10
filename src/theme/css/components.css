@@ -367,51 +367,146 @@
 .feed-meta { font-size: var(--fs-tiny); color: var(--text-3); margin: 1px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .feed-time { flex: none; font-size: 0.65625rem; color: var(--text-3); font-family: var(--font-mono); margin-top: 2px; }
 
-/* ── Drill-down modal ─────────────────────────────────────────── */
-.kpi-overlay {
+/* ═══════════════════════════════════════════════════════════════
+   ds/Modal — THE DIALOG
+   Every dialog in the console is this one component: confirms, forms and the
+   KPI drill-downs alike. It was called `.kpi-overlay/.kpi-modal` after its
+   first caller (the Overview KPI tiles) and its rules were spread over
+   index.css, this file, app-glue.css, workspace.css and operations.css. This
+   block is all of them, with the values each layer actually won.
+
+   Two things stay outside it on purpose:
+   - the theme colours in consistency.css (`html[data-theme] .dialog…`), which
+     outrank everything here at (0,2,1) and belong to that layer;
+   - the scoped variants that are not the dialog itself — the full-viewport
+     Customer 360 shell below, `.team-editor` in workspace.css, and the ≤600px
+     head/body padding in consistency.css. All three override this block: two
+     from later layers, the Customer 360 one from further down this file.
+   ═══════════════════════════════════════════════════════════════ */
+.dialog-overlay {
   position: fixed;
   inset: 0;
   z-index: 1000;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: 20px;
+  overflow: hidden;
   background: rgba(3, 5, 14, 0.5);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-  animation: v2rise 0.18s ease-out;
+  /* Entrance and exit are transitions keyed off data-state, not keyframes:
+     rapid open/close must retarget from the current opacity instead of
+     restarting (a keyframe swap mid-entrance snapped the half-faded overlay to
+     full opacity before fading out). @starting-style below supplies the
+     entrance's from-frame; Modal.tsx unmounts on this element's opacity
+     transitionend. */
+  opacity: 1;
+  transition: opacity 0.15s var(--ease-out);
 }
-.kpi-modal {
+.dialog {
   width: min(560px, 100%);
-  max-height: min(80vh, 640px);
-  overflow-y: auto;
-  padding: 20px 22px;
+  max-height: calc(100dvh - 40px);
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 16px;
-  background: hsl(240 36% 10% / 0.78);
+  padding: 0;
+  overflow: hidden;
+  color: var(--text-1);
+  background: var(--surface-float);
   backdrop-filter: blur(28px) saturate(160%);
   -webkit-backdrop-filter: blur(28px) saturate(160%);
   border: 1px solid var(--line-hi);
   border-radius: var(--r);
   box-shadow: var(--shadow-overlay);
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 0.18s var(--ease-out),
+    transform 0.18s var(--ease-out);
 }
-.kpi-modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-
-/* ── ds/Modal ModalActions — the one dialog action row ────────────
-   Cancel (ghost) first, the committing action last. Inside a dialog the row
-   sticks to the bottom of the scrolling body, so a long form can never
-   scroll its own Save out of view — the treatment operations.css grants the
-   legacy `.form-actions`/`.form-footer` rows, applied here by the primitive
-   itself. `bottom: -20px` cancels `.kpi-modal-content`'s bottom padding so
-   the row lands flush on the modal's edge. Measured, because it reads like an
-   overhang and is not: the scroller's own padding sits inside its scrollable
-   area, so -20px puts the row's bottom edge exactly ON the visible bottom, with
-   the buttons their own 14px above it. Anything past -20px does start clipping
-   them, so this number is the modal's padding — never the row's. */
-.modal-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 9px; }
-.modal-actions-between { justify-content: space-between; }
-.kpi-modal-content .modal-actions {
+@starting-style {
+  .dialog-overlay {
+    opacity: 0;
+  }
+  .dialog {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+.dialog-overlay[data-state="closed"] {
+  opacity: 0;
+  pointer-events: none;
+}
+.dialog-overlay[data-state="closed"] .dialog {
+  opacity: 0;
+  transform: scale(0.97);
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Fade-only both ways: the scale movement goes, the opacity bridge stays
+     (transform isn't in the transition list, so it snaps to its final value). */
+  .dialog,
+  .dialog-overlay[data-state="closed"] .dialog {
+    transform: none;
+    transition: opacity 0.15s var(--ease-out);
+  }
+}
+/* The head keeps a full `border-color` and not just the bottom edge it paints:
+   the other three sides are style:none, so this is invisible, but it is what
+   the layers resolved to and dropping it would be a change, not a cleanup. */
+.dialog-head {
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+  padding: 20px 22px;
+  border-color: var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.dialog-body {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 20px 22px;
+  scrollbar-gutter: stable;
+}
+.dialog-body > form { min-width: 0; }
+/* Discard step (Modal's isDirty exit): raised between the head and the form so
+   the work being thrown away stays visible behind the decision. */
+.dialog-discard {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 22px;
+  border-bottom: 1px solid var(--line);
+  background: var(--warning-sub);
+}
+.dialog-discard p {
+  margin: 0;
+  font-size: var(--fs-small);
+  font-weight: 600;
+  color: var(--text-1);
+}
+/* ds/Modal ModalActions — the one dialog action row. Cancel (ghost) first, the
+   committing action last. Inside the body the row sticks to the bottom of the
+   scroller, so a long form can never scroll its own Save out of view — the
+   treatment the legacy `.form-actions`/`.form-footer` rows used to get from
+   operations.css, applied here by the primitive itself. `bottom: -20px`
+   cancels `.dialog-body`'s bottom padding so the row lands flush on the
+   dialog's edge. Measured, because it reads like an overhang and is not: the
+   scroller's own padding sits inside its scrollable area, so -20px puts the
+   row's bottom edge exactly ON the visible bottom, with the buttons their own
+   14px above it. Anything past -20px does start clipping them, so this number
+   is the dialog's padding — never the row's. */
+.dialog-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 9px; }
+.dialog-actions-between { justify-content: space-between; }
+.dialog-body .dialog-actions {
   position: sticky;
   bottom: -20px;
   z-index: 3;
@@ -421,6 +516,9 @@
   background: var(--surface-float);
 }
 
+/* ── KPI drill-down contents (ds/Modal TimespanGrid + BreakdownList) ──
+   The dialog these sit in is `.dialog`, above; only the KPI-specific rows the
+   drill-down fills it with are here. */
 .kpi-timespan-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px; }
 .kpi-timespan-cell {
   display: flex;
@@ -445,35 +543,46 @@
   background: linear-gradient(90deg, hsl(var(--ah) var(--as) var(--al) / 0.85), hsl(var(--ah) var(--as) var(--al) / 0.55));
 }
 .kpi-breakdown-value { min-width: 56px; text-align: right; color: var(--text-1); }
-.kpi-modal-note { font-size: var(--fs-small); color: var(--text-2); line-height: 1.6; margin: 0; }
+.kpi-drilldown-note { font-size: var(--fs-small); color: var(--text-2); line-height: 1.6; margin: 0; }
 
-/* ── Customer 360 workspace ─────────────────────────────────── */
-.kpi-overlay-viewport {
-  padding: 18px;
+/* ── Customer 360 workspace ───────────────────────────────────
+   The full-viewport variant of the dialog, sitting after the `.dialog` base
+   above so it can override it. Five declarations that used to stand here are
+   gone: the overlay's `padding: 18px` and its `padding: 0` below, and the
+   dialog's `max-height: none`, `border-color` and `border: 0`. All five were
+   written against the base as it stood BEFORE the console-density values moved
+   out of operations.css into that block — from a later layer those values had
+   beaten every one of them, so none described anything that shipped. The
+   background and backdrop-filter below are in the same position, beaten by
+   consistency.css's `html[data-theme] .dialog-overlay`, but they stay: that is
+   a theme override, not the base, and it can be lifted.
+
+   Nothing in the shipped app mounts this variant at all — Customer360View's
+   only caller passes `embedded`, which renders the inline
+   `.customer-workspace` section instead. */
+.dialog-overlay-viewport {
   background: hsl(235 48% 4% / 0.68);
   backdrop-filter: blur(12px) saturate(125%);
   -webkit-backdrop-filter: blur(12px) saturate(125%);
 }
-.kpi-modal-viewport {
+.dialog-viewport {
   width: min(1480px, calc(100vw - 36px));
   height: min(920px, calc(100dvh - 36px));
-  max-height: none;
   overflow: hidden;
   padding: 0;
   gap: 0;
   background:
     linear-gradient(145deg, hsl(235 34% 14% / 0.96), hsl(239 38% 8% / 0.97));
-  border-color: hsl(225 65% 82% / 0.2);
   box-shadow: 0 34px 100px hsl(235 70% 2% / 0.72), inset 0 1px 0 hsl(220 80% 95% / 0.07);
 }
-.customer-360-modal > .kpi-modal-head {
+.customer-360-modal > .dialog-head {
   flex: none;
   padding: 18px 22px 15px;
   border-bottom: 1px solid var(--line);
   background: linear-gradient(180deg, hsl(230 45% 18% / 0.5), transparent);
 }
-.customer-360-modal > .kpi-modal-head .section-title { font-size: 1.25rem; }
-.customer-360-modal > .kpi-modal-head .section-sub { margin-top: 3px; }
+.customer-360-modal > .dialog-head .section-title { font-size: 1.25rem; }
+.customer-360-modal > .dialog-head .section-sub { margin-top: 3px; }
 .customer360-shell {
   min-height: 0;
   flex: 1;
@@ -645,9 +754,8 @@
 }
 
 @media (max-width: 600px) {
-  .kpi-overlay-viewport { padding: 0; }
-  .kpi-modal-viewport { width: 100vw; height: 100dvh; border: 0; border-radius: 0; }
-  .customer-360-modal > .kpi-modal-head { padding: 14px 15px 12px; }
+  .dialog-viewport { width: 100vw; height: 100dvh; border-radius: 0; }
+  .customer-360-modal > .dialog-head { padding: 14px 15px 12px; }
   .customer360-identity-bar { padding: 9px 14px; }
   .customer360-tabs { padding-inline: 8px; }
   .customer360-content { padding: 13px 12px 20px; }
@@ -1060,6 +1168,116 @@
 .chart-tip-name { display: flex; align-items: center; gap: 6px; color: var(--text-2); }
 .chart-tip-dot { width: 7px; height: 7px; border-radius: 50%; }
 .chart-tip-val { font-family: var(--font-display); font-weight: 700; color: var(--text-1); font-variant-numeric: tabular-nums; }
+
+/* ═══════════════════════════════════════════════════════════════
+   COMPOSITION CLASSES — the static layout and type that pages used
+   to write as inline style objects.
+   The rule that decided what could move: an inline style outranks
+   every selector, so a declaration only came here once nothing in
+   the four patch layers contests it at this element. Where a later
+   layer DOES contest it the declaration either stayed inline (the
+   revoke-reason input's font-size, which beats consistency.css's
+   16px mobile-zoom guard) or the selector here is compound on
+   purpose (noted at the rule). --fs-* stands in only where the
+   token resolves to exactly the literal it replaced; 0.71875rem
+   (11.5px) and 0.78125rem (12.5px) have no token and stay literal.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* The two sizes pages reached for inline, as utilities. */
+.text-tiny  { font-size: var(--fs-tiny); }    /* 12px */
+.text-micro { font-size: var(--fs-micro); }   /* 11px */
+
+/* A qualifying note pulled back up into the .page-stack-lg gap, so it
+   reads as attached to the panel above it. */
+.page-note { margin: -8px 0 0; font-size: var(--fs-tiny); color: var(--text-3); }
+
+/* A <SearchInput> in a panel head: fluid, capped. The DS component hands
+   `style` to .search-wrap, and nothing in any layer gives that a width. */
+.search-wrap-280 { width: min(280px, 100%); }
+
+/* A labelled group inside an expanded row or a side panel. The label rule
+   is compound because base.css already sets .label-sm { margin: 0 } at
+   (0,1,0) and workspace.css restates .label-sm later still. */
+.detail-block { margin-bottom: 14px; }
+.label-sm.detail-label { margin-bottom: 8px; }
+
+/* ds/DataTable <DetailGrid> — label-over-machine-value cells filling the
+   width of an expanded row. `.detail-grid` is the name consistency.css
+   already clears backgrounds on; it simply never had a layout home. */
+.detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+.detail-grid > .glass-inset { padding: 8px 12px; }
+.detail-grid .label-sm { margin-bottom: 3px; }
+/* A `.glass-inset p`, which consistency.css styles at (0,1,1) — but only
+   white-space, overflow-wrap, text-overflow and line-height, none of which
+   are below, so a plain class is enough here. */
+.detail-grid-val { margin: 0; font-family: var(--font-mono); font-size: var(--fs-tiny); color: var(--text-1); word-break: break-all; }
+
+/* ── ErrorsPage — one collected error, rendered in full ────────── */
+.error-event-card { padding: 10px 12px; }
+.error-event-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.error-event-type { font-size: var(--fs-tiny); font-weight: 600; color: var(--text-1); }
+.error-event-time { margin-left: auto; font-size: var(--fs-micro); color: var(--text-3); white-space: nowrap; }
+/* Compound on purpose: the message IS a `.glass-inset p`, so consistency.css
+   sets line-height 1.5 on it at (0,1,1). 1.55 is the value that shipped. */
+.error-event-card .error-event-msg { margin: 6px 0 0; font-size: 0.78125rem; color: var(--text-1); line-height: 1.55; word-break: break-word; }
+.error-event-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.error-event-list { display: grid; gap: 8px; }
+.error-events-more { display: flex; justify-content: center; margin-top: 10px; }
+/* Two caps, two offsets — the values the two call sites shipped. */
+.error-events-note { margin-top: 10px; font-size: 0.71875rem; color: var(--text-3); }
+.error-occurrences-note { margin-top: 8px; font-size: 0.71875rem; color: var(--text-3); }
+.error-failure-summary { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.error-skeleton-row { display: flex; align-items: center; gap: 10px; padding: 12px 16px; }
+.error-skeleton-grow { flex: 1; max-width: 420px; }
+.error-group-icon { flex-shrink: 0; color: var(--danger); }
+/* The licence-tier chip beside a customer's identity. 0.625rem (10px) sits
+   below the scale's floor and has no token, so it stays a literal.
+   --bg-subtle and --text-muted are declared NOWHERE in src/ — exactly as in
+   the inline style this replaces. Both declarations are invalid at
+   computed-value time, so the FREE chip paints no background and inherits
+   `.person-cell small`'s --text-3. Kept verbatim so nothing moves. */
+.error-tier-pill { padding: 2px 6px; border-radius: 4px; font-size: 0.625rem; font-weight: 700; letter-spacing: 0.05em; vertical-align: middle; }
+.error-tier-pill.is-premium { background: var(--accent-subtle); color: var(--accent-text); }
+.error-tier-pill.is-free { background: var(--bg-subtle); color: var(--text-muted); }
+.error-identity-id { margin-left: 8px; }
+.error-cell-sub { font-size: 0.71875rem; color: var(--text-2); }
+.error-cell-bg { font-size: var(--fs-micro); color: var(--text-3); }
+.error-cell-more { color: var(--text-3); }
+.error-cell-empty { color: var(--text-3); opacity: 0.55; }
+/* An inline cluster inside a table cell: a badge beside a count, a live dot
+   beside a timestamp. */
+.cell-inline { display: inline-flex; align-items: center; gap: 6px; }
+
+/* ── FeedbackPage — the inbox card ─────────────────────────────── */
+.panel-body-stack { display: flex; flex-direction: column; gap: 10px; }
+/* Padding is a modifier, NOT part of .feedback-card: the three loading
+   placeholders wear the bare card and ship without any. */
+.feedback-item { padding: 14px 16px; }
+.feedback-item-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.feedback-item-status { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.feedback-item-time { font-family: var(--font-mono); font-size: var(--fs-tiny); color: var(--text-3); }
+.feedback-item-actions { display: flex; align-items: center; gap: 2px; }
+/* The clamp for a long message stays inline: it is conditional on state. */
+.feedback-item-msg { margin: 0 0 8px; font-size: var(--fs-body); color: var(--text-1); line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+.feedback-item-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; font-size: var(--fs-small); color: var(--text-3); }
+.feedback-item-fact { display: inline-flex; align-items: center; gap: 5px; color: var(--text-2); }
+/* Was written inline by FeedbackPage. operations.css restates the marker in
+   the themed blue at (0,3,1) and outranks this on specificity alone, which
+   is why the !important it used to need is gone from that rule. */
+.feedback-card.is-new { box-shadow: inset 2px 0 0 0 var(--accent); }
+
+/* ── InstallsPanel — one registered device per row ─────────────── */
+.installs-list { display: flex; flex-direction: column; gap: 6px; }
+.installs-note { font-size: var(--fs-tiny); color: var(--text-3); }
+.installs-error { display: flex; align-items: center; gap: 8px; font-size: var(--fs-tiny); color: var(--danger); }
+.installs-action-error { margin: 0; font-size: var(--fs-tiny); color: var(--danger); }
+.installs-skeleton { width: 160px; height: 12px; }
+.installs-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 6px 12px; }
+/* State, not data: the row was dimmed with an inline opacity. */
+.installs-row.is-revoked { opacity: 0.7; }
+.installs-id { font-family: var(--font-mono); font-size: var(--fs-tiny); color: var(--text-1); }
+.installs-seen { font-size: 0.71875rem; color: var(--text-3); white-space: nowrap; }
+.installs-actions { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
 
 /* ── Reduced motion — movement goes, opacity cues stay ─────────── */
 @media (prefers-reduced-motion: reduce) {

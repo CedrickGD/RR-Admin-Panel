@@ -1336,9 +1336,11 @@ select.glass-input {
   flex: 1 1 260px;
   max-width: 330px;
 }
-.customer-directory-table {
-  min-width: 1040px;
-}
+/* No width floor for the directory here: a 1040px one used to sit at this spot
+   and never shipped, because consistency.css sets min-width on the same table
+   at higher specificity. Two files naming different floors for one table was
+   the defect; CustomersPage passes the real one (960px, its measured width with
+   every optional tier hidden) through TableFrame's minWidth prop. */
 /* The directory's own sortable-header styles are gone: the table now uses the
    shared ds SortHeader, styled once by `.table-sort` in operations.css. */
 .customer-directory-table .btn {
@@ -1381,9 +1383,8 @@ select.glass-input {
    (125–150 %) turns "1080p/1440p" hardware into 1280–1536 CSS px,
    where the 10–12 column tables overflowed even after the page cap
    was removed. What closes the gap is the column priority tiers:
-   th/td pairs tagged .col-xl/.col-lg/.col-md bow out when the
-   viewport can no longer afford them. Nothing is lost — every
-   hidden field remains in the row's expanded detail view.
+   th/td pairs tagged .col-xl/.col-lg/.col-md bow out when the table
+   can no longer afford them.
    A density ladder used to sit here too, tightening cell padding
    and type as the viewport narrowed. It never rendered: every table
    in the app is a .record-table, and consistency.css sets both
@@ -1391,24 +1392,91 @@ select.glass-input {
    higher specificity from a later import. Deleted rather than left
    documenting something the cascade always threw away — reviving it
    is separate work. */
-/* Tier cutoffs sit ABOVE the common effective widths (1280 / 1366 / 1536 —
-   what Windows 125–150 % scaling makes of 1080p/1440p panels), so each of
-   those lands in a configuration that actually fits. */
-@media (max-width: 1799px) {
-  .data-table-wrap .col-xl {
+
+/* THE TIERS ASK THE TABLE, NOT THE WINDOW.
+   These were viewport media queries, which is the wrong instrument: the table
+   lives inside .data-table-wrap, whose width is the viewport minus --sb-w
+   (244px, or 64px once html.sb-collapsed) minus the page gutters. Measured, a
+   1440px window gives the wrap 1130px expanded and ~1310px collapsed, and a
+   1280px window gives 970px while a 1200px window gives 1070px — narrower
+   outside, wider inside, because the rail auto-collapses below 1200. A media
+   query cannot see any of that, so the old cutoffs hid columns that fitted
+   (all ten Errors columns need 1097px and had 1130px at 1440) and kept columns
+   that did not (the directory's col-xl wants 1511px and had 1490px at 1800,
+   overflowing because of the rule meant to stop it overflowing).
+   The wrap is now a query container, so every threshold below is the width the
+   columns actually have. Each number is that configuration's measured
+   max-content width — the point below which something would wrap or scroll —
+   and they are per table because the tables are not the same size. Re-measure
+   before changing one; do not round them for tidiness.
+   Container queries are the whole mechanism, with no media-query fallback on
+   purpose: an engine without @container support ignores this block and shows
+   every column, which is the behaviour that predates the tiers and degrades to
+   a horizontal scrollbar rather than to missing data. */
+.data-table-wrap {
+  container: tablefit / inline-size;
+}
+/* Customer directory — 11 columns. Contact / Device+OS / Location / Total time
+   are not one expansion away when they go (this table has no expanded row);
+   they are in the Customer 360 workspace. See the header comment in
+   CustomersPage.tsx. */
+@container tablefit (max-width: 1510px) {
+  .customer-directory-table .col-xl {
     display: none;
   }
 }
-@media (max-width: 1599px) {
-  .data-table-wrap .col-lg {
+@container tablefit (max-width: 1330px) {
+  .customer-directory-table .col-lg {
     display: none;
   }
 }
-@media (max-width: 1299px) {
-  .data-table-wrap .col-md {
+@container tablefit (max-width: 1072px) {
+  .customer-directory-table .col-md {
     display: none;
   }
 }
+/* The restricted scope adds an untiered 285px "Restriction" column — it is the
+   reason that scope was chosen, so it never bows out. Every tier therefore has
+   to go roughly 150px earlier than in the default view. Without this the
+   directory scrolled sideways on that scope at 1440px: 1220px wanted, 1130px
+   there. */
+@container tablefit (max-width: 1524px) {
+  .customer-directory-restricted .col-xl {
+    display: none;
+  }
+}
+@container tablefit (max-width: 1425px) {
+  .customer-directory-restricted .col-lg {
+    display: none;
+  }
+}
+@container tablefit (max-width: 1219px) {
+  .customer-directory-restricted .col-md {
+    display: none;
+  }
+}
+/* Errors — 10 columns, and the narrowest of the three. Discord, Platform,
+   Location and First error all read back in the row's expanded detail grid. */
+@container tablefit (max-width: 1096px) {
+  .error-users-table .col-xl {
+    display: none;
+  }
+}
+@container tablefit (max-width: 989px) {
+  .error-users-table .col-lg {
+    display: none;
+  }
+}
+@container tablefit (max-width: 797px) {
+  .error-users-table .col-md {
+    display: none;
+  }
+}
+/* Licenses has no rules here on purpose. Even with both of its optional columns
+   hidden the table wants 1293px, so tiering never won it a fit at any width
+   below 1700 — it scrolled either way — while costing the only in-table button
+   that opens a bound session. Its columns are untiered in LicensesPage.tsx now;
+   the 442px action column is where that table's width actually goes. */
 
 /* ── Reduced motion: fewer and gentler, not zero — opacity cues stay,
    position changes go. (.spinner/.animate-spin keep rotating: activity

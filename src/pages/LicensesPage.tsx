@@ -792,13 +792,14 @@ export function LicensesPage({
               <th scope="col">Customer</th>
               <th scope="col">Order</th>
               <th scope="col">Duration</th>
-              <th scope="col" className="col-md">
-                Usage
-              </th>
+              {/* Usage and Linked session carry no priority tier on purpose: this
+                  table has no expanded row and no drawer, so a hidden column is
+                  gone rather than folded away — and Linked session holds the only
+                  button that opens the bound session or worker. The table scrolls
+                  sideways instead; a scrollbar is recoverable, a lost action is not. */}
+              <th scope="col">Usage</th>
               <th scope="col">Status</th>
-              <th scope="col" className="col-lg">
-                Linked session
-              </th>
+              <th scope="col">Linked session</th>
               <th scope="col" aria-label="License actions" />
             </tr>
           </thead>
@@ -899,7 +900,7 @@ export function LicensesPage({
                                   : `${Math.round(lic.duration_days || 0)} Days`}
                     </span>
                   </td>
-                  <td className="col-md" data-label="Usage">
+                  <td data-label="Usage">
                     {lic.usage_count} / {lic.max_uses === -1 ? "Unlimited" : lic.max_uses}
                   </td>
                   <td data-label="Status">
@@ -914,7 +915,7 @@ export function LicensesPage({
                       label={lic.status[0].toUpperCase() + lic.status.slice(1)}
                     />
                   </td>
-                  <td className="col-lg" data-label="Linked session">
+                  <td data-label="Linked session">
                     {lic.hwid ? (
                       <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                         <User size={12} style={{ color: "var(--text-2)" }} />

@@ -49,9 +49,21 @@ export function Skeleton({ width, height = 12, radius, className = "", style }: 
   );
 }
 
+export interface SkeletonColumn {
+  /** Bar width — number is px, string passes through. Omitted keeps the bare-count width. */
+  width?: number | string;
+  /**
+   * Class the matching `<th>` carries. The priority tiers
+   * (`col-xl`/`col-lg`/`col-md`) are why this exists: a placeholder cell has to
+   * bow out with its column, or at any width where a tier is hidden the skeleton
+   * has more cells than the header and the table re-flows when data lands.
+   */
+  className?: string;
+}
+
 export interface SkeletonRowsProps {
-  /** Column count, or explicit per-column bar widths. */
-  columns: number | Array<number | string>;
+  /** Column count, or one entry per column: a bar width, or a `{ width, className }` column. */
+  columns: number | Array<number | string | SkeletonColumn>;
   /** Placeholder rows. Default 6 — one screenful of a record table. */
   rows?: number;
   /** Bar height. Default 12. */
@@ -66,12 +78,16 @@ export interface SkeletonRowsProps {
  *
  * A bare column count gives the first column a wide bar (the name/identity
  * column) and the rest narrow ones — the proportions the pages hand-rolled.
+ * A table whose columns carry the priority tiers passes <SkeletonColumn>s
+ * instead, so each placeholder cell hides exactly when its column does.
  */
 export function SkeletonRows({ columns, rows = 6, height = 12 }: SkeletonRowsProps) {
-  const widths =
-    typeof columns === "number"
-      ? Array.from({ length: columns }, (_, col) => (col === 0 ? 120 : 48))
-      : columns;
+  const declared: Array<number | string | SkeletonColumn> =
+    typeof columns === "number" ? Array.from({ length: columns }, () => ({})) : columns;
+  const cells = declared.map((column, col) => {
+    const cell: SkeletonColumn = typeof column === "object" ? column : { width: column };
+    return { width: cell.width ?? (col === 0 ? 120 : 48), className: cell.className };
+  });
   return (
     <>
       {Array.from({ length: rows }, (_, row) => (
@@ -79,9 +95,9 @@ export function SkeletonRows({ columns, rows = 6, height = 12 }: SkeletonRowsPro
         // decorative bars, so without this a screen reader announces a handful of
         // blank rows while the data loads. The frame's aria-busy says the rest.
         <tr key={`skeleton-${row}`} className="skeleton-row" aria-hidden="true">
-          {widths.map((width, col) => (
-            <td key={col}>
-              <Skeleton width={width} height={height} />
+          {cells.map((cell, col) => (
+            <td key={col} className={cell.className}>
+              <Skeleton width={cell.width} height={height} />
             </td>
           ))}
         </tr>

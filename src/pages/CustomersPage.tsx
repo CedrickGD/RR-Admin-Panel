@@ -35,7 +35,7 @@ import { Badge } from "../components/ds/Badge";
 import { Button, IconButton } from "../components/ds/Button";
 import { SortHeader, type SortState } from "../components/ds/DataTable";
 import { EmptyState } from "../components/ds/EmptyState";
-import { Skeleton, SkeletonRows } from "../components/ds/Skeleton";
+import { Skeleton, SkeletonRows, type SkeletonColumn } from "../components/ds/Skeleton";
 import { PageHeader } from "../components/ds/PageHeader";
 import { RelativeTime } from "../components/ds/RelativeTime";
 import { usePanelPermission } from "../hooks/usePanelPermission";
@@ -236,10 +236,28 @@ function customerAnchor(user: UserRollupRecord): Customer360Anchor {
 }
 
 /**
- * Column count of the directory table — keeps the skeleton in step with the
- * head. Eleven as standard; the restricted scope adds the "Restriction" column.
+ * The head of the directory table as the skeleton sees it: one entry per column,
+ * in the same order and carrying the same priority tier, so a placeholder cell
+ * bows out exactly when its column does. Without the tiers the loading body is
+ * wider than the head at every width where a tier has fired. Eleven columns as
+ * standard; the restricted scope adds "Restriction" after Support.
  */
-const DIRECTORY_COLUMNS = 11;
+function directorySkeletonColumns(showRestrictions: boolean): SkeletonColumn[] {
+  return [
+    {}, // Customer
+    { className: "col-md" }, // Contact
+    {}, // Version
+    { className: "col-lg" }, // Device / OS
+    { className: "col-xl" }, // Location
+    {}, // Sessions
+    { className: "col-lg" }, // Total time
+    {}, // Support
+    ...(showRestrictions ? [{}] : []), // Restriction
+    {}, // First seen
+    {}, // Last seen
+    {}, // Customer actions
+  ];
+}
 
 export function CustomersPage({ users: sourceUsers, filterBar }: CustomersPageProps) {
   const users = useCustomerDirectory(sourceUsers);
@@ -442,7 +460,7 @@ export function CustomersPage({ users: sourceUsers, filterBar }: CustomersPagePr
    * the scope that selects them and the default view keeps its own columns.
    */
   const showRestrictions = restrictedScope && canReadAccess;
-  const columnCount = showRestrictions ? DIRECTORY_COLUMNS + 1 : DIRECTORY_COLUMNS;
+  const skeletonColumns = directorySkeletonColumns(showRestrictions);
 
   return (
     <div className="page-content page-stack-lg">
@@ -530,10 +548,14 @@ export function CustomersPage({ users: sourceUsers, filterBar }: CustomersPagePr
           {directoryUsers === null || directoryUsers.length > 0 ? (
             <>
               <TableFrame
-                className="data-table customer-directory-table"
+                // The extra Restriction column is untiered, so this view needs
+                // more room than the default one at the same width — app-glue.css
+                // keys its own thresholds off the marker class.
+                className={`data-table customer-directory-table${showRestrictions ? " customer-directory-restricted" : ""}`}
                 paginated
                 stickyActions
                 mobileLayout="stack"
+                minWidth={960}
                 aria-busy={directoryUsers === null || undefined}
               >
                 <caption className="table-caption">
@@ -591,8 +613,14 @@ export function CustomersPage({ users: sourceUsers, filterBar }: CustomersPagePr
                       onSortChange={changeSort}
                     />
                     {/* Untiered on purpose: this column is the reason the scope
-                        was selected, so it must survive the width at which
-                        .col-lg/.col-xl columns bow out. */}
+                        was selected, so it must survive the widths at which
+                        .col-md/.col-lg/.col-xl bow out. What those tiers hide —
+                        Contact, Device / OS, Location, Total time — is not one
+                        row expansion away; this table has none. It is in the
+                        Customer 360 workspace, a separate screen and a separate
+                        fetch, opened from the name link or the scan icon. On a
+                        restriction-only row there is no rollup behind those four
+                        anyway: they read "—" whether a tier has fired or not. */}
                     {showRestrictions ? <th scope="col">Restriction</th> : null}
                     <SortHeader
                       label="First seen"
@@ -611,7 +639,7 @@ export function CustomersPage({ users: sourceUsers, filterBar }: CustomersPagePr
                 </thead>
                 <tbody className={directoryUsers === null ? undefined : "dt-settle"}>
                   {directoryUsers === null ? (
-                    <SkeletonRows columns={columnCount} />
+                    <SkeletonRows columns={skeletonColumns} />
                   ) : (
                     (paginated?.items ?? []).map((user) => {
                       const restriction = restrictionFor(user);

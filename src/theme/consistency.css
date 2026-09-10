@@ -122,12 +122,12 @@ html[data-theme] .record-table {
   font-size: var(--fs-tiny);
 }
 html[data-theme] .record-table > thead > tr > th {
-  padding: 11px 16px;
+  padding: 12px 16px;
   height: 40px;
   background: var(--surface-2);
   border-bottom: 1px solid var(--line);
   color: var(--text-3);
-  font-size: var(--fs-micro);
+  font-size: var(--fs-tiny);
   line-height: 1.5;
   font-weight: 500;
   text-transform: none;
@@ -135,11 +135,11 @@ html[data-theme] .record-table > thead > tr > th {
   white-space: nowrap;
 }
 html[data-theme] .record-table > tbody > tr > td {
-  padding: 11px 16px;
+  padding: 12px 16px;
   height: 58px;
   background: transparent;
   border-bottom: 1px solid var(--line-row);
-  font-size: var(--fs-tiny);
+  font-size: var(--fs-small);
   line-height: 1.5;
   vertical-align: middle;
   color: var(--text-2);
@@ -346,9 +346,12 @@ html[data-theme] .record-table .person-cell,
 html[data-theme] .record-cell {
   white-space: normal;
 }
-html[data-theme] .customer-directory-table {
-  min-width: 1100px;
-}
+/* No `min-width` for the customer directory here (a hardcoded 1100px used to
+   sit at this spot, ~145px above the 955px the columns need once every optional
+   tier is hidden — enough to scroll the table sideways for nothing at 1280px):
+   CustomersPage passes its floor through TableFrame's `minWidth` prop, so
+   `--table-min-w` stays the single knob for every table. */
+
 html[data-theme] .kv-tag,
 html[data-theme] .kv-tag-accent,
 html[data-theme] .badge-live {
@@ -543,14 +546,6 @@ html[data-background]:not([data-background="plain"]) .stat-card {
    --surface-2 from the shared table-frame rule above so scrolled rows never read through it. */
 html[data-theme] :is(.panel-head, .table-pagination) {
   background: var(--workspace-chrome);
-}
-html[data-theme] .record-table > thead > tr > th {
-  font-size: var(--fs-tiny);
-  padding: 12px 16px;
-}
-html[data-theme] .record-table > tbody > tr > td {
-  font-size: var(--fs-small);
-  padding: 12px 16px;
 }
 html[data-theme] .record-table td.row-expand-panel,
 html[data-theme] .record-table td.live-detail-cell {

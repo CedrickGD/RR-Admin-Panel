@@ -24,7 +24,7 @@ import { PageHeader } from "../components/ds/PageHeader";
 import { RelativeTime } from "../components/ds/RelativeTime";
 import { SearchInput } from "../components/ds/SearchInput";
 import { SegmentedControl, type TabItem } from "../components/ds/SegmentedControl";
-import { Skeleton, SkeletonRows } from "../components/ds/Skeleton";
+import { Skeleton, SkeletonRows, type SkeletonColumn } from "../components/ds/Skeleton";
 import { Tag } from "../components/ds/Tag";
 import { useAdminErrors } from "../hooks/useAdminErrors";
 import type { ErrorEventDetail, ErrorsRangeKey, ErrorUserGroup } from "../types/telemetry";
@@ -58,6 +58,24 @@ const KIND_LABELS: Record<string, string> = {
   background: "Background task",
   unhandled: "Unhandled",
 };
+
+/**
+ * One entry per header column, in document order — the tiers are repeated here
+ * on purpose. A placeholder cell that stays while its header hides leaves the
+ * loading table wider than the loaded one, and the columns jump when data lands.
+ */
+const USER_SKELETON_COLUMNS: SkeletonColumn[] = [
+  {}, // Customer
+  { className: "col-lg" }, // Discord
+  {}, // Version
+  { className: "col-lg" }, // Platform
+  { className: "col-md" }, // Location
+  {}, // Errors
+  {}, // Top type
+  { className: "col-xl" }, // First error
+  {}, // Last error
+  {}, // row actions
+];
 
 interface VisibleGroup extends ErrorUserGroup {
   visibleEvents: ErrorEventDetail[];
@@ -557,7 +575,12 @@ export function ErrorsPage() {
           unavailable ? (
             loadFailed
           ) : pageState === "loading" || (rows && rows.length > 0) ? (
-            <TableFrame stickyActions mobileLayout="stack" aria-busy={rows === null || undefined}>
+            <TableFrame
+              className="error-users-table"
+              stickyActions
+              mobileLayout="stack"
+              aria-busy={rows === null || undefined}
+            >
               <caption className="table-caption">
                 Customers with errors in {rangeTitle.toLowerCase()}, sortable by column
               </caption>
@@ -603,7 +626,7 @@ export function ErrorsPage() {
                 className={rows === null ? undefined : "dt-settle"}
               >
                 {rows === null ? (
-                  <SkeletonRows columns={USER_COLUMN_COUNT} rows={SKELETON_ROWS} />
+                  <SkeletonRows columns={USER_SKELETON_COLUMNS} rows={SKELETON_ROWS} />
                 ) : (
                   rows.map((user) => {
                     const isExpanded = expandedUsers.includes(user.identity);
@@ -745,9 +768,14 @@ export function ErrorsPage() {
                                           ? discordHandle(user.discordUser)
                                           : "—",
                                       },
+                                      // Platform and Location also live in tiered
+                                      // columns, so a narrow table is the only place
+                                      // they can be read — same values, same fallback.
+                                      { k: "Platform", v: user.platform ?? "—" },
                                       { k: "Device model", v: user.deviceModel ?? "—" },
                                       { k: "OS version", v: user.osVersion ?? "—" },
                                       { k: "Timezone", v: user.timezone ?? "—" },
+                                      { k: "Location", v: userLocation(user) || "—" },
                                       {
                                         k: "App version",
                                         v: user.displayVersion ?? user.appVersion ?? "—",

@@ -1221,6 +1221,12 @@ html[data-theme]
     background: transparent;
     box-shadow: none;
   }
+  /* A row with three actions (Members: Manage / End sessions / Remove access)
+     does not fit one 390px card footer — a second line keeps every button at
+     its normal size instead of overflowing the card. */
+  html[data-theme] .table-frame--stack .row-actions {
+    flex-wrap: wrap;
+  }
   /* The title row and the expanded-detail row print no label. The action cell
      needs no exception: its column header is empty, so attr(data-label)
      resolves to nothing — and a last column that does carry a label still

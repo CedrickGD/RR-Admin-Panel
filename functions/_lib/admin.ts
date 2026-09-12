@@ -15,7 +15,13 @@ import {
   type PanelRole,
   type Permission,
 } from "../../shared/panel-policy";
-import { findPanelMember, memberDenied, memberOverrides, trackPanelSession } from "./panel-access";
+import {
+  findPanelMember,
+  memberDenied,
+  memberOverrides,
+  memberRemoved,
+  trackPanelSession,
+} from "./panel-access";
 
 export interface DashboardRequestUser {
   email: string;
@@ -56,7 +62,18 @@ export async function requireDashboardAccess(
       : await requireAppSession(request, env, deps);
   if (!result.ok) return result;
   const member = await findPanelMember(env, result.access.user.email);
-  if (memberDenied(member)) return deny(error(401, "Panel access is disabled or expired."));
+  // 403, not 401: the identity is valid, the panel simply refuses it. A 401 would send the
+  // SPA back to the sign-in gate, which for a removed member loops through Cloudflare Access
+  // and lands here again.
+  if (memberDenied(member))
+    return deny(
+      error(
+        403,
+        memberRemoved(member)
+          ? "Panel access has been removed for this account."
+          : "Panel access is disabled or expired.",
+      ),
+    );
   if (!member) {
     const required = routePermissions(
       new URL(request.url).pathname.replace(/\/$/, ""),
@@ -125,8 +142,11 @@ async function requireVerifiedAccess(
   }
 
   const denied = enforceAccessAllowList(identity.email, env);
-  if (denied && !(await findPanelMember(env, identity.email))) {
-    return deny(denied);
+  if (denied) {
+    // A panel_members row can widen the env allow-list, but only a live one: a removed or
+    // disabled member must never let itself back in through its own row.
+    const member = await findPanelMember(env, identity.email);
+    if (!member || memberDenied(member)) return deny(denied);
   }
 
   const csrf = enforceSameOriginMutation(request);

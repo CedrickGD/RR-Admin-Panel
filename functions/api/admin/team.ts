@@ -4,9 +4,11 @@ import { ensureAuthSchema } from "../../_lib/users";
 import {
   ensurePanelSchema,
   findPanelMember,
+  groupPanelSessions,
   legacyPanelRole,
   publicMember,
   type PanelMember,
+  type PanelSessionRow,
 } from "../../_lib/panel-access";
 import {
   PERMISSIONS,
@@ -60,7 +62,20 @@ export async function onRequest({ request, env }: Context): Promise<Response> {
       }
     }
     if (!legacy.some((u) => u.email === actor)) legacy.push({ email: actor, role: "admin" });
+    // Seeding is import-only: an address that already has a row keeps whatever state the owner
+    // gave it. Without this skip a removed member would be re-seeded from admin_users or
+    // ACCESS_ALLOWED_EMAIL on the next page load — the "the test account is permanently in
+    // there" bug. `INSERT OR IGNORE` alone already leaves existing rows alone; the explicit
+    // set makes that a property of the code rather than of one SQL keyword.
+    const known = new Set(
+      (
+        (await env.DB.prepare("SELECT email FROM panel_members").all<{ email: string }>())
+          .results ?? []
+      ).map((row) => row.email),
+    );
     for (const u of legacy) {
+      if (known.has(u.email)) continue;
+      known.add(u.email);
       const role = u.email === actor ? "owner" : await legacyPanelRole(env, u.email, u.role);
       const overrides =
         role === "viewer"
@@ -79,20 +94,22 @@ export async function onRequest({ request, env }: Context): Promise<Response> {
     }
     if (request.method === "GET") {
       const [members, sessions, audit] = await Promise.all([
+        // Owner first, then everyone who still has a row to manage, removed members last.
         env.DB.prepare(
-          "SELECT * FROM panel_members ORDER BY CASE role WHEN 'owner' THEN 0 ELSE 1 END, email",
+          "SELECT * FROM panel_members ORDER BY CASE role WHEN 'owner' THEN 0 ELSE 1 END, CASE WHEN removed_at IS NULL THEN 0 ELSE 1 END, email",
         ).all<PanelMember>(),
         env.DB.prepare(
           "SELECT * FROM panel_sessions WHERE expires_at > ? AND revoked_at IS NULL ORDER BY last_seen_at DESC LIMIT 300",
         )
           .bind(now)
-          .all(),
+          .all<PanelSessionRow>(),
         env.DB.prepare("SELECT * FROM panel_audit ORDER BY id DESC LIMIT 100").all(),
       ]);
       return json({
         ok: true,
         members: (members.results ?? []).map(publicMember),
-        sessions: sessions.results ?? [],
+        // One row per browser, not per Access JWT (a new token every few minutes).
+        sessions: groupPanelSessions(sessions.results ?? []),
         audit: audit.results ?? [],
         authMode: auth.access.authMode,
         actor,
@@ -145,7 +162,7 @@ export async function onRequest({ request, env }: Context): Promise<Response> {
       }
       batch.push(
         env.DB.prepare(
-          `INSERT INTO panel_members (email,display_name,role,enabled,expires_at,overrides_json,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(email) DO UPDATE SET display_name=excluded.display_name,role=excluded.role,enabled=excluded.enabled,expires_at=excluded.expires_at,overrides_json=excluded.overrides_json,updated_at=excluded.updated_at`,
+          `INSERT INTO panel_members (email,display_name,role,enabled,expires_at,overrides_json,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(email) DO UPDATE SET display_name=excluded.display_name,role=excluded.role,enabled=excluded.enabled,expires_at=excluded.expires_at,overrides_json=excluded.overrides_json,updated_at=excluded.updated_at,removed_at=CASE WHEN excluded.enabled=1 THEN NULL ELSE panel_members.removed_at END`,
         ).bind(
           email,
           displayName,
@@ -182,14 +199,47 @@ export async function onRequest({ request, env }: Context): Promise<Response> {
           "UPDATE panel_sessions SET revoked_at = ? WHERE email = ? AND revoked_at IS NULL",
         ).bind(now, email),
       );
-    } else if (body.action === "end-session" && target && typeof body.sessionId === "string") {
+    } else if (body.action === "revoke" && target) {
+      // "Remove access": the member keeps its row (so the re-seed cannot resurrect it as a
+      // fresh, enabled member) but is disabled, marked removed and thrown out of every open
+      // session. `revoked_before` additionally rejects tokens that were issued before now and
+      // have not been seen yet.
       batch.push(
-        env.DB.prepare("UPDATE panel_sessions SET revoked_at = ? WHERE id = ? AND email = ?").bind(
-          now,
-          body.sessionId,
-          email,
-        ),
+        env.DB.prepare(
+          "UPDATE panel_members SET enabled = 0, revoked_before = ?, removed_at = ?, updated_at = ? WHERE email = ?",
+        ).bind(Math.floor(Date.now() / 1000), now, now, email),
       );
+      batch.push(
+        env.DB.prepare(
+          "UPDATE panel_sessions SET revoked_at = ? WHERE email = ? AND revoked_at IS NULL",
+        ).bind(now, email),
+      );
+      detail = JSON.stringify({ removed: true, removedAt: now });
+    } else if (body.action === "restore" && target) {
+      batch.push(
+        env.DB.prepare(
+          "UPDATE panel_members SET enabled = 1, removed_at = NULL, updated_at = ? WHERE email = ?",
+        ).bind(now, email),
+      );
+      detail = JSON.stringify({ removed: false, role: target.role });
+    } else if (body.action === "end-session" && target) {
+      // One browser owns many token rows, so the UI sends the whole group. A single
+      // `sessionId` stays accepted for older clients.
+      const ids = Array.isArray(body.sessionIds)
+        ? body.sessionIds
+        : typeof body.sessionId === "string"
+          ? [body.sessionId]
+          : [];
+      if (!ids.length || !ids.every((id) => typeof id === "string" && id.length > 0))
+        return error(400, "Select at least one session to end.");
+      if (ids.length > 300) return error(400, "Too many sessions in one request.");
+      // Scoped by email as well as id, so ids that belong to somebody else are no-ops.
+      batch.push(
+        env.DB.prepare(
+          `UPDATE panel_sessions SET revoked_at = ? WHERE email = ? AND revoked_at IS NULL AND id IN (${ids.map(() => "?").join(",")})`,
+        ).bind(now, email, ...ids),
+      );
+      detail = JSON.stringify({ sessions: ids.length });
     } else return error(400, "Unknown action or member.");
     batch.push(
       env.DB.prepare(

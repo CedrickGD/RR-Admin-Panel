@@ -7,7 +7,7 @@ import {
 import { requireDashboardAccess } from "../../functions/_lib/admin";
 import { createAppSessionToken, hashPassword } from "../../functions/_lib/auth";
 import { createUser, ensureAuthSchema } from "../../functions/_lib/users";
-import { tokenId } from "../../functions/_lib/panel-access";
+import { ensurePanelSchema, groupPanelSessions, tokenId } from "../../functions/_lib/panel-access";
 import { onRequest as team } from "../../functions/api/admin/team";
 import { onRequest as session } from "../../functions/api/auth/session";
 import { onRequest as login } from "../../functions/api/auth/login";
@@ -228,6 +228,162 @@ describe("panel permissions and session lifecycle on SQLite", () => {
     expect(json).toContain("role");
     expect(json).not.toContain(memberToken);
     expect(json).not.toContain("Example-Password");
+  });
+  it("removes a member for good, even while the address stays on the env allow-list", async () => {
+    const accessEnv = { ...testAccessEnv(`${OWNER},${MEMBER}`), DB: env.DB };
+    const headers = await accessIdentityHeaders(MEMBER);
+    const accessRequest = new Request("https://panel.test/api/admin/data", { headers });
+    expect((await requireDashboardAccess(accessRequest, accessEnv, testAccessDeps())).ok).toBe(
+      true,
+    );
+    const removed = await team({
+      env,
+      request: request("/api/admin/team", ownerToken, { action: "revoke", email: MEMBER }),
+    });
+    expect(removed.status).toBe(200);
+    // The allow-list still names the address; the panel refuses it anyway, and with 403 so the
+    // SPA shows "forbidden" instead of bouncing through the Access login again.
+    const denied = await requireDashboardAccess(accessRequest, accessEnv, testAccessDeps());
+    expect(denied.ok).toBe(false);
+    if (!denied.ok) expect(denied.response.status).toBe(403);
+    const cookieDenied = await requireDashboardAccess(request("/api/admin/data", memberToken), env);
+    expect(cookieDenied.ok).toBe(false);
+    if (!cookieDenied.ok) expect(cookieDenied.response.status).toBe(403);
+    expect(db.prepare("SELECT enabled FROM panel_members WHERE email=?").get(MEMBER)).toEqual({
+      enabled: 0,
+    });
+    expect(
+      db
+        .prepare("SELECT COUNT(*) AS n FROM panel_audit WHERE action='revoke' AND target=?")
+        .get(MEMBER),
+    ).toEqual({ n: 1 });
+  });
+  it("never resurrects a removed member when the team page re-seeds", async () => {
+    // MEMBER also exists in admin_users, which is exactly what the seed imports from.
+    await team({
+      env,
+      request: request("/api/admin/team", ownerToken, { action: "revoke", email: MEMBER }),
+    });
+    const response = await team({ env, request: request("/api/admin/team", ownerToken) });
+    const body = await response.json();
+    const member = body.members.find((m: { email: string }) => m.email === MEMBER);
+    expect(member.enabled).toBe(0);
+    expect(member.removed_at).toBeTruthy();
+    expect((await requireDashboardAccess(request("/api/admin/data", memberToken), env)).ok).toBe(
+      false,
+    );
+  });
+  it("restores a removed member", async () => {
+    await team({
+      env,
+      request: request("/api/admin/team", ownerToken, { action: "revoke", email: MEMBER }),
+    });
+    expect(
+      (
+        await team({
+          env,
+          request: request("/api/admin/team", ownerToken, { action: "restore", email: MEMBER }),
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      db.prepare("SELECT enabled,removed_at FROM panel_members WHERE email=?").get(MEMBER),
+    ).toEqual({ enabled: 1, removed_at: null });
+    // `revoke` also moved `revoked_before`, so only a token minted afterwards may pass.
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.now() + 2000);
+    const fresh = (await createAppSessionToken(SECRET, MEMBER, "viewer")).token;
+    expect((await requireDashboardAccess(request("/api/admin/data", fresh), env)).ok).toBe(true);
+  });
+  it("groups the sessions of one browser and ends every token of the group at once", async () => {
+    const second = (await createAppSessionToken(SECRET, MEMBER, "viewer")).token;
+    for (const token of [memberToken, second])
+      await requireDashboardAccess(request("/api/admin/data", token), env);
+    const body = await (
+      await team({ env, request: request("/api/admin/team", ownerToken) })
+    ).json();
+    const group = body.sessions.find((s: { email: string }) => s.email === MEMBER);
+    // Two tokens, one browser: one row for the member (plus the owner's own request).
+    expect(body.sessions.filter((s: { email: string }) => s.email === MEMBER)).toHaveLength(1);
+    expect(group.tokens).toBe(2);
+    expect(group.ids).toHaveLength(2);
+    expect(group.ids).toContain(await tokenId(memberToken));
+    const ended = await team({
+      env,
+      request: request("/api/admin/team", ownerToken, {
+        action: "end-session",
+        email: MEMBER,
+        sessionIds: group.ids,
+      }),
+    });
+    expect(ended.status).toBe(200);
+    for (const token of [memberToken, second])
+      expect((await requireDashboardAccess(request("/api/admin/data", token), env)).ok).toBe(false);
+  });
+  it("keeps the single-id form of end-session and rejects an empty selection", async () => {
+    await requireDashboardAccess(request("/api/admin/data", memberToken), env);
+    expect(
+      (
+        await team({
+          env,
+          request: request("/api/admin/team", ownerToken, {
+            action: "end-session",
+            email: MEMBER,
+            sessionIds: [],
+          }),
+        })
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await team({
+          env,
+          request: request("/api/admin/team", ownerToken, {
+            action: "end-session",
+            email: MEMBER,
+            sessionId: await tokenId(memberToken),
+          }),
+        })
+      ).status,
+    ).toBe(200);
+    expect((await requireDashboardAccess(request("/api/admin/data", memberToken), env)).ok).toBe(
+      false,
+    );
+  });
+  it("adds removed_at once, however often the schema is ensured", async () => {
+    // A second D1 wrapper is a second cache key, so the migration really runs again.
+    await ensurePanelSchema({ ...env, DB: createD1Database(db) });
+    await ensurePanelSchema({ ...env, DB: createD1Database(db) });
+    const columns = db.prepare("PRAGMA table_info(panel_members)").all() as { name: string }[];
+    expect(columns.filter((c) => c.name === "removed_at")).toHaveLength(1);
+  });
+  it("groups session rows per email, auth mode and browser, newest first", () => {
+    const row = (id: string, extra: Record<string, unknown>) => ({
+      id,
+      email: MEMBER,
+      auth_mode: "access",
+      user_agent: "Chrome",
+      created_at: "2026-09-12T10:00:00.000Z",
+      last_seen_at: "2026-09-12T10:00:00.000Z",
+      expires_at: "2026-09-12T11:00:00.000Z",
+      ...extra,
+    });
+    const groups = groupPanelSessions([
+      row("a", { created_at: "2026-09-12T09:00:00.000Z" }),
+      row("b", {
+        last_seen_at: "2026-09-12T10:30:00.000Z",
+        expires_at: "2026-09-12T12:00:00.000Z",
+      }),
+      row("c", { user_agent: "Firefox", last_seen_at: "2026-09-12T09:30:00.000Z" }),
+      row("d", { email: OWNER, last_seen_at: "2026-09-12T09:45:00.000Z" }),
+    ]);
+    expect(groups.map((g) => g.ids)).toEqual([["a", "b"], ["d"], ["c"]]);
+    expect(groups[0]).toMatchObject({
+      tokens: 2,
+      first_seen_at: "2026-09-12T09:00:00.000Z",
+      last_seen_at: "2026-09-12T10:30:00.000Z",
+      expires_at: "2026-09-12T12:00:00.000Z",
+    });
   });
   it("applies managed access and revocation to Cloudflare identities too", async () => {
     const accessEnv = { ...testAccessEnv(OWNER), DB: env.DB };

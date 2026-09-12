@@ -286,6 +286,8 @@ CREATE TABLE IF NOT EXISTS panel_members (
   expires_at TEXT,
   overrides_json TEXT NOT NULL DEFAULT '{}',
   revoked_before INTEGER NOT NULL DEFAULT 0,
+  -- Set by "Remove access"; a removed member survives the re-seed on GET /api/admin/team.
+  removed_at TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );

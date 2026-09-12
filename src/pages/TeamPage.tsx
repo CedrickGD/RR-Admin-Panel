@@ -9,8 +9,10 @@ import {
   EyeOff,
   LogOut,
   Plus,
+  RotateCcw,
   Search,
   ShieldCheck,
+  UserMinus,
   UsersRound,
   X,
 } from "lucide-react";
@@ -30,22 +32,31 @@ import { Modal, ModalActions } from "../components/ds/Modal";
 import { Skeleton, SkeletonRows } from "../components/ds/Skeleton";
 import { Tabs, type TabItem } from "../components/ds/Tabs";
 import { apiUrl } from "../utils/api";
+import { describeUserAgent } from "../utils/userAgent";
 type Member = {
   email: string;
   display_name: string;
   role: PanelRole;
   enabled: number;
   expires_at: string | null;
+  removed_at: string | null;
   overrides: PermissionOverrides;
   permissions: string[];
 };
-type Session = {
-  id: string;
+/**
+ * One signed-in browser, not one bearer token: Cloudflare Access mints a new JWT every few
+ * minutes and the API groups those rows by (email, auth mode, user agent) before sending them.
+ */
+type SessionGroup = {
+  key: string;
   email: string;
   user_agent: string;
+  auth_mode: string;
+  tokens: number;
+  first_seen_at: string;
   last_seen_at: string;
   expires_at: string;
-  auth_mode: string;
+  ids: string[];
 };
 type Audit = {
   id: number;
@@ -57,10 +68,64 @@ type Audit = {
 };
 type Data = {
   members: Member[];
-  sessions: Session[];
+  sessions: SessionGroup[];
   audit: Audit[];
   authMode: string;
   actor: string;
+};
+/** What the confirm dialog is about — each kind has its own copy and its own POST body. */
+type Confirm =
+  | { kind: "kick"; email: string }
+  | { kind: "end-session"; email: string; ids: string[] }
+  | { kind: "revoke"; email: string }
+  | { kind: "restore"; email: string };
+/**
+ * Confirm-dialog copy per action. "End sessions" and "Remove access" are one keystroke apart
+ * in the row, so each has to say plainly what survives it.
+ */
+const CONFIRM_COPY: Record<Confirm["kind"], { title: string; body?: string; confirm: string }> = {
+  kick: {
+    title: "End all sessions?",
+    body: "Every signed-in browser of this member is signed out now. Their panel access stays as it is — they can sign in again right away.",
+    confirm: "End sessions",
+  },
+  "end-session": {
+    title: "End this session?",
+    body: "This browser is signed out now. The member's panel access stays as it is — they can sign in again right away.",
+    confirm: "End session",
+  },
+  // The revoke branch renders its own JSX below instead of this copy — no body here.
+  revoke: { title: "Remove panel access?", confirm: "Remove access" },
+  restore: {
+    title: "Restore panel access?",
+    body: "The member is enabled again with the role and permissions they had before, and can sign in from now on.",
+    confirm: "Restore access",
+  },
+};
+/**
+ * The panel shell and the API are deployed separately, so a shell can briefly talk to an
+ * rr-api that still sends one row per token. Such a row becomes a group of one instead of
+ * rendering "undefined tokens".
+ */
+function asGroup(s: Partial<SessionGroup> & { id?: string; email: string }): SessionGroup {
+  return {
+    key: s.key ?? s.id ?? s.email,
+    email: s.email,
+    user_agent: s.user_agent ?? "",
+    auth_mode: s.auth_mode ?? "",
+    tokens: s.tokens ?? 1,
+    first_seen_at: s.first_seen_at ?? s.last_seen_at ?? "",
+    last_seen_at: s.last_seen_at ?? "",
+    expires_at: s.expires_at ?? "",
+    ids: s.ids ?? (s.id ? [s.id] : []),
+  };
+}
+const AUDIT_LABELS: Record<string, string> = {
+  save: "Access updated",
+  kick: "All sessions ended",
+  revoke: "Access removed",
+  restore: "Access restored",
+  "end-session": "Session ended",
 };
 type Editor = {
   email: string;
@@ -114,7 +179,7 @@ export function TeamPage() {
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
-    [confirm, setConfirm] = useState<{ email: string; sessionId?: string } | null>(null);
+    [confirm, setConfirm] = useState<Confirm | null>(null);
   // What the editor opened with (overrides nest, so compare serialised) — anything
   // beyond it is unsaved work the Modal must not discard.
   const editorBaseline = useRef("");
@@ -133,7 +198,7 @@ export function TeamPage() {
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error ?? "Unable to load panel access.");
-      setData(result);
+      setData({ ...result, sessions: (result.sessions ?? []).map(asGroup) });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to load panel access.");
     }
@@ -163,7 +228,11 @@ export function TeamPage() {
       setNotice(
         body.action === "save"
           ? "Access updated. The new permissions apply immediately."
-          : "Session access ended.",
+          : body.action === "revoke"
+            ? "Access removed. This address is refused by the panel from now on."
+            : body.action === "restore"
+              ? "Access restored. The member can sign in again."
+              : "Session access ended.",
       );
       await load();
     } catch (e) {
@@ -211,7 +280,9 @@ export function TeamPage() {
       <div className="team-summary">
         <span>
           <UsersRound />
-          <strong>{data?.members.length ?? "—"}</strong>members
+          {/* Removed members stay in the table so they can be restored, but they are not
+              part of the team any more — counting them read as "I cannot get rid of him". */}
+          <strong>{data?.members.filter((m) => !m.removed_at).length ?? "—"}</strong>members
         </span>
         <span>
           <ShieldCheck />
@@ -224,6 +295,8 @@ export function TeamPage() {
         </span>
         <span>
           <Clock3 />
+          {/* Session groups, i.e. signed-in browsers — one per Access token would count a
+              single open tab six times. */}
           <strong>{data?.sessions.length ?? "—"}</strong>active sessions
         </span>
       </div>
@@ -276,6 +349,7 @@ export function TeamPage() {
               {!data && <SkeletonRows columns={5} rows={4} />}
               {shown.map((m) => {
                 const expired = !!m.expires_at && Date.parse(m.expires_at) <= Date.now();
+                const removed = !!m.removed_at;
                 return (
                   <tr key={m.email}>
                     <td>
@@ -286,29 +360,63 @@ export function TeamPage() {
                     </td>
                     <td data-label="Role">{ROLE_LABELS[m.role]}</td>
                     <td data-label="Access">
-                      <span className={`status-text ${m.enabled && !expired ? "success" : "danger"}`}>
-                        <i />
-                        {!m.enabled ? "Disabled" : expired ? "Expired" : "Active"}
-                      </span>
+                      {removed ? (
+                        <RecordCell
+                          primary={
+                            <span className="status-text muted">
+                              <i />
+                              Removed
+                            </span>
+                          }
+                          secondary={`Removed ${displayDate(m.removed_at!)}`}
+                        />
+                      ) : (
+                        <span
+                          className={`status-text ${m.enabled && !expired ? "success" : "danger"}`}
+                        >
+                          <i />
+                          {!m.enabled ? "Disabled" : expired ? "Expired" : "Active"}
+                        </span>
+                      )}
                     </td>
                     <td data-label="Valid until">
-                      {m.expires_at ? displayDate(m.expires_at) : "No expiry"}
+                      {removed ? "—" : m.expires_at ? displayDate(m.expires_at) : "No expiry"}
                     </td>
                     <td>
-                      {m.role === "owner" ? (
-                        <span className="text-muted">Protected owner</span>
+                      {m.role === "owner" || m.email === data?.actor ? (
+                        <span className="text-muted">
+                          {m.role === "owner" ? "Protected owner" : "Your account"}
+                        </span>
+                      ) : removed ? (
+                        <div className="row-actions">
+                          <Button
+                            size="sm"
+                            onClick={() => setConfirm({ kind: "restore", email: m.email })}
+                          >
+                            Restore
+                          </Button>
+                        </div>
                       ) : (
                         <div className="row-actions">
                           <Button size="sm" onClick={() => edit(m)}>
                             Manage
                           </Button>
-                          <IconButton
+                          <Button
+                            size="sm"
                             icon={<LogOut />}
-                            size={16}
-                            title="End all sessions"
-                            aria-label={`End all sessions for ${m.email}`}
-                            onClick={() => setConfirm({ email: m.email })}
-                          />
+                            title="Sign this member out everywhere — they keep their access"
+                            onClick={() => setConfirm({ kind: "kick", email: m.email })}
+                          >
+                            End sessions
+                          </Button>
+                          <Button
+                            size="sm"
+                            icon={<UserMinus />}
+                            title="Take this member's panel access away"
+                            onClick={() => setConfirm({ kind: "revoke", email: m.email })}
+                          >
+                            Remove access
+                          </Button>
                         </div>
                       )}
                     </td>
@@ -370,25 +478,37 @@ export function TeamPage() {
             </thead>
             <tbody>
               {!data && <SkeletonRows columns={4} rows={3} />}
-              {data?.sessions.map((s) => (
-                <tr key={s.id}>
-                  <td>
-                    <RecordCell primary={s.email} secondary={s.user_agent} />
-                  </td>
-                  <td data-label="Last activity">{displayDate(s.last_seen_at)}</td>
-                  <td data-label="Expires">{displayDate(s.expires_at)}</td>
-                  <td>
-                    {s.email !== data.actor && (
-                      <Button
-                        size="sm"
-                        onClick={() => setConfirm({ email: s.email, sessionId: s.id })}
-                      >
-                        End session
-                      </Button>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {data?.sessions.map((s) => {
+                const member = data.members.find((m) => m.email === s.email);
+                return (
+                  <tr key={s.key}>
+                    <td>
+                      <RecordCell
+                        primary={
+                          member?.display_name ? `${member.display_name} · ${s.email}` : s.email
+                        }
+                        secondary={`${describeUserAgent(s.user_agent)} · ${s.tokens} ${
+                          s.tokens === 1 ? "token" : "tokens"
+                        }`}
+                      />
+                    </td>
+                    <td data-label="Last activity">{displayDate(s.last_seen_at)}</td>
+                    <td data-label="Expires">{displayDate(s.expires_at)}</td>
+                    <td>
+                      {s.email !== data.actor && (
+                        <Button
+                          size="sm"
+                          onClick={() =>
+                            setConfirm({ kind: "end-session", email: s.email, ids: s.ids })
+                          }
+                        >
+                          End session
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </TableFrame>
           {data && !data.sessions.length && (
@@ -426,13 +546,7 @@ export function TeamPage() {
                   <ShieldCheck size={16} />
                 </span>
                 <div>
-                  <strong>
-                    {a.action === "save"
-                      ? "Access updated"
-                      : a.action === "kick"
-                        ? "All sessions ended"
-                        : "Session ended"}
-                  </strong>
+                  <strong>{AUDIT_LABELS[a.action] ?? "Access change"}</strong>
                   <p>
                     {a.target} · by {a.actor}
                   </p>
@@ -677,7 +791,11 @@ export function TeamPage() {
       <Modal
         open={!!confirm}
         onClose={() => !busy && setConfirm(null)}
-        title={confirm?.sessionId ? "End this session?" : "End all sessions?"}
+        title={
+          confirm
+            ? CONFIRM_COPY[confirm.kind].title
+            : CONFIRM_COPY["end-session"].title /* keeps the title stable while closing */
+        }
         sub={confirm?.email}
       >
         {error && (
@@ -685,24 +803,46 @@ export function TeamPage() {
             {error}
           </p>
         )}
-        <p className="confirm-copy">
-          The selected session access ends immediately. The member can sign in again if their panel
-          access is still enabled.
-        </p>
+        {confirm?.kind === "revoke" ? (
+          <>
+            <p className="confirm-copy">
+              All sessions of this address end now, and the panel refuses it from now on.
+            </p>
+            <p className="confirm-copy">
+              If the address is still listed in ACCESS_ALLOWED_EMAIL on the server or in the
+              Cloudflare Access policy, the person still reaches the Cloudflare login screen — the
+              panel then answers “forbidden”. You can restore access here at any time.
+            </p>
+          </>
+        ) : (
+          <p className="confirm-copy">{CONFIRM_COPY[confirm?.kind ?? "end-session"].body}</p>
+        )}
         <ModalActions>
           <Button variant="ghost" disabled={busy} onClick={() => setConfirm(null)}>
             Cancel
           </Button>
           <Button
-            variant="danger"
-            icon={<LogOut />}
+            variant={confirm?.kind === "restore" ? "primary" : "danger"}
+            icon={
+              confirm?.kind === "revoke" ? (
+                <UserMinus />
+              ) : confirm?.kind === "restore" ? (
+                <RotateCcw />
+              ) : (
+                <LogOut />
+              )
+            }
             disabled={busy}
             onClick={() =>
               confirm &&
-              void action({ action: confirm.sessionId ? "end-session" : "kick", ...confirm })
+              void action(
+                confirm.kind === "end-session"
+                  ? { action: "end-session", email: confirm.email, sessionIds: confirm.ids }
+                  : { action: confirm.kind, email: confirm.email },
+              )
             }
           >
-            {busy ? "Ending…" : "End access"}
+            {busy ? "Working…" : CONFIRM_COPY[confirm?.kind ?? "end-session"].confirm}
           </Button>
         </ModalActions>
       </Modal>

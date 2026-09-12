@@ -1,7 +1,9 @@
 # docker compose for the RazorReaper backend on the UGREEN NAS. See README.md.
-# Project dir on the NAS: /volume1/docker/razorreaper/src/RR-Admin-Panel/deploy/nas (mirrored from
-# the repo). Secrets/credentials never live in this tree: they sit under ${DATA_DIR}/env and
-# ${DATA_DIR}/cloudflared so a source re-sync can never clobber or publish them.
+# Project dir on the NAS: /volume1/docker/razorreaper/src/RR-Admin-Panel/deploy/nas, inside a git
+# clone of this repo (since 2026-09-12; it was an SMB mirror before). Deploy = `git pull` there +
+# `docker compose up -d --build <service>`, wrapped by tools/deploy-nas.ps1. Secrets/credentials
+# never live in this tree: they sit under ${DATA_DIR}/env and ${DATA_DIR}/cloudflared, and
+# deploy/nas/.env is git-ignored, so a pull can never clobber or publish them.
 name: razorreaper
 services:
   # Locally-managed tunnel: ingress rules in ./cloudflared/config.yml (tracked, no secrets),

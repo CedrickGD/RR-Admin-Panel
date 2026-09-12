@@ -130,7 +130,6 @@ html[data-theme] .feedback-card.is-new .badge-info {
   padding: 18px;
 }
 .panel,
-.stat-card,
 .monitor-surface {
   min-width: 0;
   max-width: 100%;
@@ -258,72 +257,12 @@ html[data-theme] .feedback-card.is-new .badge-info {
 .stat-grid {
   gap: 12px;
 }
-.stat-grid .stat-card {
-  padding: 13px 16px;
-  gap: 14px;
-  position: relative;
-  overflow: hidden;
-}
-.stat-card::before {
-  content: "";
-  position: absolute;
-  width: 3px;
-  top: 14px;
-  bottom: 14px;
-  left: 0;
-  background: var(--tile-color, var(--accent));
-  opacity: 1;
-  border-radius: 0 3px 3px 0;
-}
-.stat-card:nth-child(4n + 1) {
-  --tile-color: var(--ui-violet);
-}
-.stat-card:nth-child(4n + 2) {
-  --tile-color: var(--ui-green);
-}
-.stat-card:nth-child(4n + 3) {
-  --tile-color: var(--ui-blue);
-}
-.stat-card:nth-child(4n + 4) {
-  --tile-color: var(--ui-amber);
-}
-/* Type sizes deliberately absent: the tile's scale is owned by
-   theme/css/components.css (label --fs-small / value --fs-stat / sub
-   --fs-tiny). What stays here is spacing and color. */
-.stat-card .stat-label {
-  letter-spacing: 0;
-  color: var(--text-2);
-}
-.stat-card .stat-value {
-  line-height: 1.15;
-  margin: 4px 0 3px;
-}
-.stat-card .stat-sub {
-  line-height: 1.4;
-  color: var(--text-3);
-}
-.stat-card .tile-icon {
-  width: 36px;
-  height: 36px;
-  display: grid;
-  place-items: center;
-  border-radius: var(--r-sm);
-  background: color-mix(in srgb, var(--tile-color) 15%, transparent);
-  color: var(--tile-color);
-}
-.stat-card .tile-icon svg {
-  width: 18px;
-  height: 18px;
-}
 .kpi-card-clickable {
   cursor: pointer;
 }
-.kpi-card-clickable:hover {
-  border-color: var(--tile-color);
-  background: color-mix(in srgb, var(--tile-color) 5%, var(--surface-1));
-}
 .kpi-card-chevron {
-  color: var(--tile-color);
+  /* --tile-color is gone with the per-tile hues; the chevron follows the accent. */
+  color: var(--accent-text);
   display: inline-flex;
   margin-left: 5px;
 }
@@ -800,12 +739,5 @@ th:hover .table-sort .table-sort-icon-idle {
   }
   .history-detail-head {
     align-items: flex-start;
-  }
-  .stat-grid .stat-card {
-    padding: 11px;
-    gap: 8px;
-  }
-  .stat-card .tile-side {
-    display: none;
   }
 }

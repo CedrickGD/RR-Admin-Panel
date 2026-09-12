@@ -274,71 +274,7 @@ h6 {
   }
 }
 
-.stat-card {
-  position: relative;
-  background: var(--glass-1);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--glass-border);
-  border-radius: 11px;
-  padding: 8px 11px 7px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  overflow: hidden;
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset;
-}
-.stat-card:hover {
-  background: var(--glass-2);
-  border-color: var(--glass-border2);
-  box-shadow:
-    0 0 0 1px var(--glass-border2) inset,
-    0 8px 32px -8px rgba(0, 0, 0, 0.3);
-}
-@media (hover: hover) and (pointer: fine) {
-  .stat-card:hover {
-    transform: translateY(-1px);
-  }
-}
-.stat-card::after {
-  content: "";
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, var(--accent-glow), transparent);
-}
 
-.stat-label {
-  font-size: var(--fs-micro);
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: var(--text-3);
-  padding-right: 30px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.stat-value {
-  font-family: "Space Grotesk", system-ui, sans-serif;
-  /* Size is the DS read in theme/css/components.css (--fs-stat) — the fixed
-     size that stood here lost to that later layer and never applied. */
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--text-1);
-  line-height: 1.1;
-}
-.stat-sub {
-  font-size: var(--fs-tiny);
-  color: var(--text-2);
-  margin-top: 2px;
-  /* One line always — wrapping sub-lines gave each page different card heights. */
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 
 /* ═══════════════════════════════════════════════════════════════
    PANEL / SECTION CARD
@@ -1749,10 +1685,6 @@ h6 {
     padding: 8px 14px;
   }
 
-  .stat-card {
-    padding: 10px 12px 8px;
-  }
-
   .chart-wrap-tall {
     min-height: 220px;
   }
@@ -1818,11 +1750,6 @@ h6 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
   }
-  .stat-card {
-    padding: 8px 10px 6px;
-    border-radius: 12px;
-  }
-
   /* Panels */
   .panel {
     border-radius: var(--r);
@@ -2110,20 +2037,6 @@ h6 {
   line-height: 1.6;
 }
 
-/* ─── KpiStatCard delta badge ─── */
-.stat-card-delta {
-  font-size: var(--fs-micro);
-  font-weight: 600;
-  margin-left: 8px;
-  letter-spacing: 0;
-  vertical-align: 4px;
-}
-.stat-card-delta-positive {
-  color: var(--success);
-}
-.stat-card-delta-negative {
-  color: var(--danger);
-}
 
 /* ─── Mobile: filter bar, dropdowns, KPI drill-down ───
    The dialog's own small-screen sizing is not here: a media query adds no

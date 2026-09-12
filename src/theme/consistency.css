@@ -501,33 +501,11 @@ html[data-theme] .nav-section .nav-parent > svg:first-child,
 html[data-theme] .sb-nav > .sb-item > svg:first-child {
   color: var(--accent-text);
 }
-html[data-theme] .stat-card {
-  --tile-color: var(--accent-text);
-}
-html[data-theme] .stat-card {
-  background: var(--surface-1);
-  border-color: var(--line);
-}
-html[data-theme] .stat-grid .stat-card {
-  padding: 9px 16px;
-}
-html[data-theme] .stat-card .stat-value {
-  margin: 2px 0;
-}
 html[data-theme] .sb-brand-text small {
   color: var(--accent-text);
 }
-html[data-theme] .stat-card::before {
-  background: var(--accent);
-}
-html[data-theme] .stat-card .tile-icon {
-  color: var(--accent-text);
-  background: var(--accent-subtle);
-}
-/* The sub line no longer wraps: it is one ellipsised line with the full text on
-   the tile's title attribute (theme/css/components.css owns the tile's scale),
-   which keeps the drill-down chevron on the value's line and every tile in a
-   row the same height. Phones still get two clamped lines (app-glue.css). */
+/* The KPI tile is specified once, in theme/css/components.css — geometry, type
+   scale and icon well. What is left here for `.stat-card` is colour only. */
 /* --metric-color is owned by operations.css: the neutral tile follows the accent, the
    tone-* classes carry the semantic hues. A blanket override here flattened them all. */
 /* The --workspace-* family and --sidebar-bg are declared for both themes in
@@ -666,25 +644,6 @@ html[data-theme] .world-heatmap-hovbar-trigger > svg {
   height: 100%;
   object-fit: cover;
   display: block;
-}
-/* Keep related KPI content together instead of stretching it across the whole tile. */
-html[data-theme] .stat-card.has-icon {
-  justify-content: flex-start;
-  gap: 14px;
-  padding-inline: 20px;
-}
-html[data-theme] .stat-card.has-icon .tile-side {
-  order: -1;
-}
-html[data-theme] .stat-card .tile-icon {
-  width: 36px;
-  height: 36px;
-  background: transparent;
-  border-color: var(--line);
-}
-html[data-theme] .stat-card .tile-icon svg {
-  width: 20px;
-  height: 20px;
 }
 html[data-theme] :is(.data-table, .record-table, .clean-table, .monitor-table) > tbody > tr:hover,
 html[data-theme] :is(.data-table, .record-table, .clean-table, .monitor-table) > tbody > tr:hover > td {

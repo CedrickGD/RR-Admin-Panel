@@ -542,7 +542,8 @@
   border: 1px solid var(--line);
 }
 .kpi-timespan-label { font-size: var(--fs-tiny); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-2); }
-.kpi-timespan-value { font-family: var(--font-display); font-weight: 700; font-size: 1.125rem; color: var(--text-1); }
+/* 18px sat between two steps of the scale; it takes the compact rung — the same step as the compact KPI tile's value. */
+.kpi-timespan-value { font-family: var(--font-display); font-weight: 700; font-size: var(--fs-section); color: var(--text-1); }
 .kpi-timespan-hint { font-size: var(--fs-tiny); color: var(--text-2); }
 .kpi-breakdown { display: flex; flex-direction: column; gap: 7px; }
 .kpi-breakdown-row { display: flex; align-items: center; gap: 10px; font-size: var(--fs-body); }
@@ -593,7 +594,7 @@
   border-bottom: 1px solid var(--line);
   background: linear-gradient(180deg, hsl(230 45% 18% / 0.5), transparent);
 }
-.customer-360-modal > .dialog-head .section-title { font-size: 1.25rem; }
+.customer-360-modal > .dialog-head .section-title { font-size: var(--fs-figure); }
 .customer-360-modal > .dialog-head .section-sub { margin-top: 3px; }
 .customer360-shell {
   min-height: 0;

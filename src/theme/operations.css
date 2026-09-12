@@ -109,8 +109,11 @@ html[data-theme] .feedback-card.is-new .badge-info {
   flex-wrap: wrap;
   gap: 8px;
 }
+/* No font-size: theme/css/base.css paints --fs-page here, one step under the
+   KPI number at every width above the 768px tablet rung. Was
+   clamp(1.35rem, 1.6vw, 1.8rem) — 21.6 to 28.8px by monitor, so the
+   title-to-KPI step depended on the screen. */
 .page-title {
-  font-size: clamp(1.35rem, 1.6vw, 1.8rem);
   letter-spacing: -0.035em;
 }
 /* The page subtitle is owned by theme/workspace.css's `.page-header
@@ -413,8 +416,10 @@ html.sb-collapsed .sb-brand-img {
   flex: none;
   object-fit: contain;
 }
+/* Was 18px; on the scale's section step now. Still one step above the login
+   card's same lockup (--fs-strong), and ~1.4px back for the rail's 900px budget. */
 .sb-brand-text strong {
-  font-size: 18px;
+  font-size: var(--fs-section);
   letter-spacing: -0.5px;
 }
 .sb-brand-text small {
@@ -776,6 +781,11 @@ th:hover .table-sort .table-sort-icon-idle {
   }
 }
 @media (max-width: 600px) {
+  /* Phone rung of the title ladder, on the record title's breakpoint and
+     token so the two ladders match. Was the clamp floor, 21.6px. */
+  .page-title {
+    font-size: var(--fs-figure);
+  }
   .monitor-toolbar {
     gap: 12px;
   }

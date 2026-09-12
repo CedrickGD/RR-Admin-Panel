@@ -796,7 +796,8 @@ export function LicensesPage({
                   table has no expanded row and no drawer, so a hidden column is
                   gone rather than folded away — and Linked session holds the only
                   button that opens the bound session or worker. The table scrolls
-                  sideways instead; a scrollbar is recoverable, a lost action is not. */}
+                  sideways instead (about 100px at 1440 now that the actions are
+                  icons); a scrollbar is recoverable, a lost action is not. */}
               <th scope="col">Usage</th>
               <th scope="col">Status</th>
               <th scope="col">Linked session</th>
@@ -970,49 +971,48 @@ export function LicensesPage({
                     )}
                   </td>
                   <td>
+                    {/* Icon-only, like the customer, live and error tables: four
+                        labelled buttons made this column 442px wide and pushed
+                        the table past 1700px. At icon width it fits from ~1540px
+                        and scrolls ~100px at 1440 instead of ~350px. */}
                     <div className="row-actions">
-                      <Button
-                        icon={<PlayCircle />}
+                      <IconButton
                         permission="licenses.write"
+                        title="Activate for a registered install"
+                        icon={<PlayCircle />}
+                        aria-label={`Activate ${lic.license_key} for an install`}
                         onClick={() => openLicenseAction(lic, "activate")}
                         disabled={lic.status === "revoked"}
-                        title="Activate for a registered install"
-                        aria-label={`Activate ${lic.license_key} for an install`}
-                      >
-                        Activate
-                      </Button>
-                      <Button
-                        icon={<Link2 />}
+                      />
+                      <IconButton
                         permission="licenses.write"
+                        title="Bind another device"
+                        icon={<Link2 />}
+                        aria-label={`Bind ${lic.license_key} to a device`}
                         onClick={() => openLicenseAction(lic, "bind")}
                         disabled={lic.status === "revoked"}
-                        title="Bind another device"
-                        aria-label={`Bind ${lic.license_key} to a device`}
-                      >
-                        Bind device
-                      </Button>
-                      <Button
+                      />
+                      <IconButton
                         permission="licenses.write"
-                        icon={<Pencil />}
-                        onClick={() => openEdit(lic)}
                         title="Edit customer / order info"
-                        aria-label="Edit customer / order info"
-                      >
-                        Edit
-                      </Button>
-                      <Button
+                        icon={<Pencil />}
+                        aria-label={`Edit customer / order info for ${lic.license_key}`}
+                        onClick={() => openEdit(lic)}
+                      />
+                      {/* Destructive, so it wears the danger colour the way the
+                          announcement and feedback tables' delete icons do —
+                          .btn-icon has no danger variant of its own. */}
+                      <IconButton
                         permission="licenses.write"
+                        title="Permanently delete license"
                         icon={<Trash2 />}
-                        variant="danger"
+                        aria-label={`Permanently delete ${lic.license_key}`}
+                        style={{ color: "var(--danger)" }}
                         onClick={() => {
                           setDeleteError(null);
                           setDeleteCandidate(lic);
                         }}
-                        title="Permanently delete license"
-                        aria-label="Permanently delete license"
-                      >
-                        Delete
-                      </Button>
+                      />
                     </div>
                   </td>
                 </tr>

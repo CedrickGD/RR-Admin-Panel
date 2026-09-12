@@ -435,23 +435,26 @@ body {
   color: var(--text-2);
 }
 .stat-value {
-  font-size: 1.8rem;
   line-height: 1.3;
   margin-top: 7px;
   color: var(--text-1);
 }
 /* The two mobile steps used to live in index.css and needed !important twice:
-   from an earlier layer they lost both to the size above and to the DS's
-   `.stat-card-compact .stat-value`. One class deeper, in this layer, they
-   outrank both. Keep the 480px block after the 768px one — equal specificity. */
+   from an earlier layer they lost both to the desktop size (once 1.8rem here,
+   now the DS `.stat-value` read of --fs-stat) and to the DS's
+   `.stat-card-compact .stat-value`. One class deeper than the DS `.stat-value`,
+   and later than the compact rule at equal specificity, they outrank both.
+   Keep the 480px block after the 768px one — equal specificity. */
 @media (max-width: 768px) {
   .stat-card .stat-value {
-    font-size: 1.3rem;
+    /* was 1.3rem (20.8px); the ladder's tablet rung under --fs-stat */
+    font-size: var(--fs-figure);
   }
 }
 @media (max-width: 480px) {
   .stat-card .stat-value {
-    font-size: 1.1rem;
+    /* was 1.1rem (17.6px); the rung the compact tile already reads */
+    font-size: var(--fs-section);
   }
 }
 .stat-sub {
@@ -813,7 +816,7 @@ td {
   color: var(--accent-text);
 }
 .team-summary strong {
-  font-size: 20px;
+  font-size: var(--fs-figure);
   color: var(--text-1);
   font-weight: 550;
 }
@@ -1023,7 +1026,7 @@ td {
   margin-bottom: 25px;
 }
 .customer-workspace-head h1 {
-  font-size: 24px;
+  font-size: var(--fs-page);
   letter-spacing: -0.04em;
   margin: 0;
 }
@@ -1353,7 +1356,8 @@ html[data-theme="light"] .recharts-default-tooltip {
     gap: 10px;
   }
   .customer-workspace-head h1 {
-    font-size: 19px;
+    /* was 19px; the page title's phone rung */
+    font-size: var(--fs-figure);
   }
   .clean-table td,
   .clean-table th {
@@ -1452,7 +1456,7 @@ html[data-theme="light"] .recharts-default-tooltip {
   line-height: 1.65;
 }
 .auth-title {
-  font-size: 26px;
+  /* was 26px here; app-glue's --fs-page paints now, only the tighter tracking is ours */
   letter-spacing: -0.04em;
 }
 .auth-brand-sub {

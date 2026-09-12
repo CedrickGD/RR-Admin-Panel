@@ -279,7 +279,7 @@ export default function App() {
           <p className="kicker" style={{ marginBottom: 8 }}>
             Initializing
           </p>
-          <h1 style={{ fontSize: "1.5rem", marginBottom: 8 }}>Preparing Console</h1>
+          <h1 style={{ fontSize: "var(--fs-page)", marginBottom: 8 }}>Preparing Console</h1>
           <p style={{ fontSize: "var(--fs-body)", color: "var(--text-2)", lineHeight: 1.7 }}>
             Loading auth state and session data…
           </p>
@@ -299,7 +299,7 @@ export default function App() {
           <p className="kicker" style={{ marginBottom: 8 }}>
             Session check unavailable
           </p>
-          <h1 style={{ fontSize: "1.5rem", marginBottom: 8 }}>Still checking your sign-in</h1>
+          <h1 style={{ fontSize: "var(--fs-page)", marginBottom: 8 }}>Still checking your sign-in</h1>
           <p style={{ fontSize: "var(--fs-body)", color: "var(--text-2)", lineHeight: 1.7 }}>
             {sessionError}
           </p>
@@ -508,7 +508,7 @@ export default function App() {
                   <p className="kicker" style={{ marginBottom: 8 }}>
                     Loading
                   </p>
-                  <h2 style={{ fontSize: "1.25rem", marginBottom: 8 }}>Fetching dashboard data</h2>
+                  <h2 style={{ fontSize: "var(--fs-figure)", marginBottom: 8 }}>Fetching dashboard data</h2>
                   <p style={{ fontSize: "var(--fs-small)", color: "var(--text-2)", lineHeight: 1.7 }}>
                     Loading session summary and telemetry…
                   </p>

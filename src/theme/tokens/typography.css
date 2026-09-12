@@ -1,8 +1,11 @@
 /* ═══════════════════════════════════════════════════════════════
    TYPOGRAPHY TOKENS — the single declaration site for the families,
    the size scale and the tracking. theme/workspace.css used to
-   redefine --fs-* and --track-caps one step up; those values are the
-   ones below now, so the scale reads the same everywhere.
+   redefine --fs-* and --track-caps one step up; that second
+   declaration site is gone, so the scale reads the same everywhere.
+   The display steps were retuned in phase 4c to the sizes the console
+   actually shipped (--fs-page 1.65 → 1.5rem, --fs-stat 1.4 → 1.8rem —
+   neither old value ever rendered).
    Space Grotesk — display: page titles, section titles, KPI numbers
    Inter        — everything else (UI, body, table cells)
    JetBrains Mono — machine values: ids, timestamps, build hashes
@@ -18,22 +21,22 @@
   --fs-small:   0.8125rem;   /* 13px — secondary rows, rank labels */
   --fs-body:    0.875rem;    /* 14px — default UI text, buttons, table cells */
   --fs-strong:  0.9375rem;   /* 15px — brand name, emphasized values */
-  --fs-section: 1.05rem;     /* ~17px — section titles */
-  --fs-page:    1.65rem;     /* ~26px — page title (command-bar row) */
-  --fs-stat:    1.4rem;      /* ~22px — KPI tile value */
+  --fs-section: 1.05rem;     /* ~17px — section titles, compact KPI tile; compact rung */
+  --fs-figure:  1.25rem;     /* 20px — emphasized figure inside a panel; tablet/phone rung */
+  --fs-page:    1.5rem;      /* 24px — page, record, auth and boot-card title */
+  --fs-stat:    1.8rem;      /* ~29px — KPI tile value; the largest text on any page */
 
   /* The floor above has one documented exception: the .person-avatar initials
      at 10px in theme/operations.css, decorative and not read as text.
-     The display end is NOT rationalised. --fs-section does render (section
-     titles, compact KPI tiles), but every read of --fs-page and --fs-stat
-     loses to a later literal, and headline text ships at 17.6, 18, 19, 20,
-     20.8, 21.6, 23.04, 24, 26 and 28.8px — not one of them a step. Sites:
-     .stat-value, .page-title, .auth-title, .sb-brand-text strong,
-     .team-summary strong, .customer-workspace-head h1 (and its 18px
-     .customer-workspace-bar.is-stuck variant), .system-check-state,
-     .kpi-timespan-value, and the boot cards in App.tsx. Snapping ten sizes
-     onto three steps restyles the headline of every page, which is a design
-     call for the product owner, not a cleanup — left alone deliberately. */
+     The display end is four steps and nothing in between: --fs-section for a
+     section title, the sidebar wordmark and the compact form of anything
+     larger, --fs-figure for the one emphasized figure or headline inside a
+     panel, --fs-page for the title of the thing on screen, --fs-stat for the
+     KPI hero number. Breakpoints step down this ladder (stat → figure →
+     section, page → figure) instead of inventing a size — with one carried
+     quirk: the compact tile rides the full tile's tablet rung, so between
+     481 and 768px its value is --fs-figure, a step up from its desktop
+     --fs-section. */
 
   /* Tracking */
   --track-caps: 0.03em;           /* uppercase micro-labels spread */

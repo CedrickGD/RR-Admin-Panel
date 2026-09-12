@@ -1472,11 +1472,12 @@ select.glass-input {
     display: none;
   }
 }
-/* Licenses has no rules here on purpose. Even with both of its optional columns
-   hidden the table wants 1293px, so tiering never won it a fit at any width
-   below 1700 — it scrolled either way — while costing the only in-table button
-   that opens a bound session. Its columns are untiered in LicensesPage.tsx now;
-   the 442px action column is where that table's width actually goes. */
+/* Licenses has no rules here on purpose. It has no expanded row, so a hidden
+   column is lost rather than folded away — and Linked session holds the only
+   in-table button that opens a bound session. Its columns are untiered in
+   LicensesPage.tsx. With its action column at icon width the table wants
+   ~1230px: it fits from ~1540px and scrolls about 100px at 1440, which is the
+   accepted trade. */
 
 /* ── Reduced motion: fewer and gentler, not zero — opacity cues stay,
    position changes go. (.spinner/.animate-spin keep rotating: activity

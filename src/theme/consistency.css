@@ -868,7 +868,8 @@ html[data-theme] .customer-action-bar .btn {
   display: none;
 }
 .customer-workspace-bar.is-stuck .customer-workspace-head h1 {
-  font-size: 18px;
+  /* was 18px; the rung under the 32px stuck avatar, which still sets the row height */
+  font-size: var(--fs-section);
 }
 .customer-workspace-bar.is-stuck .customer-heading-identity .person-avatar {
   width: 32px;
@@ -1012,7 +1013,7 @@ html[data-theme] .customer360-tabs button {
 }
 .system-check-state {
   display: block;
-  font-size: 20px;
+  font-size: var(--fs-figure);
   font-weight: 600;
 }
 .system-check-state.is-ok {

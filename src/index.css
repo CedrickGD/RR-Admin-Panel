@@ -152,8 +152,8 @@ h6 {
 }
 .page-title {
   font-family: "Space Grotesk", system-ui, sans-serif;
-  /* Size lives in theme/operations.css (clamp(1.35rem, 1.6vw, 1.8rem)) — the
-     clamp that stood here lost to that later layer and never applied. */
+  /* Size is the DS read in theme/css/base.css (--fs-page) — the clamp that
+     stood here lost to a later layer and never applied. */
   font-weight: 700;
   letter-spacing: -0.04em;
   background: linear-gradient(180deg, #fff 30%, rgba(255, 255, 255, 0.72));
@@ -323,8 +323,8 @@ h6 {
 }
 .stat-value {
   font-family: "Space Grotesk", system-ui, sans-serif;
-  /* Size lives in theme/workspace.css (1.8rem) — the fixed size that stood
-     here lost to that later layer and never applied. */
+  /* Size is the DS read in theme/css/components.css (--fs-stat) — the fixed
+     size that stood here lost to that later layer and never applied. */
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--text-1);

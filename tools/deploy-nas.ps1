@@ -19,7 +19,14 @@ $NasHost = "192.168.2.201"
 $NasUser = "cedrick.grabe"
 $NasRepo = "/volume1/docker/razorreaper/src/RR-Admin-Panel"
 $SshKey = "$env:USERPROFILE\.ssh\id_ed25519"
-$Services = $Service -join " "
+# `npm run deploy:nas -- -Service admin,rr-api` hands PowerShell one string "admin,rr-api", not an
+# array, so split on commas ourselves. Also stop on the first failing ssh step: compose errors
+# such as "no such service" must not fall through to the status print and look like success.
+$Services = (($Service -split ",") | ForEach-Object { $_.Trim() } | Where-Object { $_ }) -join " "
+function Invoke-Nas([string]$Command) {
+    ssh -i $SshKey "$NasUser@$NasHost" $Command
+    if ($LASTEXITCODE -ne 0) { Write-Host "NAS step failed (exit $LASTEXITCODE)." -ForegroundColor Red; exit $LASTEXITCODE }
+}
 
 $localHead = (git rev-parse --short HEAD).Trim()
 $remoteHead = (git rev-parse --short "origin/$Ref").Trim()
@@ -29,10 +36,10 @@ if ($localHead -ne $remoteHead) {
 }
 
 Write-Host "=== 1. Fast-forwarding NAS checkout to origin/$Ref ===" -ForegroundColor Cyan
-ssh -i $SshKey "$NasUser@$NasHost" "set -e; cd $NasRepo && git fetch origin && git checkout -q $Ref && git pull --ff-only origin $Ref && git log --oneline -1"
+Invoke-Nas "set -e; cd $NasRepo && git fetch origin && git checkout -q $Ref && git pull --ff-only origin $Ref && git log --oneline -1"
 
 Write-Host "=== 2. Rebuilding and restarting [$Services] on the NAS ===" -ForegroundColor Cyan
-ssh -i $SshKey "$NasUser@$NasHost" "set -e; cd $NasRepo/deploy/nas && docker compose up -d --build $Services"
+Invoke-Nas "set -e; cd $NasRepo/deploy/nas && docker compose up -d --build $Services"
 
 Write-Host "=== 3. Live status ===" -ForegroundColor Green
-ssh -i $SshKey "$NasUser@$NasHost" "docker ps --filter name=razorreaper --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}'; echo; echo 'served by admin:'; docker exec razorreaper-admin-1 ls /srv/admin/assets | grep -E '^index-.*[.](js|css)'"
+Invoke-Nas "docker ps --filter name=razorreaper --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}'; echo; echo 'served by admin:'; docker exec razorreaper-admin-1 ls /srv/admin/assets | grep -E '^index-.*[.](js|css)'"

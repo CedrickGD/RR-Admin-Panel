@@ -40,6 +40,7 @@ import type { DayPoint, StatsPayload, SummaryPayload, ThemeMode } from "../types
 import { buildRegionBreakdown, buildTrafficTimeline } from "../utils/dashboardInsights";
 import { formatDuration, formatNumber } from "../utils/format";
 import { isOverviewErrorInWindow } from "../utils/overviewErrors";
+import { topVersionsByUsers } from "../utils/versionBreakdown";
 
 interface OverviewPageProps {
   summary: SummaryPayload;
@@ -155,15 +156,12 @@ export function OverviewPage({ summary, stats, filterBar }: OverviewPageProps) {
 
   const activeUsersDrilldown = useMemo<KpiDrilldown | null>(() => {
     if (!stats) return null;
-    const totalUsers = Math.max(1, stats.totals.lifetimeUsers);
-    const topVersions = [...stats.breakdowns.versionsCurrent]
-      .sort((a, b) => b.users - a.users)
-      .slice(0, 5);
+    const topVersions = topVersionsByUsers(stats.breakdowns.versionsCurrent, 5);
     return {
       breakdown: topVersions.map((v) => ({
         label: versionLabel(v.version),
         value: formatNumber(v.users),
-        share: v.users / totalUsers,
+        share: v.share,
       })),
       breakdownTitle: "Customers by current version",
       note: `${formatNumber(stats.totals.rpcLiveNow)} live with Discord RPC · RPC status reported by ${formatNumber(stats.totals.rpcKnownUsers)} of ${formatNumber(stats.totals.lifetimeUsers)} customers`,

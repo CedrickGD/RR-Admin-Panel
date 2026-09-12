@@ -11,6 +11,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   CircleHelp,
   KeyRound,
@@ -112,6 +113,14 @@ const GROUPS: Array<{
     ],
   },
 ];
+/** First page of `group` the current user is allowed to see — where the
+    breadcrumb's group segment goes back to. Null only if the group has no
+    visible items at all, which shouldn't happen while the user is on a page
+    inside it. */
+function firstVisiblePageInGroup(group: PageGroup, user: AuthUser): PageKey | null {
+  const found = GROUPS.find((g) => g.label === group)?.items.find(([key]) => canVisit(key, user));
+  return found ? found[0] : null;
+}
 /* The one box searches four different directories depending on the page, so it
    has to say which one — the label is the accessible name, the placeholder the
    visible promise, the target the noun the Enter hint uses. */
@@ -391,6 +400,8 @@ export function Navbar({ page, onNavigate, user, onLogout }: NavbarProps) {
   }
 
   const meta = PAGE_META[page];
+  const breadcrumbGroupTarget =
+    meta.group === meta.label ? null : firstVisiblePageInGroup(meta.group, user);
   return (
     <>
       <aside
@@ -518,13 +529,35 @@ export function Navbar({ page, onNavigate, user, onLogout }: NavbarProps) {
         />
         <div className="workspace-breadcrumb">
           {/* A page named after its own group shows the name once, never twice. */}
-          {meta.group === meta.label ? null : (
+          {breadcrumbGroupTarget === null ? (
+            <strong aria-current="page">{meta.label}</strong>
+          ) : (
             <>
-              <span>{meta.group}</span>
-              <ChevronRight size={13} />
+              {/* Real link (not just a click handler) so it behaves like any other
+                  link — middle-click, open in new tab, keyboard-focusable with a
+                  visible ring. Desktop shows "Group › Page"; ≤600px collapses to
+                  just this "‹ Group" link (see workspace.css). */}
+              <a
+                className="workspace-breadcrumb-group"
+                href={`#/${breadcrumbGroupTarget}`}
+                onClick={(event) => {
+                  event.preventDefault();
+                  navigate(breadcrumbGroupTarget);
+                }}
+              >
+                <ChevronLeft
+                  size={14}
+                  className="workspace-breadcrumb-back"
+                  aria-hidden="true"
+                />
+                <span className="workspace-breadcrumb-group-label">{meta.group}</span>
+              </a>
+              <ChevronRight size={13} className="workspace-breadcrumb-sep" aria-hidden="true" />
+              <strong className="workspace-breadcrumb-page" aria-current="page">
+                {meta.label}
+              </strong>
             </>
           )}
-          <strong>{meta.label}</strong>
         </div>
         {canVisit(searchScope, user) && (
           <form

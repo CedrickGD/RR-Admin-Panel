@@ -545,17 +545,40 @@
 /* 18px sat between two steps of the scale; it takes the compact rung — the same step as the compact KPI tile's value. */
 .kpi-timespan-value { font-family: var(--font-display); font-weight: 700; font-size: var(--fs-section); color: var(--text-1); }
 .kpi-timespan-hint { font-size: var(--fs-tiny); color: var(--text-2); }
-.kpi-breakdown { display: flex; flex-direction: column; gap: 7px; }
-.kpi-breakdown-row { display: flex; align-items: center; gap: 10px; font-size: var(--fs-body); }
-.kpi-breakdown-label { min-width: 92px; color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.kpi-breakdown-track { flex: 1; height: 6px; border-radius: var(--r-pill); background: hsl(225 50% 75% / 0.09); overflow: hidden; }
+/* Grid (not flex) so every row's label column shares one width: a long label like
+   "Legacy (pre-1.4)" no longer pushes just its own row's bar/value to the right. */
+.kpi-breakdown {
+  display: grid;
+  grid-template-columns: minmax(120px, max-content) 1fr auto;
+  column-gap: 10px;
+  row-gap: 7px;
+  font-size: var(--fs-body);
+}
+.kpi-breakdown > .kicker { grid-column: 1 / -1; }
+.kpi-breakdown-row { display: contents; }
+.kpi-breakdown-label {
+  grid-column: 1;
+  align-self: center;
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.kpi-breakdown-track {
+  grid-column: 2;
+  align-self: center;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: hsl(225 50% 75% / 0.09);
+  overflow: hidden;
+}
 .kpi-breakdown-fill {
   display: block;
   height: 100%;
   border-radius: var(--r-pill);
   background: linear-gradient(90deg, hsl(var(--ah) var(--as) var(--al) / 0.85), hsl(var(--ah) var(--as) var(--al) / 0.55));
 }
-.kpi-breakdown-value { min-width: 56px; text-align: right; color: var(--text-1); }
+.kpi-breakdown-value { grid-column: 3; align-self: center; min-width: 56px; text-align: right; color: var(--text-1); }
 .kpi-drilldown-note { font-size: var(--fs-small); color: var(--text-2); line-height: 1.6; margin: 0; }
 
 /* ── Customer 360 workspace ───────────────────────────────────

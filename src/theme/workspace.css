@@ -300,13 +300,44 @@ body {
   align-items: center;
   font-size: var(--fs-tiny);
   white-space: nowrap;
+  min-width: 0;
 }
-.workspace-breadcrumb > span,
 .workspace-breadcrumb > svg {
   color: var(--text-3);
 }
 .workspace-breadcrumb strong {
   font-weight: 500;
+}
+/* Plain text, not a button: same muted colour as the rest of the breadcrumb,
+   an underline only on hover/focus signals it is clickable without adding a
+   new colour. */
+.workspace-breadcrumb-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  color: var(--text-3);
+  text-decoration: none;
+  border-radius: 2px;
+}
+.workspace-breadcrumb-group:hover {
+  text-decoration: underline;
+}
+.workspace-breadcrumb-group:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.workspace-breadcrumb-group-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Back-chevron only replaces the "Group › Page" pair on narrow screens, see
+   the ≤600px rule below. */
+.workspace-breadcrumb-back {
+  display: none;
+  flex-shrink: 0;
 }
 .workspace-search {
   margin-left: auto;
@@ -1128,9 +1159,6 @@ html[data-theme="light"] .recharts-default-tooltip {
   .settings-layout {
     gap: 28px;
   }
-  .workspace-breadcrumb > span {
-    display: none;
-  }
   .workspace-search {
     width: 300px;
   }
@@ -1286,7 +1314,23 @@ html[data-theme="light"] .recharts-default-tooltip {
     gap: 8px;
     height: 54px;
   }
+  /* No room for "Group › Page": collapse to a single "‹ Group" link back to
+     the group's first page. Shrinkable + ellipsised so a long group name
+     ("Administration") can't push the search field or theme toggle off
+     the row. */
   .workspace-breadcrumb {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .workspace-breadcrumb-group {
+    overflow: hidden;
+  }
+  .workspace-breadcrumb-back {
+    display: inline;
+  }
+  .workspace-breadcrumb-sep,
+  .workspace-breadcrumb-page {
     display: none;
   }
   .workspace-search kbd {

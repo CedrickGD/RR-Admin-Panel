@@ -29,7 +29,6 @@ import {
   CustomerAccessDialog,
   type CustomerAccessTarget,
 } from "../components/CustomerAccessDialog";
-import { GlassDropdown } from "../components/GlassDropdown";
 import { KpiStatCard } from "../components/KpiStatCard";
 import { Badge } from "../components/ds/Badge";
 import { Button, IconButton } from "../components/ds/Button";
@@ -37,6 +36,9 @@ import { SortHeader, type SortState } from "../components/ds/DataTable";
 import { EmptyState } from "../components/ds/EmptyState";
 import { Skeleton, SkeletonRows, type SkeletonColumn } from "../components/ds/Skeleton";
 import { PageHeader } from "../components/ds/PageHeader";
+import { PageToolbar } from "../components/ds/PageToolbar";
+import { SearchInput } from "../components/ds/SearchInput";
+import { Select } from "../components/ds/Select";
 import { RelativeTime } from "../components/ds/RelativeTime";
 import { usePanelPermission } from "../hooks/usePanelPermission";
 import { useWorkspaceSearch } from "../hooks/useWorkspaceSearch";
@@ -329,10 +331,6 @@ export function CustomersPage({ users: sourceUsers, filterBar }: CustomersPagePr
     () => buildUserDirectoryOptions(users ?? [], filters.continent),
     [users, filters.continent],
   );
-  const countryLabels = useMemo(
-    () => new Map(filterOptions.countries.map((option) => [option.value, option.label])),
-    [filterOptions.countries],
-  );
   /** Restrictions in force, indexed by every identifier they may be keyed by. */
   const restrictionByKey = useMemo(() => {
     const map = new Map<string, SuspensionRecord>();
@@ -466,6 +464,75 @@ export function CustomersPage({ users: sourceUsers, filterBar }: CustomersPagePr
     <div className="page-content page-stack-lg">
       <PageHeader kicker="Customer support" page="customers" right={filterBar} />
 
+      {/* The one filter place on this page (handoff §2.3). Search is the same
+          value the navbar field writes — useWorkspaceSearch("customers") is a
+          shared store — so both stay in step while the global search is still
+          around to be decided on. */}
+      <PageToolbar
+        aria-label="Customer filters"
+        canReset={hasFilters}
+        onReset={clearFilters}
+        search={
+          <SearchInput
+            value={query}
+            onChange={setQuery}
+            placeholder="Search customer, PC, Discord or HWID…"
+          />
+        }
+        filters={
+          <>
+            <Select
+              aria-label="Customer scope"
+              value={scope ?? ""}
+              onValueChange={(value) => updateScope(value || null)}
+            >
+              <option value="">All customers</option>
+              {CUSTOMER_SCOPES.map((value) => (
+                <option key={value} value={value}>
+                  {SCOPE_LABELS[value]}
+                </option>
+              ))}
+            </Select>
+            <Select
+              aria-label="App version"
+              value={filters.version ?? ""}
+              onValueChange={(value) => updateFilter("version", value || null)}
+            >
+              <option value="">All versions</option>
+              {filterOptions.versions.map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </Select>
+            <Select
+              aria-label="Continent"
+              value={filters.continent ?? ""}
+              onValueChange={(value) => updateFilter("continent", value || null)}
+            >
+              <option value="">All continents</option>
+              {filterOptions.continents.map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </Select>
+            <Select
+              aria-label="Country"
+              value={filters.country ?? ""}
+              onValueChange={(value) => updateFilter("country", value || null)}
+            >
+              <option value="">All countries</option>
+              {filterOptions.countries.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
+          </>
+        }
+      />
+
       <div className="stat-grid stat-grid-4">
         <KpiStatCard
           label="All-time customers"
@@ -508,40 +575,6 @@ export function CustomersPage({ users: sourceUsers, filterBar }: CustomersPagePr
           directoryUsers
             ? `${formatNumber(directoryUsers.length)} of ${formatNumber((users?.length ?? 0) + restrictionOnlyUsers.length)} shown · all-time customer records`
             : "Loading all-time customer records…"
-        }
-        right={
-          <div className="user-directory-controls customer-directory-controls">
-            <GlassDropdown
-              placeholder="All customers"
-              options={CUSTOMER_SCOPES}
-              value={scope}
-              onChange={updateScope}
-              renderOption={(value) => SCOPE_LABELS[value as CustomerScope] ?? value}
-              align="left"
-            />
-            <GlassDropdown
-              placeholder="All versions"
-              options={filterOptions.versions}
-              value={filters.version}
-              onChange={(value) => updateFilter("version", value)}
-              align="left"
-            />
-            <GlassDropdown
-              placeholder="All continents"
-              options={filterOptions.continents}
-              value={filters.continent}
-              onChange={(value) => updateFilter("continent", value)}
-              align="left"
-            />
-            <GlassDropdown
-              placeholder="All countries"
-              options={filterOptions.countries.map((option) => option.value)}
-              value={filters.country}
-              onChange={(value) => updateFilter("country", value)}
-              renderOption={(value) => countryLabels.get(value) ?? value}
-              align="left"
-            />
-          </div>
         }
       >
         <div className="panel-body-flush">

@@ -198,6 +198,95 @@
 .kpi-card-clickable:active { transform: translateY(0) scale(0.99); }
 .kpi-card-chevron { display: inline-block; vertical-align: -2px; margin-left: 4px; opacity: 0.55; }
 
+/* ── ds/PageToolbar — the one filter row per page ──────────────
+   One strip under the PageHeader: scope on the left, then search, then the
+   ds/Select filters and (only when something is set) Reset. No surface of its
+   own — a bordered bar under a bordered header reads as an empty panel — and
+   no colour beyond the active segment and the focus ring.
+
+   Heights: the console had buttons and dropdown triggers at 34px
+   (operations.css) and a segmented pill at ~33px, which is why a filter row
+   never sat on one baseline. Everything in here is pinned to --control-h; the
+   pin is scoped to the toolbar, so no other page moves. */
+.page-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.page-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+/* Search takes the slack on desktop, up to a readable field width. It is
+   pushed right only when a scope sits on the left — otherwise the row starts
+   at the page gutter, on the same rule as the title and the first tile,
+   instead of leaving a hole where the scope would have been. */
+.page-toolbar-search {
+  flex: 0 1 280px;
+  min-width: 180px;
+}
+.page-toolbar-left ~ .page-toolbar-search,
+.page-toolbar-left + .page-toolbar-filters { margin-left: auto; }
+.page-toolbar-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.page-toolbar :is(.btn, .gdrop-trigger, .glass-input, .ds-seg) {
+  height: var(--control-h);
+  min-height: var(--control-h);
+}
+.page-toolbar .glass-input { width: 100%; }
+.page-toolbar .ds-seg { padding: 3px; flex-wrap: nowrap; }
+.page-toolbar .ds-seg-btn { height: calc(var(--control-h) - 8px); }
+.page-toolbar .custom-select,
+.page-toolbar .gdrop,
+.page-toolbar .gdrop-trigger { min-width: 0; }
+
+/* Phone: the search gets its own full-width row first — it is the control
+   people reach for — and the rest wraps two-up underneath. Wrapping beats a
+   horizontally scrolling strip here: a scroll strip hides half the filters
+   behind a gesture with no affordance, which is exactly the "where is it"
+   problem this row exists to end. */
+@media (max-width: 768px) {
+  .page-toolbar {
+    align-items: stretch;
+    gap: 8px;
+  }
+  .page-toolbar-search {
+    order: -1;
+    flex: 1 0 100%;
+    margin-left: 0;
+  }
+  .page-toolbar-left {
+    flex: 1 0 100%;
+    /* The scope pills are the one control that may run wider than the screen;
+       let them scroll rather than break the row grid. */
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .page-toolbar-left::-webkit-scrollbar { display: none; }
+  .page-toolbar-filters {
+    flex: 1 0 100%;
+    margin-left: 0;
+  }
+  /* Two selects per row. Reset keeps its own width and sits at the right end
+     of whatever row it lands on — stretched across the full width it read as
+     the loudest control on the page, which is the opposite of what it is. */
+  .page-toolbar-filters > * { flex: 1 1 calc(50% - 4px); min-width: 0; }
+  .page-toolbar-filters > .btn { flex: 0 0 auto; margin-left: auto; }
+  .page-toolbar-filters .gdrop,
+  .page-toolbar-filters .gdrop-trigger { width: 100%; }
+  .page-toolbar-filters .gdrop-trigger { justify-content: space-between; }
+}
+
 /* ── Badges & chips ───────────────────────────────────────────── */
 .badge {
   display: inline-flex;

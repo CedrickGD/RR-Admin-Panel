@@ -14,6 +14,7 @@ import { resetHistoryLayers } from "../src/hooks/useHistoryLayer";
 type Handler = (...args: unknown[]) => void;
 interface FakeMapShape {
   container: HTMLElement;
+  canvas: HTMLCanvasElement;
   style: unknown;
   resize: ReturnType<typeof vi.fn>;
   remove: ReturnType<typeof vi.fn>;
@@ -149,7 +150,7 @@ function renderMap() {
   act(() => {
     root.render(<WorldHeatmap sessionPoints={[]} theme="dark" onOpenSession={() => {}} />);
   });
-  return mocks.maps[0];
+  return mocks.maps[mocks.maps.length - 1];
 }
 
 describe("WorldHeatmap resize tracking", () => {
@@ -169,5 +170,162 @@ describe("WorldHeatmap resize tracking", () => {
     act(() => root.render(<></>));
     expect(mocks.observers[0].disconnect).toHaveBeenCalledTimes(1);
     expect(map.remove).toHaveBeenCalledTimes(1);
+  });
+});
+
+const trigger = () => container.querySelector<HTMLButtonElement>('[aria-label="Map controls"]')!;
+const menuPanel = () => container.querySelector<HTMLElement>(".world-heatmap-menu-panel");
+const inMenu = (selector: string) => menuPanel()!.querySelector<HTMLButtonElement>(selector)!;
+const button = (label: string) =>
+  container.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!;
+const pointerDown = (target: Element) =>
+  act(() => {
+    target.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+  });
+const escape = () =>
+  act(() => {
+    document.body.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }),
+    );
+  });
+const openMenu = () => act(() => trigger().click());
+
+describe("WorldHeatmap in-map menu", () => {
+  it("keeps zoom and fullscreen outside the menu, always visible", () => {
+    const map = renderMap();
+    expect(menuPanel()).toBeNull();
+    act(() => button("Zoom in").click());
+    act(() => button("Zoom out").click());
+    expect(map.zoomIn).toHaveBeenCalledTimes(1);
+    expect(map.zoomOut).toHaveBeenCalledTimes(1);
+    expect(button("Fullscreen")).not.toBeNull();
+    expect(container.querySelector(".world-heatmap-menu")!.contains(button("Zoom in"))).toBe(false);
+  });
+
+  it("opens from the hamburger and closes on a press on the map canvas", () => {
+    const map = renderMap();
+    openMenu();
+    expect(menuPanel()).not.toBeNull();
+    expect(trigger().getAttribute("aria-expanded")).toBe("true");
+    expect(trigger().getAttribute("aria-controls")).toBe(menuPanel()!.id);
+
+    pointerDown(map.canvas);
+    expect(menuPanel()).toBeNull();
+    expect(trigger().getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("stays open for a press inside it and toggles closed from the trigger", () => {
+    renderMap();
+    openMenu();
+    pointerDown(menuPanel()!);
+    pointerDown(trigger());
+    expect(menuPanel()).not.toBeNull();
+    act(() => trigger().click());
+    expect(menuPanel()).toBeNull();
+  });
+
+  it("takes Escape before fullscreen does and hands focus back to the trigger", () => {
+    renderMap();
+    act(() => button("Fullscreen").click());
+    expect(container.querySelector(".world-heatmap-fullscreen")).not.toBeNull();
+    openMenu();
+
+    escape();
+    expect(menuPanel()).toBeNull();
+    expect(document.activeElement).toBe(trigger());
+    // The same press did not reach the map's own Escape handling.
+    expect(container.querySelector(".world-heatmap-fullscreen")).not.toBeNull();
+
+    escape();
+    expect(container.querySelector(".world-heatmap-fullscreen")).toBeNull();
+  });
+
+  it("offers the map style as a radio group that persists and swaps to satellite", () => {
+    const map = renderMap();
+    openMenu();
+    const radios = [...menuPanel()!.querySelectorAll('[role="radiogroup"] [role="radio"]')];
+    expect(radios.map((radio) => radio.getAttribute("data-style"))).toEqual([
+      "tactical",
+      "standard",
+      "satellite",
+    ]);
+    expect(inMenu('[data-style="tactical"]').getAttribute("aria-checked")).toBe("true");
+
+    act(() => inMenu('[data-style="satellite"]').click());
+    expect(menuPanel()).toBeNull();
+    expect(document.activeElement).toBe(trigger());
+    expect(localStorage.getItem("rr:map-style")).toBe("satellite");
+    expect(map.setStyle).toHaveBeenCalledTimes(1);
+    expect(map.setStyle.mock.calls[0][0]).toMatchObject({ sources: { satellite: {} } });
+
+    openMenu();
+    expect(inMenu('[data-style="satellite"]').getAttribute("aria-checked")).toBe("true");
+    expect(inMenu('[data-style="tactical"]').getAttribute("aria-checked")).toBe("false");
+  });
+
+  it("switches tactical to standard without reloading the style, and reads the saved style", () => {
+    const map = renderMap();
+    openMenu();
+    act(() => inMenu('[data-style="standard"]').click());
+    expect(localStorage.getItem("rr:map-style")).toBe("standard");
+    expect(map.setStyle).not.toHaveBeenCalled();
+
+    act(() => root.render(<></>));
+    const again = renderMap();
+    expect(mocks.maps).toHaveLength(2);
+    // The saved style is what the next map starts with (standard is the Liberty style URL).
+    expect(typeof mocks.maps[1].style).toBe("string");
+    openMenu();
+    expect(inMenu('[data-style="standard"]').getAttribute("aria-checked")).toBe("true");
+    expect(again).toBe(mocks.maps[1]);
+  });
+
+  it("shows the globe as a pressed toggle", () => {
+    const map = renderMap();
+    openMenu();
+    expect(inMenu('[data-action="globe"]').getAttribute("aria-pressed")).toBe("true");
+    act(() => inMenu('[data-action="globe"]').click());
+    expect(map.setProjection).toHaveBeenLastCalledWith({ type: "mercator" });
+    expect(menuPanel()).toBeNull();
+    openMenu();
+    expect(inMenu('[data-action="globe"]').getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("opens the info panel from the menu and closes the menu", () => {
+    renderMap();
+    openMenu();
+    act(() => inMenu('[data-action="info"]').click());
+    expect(menuPanel()).toBeNull();
+    expect(container.querySelector(".world-heatmap-floating-panel")).not.toBeNull();
+  });
+
+  it("closes when fullscreen changes, and is not a history layer", () => {
+    const pushState = vi.spyOn(history, "pushState");
+    renderMap();
+    openMenu();
+    expect(pushState).not.toHaveBeenCalled();
+
+    // A keyboard activation of Fullscreen presses nothing outside the menu.
+    act(() => button("Fullscreen").click());
+    expect(menuPanel()).toBeNull();
+    pushState.mockRestore();
+  });
+
+  it("moves focus into the menu when opened from the keyboard", () => {
+    renderMap();
+    act(() => {
+      trigger().dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true, cancelable: true }),
+      );
+    });
+    expect(menuPanel()).not.toBeNull();
+    expect(document.activeElement).toBe(inMenu('[data-action="focus-live"]'));
+    // Zoom to selection is disabled without a selection, so ArrowDown skips it.
+    act(() => {
+      document.activeElement!.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true, cancelable: true }),
+      );
+    });
+    expect(document.activeElement).toBe(inMenu('[data-style="tactical"]'));
   });
 });

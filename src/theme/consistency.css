@@ -596,9 +596,8 @@ html[data-theme] .world-heatmap-map,
 html[data-theme] .world-heatmap-map-shell {
   background: var(--map-space);
 }
-html[data-theme] .world-heatmap-hovbar,
-html[data-theme] .world-heatmap-hovbar-trigger,
-html[data-theme] .world-heatmap-hovbar-items,
+html[data-theme] .world-heatmap-menu-trigger,
+html[data-theme] .world-heatmap-zoom,
 html[data-theme] .world-heatmap-floating-panel,
 html[data-theme] .world-heatmap-clear-chip,
 html[data-theme] .world-heatmap-map .maplibregl-ctrl-attrib,
@@ -619,7 +618,7 @@ html[data-theme="light"] .world-heatmap-overlay {
 html[data-theme] .world-heatmap-floating-panel p {
   color: var(--text-2);
 }
-html[data-theme] .world-heatmap-hovbar-trigger > svg {
+html[data-theme] .world-heatmap-menu-trigger > svg {
   width: 18px;
   height: 18px;
   flex: none;
@@ -683,7 +682,7 @@ html[data-background]:not([data-background="plain"]) .stat-card:hover {
   background: var(--workspace-surface);
   border-color: var(--accent);
 }
-html[data-theme] .world-heatmap-hovbar-sep {
+html[data-theme] .world-heatmap-menu-sep {
   background: var(--line);
 }
 html[data-theme] .empty-ring {

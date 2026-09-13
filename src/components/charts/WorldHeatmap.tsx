@@ -1,10 +1,9 @@
 import {
+  Check,
   Crosshair,
   Globe2,
   Info,
-  Layers,
   LocateFixed,
-  Map as MapIcon,
   Maximize2,
   Menu,
   Minimize2,
@@ -13,7 +12,16 @@ import {
   X,
 } from "lucide-react";
 import maplibregl, { type GeoJSONSource, LngLatBounds, Popup } from "maplibre-gl";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
+import { useDismiss } from "../../hooks/useDismiss";
 import { useHistoryLayer } from "../../hooks/useHistoryLayer";
 import type { FeatureCollection, LineString, Point } from "geojson";
 import type { ThemeMode } from "../../types/telemetry";
@@ -961,6 +969,109 @@ export function WorldHeatmap({
   // the minimize button / Escape step back over the entry it pushed.
   useHistoryLayer(fullscreen, () => setFullscreen(false));
 
+  /*
+   * The in-map menu: plain React state behind the hamburger, not a history layer — Back still
+   * leaves fullscreen or the page, and the menu goes with it. A press anywhere outside it (the map
+   * canvas included), Escape, or choosing an item closes it. It renders as a manual popover in the
+   * top layer, so the map tile's overflow never clips it on a short phone map.
+   */
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuId = useId();
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const menuTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const menuPanelRef = useRef<HTMLDivElement | null>(null);
+  // Opened from the keyboard: focus moves into the menu. From a pointer it stays on the trigger.
+  const menuByKeyboardRef = useRef(false);
+  const [menuPlacement, setMenuPlacement] = useState({ top: 0, left: 0, maxHeight: 320 });
+
+  useDismiss(
+    menuOpen,
+    (reason) => {
+      setMenuOpen(false);
+      if (reason === "escape") menuTriggerRef.current?.focus();
+    },
+    menuRef,
+  );
+
+  // Entering or leaving fullscreen (a button, Escape or Back) moves the trigger away from the menu.
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [fullscreen]);
+
+  useLayoutEffect(() => {
+    const panel = menuPanelRef.current;
+    if (!menuOpen || !panel) return;
+    if (panel.showPopover && !panel.matches(":popover-open")) panel.showPopover();
+    const place = () => {
+      const trigger = menuTriggerRef.current;
+      if (!trigger) return;
+      const margin = 12;
+      const gap = 8;
+      const rect = trigger.getBoundingClientRect();
+      const width = panel.offsetWidth;
+      const maxHeight = Math.max(120, window.innerHeight - margin * 2);
+      const height = Math.min(panel.scrollHeight, maxHeight);
+      // Beside the trigger, so the zoom column under it stays in reach; below it without room.
+      let left = rect.left - gap - width;
+      let top = rect.top;
+      if (left < margin) {
+        left = rect.right - width;
+        top = rect.bottom + gap;
+      }
+      setMenuPlacement({
+        left: Math.max(margin, Math.min(left, window.innerWidth - width - margin)),
+        top: Math.max(margin, Math.min(top, window.innerHeight - height - margin)),
+        maxHeight,
+      });
+    };
+    place();
+    window.addEventListener("resize", place);
+    document.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      document.removeEventListener("scroll", place, true);
+    };
+  }, [menuOpen]);
+
+  useEffect(() => {
+    if (!menuOpen || !menuByKeyboardRef.current) return;
+    menuByKeyboardRef.current = false;
+    menuItems()[0]?.focus();
+  }, [menuOpen]);
+
+  /** The enabled controls of the open menu, in order. */
+  function menuItems(): HTMLButtonElement[] {
+    return [
+      ...(menuPanelRef.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? []),
+    ];
+  }
+
+  function onMenuKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    // Tab leaves the menu, and the menu closes behind it.
+    if (event.key === "Tab") {
+      setMenuOpen(false);
+      return;
+    }
+    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+    const items = menuItems();
+    if (!items.length) return;
+    event.preventDefault();
+    const current = items.indexOf(document.activeElement as HTMLButtonElement);
+    let next: number;
+    if (event.key === "Home") next = 0;
+    else if (event.key === "End") next = items.length - 1;
+    else if (current < 0) next = event.key === "ArrowDown" ? 0 : items.length - 1;
+    else next = (current + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+    items[next].focus();
+  }
+
+  /** Runs a menu item, closes the menu and hands focus back to the trigger. */
+  function runMenuItem(action: () => void) {
+    action();
+    setMenuOpen(false);
+    menuTriggerRef.current?.focus();
+  }
+
   useEffect(() => {
     if (!containerRef.current || mapRef.current) {
       return;
@@ -1271,11 +1382,9 @@ export function WorldHeatmap({
     onOpenSession(activePoint.key);
   }
 
-  function cycleMapStyle() {
+  function selectMapStyle(next: MapStyleMode) {
     const map = mapRef.current;
-    if (!map) return;
-    const idx = MAP_STYLE_ORDER.indexOf(mapStyle);
-    const next = MAP_STYLE_ORDER[(idx + 1) % MAP_STYLE_ORDER.length];
+    if (!map || next === mapStyle) return;
     const prev = mapStyle;
     mapStyleRef.current = next;
     setMapStyle(next);
@@ -1382,14 +1491,122 @@ export function WorldHeatmap({
           </button>
         ) : null}
 
-        <div className="world-heatmap-hovbar">
-          <button type="button" className="world-heatmap-hovbar-trigger" aria-label="Map controls">
-            <Menu className="h-4 w-4" />
-          </button>
-          <div className="world-heatmap-hovbar-items">
-            {/* Zoom */}
+        <div className="world-heatmap-controls">
+          <div className="world-heatmap-menu" ref={menuRef}>
             <button
-              className="btn-icon"
+              ref={menuTriggerRef}
+              type="button"
+              className="world-heatmap-menu-trigger"
+              aria-label="Map controls"
+              aria-expanded={menuOpen}
+              aria-controls={menuOpen ? menuId : undefined}
+              onClick={(event) => {
+                // detail 0: Enter or Space, not a pointer.
+                menuByKeyboardRef.current = event.detail === 0;
+                setMenuOpen((open) => !open);
+              }}
+              onKeyDown={(event) => {
+                if (event.key !== "ArrowDown") return;
+                event.preventDefault();
+                if (menuOpen) {
+                  menuItems()[0]?.focus();
+                  return;
+                }
+                menuByKeyboardRef.current = true;
+                setMenuOpen(true);
+              }}
+            >
+              <Menu className="h-4 w-4" />
+            </button>
+            {menuOpen ? (
+              <div
+                ref={menuPanelRef}
+                id={menuId}
+                popover="manual"
+                role="group"
+                aria-label="Map controls"
+                className="world-heatmap-menu-panel"
+                style={{ ...menuPlacement, position: "fixed", margin: 0 }}
+                onKeyDown={onMenuKeyDown}
+              >
+                <button
+                  type="button"
+                  className="world-heatmap-menu-item"
+                  data-action="focus-live"
+                  onClick={() => runMenuItem(focusLiveMarkets)}
+                >
+                  <span className="world-heatmap-menu-mark" aria-hidden="true">
+                    <LocateFixed />
+                  </span>
+                  <span className="world-heatmap-menu-text">Focus live markets</span>
+                </button>
+                <button
+                  type="button"
+                  className="world-heatmap-menu-item"
+                  data-action="zoom-selection"
+                  disabled={!activePoint}
+                  onClick={() => runMenuItem(focusPrimaryMarket)}
+                >
+                  <span className="world-heatmap-menu-mark" aria-hidden="true">
+                    <Crosshair />
+                  </span>
+                  <span className="world-heatmap-menu-text">Zoom to selection</span>
+                </button>
+                <div className="world-heatmap-menu-sep" role="separator" />
+                <p id={`${menuId}-style`} className="world-heatmap-menu-label">
+                  Map style
+                </p>
+                <div role="radiogroup" aria-labelledby={`${menuId}-style`}>
+                  {MAP_STYLE_ORDER.map((style) => (
+                    <button
+                      key={style}
+                      type="button"
+                      role="radio"
+                      aria-checked={mapStyle === style}
+                      data-style={style}
+                      className="world-heatmap-menu-item"
+                      onClick={() => runMenuItem(() => selectMapStyle(style))}
+                    >
+                      <span className="world-heatmap-menu-mark" aria-hidden="true">
+                        {mapStyle === style ? <Check /> : null}
+                      </span>
+                      <span className="world-heatmap-menu-text">{MAP_STYLE_LABELS[style]}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="world-heatmap-menu-sep" role="separator" />
+                <button
+                  type="button"
+                  className="world-heatmap-menu-item"
+                  data-action="globe"
+                  aria-pressed={globe}
+                  onClick={() => runMenuItem(toggleProjection)}
+                >
+                  <span className="world-heatmap-menu-mark" aria-hidden="true">
+                    <Globe2 />
+                  </span>
+                  <span className="world-heatmap-menu-text">Globe view</span>
+                  {globe ? <Check className="world-heatmap-menu-state" aria-hidden="true" /> : null}
+                </button>
+                <button
+                  type="button"
+                  className="world-heatmap-menu-item"
+                  data-action="info"
+                  onClick={() => runMenuItem(() => setShowPanel(true))}
+                >
+                  <span className="world-heatmap-menu-mark" aria-hidden="true">
+                    <Info />
+                  </span>
+                  <span className="world-heatmap-menu-text">Info</span>
+                </button>
+              </div>
+            ) : null}
+          </div>
+
+          {/* Always in reach: the two map moves people use most, and fullscreen. */}
+          <div className="world-heatmap-zoom" role="group" aria-label="Zoom and fullscreen">
+            <button
+              className="world-heatmap-control"
               type="button"
               onClick={() => mapRef.current?.zoomIn({ duration: motionDuration(300) })}
               aria-label="Zoom in"
@@ -1397,66 +1614,20 @@ export function WorldHeatmap({
               <Plus className="h-4 w-4" />
             </button>
             <button
-              className="btn-icon"
+              className="world-heatmap-control"
               type="button"
               onClick={() => mapRef.current?.zoomOut({ duration: motionDuration(300) })}
               aria-label="Zoom out"
             >
               <Minus className="h-4 w-4" />
             </button>
-            <span className="world-heatmap-hovbar-sep" />
-            {/* Navigate */}
             <button
-              className="btn-icon"
-              type="button"
-              onClick={focusLiveMarkets}
-              aria-label="Focus live markets"
-            >
-              <LocateFixed className="h-4 w-4" />
-            </button>
-            <button
-              className="btn-icon"
-              type="button"
-              onClick={focusPrimaryMarket}
-              disabled={!activePoint}
-              aria-label="Zoom to selected"
-            >
-              <Crosshair className="h-4 w-4" />
-            </button>
-            <span className="world-heatmap-hovbar-sep" />
-            {/* View */}
-            <button
-              className="btn-icon"
-              type="button"
-              onClick={cycleMapStyle}
-              aria-label={`Map style: ${MAP_STYLE_LABELS[mapStyle]}`}
-              title={MAP_STYLE_LABELS[mapStyle]}
-            >
-              <Layers className="h-4 w-4" />
-            </button>
-            <button
-              className="btn-icon"
-              type="button"
-              onClick={toggleProjection}
-              aria-label={globe ? "Switch to flat map" : "Switch to globe"}
-            >
-              {globe ? <MapIcon className="h-4 w-4" /> : <Globe2 className="h-4 w-4" />}
-            </button>
-            <button
-              className="btn-icon"
+              className="world-heatmap-control"
               type="button"
               onClick={() => setFullscreen((f) => !f)}
               aria-label={fullscreen ? "Exit fullscreen" : "Fullscreen"}
             >
               {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-            </button>
-            <button
-              className="btn-icon"
-              type="button"
-              onClick={() => setShowPanel((p) => !p)}
-              aria-label="Toggle info panel"
-            >
-              <Info className="h-4 w-4" />
             </button>
           </div>
         </div>

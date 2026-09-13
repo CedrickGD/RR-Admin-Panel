@@ -1157,7 +1157,10 @@ h6 {
   color: var(--text-1);
 }
 
-.world-heatmap-hovbar {
+/* In-map controls, top right: the menu trigger over the always-visible zoom and fullscreen
+   column. The menu itself is React state in WorldHeatmap (open, outside press, Escape) — no
+   :hover / :focus-within reveal, which left the old flyout open on touch with no way to close it. */
+.world-heatmap-controls {
   position: absolute;
   top: 14px;
   right: 14px;
@@ -1165,9 +1168,9 @@ h6 {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0;
+  gap: 8px;
 }
-.world-heatmap-hovbar-trigger {
+.world-heatmap-menu-trigger {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1183,55 +1186,30 @@ h6 {
   transition:
     background 0.2s,
     border-color 0.2s,
-    color 0.2s,
-    border-radius 0.2s;
+    color 0.2s;
 }
-.world-heatmap-hovbar-trigger:hover {
-  background: rgba(8, 12, 22, 0.95);
+.world-heatmap-menu-trigger:hover,
+.world-heatmap-menu-trigger[aria-expanded="true"] {
   color: var(--accent, rgb(140, 190, 220));
   border-color: rgba(255, 255, 255, 0.2);
 }
-.world-heatmap-hovbar-items {
+.world-heatmap-zoom {
   display: flex;
   flex-direction: column;
-  align-items: center;
   gap: 2px;
-  padding: 6px;
-  margin-top: 0;
+  padding: 1px;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-top: none;
-  border-radius: 0 0 var(--r-sm) var(--r-sm);
+  border-radius: var(--r-sm);
   background: rgba(8, 12, 22, 0.88);
   backdrop-filter: blur(14px) saturate(160%);
   -webkit-backdrop-filter: blur(14px) saturate(160%);
-  opacity: 0;
-  visibility: hidden;
-  transform: translateY(-6px);
-  transition:
-    opacity 0.2s,
-    visibility 0.2s,
-    transform 0.2s;
 }
-.world-heatmap-hovbar:hover .world-heatmap-hovbar-trigger {
-  border-radius: var(--r-sm) var(--r-sm) 0 0;
-  border-bottom-color: transparent;
-}
-/* Deliberate keep: this :hover transform stays OUTSIDE the (hover: hover)
-   gate. The reveal must resolve identically for :hover, :focus-within and
-   touch — gating only the transform would open the flyout still offset by
-   -6px when reached via keyboard or tap. */
-.world-heatmap-hovbar:hover .world-heatmap-hovbar-items,
-.world-heatmap-hovbar:focus-within .world-heatmap-hovbar-items {
-  opacity: 1;
-  visibility: visible;
-  transform: translateY(0);
-}
-.world-heatmap-hovbar-items button {
+.world-heatmap-control {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   border: none;
   border-radius: var(--r-ctl);
   background: transparent;
@@ -1241,24 +1219,101 @@ h6 {
     background 0.15s,
     color 0.15s;
 }
-.world-heatmap-hovbar-items button:hover {
+.world-heatmap-control:hover {
   background: rgba(255, 255, 255, 0.1);
   color: var(--accent, rgb(140, 190, 220));
 }
-.world-heatmap-hovbar-items button:disabled {
-  opacity: 0.3;
+
+/* The open menu: the GlassDropdown menu surface (theme/operations.css `.gdrop-menu[popover]`),
+   opaque, in the top layer. WorldHeatmap sets top/left/max-height. */
+.world-heatmap-menu-panel {
+  z-index: 1000;
+  box-sizing: border-box;
+  min-width: 208px;
+  max-width: min(260px, calc(100vw - 24px));
+  overflow-y: auto;
+  padding: 5px;
+  border: 1px solid var(--line-hi);
+  border-radius: var(--r);
+  background: var(--surface-float);
+  box-shadow: var(--shadow-float);
+  color: var(--text-1);
+}
+.world-heatmap-menu-panel[popover] {
+  inset: auto;
+}
+.world-heatmap-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 36px;
+  padding: 7px 10px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--text-2);
+  font-size: var(--fs-body);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    color 0.12s;
+}
+.world-heatmap-menu-item:hover:not(:disabled) {
+  background: hsl(210 80% 75% / 0.07);
+  color: var(--text-1);
+}
+.world-heatmap-menu-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.world-heatmap-menu-item:disabled {
+  opacity: 0.4;
   cursor: not-allowed;
 }
-.world-heatmap-hovbar-items button:disabled:hover {
-  background: transparent;
-  color: rgba(255, 255, 255, 0.7);
+.world-heatmap-menu-item[aria-checked="true"],
+.world-heatmap-menu-item[aria-checked="true"]:hover {
+  color: var(--accent-text);
+  background: var(--accent-subtle);
 }
-.world-heatmap-hovbar-sep {
-  display: block;
-  width: 22px;
+.world-heatmap-menu-mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+}
+.world-heatmap-menu-mark svg,
+.world-heatmap-menu-state {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+.world-heatmap-menu-text {
+  flex: 1;
+  min-width: 0;
+}
+.world-heatmap-menu-state {
+  color: var(--accent-text);
+}
+.world-heatmap-menu-label {
+  margin: 0;
+  padding: 8px 10px 4px;
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+}
+.world-heatmap-menu-sep {
   height: 1px;
-  margin: 4px 0;
+  margin: 5px 4px;
   background: rgba(255, 255, 255, 0.1);
+}
+/* Coarse pointers get the same 44px rows as the GlassDropdown options (theme/consistency.css). */
+@media (pointer: coarse) {
+  .world-heatmap-menu-item {
+    min-height: 44px;
+  }
 }
 
 .world-heatmap-fullscreen {

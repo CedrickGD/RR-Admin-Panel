@@ -31,11 +31,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { PageHeader } from "../components/ds/PageHeader";
 import { RelativeTime } from "../components/ds/RelativeTime";
 import { CustomerReturnLink } from "../components/CustomerReturnLink";
-import {
-  licenseSearchRecords,
-  useSearchRecordSource,
-  useWorkspaceSearch,
-} from "../hooks/useWorkspaceSearch";
+import { useWorkspaceSearch } from "../hooks/useWorkspaceSearch";
 import { formatDate } from "../utils/format";
 import {
   activateAdminLicense,
@@ -257,12 +253,6 @@ export function LicensesPage({
   useEffect(() => {
     if (searchQuery.trim()) setWorkspaceTab("inventory");
   }, [searchQuery]);
-  // The header search offers these while this page holds them — no extra fetch.
-  useSearchRecordSource(
-    "licenses",
-    useMemo(() => licenseSearchRecords(licenses), [licenses]),
-  );
-
   // Which key was copied last — one flag, because only one confirmation shows at a time.
   const [copiedValue, setCopiedValue] = useState<string | null>(null);
   const copyTimer = useRef<number | null>(null);

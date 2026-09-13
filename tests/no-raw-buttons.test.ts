@@ -62,11 +62,6 @@ const ALLOWED: Array<{ file: string; count: number; why: string }> = [
     why: "sidebar brand and .sb-item nav rows: navigation chrome with its own rail styling",
   },
   {
-    file: "src/components/SearchResults.tsx",
-    count: 2,
-    why: 'listbox rows: role="option" inside the search popover, not actions',
-  },
-  {
     file: "src/components/UserActivityPanel.tsx",
     count: 1,
     why: "a timeline segment — a positioned band in a chart, not a control surface",

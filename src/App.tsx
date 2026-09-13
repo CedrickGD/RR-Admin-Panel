@@ -11,10 +11,8 @@ import { canVisit } from "../shared/panel-policy";
 import { PanelIdentity } from "./hooks/usePanelPermission";
 import { CustomerProfilesProvider } from "./components/CustomerProfiles";
 import {
-  customerSearchRecords,
-  liveSessionSearchRecords,
+  clearWorkspaceSearchesExcept,
   setWorkspaceSearch,
-  useSearchRecordSource,
 } from "./hooks/useWorkspaceSearch";
 import type { MapFocusTarget } from "./pages/HeatmapPage";
 import type { PageKey } from "./types/telemetry";
@@ -137,6 +135,14 @@ export default function App() {
     }
     if (search) setWorkspaceSearch("customers", search);
   }, [page]);
+  /* Each list page keeps its toolbar search in sessionStorage, but a query
+     filters that one list only: opening another page drops it. (The navbar
+     search field used to do this; it is gone, the searches live in the
+     pages' toolbars.) A search handed over on arrival — the access redirect
+     above — targets the page being opened, so it is kept. */
+  useEffect(() => {
+    clearWorkspaceSearchesExcept(page);
+  }, [page]);
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0 });
   }, [page]);
@@ -219,20 +225,6 @@ export default function App() {
     page === "overview" ? { ...DEFAULT_STATS_FILTERS, range: "today" } : DEFAULT_STATS_FILTERS,
     JSON.stringify([user?.email, user?.role, user?.panelRole, user?.permissions]),
   );
-
-  // What the header search may offer without asking the network for anything:
-  // the all-time rollup while a page that needs it has it loaded, and the live
-  // sessions that every page's summary already carries.
-  useSearchRecordSource("customers", useMemo(() => customerSearchRecords(users), [users]));
-  useSearchRecordSource(
-    "live",
-    useMemo(() => liveSessionSearchRecords(summary?.activeSessions ?? null), [summary]),
-  );
-
-  // Data refreshes automatically; page-specific lists own their search filters.
-  const refreshButton = null;
-
-  const filterBar = null;
 
   function nextFocusedSession(current: FocusedSession, sessionId: string): FocusedSession {
     return { id: sessionId, token: current?.id === sessionId ? current.token + 1 : 1 };
@@ -420,7 +412,6 @@ export default function App() {
                       stats={stats}
                       theme={appearance.theme}
                       accentHue={accentHue}
-                      filterBar={filterBar}
                     />
                   ) : null}
                   {page === "versions" ? (
@@ -429,7 +420,6 @@ export default function App() {
                       stats={stats}
                       theme={appearance.theme}
                       accentHue={accentHue}
-                      filterBar={filterBar}
                     />
                   ) : null}
                   {page === "heatmap" ? (
@@ -440,7 +430,6 @@ export default function App() {
                       onOpenSession={handleOpenLiveSession}
                       focusedTarget={mapFocusTarget}
                       onFocusConsumed={handleMapFocusConsumed}
-                      filterBar={refreshButton}
                     />
                   ) : null}
                   {page === "live" ? (
@@ -450,7 +439,6 @@ export default function App() {
                       focusedSessionToken={focusedLiveSession?.token ?? 0}
                       onFocusConsumed={handleLiveFocusConsumed}
                       onOpenMapSession={handleOpenHeatmapSession}
-                      filterBar={refreshButton}
                     />
                   ) : null}
                   {page === "workers" ? (
@@ -461,11 +449,10 @@ export default function App() {
                       focusedWorkerId={focusedWorkerId}
                       onOpenMapSession={handleOpenHeatmapSession}
                       onOpenMapUser={handleOpenMapUser}
-                      filterBar={refreshButton}
                     />
                   ) : null}
                   {page === "customers" ? (
-                    <CustomersPage users={users} filterBar={refreshButton} />
+                    <CustomersPage users={users} />
                   ) : null}
                   {page === "errors" ? <ErrorsPage /> : null}
                   {page === "licenses" ? (
@@ -473,21 +460,19 @@ export default function App() {
                       summary={summary}
                       onOpenSession={handleOpenLiveSession}
                       onOpenWorker={handleOpenWorker}
-                      filterBar={refreshButton}
                     />
                   ) : null}
                   {page === "announcements" ? (
-                    <AnnouncementsPage filterBar={refreshButton} />
+                    <AnnouncementsPage />
                   ) : null}
                   {page === "feedback" ? (
-                    <FeedbackPage summary={summary} filterBar={refreshButton} />
+                    <FeedbackPage summary={summary} />
                   ) : null}
                   {page === "settings" ? (
                     <SettingsPage
                       user={user}
                       authMode={authMode}
                       onLogout={() => void logout()}
-                      filterBar={refreshButton}
                     />
                   ) : null}
                   {page === "team" ? <TeamPage /> : null}

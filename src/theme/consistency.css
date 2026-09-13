@@ -379,7 +379,7 @@ html[data-theme] .record-link:focus-visible {
   outline-offset: 2px;
 }
 /* Wrapped search fields: the wrapper carries the keyboard focus ring, not the borderless input. */
-:is(.workspace-search, .search-field, .monitor-search, .auth-input):focus-within {
+:is(.search-field, .monitor-search, .auth-input):focus-within {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -387,7 +387,7 @@ html[data-theme] .record-link:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
-:is(.workspace-search, .search-field, .monitor-search, .auth-input, .gdrop-search) input:focus-visible {
+:is(.search-field, .monitor-search, .auth-input, .gdrop-search) input:focus-visible {
   outline: none;
 }
 @media (max-width: 900px) {
@@ -486,9 +486,6 @@ html[data-theme] :is(.btn, .btn-icon) > svg {
   padding: 0;
 }
 html[data-theme] .btn {
-  font-size: var(--fs-small);
-}
-html[data-theme] .workspace-search input {
   font-size: var(--fs-small);
 }
 html[data-theme] .nav-children .sb-item > svg {
@@ -1240,7 +1237,6 @@ html[data-theme]
       .glass-input,
       .search-input,
       .search-field input,
-      .workspace-search input,
       .monitor-search input,
       .gdrop-search input,
       .auth-input input,

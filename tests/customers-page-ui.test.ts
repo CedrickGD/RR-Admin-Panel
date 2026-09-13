@@ -25,7 +25,7 @@ describe("Customers CRM page", () => {
     expect(app).toContain('import("./pages/CustomersPage")');
     expect(app).toContain('"workers", "customers", "heatmap"');
     expect(app).toContain('page === "customers"');
-    expect(app).toContain("<CustomersPage users={users} filterBar={refreshButton} />");
+    expect(app).toContain("<CustomersPage users={users} />");
     expect(page).toContain('page="customers"');
     // Still the shared directory helper over the rollup — `source` is that
     // rollup plus the restrictions that have no rollup row (see below).
@@ -51,7 +51,9 @@ describe("Customers CRM page", () => {
   });
 
   it("provides support-focused search, filters, and summaries", () => {
-    expect(nav).toContain("Search customer, PC, Discord or HWID…");
+    // The search sits in the page's own toolbar; the navbar has none any more.
+    expect(page).toContain('placeholder="Search customer, PC, Discord or HWID…"');
+    expect(nav).not.toContain('type="search"');
     expect(page).toContain('useWorkspaceSearch("customers")');
     for (const label of ["All-time customers", "Online now", "Premium", "Needs attention"]) {
       expect(page).toContain(`label="${label}"`);

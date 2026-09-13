@@ -339,37 +339,11 @@ body {
   display: none;
   flex-shrink: 0;
 }
-.workspace-search {
-  margin-left: auto;
-  width: min(360px, 35vw);
-  /* Anchors the suggestion popover (ds SearchResults) under the field. */
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-ctl);
-  padding: 7px 10px;
-  color: var(--text-3);
-  background: var(--surface-1);
-}
-.workspace-search input {
-  border: 0;
-  background: transparent;
-  min-width: 0;
-  width: 100%;
-}
-.workspace-search kbd {
-  font-size: var(--fs-micro);
-  border: 1px solid var(--line);
-  border-radius: 3px;
-  padding: 0 4px;
-}
+/* The bar holds menu, breadcrumb and the appearance button only — the page
+   searches live in each page's PageToolbar — so the button takes the free
+   space on its left and sits at the right edge, with no gap in the middle. */
 .theme-toggle {
   margin-left: auto;
-}
-.workspace-search + .theme-toggle {
-  margin-left: 0;
 }
 .mobile-menu {
   display: none;
@@ -1093,9 +1067,6 @@ html[data-theme="light"] .recharts-default-tooltip {
   .settings-layout {
     gap: 28px;
   }
-  .workspace-search {
-    width: 300px;
-  }
 }
 @media (max-width: 900px) {
   .workspace-bar {
@@ -1120,18 +1091,6 @@ html[data-theme="light"] .recharts-default-tooltip {
   }
   .workspace-breadcrumb {
     font-size: var(--fs-tiny);
-  }
-  .workspace-search {
-    width: auto;
-    flex: 1;
-    min-width: 0;
-  }
-  /* Font size deliberately omitted: touch keeps the 16px floor (consistency.css)
-     so focusing the field never zooms the page on iOS. */
-  .workspace-search input {
-    height: 36px;
-    padding-left: 32px;
-    padding-right: 12px;
   }
   .customer-workspace {
     inset: 58px 0 0;
@@ -1266,13 +1225,6 @@ html[data-theme="light"] .recharts-default-tooltip {
   .workspace-breadcrumb-sep,
   .workspace-breadcrumb-page {
     display: none;
-  }
-  .workspace-search kbd {
-    display: none;
-  }
-  .workspace-search input {
-    height: 34px;
-    padding-left: 30px;
   }
   .page-content {
     padding-top: 16px;

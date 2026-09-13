@@ -21,7 +21,6 @@ import {
   MessageSquare,
   Moon,
   Radio,
-  Search,
   Settings2,
   Server,
   ShieldCheck,
@@ -31,11 +30,8 @@ import {
 } from "lucide-react";
 import {
   useEffect,
-  useId,
-  useMemo,
   useRef,
   useState,
-  type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from "react";
 import type {
@@ -50,16 +46,6 @@ import { PAGE_META, type PageGroup } from "../pageMeta";
 import { useAppearance } from "../hooks/useAppearance";
 import { useChartColors } from "../hooks/useChartColors";
 import { useSignOut } from "../hooks/useSignOut";
-import {
-  matchSearchRecords,
-  SEARCH_SCOPES,
-  setWorkspaceSearch,
-  useSearchRecords,
-  useWorkspaceSearch,
-  type SearchScope,
-} from "../hooks/useWorkspaceSearch";
-import { openCustomerWorkspace } from "../utils/customerNavigation";
-import { SearchResults, searchOptionId } from "./SearchResults";
 import { IconButton } from "./ds/Button";
 const logo = new URL("../img/logo.ico", import.meta.url).href;
 /* Sidebar structure (group order, item order, icons) only. Every visible
@@ -121,29 +107,6 @@ function firstVisiblePageInGroup(group: PageGroup, user: AuthUser): PageKey | nu
   const found = GROUPS.find((g) => g.label === group)?.items.find(([key]) => canVisit(key, user));
   return found ? found[0] : null;
 }
-/* The one box searches four different directories depending on the page, so it
-   has to say which one — the label is the accessible name, the placeholder the
-   visible promise, the target the noun the Enter hint uses. */
-const SEARCH_LABEL: Record<SearchScope, string> = {
-  customers: "Search customers",
-  licenses: "Search licenses",
-  workers: "Search session history",
-  live: "Search live sessions",
-};
-const SEARCH_PLACEHOLDER: Record<SearchScope, string> = {
-  customers: "Search customer, PC, Discord or HWID…",
-  licenses: "Search licenses, customers, orders…",
-  workers: "Search session history by customer or PC…",
-  live: "Search live sessions by customer or PC…",
-};
-const SEARCH_TARGET: Record<SearchScope, string> = {
-  customers: "customers",
-  licenses: "licenses",
-  workers: "session history",
-  live: "live sessions",
-};
-const SEARCH_LIMIT = 8;
-
 /* Icon rail. Between 901px and 1200px the full 244px sidebar leaves ~850px for
    tables that want 1180px, so the rail is the default there — until the admin
    states a preference, which then holds at every width. */
@@ -189,14 +152,6 @@ export function Navbar({ page, onNavigate, user, onLogout }: NavbarProps) {
     }
     return GROUPS.map((g) => g.label);
   });
-  const searchScope: SearchScope =
-    page === "licenses" || page === "workers" || page === "live" ? page : "customers";
-  const searchLabel = SEARCH_LABEL[searchScope];
-  const [search, setSearch] = useWorkspaceSearch(searchScope);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(-1);
-  const searchSources = useSearchRecords();
-  const listId = useId();
   const { appearance, updateAppearance } = useAppearance();
 
   /* ── Icon rail ─── */
@@ -240,30 +195,6 @@ export function Navbar({ page, onNavigate, user, onLogout }: NavbarProps) {
     }
   }
 
-  /* ── Search suggestions ─── */
-  const trimmedSearch = search.trim();
-  const options = useMemo(() => {
-    if (!trimmedSearch) return [];
-    // The scope of the current page first, then whatever else happens to be
-    // loaded — nothing here triggers a request.
-    const ordered = [searchScope, ...SEARCH_SCOPES.filter((scope) => scope !== searchScope)];
-    return matchSearchRecords(
-      ordered.map((scope) => searchSources[scope]),
-      trimmedSearch,
-      SEARCH_LIMIT,
-    );
-  }, [searchSources, searchScope, trimmedSearch]);
-  const hintSelectable = page !== searchScope;
-  const hint = options.length
-    ? undefined
-    : hintSelectable
-      ? `Press Enter to search ${SEARCH_TARGET[searchScope]}`
-      : `No quick matches — the ${SEARCH_TARGET[searchScope]} list below already shows every hit.`;
-  const optionCount = options.length + (hint && hintSelectable ? 1 : 0);
-  const popoverOpen = searchOpen && trimmedSearch.length > 0;
-  useEffect(() => {
-    setActiveIndex(-1);
-  }, [trimmedSearch, searchScope]);
   useEffect(() => {
     try {
       localStorage.setItem(expansionKey, JSON.stringify(expanded));
@@ -300,20 +231,7 @@ export function Navbar({ page, onNavigate, user, onLogout }: NavbarProps) {
 
   useEffect(() => {
     setMobile(false);
-    setSearchOpen(false);
   }, [page]);
-
-  // The header query filters exactly one directory. Leaving that directory drops
-  // it, so a filter typed on Customers can never come back on a page that does
-  // not show what it filtered (the value is persisted per scope in
-  // sessionStorage). A search that navigates lands ON its scope, so it survives.
-  const previousScope = useRef(searchScope);
-  useEffect(() => {
-    const left = previousScope.current;
-    previousScope.current = searchScope;
-    if (left !== searchScope) setWorkspaceSearch(left, "");
-    if (page !== searchScope) setWorkspaceSearch(searchScope, "");
-  }, [page, searchScope]);
 
   // Closing the drawer unmounts its close button (and hides the rail), which would drop
   // focus on <body>. Hand it back to the control that opened the drawer.
@@ -330,7 +248,7 @@ export function Navbar({ page, onNavigate, user, onLogout }: NavbarProps) {
   }, [mobile]);
 
   // The rail scrolls on short viewports: keep the current page's item (or its
-  // collapsed group) in view after every navigation — search, deep links and
+  // collapsed group) in view after every navigation — deep links and
   // the brand button can land on a page whose item sits below the fold.
   const navRef = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -345,58 +263,6 @@ export function Navbar({ page, onNavigate, user, onLogout }: NavbarProps) {
     window.dispatchEvent(new Event("rr:close-customer"));
     onNavigate(key);
     setMobile(false);
-  }
-
-  /**
-   * Runs one row of the popover. A match opens the Customer 360 workspace over
-   * the current page; the hint row (or Enter with nothing highlighted) keeps the
-   * old contract — apply the query to its directory and go there.
-   */
-  function selectSearchOption(index: number) {
-    const record = options[index];
-    setSearchOpen(false);
-    setActiveIndex(-1);
-    if (record) {
-      openCustomerWorkspace(record.target);
-      return;
-    }
-    setSearch(search);
-    if (page !== searchScope) navigate(searchScope);
-  }
-
-  function onSearchKeyDown(event: ReactKeyboardEvent<HTMLInputElement>) {
-    if (event.key === "Enter") {
-      // Explicit, not implicit form submission: a form whose only submit-shaped
-      // children are the popover's option buttons does not always fire submit.
-      event.preventDefault();
-      selectSearchOption(popoverOpen ? activeIndex : -1);
-      return;
-    }
-    if (event.key === "Escape") {
-      if (!popoverOpen) return;
-      // type="search" would clear the field on Escape; closing the popover first
-      // is the smaller, reversible step.
-      event.preventDefault();
-      event.stopPropagation();
-      setSearchOpen(false);
-      setActiveIndex(-1);
-      return;
-    }
-    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
-    if (!trimmedSearch) return;
-    event.preventDefault();
-    if (!searchOpen) {
-      setSearchOpen(true);
-      return;
-    }
-    if (optionCount === 0) return;
-    const step = event.key === "ArrowDown" ? 1 : -1;
-    setActiveIndex((current) => {
-      const next = current + step;
-      if (next < 0) return optionCount - 1;
-      if (next >= optionCount) return 0;
-      return next;
-    });
   }
 
   const meta = PAGE_META[page];
@@ -559,52 +425,6 @@ export function Navbar({ page, onNavigate, user, onLogout }: NavbarProps) {
             </>
           )}
         </div>
-        {canVisit(searchScope, user) && (
-          <form
-            className="workspace-search"
-            onSubmit={(e) => {
-              e.preventDefault();
-              selectSearchOption(popoverOpen ? activeIndex : -1);
-            }}
-            onBlur={(e) => {
-              if (!e.currentTarget.contains(e.relatedTarget)) setSearchOpen(false);
-            }}
-          >
-            <Search size={16} aria-hidden="true" />
-            <input
-              aria-label={searchLabel}
-              placeholder={SEARCH_PLACEHOLDER[searchScope]}
-              type="search"
-              role="combobox"
-              aria-expanded={popoverOpen}
-              aria-controls={listId}
-              aria-autocomplete="list"
-              aria-activedescendant={
-                popoverOpen && activeIndex >= 0 ? searchOptionId(listId, activeIndex) : undefined
-              }
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setSearchOpen(e.target.value.trim().length > 0);
-              }}
-              onFocus={() => setSearchOpen(trimmedSearch.length > 0)}
-              onKeyDown={onSearchKeyDown}
-            />
-            {page !== searchScope && <kbd>↵</kbd>}
-            {popoverOpen && (
-              <SearchResults
-                id={listId}
-                aria-label={`${searchLabel} results`}
-                options={options}
-                activeIndex={activeIndex}
-                hint={hint}
-                hintSelectable={hintSelectable}
-                onHover={setActiveIndex}
-                onSelect={selectSearchOption}
-              />
-            )}
-          </form>
-        )}
         <IconButton
           className="theme-toggle"
           icon={appearance.theme === "dark" ? <Sun /> : <Moon />}

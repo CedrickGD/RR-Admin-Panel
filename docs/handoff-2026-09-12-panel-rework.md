@@ -1,4 +1,4 @@
-# Handoff: Panel-Rework (Stand 12. September 2026)
+# Handoff: Panel-Rework (Stand 12. September 2026, Abschluss 13. September → Abschnitt 6)
 
 Für einen neuen Chat. Dieses Dokument ist so geschrieben, dass der nächste Chat ohne die
 Vorgeschichte arbeiten kann. Alle Datei-Zeilen-Angaben stammen vom Working Tree bei Commit
@@ -570,3 +570,51 @@ Nutzer-Appearance, Push auf `main`, NAS-Rebuild ansprechen.
 > Stell mir die acht Fragen aus Abschnitt 4 gebündelt, dann fang mit 2.2 an. Hands-on-Arbeit auf
 > Opus-Subagenten, pro Runde Screenshots vorher/nachher bei 1440 und 390px, und nach jedem Push
 > `npm run deploy:nas`, sonst sehe ich nichts.
+
+---
+
+## 6. Stand nach der Rework-Session (13.09.2026)
+
+Entscheidungen aus Abschnitt 4: Panel bleibt auf dem NAS (Git-Checkout + `npm run deploy:nas`),
+Restrictions als Tab in Customers, Navbar-Suche entfernt (Suche pro Seite in der Toolbar),
+Container-Daten über einen read-only Socket-Proxy-Sidecar, „Fehler" = nur unhandled.
+
+| Paket | Stand | Commit(s) |
+|---|---|---|
+| 2.1 Deploy-Pfad | erledigt; `-Service a,b` wird gesplittet, SSH-Fehler bricht ab, BUILD_SHA wird mitgegeben (über `environment`, weil `rr-api.env` ein leeres `BUILD_SHA=` hat) | `76ccaa6`, `124d951`, `a1cb583` |
+| 2.2 Panel Access | erledigt; „Remove access"/„Restore", Sessions pro Gerät, Testaccount live entfernt (Backup `rr-pre-testaccount-removal-20260912.sqlite`) | `ae2fd8f` |
+| 2.3 + 2.4 Toolbar/Kacheln | erledigt; `ds/PageToolbar`, eine KPI-Kachel-Spezifikation (64px, Wert vor Label, 2 pro Zeile ≤600px) | bis `f667dc2` |
+| 2.5 + 2.10 Navigation | erledigt; Breadcrumb klickbar, `useHistoryLayer` (Zurück schließt Dialoge), Zurück-Pfeil am Handy, Dialoge als deckende Sheets ≤600px, Drilldown-Zeilen bündig | `632aa71`, `d61dca6`, `cd88071` |
+| 2.6 Customer 360 | erledigt; zwei Spalten, „Raw data"-Dialog, deckende Leiste (Ursache des „durchsichtig") | `d61dca6` |
+| 2.7 Restrictions | erledigt; Tab „Directory \| Restrictions" mit Lift, Audit-Einträge, `access_suspensions.lifted_by` | `3906ef1` |
+| 2.8 Heatmap | erledigt; In-Map-Menü als React-State, schwarzer Streifen am Handy (ResizeObserver), GlassDropdown-Fix | `18ffd5d` |
+| 2.9 Errors | erledigt; „Fehler“ = nur unhandled, Segment „Errors | Background faults“ (RR-E1003 gruppiert nach Exception mit Installs/Sessions/Versionen, nicht vom 4000-Zeilen-Scan begrenzt), `app_sessions.error_count` und `last_status` ignorieren Hintergrundfehler, Overview-Feed filtert sie in SQL, Recompute-Skript `deploy/nas/rr-api/scripts/recompute-session-error-counts.mjs` für Altdaten | `b2e9036`, `e95e8d2`, `fd97d8d`, `c5d9043` |
+| 2.11 Analyse-Panel | erledigt; Seite „System health": rr-api/DB/Disk/Backup-Alter, Bot-Health, Container über `docker-proxy` (nur list/inspect/stats, POST=0, internes Netz), Ereignisrate, Incidents | `29af880`, `124d951`, `968bd84` |
+
+Live auf dem NAS: `main` bis `a1cb583` (admin, rr-api, docker-proxy); Hashes und Zeitpunkte stehen im
+Deploy-Log der Memory `rr-admin-panel-deploy-path`.
+
+Hinweis Deploy: `tools/deploy-nas.ps1` prüft den HEAD des Checkouts, aus dem es läuft. Arbeitet ein Agent
+im Haupt-Checkout auf einem Feature-Branch, bricht das Skript mit „HEAD … is not origin/main“ ab und
+deployt nichts (Exit 0). Dann aus einem Worktree auf `origin/main` starten.
+
+Werkzeuge: Fixture-Preview `.local/panel-consistency-4fd4a24/preview.config.ts` (Port 4179),
+Headless-Harness `.local/visual-harness/`, echtes Handy (S26 Ultra per Wireless-adb,
+`phone.mjs smoke|scenarios|heatmap`). Dialog-/Animationsänderungen brauchen einen Lauf auf dem
+echten Gerät, Headless-Chrome hat den Sheet-Bug nicht gezeigt.
+
+### Offen
+
+1. **Arne (15-Minuten-Sessions):** Cloudflare Zero Trust → Access-Application: Allow-Policy mit
+   seiner E-Mail, keine „Temporary authentication", längere Session-Dauer. Nur im Dashboard möglich.
+2. **Desktop-Client RR-E1003:** unbeobachtete Task-Exceptions (NullReference 74 %, Socket 25 %),
+   ~267 Events pro Session in einer Schleife, v. a. 1.4.8.11 / 1.4.9 / 1.5.2. Fix gehört ins
+   Client-Repo; optional Ingest-Dämpfung (erste N gleiche Hintergrundfehler pro Session, dann Zähler).
+3. **Healthchecks ohne Tunnel-Neustart nicht machbar:** cloudflared `--metrics` + `/ready`
+   (zählt dann auch Origin-Fehler), `backup.sh` schreibt `.last-success` + Healthcheck,
+   Caddy-Liveness. Jede davon startet den jeweiligen Container neu → bewusst planen.
+4. **Bot:** Guild-/Reconcile-Status braucht eine Änderung im `razorreaper-bot`-Repo.
+5. **Customers am Handy:** Tippen auf Kartenkopf/Avatar soll Customer 360 öffnen (heute nur
+   36px-Icon im Kartenfuß).
+6. **Aufräumen:** ungenutzte Detailfelder von `/api/admin/health`, sobald die Navbar sie nicht
+   mehr braucht.

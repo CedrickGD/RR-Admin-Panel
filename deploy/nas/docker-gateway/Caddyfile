@@ -8,10 +8,10 @@
 # behind the tunnel, so it must not be able to ask for any of that. This gateway is the path-level
 # allowlist the socket proxy cannot be; it is the only service left on the docker-proxy network.
 #
-# ALLOWED — exactly three GET shapes; the query string is always replaced, never forwarded:
+# ALLOWED — exactly three GET shapes:
 #   GET /containers/json                            -> /containers/json?all=1&filters=<project>
-#   GET /containers/razorreaper-<listed>-<n>/json   -> same path, no query
-#   GET /containers/razorreaper-<service>-<n>/stats -> same path, ?stream=false
+#   GET /containers/razorreaper-<listed>-<n>/json   -> unchanged (inspect takes only `size`)
+#   GET /containers/razorreaper-<service>-<n>/stats -> same path, ?stream=false forced
 # REJECTED with 403 before the socket proxy is touched — everything else, including
 #   /containers/razorreaper-bot-1/json      (the one project container whose env holds secrets)
 #   /containers/<any>/archive|logs|export|top|changes|wait|attach
@@ -44,7 +44,6 @@
 		path_regexp inspect ^/containers/razorreaper-(admin|backup|caddy|cloudflared|docker-gateway|docker-proxy|rr-api)-[0-9]+/json$
 	}
 	handle @inspect {
-		rewrite * {http.request.uri.path}?
 		reverse_proxy docker-proxy:2375
 	}
 

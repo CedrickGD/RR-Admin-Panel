@@ -112,13 +112,12 @@ on two `internal` networks; rr-api has no route to the socket proxy itself.
 call under `/containers`, for **every** container on the host, which includes reading another
 container's `Config.Env` and pulling arbitrary files out of it via `/archive`.
 `docker-gateway` (`caddy:2-alpine`, config in `docker-gateway/Caddyfile`) is the path allowlist
-that the socket proxy cannot be. It permits exactly three `GET` shapes and replaces the query
-string on each:
+that the socket proxy cannot be. It permits exactly three `GET` shapes:
 
 | Request rr-api may make | Forwarded as |
 | --- | --- |
 | `GET /containers/json` | `/containers/json?all=1&filters={"label":["com.docker.compose.project=razorreaper"]}` |
-| `GET /containers/razorreaper-{admin,backup,caddy,cloudflared,docker-gateway,docker-proxy,rr-api}-<n>/json` | same path, no query |
+| `GET /containers/razorreaper-{admin,backup,caddy,cloudflared,docker-gateway,docker-proxy,rr-api}-<n>/json` | unchanged |
 | `GET /containers/razorreaper-<service>-<n>/stats` | same path, `?stream=false` |
 
 Everything else gets `403` from the gateway without the socket proxy being touched: `/archive`,

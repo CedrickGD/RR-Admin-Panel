@@ -39,7 +39,9 @@ Write-Host "=== 1. Fast-forwarding NAS checkout to origin/$Ref ===" -ForegroundC
 Invoke-Nas "set -e; cd $NasRepo && git fetch origin && git checkout -q $Ref && git pull --ff-only origin $Ref && git log --oneline -1"
 
 Write-Host "=== 2. Rebuilding and restarting [$Services] on the NAS ===" -ForegroundColor Cyan
-Invoke-Nas "set -e; cd $NasRepo/deploy/nas && docker compose up -d --build $Services"
+# BUILD_SHA (the NAS checkout's HEAD, i.e. what gets built) is baked into rr-api for the System
+# health page. The backtick keeps PowerShell from expanding `$(...)`; the NAS shell runs it.
+Invoke-Nas "set -e; cd $NasRepo/deploy/nas && BUILD_SHA=`$(git rev-parse --short HEAD) docker compose up -d --build $Services"
 
 Write-Host "=== 3. Live status ===" -ForegroundColor Green
 Invoke-Nas "docker ps --filter name=razorreaper --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}'; echo; echo 'served by admin:'; docker exec razorreaper-admin-1 ls /srv/admin/assets | grep -E '^index-.*[.](js|css)'"

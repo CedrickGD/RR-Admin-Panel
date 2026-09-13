@@ -208,3 +208,26 @@ describe("one filter place per page", () => {
     expect(segmented).toContain('role="radiogroup"');
   });
 });
+
+/*
+ * Regression guard: a broad deletion (5aa972c, removing the navbar search's
+ * `.search-results*` CSS) took the adjacent `.chart-legend*` rules with it in
+ * the same hunk. Colour is data encoding on a chart legend (Overview,
+ * Traffic) — the swatch and the one-row layout must not go dark again.
+ */
+describe("chart legend keeps its swatches", () => {
+  const spec = source(SPEC_FILE);
+
+  it("lays the legend out as one inline row", () => {
+    expect(spec).toMatch(/\.chart-legend\s*\{[^}]*display:\s*flex/);
+    expect(spec).toMatch(/\.chart-legend\s*\{[^}]*flex-wrap:\s*wrap/);
+  });
+
+  it("gives each legend item a sized, coloured swatch", () => {
+    expect(spec).toMatch(/\.chart-legend-swatch\s*\{[^}]*width:\s*10px/);
+    expect(spec).toMatch(/\.chart-legend-swatch\s*\{[^}]*height:\s*10px/);
+    // Background comes inline per-series (ChartLegend.tsx); the dashed
+    // variant only needs to be reshaped into a line.
+    expect(spec).toMatch(/\.chart-legend-swatch-dashed\s*\{[^}]*height:\s*3px/);
+  });
+});

@@ -1211,6 +1211,30 @@
   .chart-head-tools { justify-content: flex-start; width: 100%; }
 }
 
+/* Chart legend (charts/ChartLegend) — one inline row for a panel header,
+   sized to sit beside a MetaRow without stealing plot height. */
+.chart-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.chart-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-2);
+  font-size: var(--fs-tiny);
+  white-space: nowrap;
+}
+.chart-legend-swatch { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+/* A forecast series is drawn dashed, so its swatch is too — the gradient comes
+   from the component, this only shapes it into a line. */
+.chart-legend-swatch-dashed { height: 3px; border-radius: 2px; }
+
 /* ── ErrorsPage — one collected error, rendered in full ────────── */
 .error-event-card { padding: 10px 12px; }
 .error-event-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }

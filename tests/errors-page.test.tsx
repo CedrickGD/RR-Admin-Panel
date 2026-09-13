@@ -5,7 +5,12 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import { useAdminErrors } from "../src/hooks/useAdminErrors";
 import { PanelIdentity } from "../src/hooks/usePanelPermission";
 import { ErrorsPage } from "../src/pages/ErrorsPage";
-import type { AuthUser, BackgroundFaultGroup, ErrorsPayload } from "../src/types/telemetry";
+import type {
+  AuthUser,
+  BackgroundFaultGroup,
+  ErrorsPayload,
+  ErrorUserGroup,
+} from "../src/types/telemetry";
 import { PERMISSIONS } from "../shared/panel-policy";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -119,12 +124,56 @@ function radio(label: string): HTMLButtonElement {
   return match;
 }
 
-function errorsTileText(): string {
+function tileText(label: string): string {
   const tile = [...container.querySelectorAll(".stat-card")].find((el) =>
-    el.textContent?.includes("Errors in range"),
+    el.textContent?.includes(label),
   );
-  if (!tile) throw new Error("no Errors in range tile");
+  if (!tile) throw new Error(`no ${label} tile`);
   return tile.textContent ?? "";
+}
+
+const errorsTileText = () => tileText("Errors in range");
+
+/** One affected customer the server shipped inside the 500-group cap. */
+function userGroup(index: number): ErrorUserGroup {
+  const at = new Date(Date.now() - (index + 1) * 60e3).toISOString();
+  return {
+    identity: `HW-${index}`,
+    userLabel: `Customer ${index}`,
+    discordUser: null,
+    hwid: `HW-${index}`,
+    installId: `inst-${index}`,
+    licenseTier: "free",
+    country: "DE",
+    city: null,
+    timezone: null,
+    platform: "win32",
+    osVersion: null,
+    deviceModel: null,
+    appVersion: "1.5.2",
+    displayVersion: "1.5.2",
+    isActive: false,
+    lastSeen: at,
+    errorCount: 1,
+    firstErrorAt: at,
+    lastErrorAt: at,
+    events: [
+      {
+        id: `evt-${index}`,
+        timestamp: at,
+        receivedAt: at,
+        message: "Object reference not set to an instance of an object.",
+        type: "System.NullReferenceException",
+        kind: "unhandled",
+        code: "RR-E2001",
+        sessionId: `s-${index}`,
+        appVersion: "1.5.2",
+        source: "desktop-app",
+        extras: {},
+      },
+    ],
+    truncated: false,
+  };
 }
 
 describe("ErrorsPage: Errors | Background faults", () => {
@@ -205,5 +254,61 @@ describe("ErrorsPage: Errors | Background faults", () => {
 
     await act(async () => radio("Background faults").click());
     expect(container.textContent).toContain("No background faults in the last 24 hours");
+  });
+});
+
+describe("ErrorsPage: KPI tiles report the server totals, not the capped list", () => {
+  // The response caps the user list at 500 groups but keeps totals uncapped.
+  const SHIPPED = 3;
+  const AFFECTED = 640;
+
+  const truncated = () =>
+    payload({
+      usersTruncated: true,
+      totals: {
+        errors: 812,
+        backgroundErrors: 0,
+        affectedUsers: AFFECTED,
+        lastErrorAt: new Date(Date.now() - 60e3).toISOString(),
+      },
+      users: Array.from({ length: SHIPPED }, (_, index) => userGroup(index)),
+      backgroundFaults: [],
+    });
+
+  it("counts every affected customer, not the ones that fit in the payload", async () => {
+    await render(truncated());
+
+    // The note that promises it, and the tile that has to keep the promise.
+    expect(container.textContent).toContain("totals still count everyone");
+    expect(tileText("Affected customers")).toMatch(/^640\s*Affected customers/);
+    expect(tileText("Affected customers")).not.toMatch(/^3\s/);
+    // Errors in range was already the server total; the two tiles now agree on scope.
+    expect(errorsTileText()).toMatch(/^812\s*Errors in range/);
+  });
+
+  it("still counts the shipped groups in the table subtitle", async () => {
+    await render(truncated());
+
+    // The "N of M shown" distinction stays the list's own, so the page says both.
+    expect(container.textContent).toContain("3 of 3 affected customers shown");
+  });
+
+  it("leaves an untruncated range reading the same number as its rows", async () => {
+    await render(
+      payload({
+        usersTruncated: false,
+        totals: {
+          errors: 3,
+          backgroundErrors: 0,
+          affectedUsers: SHIPPED,
+          lastErrorAt: new Date(Date.now() - 60e3).toISOString(),
+        },
+        users: Array.from({ length: SHIPPED }, (_, index) => userGroup(index)),
+        backgroundFaults: [],
+      }),
+    );
+
+    expect(container.textContent).not.toContain("totals still count everyone");
+    expect(tileText("Affected customers")).toMatch(/^3\s*Affected customers/);
   });
 });

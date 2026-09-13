@@ -504,14 +504,19 @@ export function ErrorsPage() {
         segment leaves the row as it is; the fault table carries its own counts. */
   const kpis = useMemo(() => {
     if (!current || !visibleGroups) return null;
+    // Both totals are the server's uncapped counts. The user list is capped at
+    // 500 groups, so counting the rows here would understate the blast radius of
+    // a bad release — and contradict the truncation note on this same page,
+    // which promises the totals still count everyone.
     const errorsInRange = current.totals.errors;
+    const affectedUsers = current.totals.affectedUsers;
     let lastErrorAt: string | null = null;
     for (const group of visibleGroups) {
       if (lastErrorAt === null || parseTimestamp(group.lastAt) > parseTimestamp(lastErrorAt)) {
         lastErrorAt = group.lastAt;
       }
     }
-    return { errorsInRange, affectedUsers: visibleGroups.length, lastErrorAt };
+    return { errorsInRange, affectedUsers, lastErrorAt };
   }, [current, visibleGroups]);
 
   const rangeEntry = RANGES.find((r) => r.key === range);

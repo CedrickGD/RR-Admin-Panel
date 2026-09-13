@@ -990,6 +990,12 @@ export function WorldHeatmap({
     });
 
     mapRef.current = map;
+    // MapLibre's own trackResize follows the window only. The tile changes size without a window
+    // resize too — the side column collapsing under the map on a phone, fullscreen, the sidebar
+    // rail — and a canvas left at its first size leaves an empty strip beside it.
+    const resizeObserver =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => map.resize());
+    resizeObserver?.observe(containerRef.current);
     popupRef.current = new maplibregl.Popup({
       closeButton: false,
       closeOnClick: false,
@@ -1088,6 +1094,7 @@ export function WorldHeatmap({
     watchDpr();
 
     return () => {
+      resizeObserver?.disconnect();
       dprMedia?.removeEventListener("change", onDprChange);
       setMoving(false);
       popupRef.current?.remove();

@@ -3,7 +3,9 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     environment: "node",
-    include: ["tests/**/*.test.ts"],
+    // Component/hook tests (.test.tsx) need a DOM; every other test stays on node.
+    environmentMatchGlobs: [["tests/**/*.test.tsx", "jsdom"]],
+    include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"],
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "json-summary"],

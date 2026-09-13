@@ -29,6 +29,7 @@
     "vite.config.ts",
     "vite.pages-worker.config.ts",
     "tests/**/*.ts",
+    "tests/**/*.tsx",
     "shared/**/*.ts",
     "vitest.config.ts",
     "deploy/nas/rr-api/src/**/*.ts"

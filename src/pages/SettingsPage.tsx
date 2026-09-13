@@ -295,7 +295,7 @@ export function SettingsPage({ user, authMode, onLogout }: Props) {
           </dl>
           {canVisit("system", user) && (
             <a className="btn btn-ghost" href="#/system">
-              See Backend status
+              See System health
             </a>
           )}
           <Button variant="danger" onClick={signOut.requestSignOut}>

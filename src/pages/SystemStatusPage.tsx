@@ -1,56 +1,71 @@
-import { useEffect, useState } from "react";
-import { Activity, Database, Server } from "lucide-react";
-import { PageHeader } from "../components/ds/PageHeader";
+import { useEffect, useMemo, useState } from "react";
+import { Activity, Archive, Clock, HeartPulse, ServerCrash } from "lucide-react";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import type { SystemStatusPayload } from "../../shared/system-status";
+import { ChartLegend } from "../components/charts/ChartLegend";
+import { CHART_MARGIN } from "../components/charts/chartMargin";
+import { TelemetryChartTooltip } from "../components/charts/TelemetryChartTooltip";
 import { CollapsiblePanel } from "../components/CollapsiblePanel";
-import type { HealthPayload } from "../types/telemetry";
+import { DataTable, type DataTableColumn } from "../components/ds/DataTable";
+import { EmptyState } from "../components/ds/EmptyState";
+import { MetaRow, PageHeader } from "../components/ds/PageHeader";
+import { RelativeTime } from "../components/ds/RelativeTime";
+import { KpiStatCard } from "../components/KpiStatCard";
 import { apiUrl, fetchApi } from "../utils/api";
-import { formatDate, formatNumber } from "../utils/format";
-import { systemChecks } from "../utils/systemStatus";
+import { formatNumber } from "../utils/format";
+import {
+  OVERALL_LABEL,
+  OVERALL_TONE,
+  bucketLabel,
+  formatBytes,
+  formatUptime,
+  serviceRows,
+  statusDotClass,
+  type ServiceRow,
+} from "../utils/systemStatus";
 
-export function SystemStatusPage() {
-  const [health, setHealth] = useState<HealthPayload | null>(null);
-  const [error, setError] = useState(false);
-  const [checkedAt, setCheckedAt] = useState<number | null>(null);
-  const [latency, setLatency] = useState<number | null>(null);
-  const [now, setNow] = useState(Date.now);
+const POLL_MS = 30_000;
+const EVENT_LEGEND = [{ label: "Events", color: "var(--chart-sessions)" }];
+
+function useSystemStatus() {
+  const [payload, setPayload] = useState<SystemStatusPayload | null>(null);
+  const [failed, setFailed] = useState(false);
   useEffect(() => {
     let active = true;
     let pending = false;
-    async function check() {
+    async function load() {
       if (pending || document.visibilityState !== "visible") return;
       pending = true;
-      const started = performance.now();
       try {
         const response = await fetchApi(
-          apiUrl("/api/admin/health"),
+          apiUrl("/api/admin/system"),
           { method: "GET", credentials: "include", cache: "no-store" },
           { retry: false },
         );
-        const data = (await response.json()) as HealthPayload;
-        if (!response.ok || data.api !== "alive" || !data.storage || typeof data.ok !== "boolean")
-          throw new Error("Invalid health response");
+        const data = (await response.json()) as SystemStatusPayload;
+        if (!response.ok || data.ok !== true || !Array.isArray(data.incidents))
+          throw new Error("Invalid system status response");
         if (active) {
-          setHealth(data);
-          setLatency(Math.round(performance.now() - started));
-          setCheckedAt(Date.now());
-          setError(false);
+          setPayload(data);
+          setFailed(false);
         }
       } catch {
-        if (active) setError(true);
+        if (active) setFailed(true);
       } finally {
         pending = false;
-        if (active) setNow(Date.now());
       }
     }
-    void check();
-    const timer = window.setInterval(() => {
-      setNow(Date.now());
-      void check();
-    }, 15_000);
-    const visible = () => {
-      setNow(Date.now());
-      void check();
-    };
+    void load();
+    const timer = window.setInterval(() => void load(), POLL_MS);
+    const visible = () => void load();
     document.addEventListener("visibilitychange", visible);
     return () => {
       active = false;
@@ -58,71 +73,286 @@ export function SystemStatusPage() {
       document.removeEventListener("visibilitychange", visible);
     };
   }, []);
-  const checks = systemChecks(health, error, checkedAt, now);
-  const icons = [<Server />, <Database />, <Activity />];
+  return { payload, failed };
+}
+
+function uptimeFrom(startedAt: string | null, reference: string): string {
+  const started = Date.parse(startedAt ?? "");
+  const now = Date.parse(reference);
+  if (!Number.isFinite(started) || !Number.isFinite(now)) return "—";
+  return formatUptime(Math.max(0, Math.round((now - started) / 1000)));
+}
+
+export function SystemStatusPage() {
+  const { payload, failed } = useSystemStatus();
+  const loading = !payload && !failed;
+  const rows = useMemo(() => (payload ? serviceRows(payload) : []), [payload]);
+  const chartData = useMemo(
+    () =>
+      payload?.events?.buckets.map((bucket) => ({
+        label: bucketLabel(bucket.start),
+        count: bucket.count,
+      })) ?? [],
+    [payload],
+  );
+
+  const columns: Array<DataTableColumn<ServiceRow>> = [
+    {
+      key: "service",
+      header: "Service",
+      render: (row) => (
+        <span className="system-service">
+          <span className={statusDotClass(row.tone)} aria-hidden="true" />
+          <span className="system-service-text">
+            <span className="system-service-name">{row.key}</span>
+            <span className="system-service-detail">{row.detail}</span>
+          </span>
+        </span>
+      ),
+    },
+    { key: "health", header: "Health", render: (row) => row.health },
+    {
+      key: "uptime",
+      header: "Uptime",
+      render: (row) => (payload ? uptimeFrom(row.startedAt, payload.generatedAt) : "—"),
+    },
+    {
+      key: "restarts",
+      header: "Restarts",
+      numeric: true,
+      render: (row) => (row.restarts === null ? "—" : formatNumber(row.restarts)),
+    },
+    {
+      key: "cpu",
+      header: "CPU",
+      numeric: true,
+      render: (row) => (row.cpuPercent === null ? "—" : `${row.cpuPercent.toFixed(1)} %`),
+    },
+    {
+      key: "memory",
+      header: "Memory",
+      numeric: true,
+      render: (row) => formatBytes(row.memoryBytes),
+    },
+  ];
+
+  const events = payload?.events ?? null;
+  const backup = payload?.backup ?? null;
+  const incidents = payload?.incidents ?? [];
+
   return (
     <div className="page-content page-stack-lg">
       <PageHeader
         page="system"
-        sub="API, database and incoming data. Checked automatically every 15 seconds."
-      />
-      <div className="system-checks">
-        {checks.map((check, index) => (
-          <section className="panel system-check" key={check.name}>
-            <div className="system-check-title">
-              {icons[index]}
-              <h2>{check.name}</h2>
-            </div>
-            <strong className={`system-check-state is-${check.tone}`}>{check.state}</strong>
-            <p>{check.detail}</p>
-          </section>
-        ))}
-      </div>
-      <CollapsiblePanel
-        title="Latest successful check"
         sub={
-          error
-            ? "The current request failed. Values below are from the last successful response."
-            : undefined
+          failed && payload
+            ? "The last refresh failed. Showing the previous result; retrying every 30 seconds."
+            : "rr-api, database, Discord bot and NAS containers. Refreshes every 30 seconds."
         }
-        padding="body"
-      >
-        <dl className="system-check-details">
-          <div>
-            <dt>Checked</dt>
-            <dd>
-              {checkedAt ? formatDate(new Date(checkedAt).toISOString()) : "Not yet available"}
-            </dd>
+      />
+
+      <div className="stat-grid stat-grid-4">
+        <KpiStatCard
+          label="Overall"
+          loading={loading}
+          value={
+            payload ? (
+              <span className="system-overall">
+                <span className={statusDotClass(OVERALL_TONE[payload.overall])} aria-hidden="true" />
+                {OVERALL_LABEL[payload.overall]}
+              </span>
+            ) : (
+              "Unknown"
+            )
+          }
+          sub={
+            !payload
+              ? "Backend did not answer"
+              : incidents.length === 0
+                ? "No incidents"
+                : `${incidents.length} open incident${incidents.length === 1 ? "" : "s"}`
+          }
+          icon={<HeartPulse size={14} />}
+        />
+        <KpiStatCard
+          label="Uptime"
+          loading={loading}
+          value={
+            payload?.runtime.uptimeSeconds != null
+              ? formatUptime(payload.runtime.uptimeSeconds)
+              : "Unknown"
+          }
+          sub={payload?.runtime.uptimeSeconds != null ? "rr-api process" : "Not reported here"}
+          icon={<Clock size={14} />}
+        />
+        <KpiStatCard
+          label="Events last 60 min"
+          loading={loading}
+          value={events ? formatNumber(events.last60Minutes) : "Unknown"}
+          sub={events ? `${formatNumber(events.last5Minutes)} in the last 5 min` : "Event query failed"}
+          icon={<Activity size={14} />}
+        />
+        <KpiStatCard
+          label="Last backup"
+          loading={loading}
+          value={backup?.newestAt ? <RelativeTime iso={backup.newestAt} /> : "Unknown"}
+          sub={
+            !backup
+              ? "Backup folder not mounted"
+              : (backup.newestFile ?? "No backup file yet")
+          }
+          icon={<Archive size={14} />}
+        />
+      </div>
+
+      {!payload && failed ? (
+        <section className="panel">
+          <EmptyState icon={<ServerCrash />} title="System health unavailable">
+            The backend did not answer. Retrying every 30 seconds.
+          </EmptyState>
+        </section>
+      ) : null}
+
+      {payload ? (
+        <>
+          <CollapsiblePanel
+            title="Services"
+            sub={
+              payload.containers === null
+                ? "Container data is unavailable: docker-proxy did not answer. rr-api, bot and database come from their own checks."
+                : undefined
+            }
+            padding="flush"
+          >
+            <DataTable
+              flush
+              mobileLayout="stack"
+              caption="NAS services with health, uptime, restarts, CPU and memory"
+              columns={columns}
+              rows={rows}
+              rowKey={(row) => row.key}
+            />
+          </CollapsiblePanel>
+
+          <div className="system-split">
+            <CollapsiblePanel
+              title="Event rate"
+              sub="Stored events per five minutes, last hour."
+              right={
+                events ? (
+                  <div className="chart-head-tools">
+                    <ChartLegend items={EVENT_LEGEND} />
+                    <MetaRow
+                      items={[
+                        { label: "Last 5 min", value: formatNumber(events.last5Minutes) },
+                        { label: "Last ingest", value: <RelativeTime iso={events.lastIngestAt} /> },
+                      ]}
+                    />
+                  </div>
+                ) : undefined
+              }
+            >
+              <div className="panel-body">
+                {events ? (
+                  <div className="chart-wrap">
+                    <ResponsiveContainer width="100%" height={220}>
+                      <AreaChart data={chartData} margin={CHART_MARGIN}>
+                        <defs>
+                          <linearGradient id="systemEventsFill" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="var(--chart-sessions)" stopOpacity={0.22} />
+                            <stop offset="100%" stopColor="var(--chart-sessions)" stopOpacity={0.01} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid stroke="var(--chart-grid)" vertical={false} strokeDasharray="3 6" />
+                        <XAxis
+                          dataKey="label"
+                          tickLine={false}
+                          axisLine={false}
+                          minTickGap={24}
+                          tick={{ fill: "var(--chart-axis)", fontSize: 11 }}
+                        />
+                        <YAxis
+                          tickLine={false}
+                          axisLine={false}
+                          width={32}
+                          allowDecimals={false}
+                          tick={{ fill: "var(--chart-axis-soft)", fontSize: 11 }}
+                          tickFormatter={(value: number) => formatNumber(Number(value))}
+                        />
+                        <Tooltip
+                          isAnimationActive={false}
+                          cursor={false}
+                          content={({ active, payload: entries, label }) => (
+                            <TelemetryChartTooltip
+                              active={active}
+                              label={label}
+                              payload={
+                                entries?.map((entry) => ({
+                                  name: String(entry.name ?? ""),
+                                  value: Number(entry.value ?? 0),
+                                  color: entry.color,
+                                })) ?? []
+                              }
+                            />
+                          )}
+                        />
+                        <Area
+                          isAnimationActive={false}
+                          type="monotone"
+                          dataKey="count"
+                          name="Events"
+                          stroke="var(--chart-sessions)"
+                          strokeWidth={2}
+                          fill="url(#systemEventsFill)"
+                          dot={false}
+                          activeDot={{ r: 4, strokeWidth: 0, fill: "var(--chart-sessions)" }}
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <EmptyState icon={<Activity />} title="Event rate unavailable">
+                    The database query for recent events failed on this refresh.
+                  </EmptyState>
+                )}
+              </div>
+            </CollapsiblePanel>
+
+            <CollapsiblePanel title="Incidents" padding="body">
+              {incidents.length === 0 ? (
+                <EmptyState allClear title="No incidents">
+                  Every check passed on the last refresh.
+                </EmptyState>
+              ) : (
+                <ul className="system-incidents">
+                  {incidents.map((incident) => (
+                    <li className="system-incident" key={incident.id}>
+                      <span
+                        className={statusDotClass(incident.severity === "critical" ? "danger" : "warning")}
+                        aria-hidden="true"
+                      />
+                      <div className="system-incident-text">
+                        <p className="system-incident-title">
+                          {incident.title}
+                          <span className="sr-only">
+                            {incident.severity === "critical" ? " (critical)" : " (warning)"}
+                          </span>
+                        </p>
+                        <p className="system-incident-detail">{incident.detail}</p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CollapsiblePanel>
           </div>
-          <div>
-            <dt>Response time</dt>
-            <dd>{latency === null ? "Not yet available" : `${latency} ms`}</dd>
-          </div>
-          <div>
-            <dt>Latest application event</dt>
-            <dd>{health?.lastIngestAt ? formatDate(health.lastIngestAt) : "None reported"}</dd>
-          </div>
-          <div>
-            <dt>Stored events</dt>
-            <dd>{health ? formatNumber(health.count) : "Unknown"}</dd>
-          </div>
-          <div>
-            <dt>Environment</dt>
-            <dd>{health?.build?.environment ?? "Not reported"}</dd>
-          </div>
-          <div>
-            <dt>Backend revision</dt>
-            <dd>{health?.build?.commit ?? "Not reported"}</dd>
-          </div>
-        </dl>
-      </CollapsiblePanel>
-      <CollapsiblePanel title="NAS services" padding="body">
-        <p className="system-check-note">
-          Container processes, the Discord bot and backup jobs do not currently report their own
-          health to the panel. Their status is unknown here; a reachable API does not confirm that
-          those services are healthy.
-        </p>
-      </CollapsiblePanel>
+
+          <p className="system-footnote">
+            Build {payload.build.commit} · Node {payload.runtime.node ?? "not reported"} · checked{" "}
+            <RelativeTime iso={payload.generatedAt} />
+          </p>
+        </>
+      ) : null}
     </div>
   );
 }

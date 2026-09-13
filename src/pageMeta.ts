@@ -47,7 +47,7 @@ export const PAGE_META: Record<PageKey, PageMeta> = {
   feedback: { group: "Communication", label: "Feedback" },
   errors: { group: "Diagnostics", label: "Errors" },
   team: { group: "Administration", label: "Panel access" },
-  system: { group: "Administration", label: "Backend status" },
+  system: { group: "Administration", label: "System health" },
   settings: { group: "Administration", label: "Settings" },
 };
 

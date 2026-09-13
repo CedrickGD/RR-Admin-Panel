@@ -932,63 +932,77 @@ html[data-theme] .customer360-tabs button {
 .customer-return-link {
   margin-bottom: -8px;
 }
-.system-checks {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
-  gap: 16px;
+/* System health (SystemStatusPage). Status colour comes only from the shared
+   .status-dot classes; everything else stays on the neutral text ladder. */
+.system-overall {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
-.system-check {
-  padding: 20px;
+.system-service {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 10px;
   min-width: 0;
 }
-.system-check-title {
+.system-service > .status-dot,
+.system-incident > .status-dot {
+  margin-top: 7px;
+}
+.system-service-text {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 14px;
+  flex-direction: column;
+  min-width: 0;
 }
-.system-check-title svg {
-  width: 20px;
-  height: 20px;
-  color: var(--accent-text);
-}
-.system-check-title h2 {
-  font-size: var(--fs-strong);
-  margin: 0;
-}
-.system-check-state {
-  display: block;
-  font-size: var(--fs-figure);
+.system-service-name {
   font-weight: 600;
 }
-.system-check-state.is-ok {
-  color: var(--success-text);
-}
-.system-check p,
-.system-check-note {
-  font-size: var(--fs-small);
-  line-height: 1.6;
-  color: var(--text-2);
-  margin: 8px 0 0;
-}
-.system-check-details {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
-  gap: 20px;
-  margin: 0;
-}
-.system-check-details > div {
-  min-width: 0;
-}
-.system-check-details dt {
+.system-service-detail {
   font-size: var(--fs-tiny);
   color: var(--text-3);
-  margin-bottom: 5px;
-}
-.system-check-details dd {
-  margin: 0;
-  font-size: var(--fs-body);
   overflow-wrap: anywhere;
+}
+.system-split {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 1100px) {
+  .system-split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.system-incidents {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 14px;
+}
+.system-incident {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+.system-incident-text {
+  min-width: 0;
+}
+.system-incident-title {
+  margin: 0;
+  font-weight: 600;
+}
+.system-incident-detail {
+  margin: 2px 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.5;
+  color: var(--text-2);
+}
+.system-footnote {
+  margin: 0;
+  font-size: var(--fs-tiny);
+  color: var(--text-3);
 }
 @media (max-width: 600px) {
   /* Four tabs with icons do not fit one phone row: two even columns instead

@@ -201,6 +201,13 @@ html[data-theme] .record-table > tbody > tr > td.live-detail-cell {
   color: var(--accent-text);
   text-decoration: underline;
 }
+/* Inside running text (an empty state's "listed under …" line) a record link must read as a
+   link before hover — touch has no hover. Same token and underline the hover state uses. */
+.record-link.is-inline {
+  color: var(--accent-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
 html[data-theme] .person-cell {
   min-width: 190px;
   max-width: 310px;

@@ -1,5 +1,5 @@
 import { Select } from "../components/ds/Select";
-import { TableFrame } from "../components/ds/TableFrame";
+import { RecordLink, TableFrame } from "../components/ds/TableFrame";
 import {
   AlertTriangle,
   ChevronDown,
@@ -10,13 +10,19 @@ import {
   Users as UsersIcon,
   X,
 } from "lucide-react";
-import { Fragment, useMemo, useState, type CSSProperties } from "react";
+import { Fragment, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { CollapsiblePanel } from "../components/CollapsiblePanel";
 import { RowExpandClip } from "../components/RowExpandClip";
 import { KpiStatCard } from "../components/KpiStatCard";
 import { Badge } from "../components/ds/Badge";
 import { Button, IconButton } from "../components/ds/Button";
-import { DetailGrid, SortHeader, type SortState } from "../components/ds/DataTable";
+import {
+  DataTable,
+  DetailGrid,
+  SortHeader,
+  type DataTableColumn,
+  type SortState,
+} from "../components/ds/DataTable";
 import { EmptyState } from "../components/ds/EmptyState";
 import { PageHeader } from "../components/ds/PageHeader";
 import { PageToolbar } from "../components/ds/PageToolbar";
@@ -27,7 +33,12 @@ import { SegmentedControl, type TabItem } from "../components/ds/SegmentedContro
 import { Skeleton, SkeletonRows, type SkeletonColumn } from "../components/ds/Skeleton";
 import { Tag } from "../components/ds/Tag";
 import { useAdminErrors } from "../hooks/useAdminErrors";
-import type { ErrorEventDetail, ErrorsRangeKey, ErrorUserGroup } from "../types/telemetry";
+import type {
+  BackgroundFaultGroup,
+  ErrorEventDetail,
+  ErrorsRangeKey,
+  ErrorUserGroup,
+} from "../types/telemetry";
 import { formatDate, formatNumber } from "../utils/format";
 
 type ViewKey = "users" | "failures";
@@ -35,16 +46,29 @@ type SortKey = "errors" | "firstError" | "lastError";
 type SortDir = "asc" | "desc";
 /** One exclusive page state: banner, KPIs, panel subtitle and body all key off it. */
 type PageState = "loading" | "error" | "empty" | "data";
+/**
+ * The page's one scope switch: real errors, or the background faults kept apart from them.
+ * Background faults are the desktop client reporting an unobserved task exception in a loop
+ * (RR-E1003); they never crash the app and are not counted as errors anywhere in the panel.
+ */
+type Segment = "errors" | "background";
+type FaultsState = "loading" | "error" | "unavailable" | "data";
 
-const RANGES: Array<{ key: ErrorsRangeKey; label: string; title: string }> = [
-  { key: "1h", label: "1 h", title: "Last hour" },
-  { key: "6h", label: "6 h", title: "Last 6 hours" },
-  { key: "12h", label: "12 h", title: "Last 12 hours" },
-  { key: "24h", label: "24 h", title: "Last 24 hours" },
-  { key: "3d", label: "3 d", title: "Last 3 days" },
-  { key: "7d", label: "7 d", title: "Last 7 days" },
-  { key: "30d", label: "30 d", title: "Last 30 days" },
-  { key: "all", label: "All", title: "Full retained history (90 days)" },
+/** `phrase` completes a sentence: "No crashes reported in the last 24 hours". */
+const RANGES: Array<{ key: ErrorsRangeKey; label: string; title: string; phrase: string }> = [
+  { key: "1h", label: "1 h", title: "Last hour", phrase: "the last hour" },
+  { key: "6h", label: "6 h", title: "Last 6 hours", phrase: "the last 6 hours" },
+  { key: "12h", label: "12 h", title: "Last 12 hours", phrase: "the last 12 hours" },
+  { key: "24h", label: "24 h", title: "Last 24 hours", phrase: "the last 24 hours" },
+  { key: "3d", label: "3 d", title: "Last 3 days", phrase: "the last 3 days" },
+  { key: "7d", label: "7 d", title: "Last 7 days", phrase: "the last 7 days" },
+  { key: "30d", label: "30 d", title: "Last 30 days", phrase: "the last 30 days" },
+  {
+    key: "all",
+    label: "All",
+    title: "Full retained history (90 days)",
+    phrase: "the retained history (90 days)",
+  },
 ];
 
 const BACKGROUND_KIND = "background";
@@ -80,7 +104,7 @@ const USER_SKELETON_COLUMNS: SkeletonColumn[] = [
 interface VisibleGroup extends ErrorUserGroup {
   visibleEvents: ErrorEventDetail[];
   visibleCount: number;
-  /** First/last error under the current background toggle (events ship newest-first). */
+  /** First/last real error (events ship newest-first). */
   firstAt: string;
   lastAt: string;
 }
@@ -162,10 +186,135 @@ function topType(group: VisibleGroup): { type: string; more: number } | null {
 
 /* ── presentational pieces ──────────────────────────────────── */
 
+const SEGMENTS: TabItem<Segment>[] = [
+  { key: "errors", label: "Errors" },
+  { key: "background", label: "Background faults" },
+];
+
+/** Grouping of the real errors — a view, offered as a select next to the time window. */
 const VIEW_TABS: TabItem<ViewKey>[] = [
   { key: "users", label: "By customer" },
   { key: "failures", label: "By failure" },
 ];
+
+/** "System.Net.Sockets.SocketException" → "SocketException"; the full name stays in the title. */
+function shortTypeName(type: string | null): string {
+  const trimmed = type?.trim();
+  if (!trimmed) return "—";
+  return trimmed.split(".").pop() || trimmed;
+}
+
+function faultKey(fault: BackgroundFaultGroup): string {
+  return `${fault.code ?? ""}::${fault.exceptionType ?? ""}`;
+}
+
+const FAULT_COLUMNS: Array<DataTableColumn<BackgroundFaultGroup>> = [
+  { key: "code", header: "Code", mono: true, render: (fault) => fault.code ?? "—" },
+  {
+    key: "exception",
+    header: "Exception",
+    mono: true,
+    render: (fault) => (
+      <span title={fault.exceptionType ?? undefined}>{shortTypeName(fault.exceptionType)}</span>
+    ),
+  },
+  { key: "events", header: "Events", numeric: true, render: (fault) => formatNumber(fault.events) },
+  {
+    key: "installs",
+    header: "Installs",
+    numeric: true,
+    render: (fault) => formatNumber(fault.installs),
+  },
+  {
+    key: "sessions",
+    header: "Sessions",
+    numeric: true,
+    render: (fault) => formatNumber(fault.sessions),
+  },
+  {
+    key: "versions",
+    header: "Versions",
+    muted: true,
+    render: (fault) =>
+      fault.versions.length > 0 ? fault.versions.map((v) => versionLabel(v)).join(", ") : "—",
+  },
+  {
+    key: "firstSeen",
+    header: "First seen",
+    muted: true,
+    render: (fault) => <RelativeTime iso={fault.firstSeen} />,
+  },
+  {
+    key: "lastSeen",
+    header: "Last seen",
+    muted: true,
+    render: (fault) => <RelativeTime iso={fault.lastSeen} />,
+  },
+];
+
+/**
+ * The Background faults segment: one row per error code + base exception type, aggregated on
+ * the server (events, distinct installs and sessions, versions, first/last seen). Deliberately
+ * quiet — muted count, no status colour: nothing here is an error.
+ */
+function BackgroundFaultsPanel({
+  state,
+  faults,
+  total,
+  rangePhrase,
+  loadFailed,
+}: {
+  state: FaultsState;
+  faults: BackgroundFaultGroup[];
+  total: number;
+  rangePhrase: string;
+  loadFailed: ReactNode;
+}) {
+  return (
+    <CollapsiblePanel
+      kicker="Known client bug"
+      title="Background faults"
+      sub="An unobserved background task in the desktop app throws repeatedly; it does not crash the app and is not counted as an error anywhere."
+      right={
+        state === "data" && total > 0 ? (
+          <Badge tone="muted">
+            {formatNumber(total)} {total === 1 ? "event" : "events"}
+          </Badge>
+        ) : undefined
+      }
+      padding="flush"
+    >
+      {state === "error" ? (
+        loadFailed
+      ) : state === "loading" ? (
+        <div className="error-group-list" aria-busy="true">
+          {Array.from({ length: 3 }, (_, i) => (
+            <div key={`fault-skeleton-${i}`} className="error-skeleton-row">
+              <Skeleton width={90} />
+              <Skeleton className="error-skeleton-grow" />
+              <Skeleton width={60} />
+            </div>
+          ))}
+        </div>
+      ) : state === "unavailable" ? (
+        <EmptyState title="Not reported by this API build">
+          Background faults are listed once rr-api runs the current version.
+        </EmptyState>
+      ) : faults.length === 0 ? (
+        <EmptyState allClear title={`No background faults in ${rangePhrase}`} />
+      ) : (
+        <DataTable
+          columns={FAULT_COLUMNS}
+          rows={faults}
+          rowKey={faultKey}
+          flush
+          mobileLayout="stack"
+          caption={`Background faults in ${rangePhrase}, most frequent first`}
+        />
+      )}
+    </CollapsiblePanel>
+  );
+}
 
 /** One collected error, rendered in full: type, kind, message, and every leftover metric. */
 function ErrorEventCard({ event }: { event: ErrorEventDetail }) {
@@ -218,13 +367,13 @@ export function ErrorsPage() {
   const [range, setRange] = useState<ErrorsRangeKey>("24h");
   const [view, setView] = useState<ViewKey>("users");
   const [query, setQuery] = useState("");
-  const [showBackground, setShowBackground] = useState(false);
-  /** Filters, not the grouping view: what the toolbar's Reset puts back. */
-  const errorFiltersActive = query.trim().length > 0 || range !== "24h" || showBackground;
+  // Plain state, not a history entry: Back leaves the page instead of flipping the segment.
+  const [segment, setSegment] = useState<Segment>("errors");
+  /** Filters, not the segment or the grouping view: what the toolbar's Reset puts back. */
+  const errorFiltersActive = (segment === "errors" && query.trim().length > 0) || range !== "24h";
   function resetErrorFilters() {
     setQuery("");
     setRange("24h");
-    setShowBackground(false);
   }
   const [expandedUsers, setExpandedUsers] = useState<string[]>([]);
   // "Has ever expanded" memory — rows never expanded keep costing nothing (no detail DOM).
@@ -240,14 +389,13 @@ export function ErrorsPage() {
   // instead of last range's numbers under this range's labels.
   const current = data && data.range === range ? data : null;
 
-  /* ── background-toggle-aware groups (pre-search) ──────────── */
+  /* ── real-error groups (pre-search) ───────────────────────── */
   const visibleGroups = useMemo<VisibleGroup[] | null>(() => {
     if (!current) return null;
     return current.users
       .map((group) => {
-        const visibleEvents = showBackground
-          ? group.events
-          : group.events.filter((event) => event.kind !== BACKGROUND_KIND);
+        // The API ships real errors only; builds before WP 2.9 still mixed background events in.
+        const visibleEvents = group.events.filter((event) => event.kind !== BACKGROUND_KIND);
         return {
           ...group,
           visibleEvents,
@@ -262,7 +410,7 @@ export function ErrorsPage() {
         };
       })
       .filter((group) => group.visibleCount > 0);
-  }, [current, showBackground]);
+  }, [current]);
 
   /* ── searched + sorted rows for the users table ───────────── */
   const rows = useMemo(() => {
@@ -350,12 +498,13 @@ export function ErrorsPage() {
     );
   }, [visibleGroups, query]);
 
-  /* ── KPI values (respect the background toggle, not search) ── */
+  /* ── KPI values: real errors in range, whatever the segment or search ──
+        The tiles are the page summary of what counts as an error. Background
+        faults are counted nowhere, so they never feed a tile — switching the
+        segment leaves the row as it is; the fault table carries its own counts. */
   const kpis = useMemo(() => {
     if (!current || !visibleGroups) return null;
-    const errorsInRange = showBackground
-      ? current.totals.errors + current.totals.backgroundErrors
-      : current.totals.errors;
+    const errorsInRange = current.totals.errors;
     let lastErrorAt: string | null = null;
     for (const group of visibleGroups) {
       if (lastErrorAt === null || parseTimestamp(group.lastAt) > parseTimestamp(lastErrorAt)) {
@@ -363,10 +512,19 @@ export function ErrorsPage() {
       }
     }
     return { errorsInRange, affectedUsers: visibleGroups.length, lastErrorAt };
-  }, [current, visibleGroups, showBackground]);
+  }, [current, visibleGroups]);
 
-  const rangeTitle = RANGES.find((r) => r.key === range)?.title ?? "Selected range";
+  const rangeEntry = RANGES.find((r) => r.key === range);
+  const rangeTitle = rangeEntry?.title ?? "Selected range";
+  const rangePhrase = rangeEntry?.phrase ?? "the selected range";
   const backgroundTotal = current?.totals.backgroundErrors ?? 0;
+  const faultsState: FaultsState = !current
+    ? error
+      ? "error"
+      : "loading"
+    : current.backgroundFaults === undefined
+      ? "unavailable"
+      : "data";
 
   // No usable payload for this range: a failure owns the screen, otherwise it's
   // loading. Never both — a skeleton or "None" must not sit beside the alert.
@@ -422,6 +580,24 @@ export function ErrorsPage() {
   }
 
   /* ── render ───────────────────────────────────────────────── */
+  // Calm by design: no crashes is the normal state. When the range held background faults,
+  // one quiet line says where they are, with a link that switches the segment.
+  const noErrorsState = (
+    <EmptyState allClear title={`No crashes reported in ${rangePhrase}`}>
+      {backgroundTotal > 0 ? (
+        <>
+          {formatNumber(backgroundTotal)} background {backgroundTotal === 1 ? "fault" : "faults"}{" "}
+          from a known client bug {backgroundTotal === 1 ? "is" : "are"} listed under{" "}
+          <RecordLink className="is-inline" onClick={() => setSegment("background")}>
+            Background faults
+          </RecordLink>
+          .
+        </>
+      ) : (
+        "New errors surface here within seconds of ingest."
+      )}
+    </EmptyState>
+  );
   const loadFailed = (
     <EmptyState
       icon={<AlertTriangle />}
@@ -442,7 +618,7 @@ export function ErrorsPage() {
       <PageHeader
         kicker="Failures"
         page="errors"
-        sub="Every collected error, linked to the customer it came from."
+        sub="Errors from the desktop app, per customer — background faults from a known client bug are listed apart and never counted."
       />
 
       {/* KPIs */}
@@ -450,11 +626,7 @@ export function ErrorsPage() {
         <KpiStatCard
           label="Errors in range"
           value={kpis ? formatNumber(kpis.errorsInRange) : "—"}
-          sub={
-            unavailable
-              ? "Unavailable"
-              : `${rangeTitle}${showBackground ? " · background included" : " · background hidden"}`
-          }
+          sub={unavailable ? "Unavailable" : `${rangeTitle} · background faults excluded`}
           tone={kpis && kpis.errorsInRange > 0 ? "danger" : "primary"}
           icon={<AlertTriangle size={14} />}
           loading={pageState === "loading"}
@@ -496,45 +668,53 @@ export function ErrorsPage() {
         </div>
       ) : null}
 
-      {current?.scanTruncated ? (
+      {segment === "errors" && current?.scanTruncated ? (
         <p className="page-note">
-          Heavy range — only the most recent error events are included; narrow the timespan for full
-          coverage.
+          More errors in this range than one request reads — only the most recent are listed and
+          counted; narrow the time window for the rest.
         </p>
       ) : null}
-      {current?.usersTruncated ? (
+      {segment === "errors" && current?.usersTruncated ? (
         <p className="page-note">
           Showing the most recently affected customers — totals still count everyone; narrow the
           timespan to see the rest.
         </p>
       ) : null}
+      {segment === "background" && current?.backgroundFaultsTruncated ? (
+        <p className="page-note">
+          Showing the most frequent fault groups — the event count covers all of them.
+        </p>
+      ) : null}
 
       {/* The one filter place on this page (handoff §2.3), directly above the
-          panel it filters: grouping left (a view switch over the same errors,
-          so a radiogroup, not tabs), then search, time window and the
-          background-task switch. Reset puts the filters back; the grouping is
-          a view, not a filter, so it stays. */}
+          panel it filters. Left: the page's scope — real errors, or the
+          background faults kept apart from them (a radiogroup over plain state,
+          not history). Then search and grouping for the errors, and the time
+          window both segments share. Reset puts the filters back; segment and
+          grouping are views, not filters, so they stay. */}
       <PageToolbar
         aria-label="Error filters"
         canReset={errorFiltersActive}
         onReset={resetErrorFilters}
         left={
           <SegmentedControl
-            aria-label="Error grouping"
-            items={VIEW_TABS}
-            value={view}
-            onChange={setView}
+            aria-label="Error type"
+            items={SEGMENTS}
+            value={segment}
+            onChange={setSegment}
           />
         }
         search={
-          <SearchInput
-            aria-label="Search errors"
-            value={query}
-            onChange={setQuery}
-            placeholder={
-              view === "users" ? "Search customer, Discord, error…" : "Search failure, customer…"
-            }
-          />
+          segment === "errors" ? (
+            <SearchInput
+              aria-label="Search errors"
+              value={query}
+              onChange={setQuery}
+              placeholder={
+                view === "users" ? "Search customer, Discord, error…" : "Search failure, customer…"
+              }
+            />
+          ) : undefined
         }
         filters={
           <>
@@ -549,20 +729,32 @@ export function ErrorsPage() {
                 </option>
               ))}
             </Select>
-            <Select
-              aria-label="Background task errors"
-              value={showBackground ? "shown" : "hidden"}
-              onValueChange={(value) => setShowBackground(value === "shown")}
-            >
-              <option value="hidden">Background hidden</option>
-              <option value="shown">
-                {`Background included${backgroundTotal > 0 ? ` (${formatNumber(backgroundTotal)})` : ""}`}
-              </option>
-            </Select>
+            {segment === "errors" ? (
+              <Select
+                aria-label="Error grouping"
+                value={view}
+                onValueChange={(value) => setView(value as ViewKey)}
+              >
+                {VIEW_TABS.map((tab) => (
+                  <option key={tab.key} value={tab.key}>
+                    {tab.label}
+                  </option>
+                ))}
+              </Select>
+            ) : null}
           </>
         }
       />
 
+      {segment === "background" ? (
+        <BackgroundFaultsPanel
+          state={faultsState}
+          faults={current?.backgroundFaults ?? []}
+          total={backgroundTotal}
+          rangePhrase={rangePhrase}
+          loadFailed={loadFailed}
+        />
+      ) : (
       <CollapsiblePanel
         kicker={view === "users" ? "Linked" : "Grouped"}
         title={view === "users" ? "Customers with errors" : "Failures"}
@@ -839,10 +1031,7 @@ export function ErrorsPage() {
               No affected customer matches “{query}”.
             </EmptyState>
           ) : (
-            <EmptyState allClear>
-              No {showBackground ? "" : "real "}failures in {rangeTitle.toLowerCase()}. New errors
-              surface here within seconds of ingest.
-            </EmptyState>
+            noErrorsState
           )
         ) : unavailable ? (
           loadFailed
@@ -950,12 +1139,10 @@ export function ErrorsPage() {
             Nothing in range matches “{query}”.
           </EmptyState>
         ) : (
-          <EmptyState allClear>
-            No {showBackground ? "" : "real "}failures in {rangeTitle.toLowerCase()}. New errors
-            surface here within seconds of ingest.
-          </EmptyState>
+          noErrorsState
         )}
       </CollapsiblePanel>
+      )}
     </div>
   );
 }

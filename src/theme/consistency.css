@@ -242,12 +242,10 @@ html[data-theme] .created-label {
   background: none;
   padding: 0;
 }
-html[data-theme] .creation-notice {
-  background: var(--accent-subtle);
-  border-color: var(--accent);
-}
+/* "License created" is a success status, so it keeps the status green from
+   operations.css instead of the accent (accent = primary action and active
+   state). The icon is outlined in that green, not a filled chip. */
 html[data-theme] .creation-notice-icon {
-  color: var(--accent-text);
   background: none;
 }
 

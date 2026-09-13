@@ -75,14 +75,6 @@ html[data-theme] .feedback-card {
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
 }
-/* Restates the "new" marker in the themed blue at the themed width, over
-   `.feedback-card.is-new` in theme/css/components.css. This used to need
-   !important because FeedbackPage.tsx wrote the accent marker as an inline
-   style; it is a class now, so plain specificity carries it. */
-html[data-theme] .feedback-card.is-new {
-  border-color: color-mix(in srgb, var(--ui-blue) 40%, var(--line));
-  box-shadow: inset 3px 0 var(--ui-blue);
-}
 html[data-theme] .feedback-card.is-new .badge-info {
   color: var(--ui-blue);
   background: color-mix(in srgb, var(--ui-blue) 12%, transparent);

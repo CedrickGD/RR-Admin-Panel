@@ -946,10 +946,7 @@
 
 /* ── Empty states ─────────────────────────────────────────────── */
 /* ── Order lookup / license fulfilment ───────────────────────── */
-.license-lookup-panel {
-  border-color: hsl(var(--ah) var(--as) var(--al) / 0.2);
-  background: radial-gradient(circle at 90% 0%, hsl(var(--ah) var(--as) var(--al) / 0.08), transparent 38%), var(--surface-1);
-}
+/* .license-lookup-panel is a plain panel: no accent wash, no tinted border. */
 .license-lookup-body { display: flex; flex-direction: column; gap: 14px; }
 .license-lookup-form {
   display: grid;
@@ -1260,10 +1257,9 @@
 .feedback-item-msg { margin: 0 0 8px; font-size: var(--fs-body); color: var(--text-1); line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
 .feedback-item-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; font-size: var(--fs-small); color: var(--text-3); }
 .feedback-item-fact { display: inline-flex; align-items: center; gap: 5px; color: var(--text-2); }
-/* Was written inline by FeedbackPage. operations.css restates the marker in
-   the themed blue at (0,3,1) and outranks this on specificity alone, which
-   is why the !important it used to need is gone from that rule. */
-.feedback-card.is-new { box-shadow: inset 2px 0 0 0 var(--accent); }
+/* A new message has no coloured left tick and no tinted border: its "New"
+   badge (info tone) already carries the status, and the tick was decoration
+   on top of it — accent is for the primary action and the active state. */
 
 /* ── InstallsPanel — one registered device per row ─────────────── */
 .installs-list { display: flex; flex-direction: column; gap: 6px; }

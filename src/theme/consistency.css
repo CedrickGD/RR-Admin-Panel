@@ -735,6 +735,8 @@ html[data-theme] .customer360-tabs button.active {
 .customer-workspace .customer360-shell {
   min-width: 0;
   max-width: 100%;
+  /* The bar above is opaque with a hairline; the record starts one card gap below it. */
+  padding-top: 16px;
 }
 .customer-workspace-head {
   display: grid;

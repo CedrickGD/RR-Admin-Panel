@@ -736,11 +736,21 @@
 
 /* ≤600px: the dialog is a full-screen sheet. Same markup, so the head keeps
    the title on the left and the X top-right; the sheet is opaque (the fill is
-   --workspace-dialog from consistency.css) and only its body scrolls — the page
-   underneath is locked on <html> by ds/Modal. Selectors carry one class more
-   than the ≤600px head/body padding in consistency.css, which would otherwise
-   win on source order. The bottom padding and the sticky action row both clear
-   the home indicator (safe-area inset). */
+   --workspace-dialog, which consistency.css also sets at (0,2,1)) and only its
+   body scrolls — the page underneath is locked on <html> by ds/Modal. Selectors
+   carry one class more than the ≤600px head/body padding in consistency.css,
+   which would otherwise win on source order. The bottom padding and the sticky
+   action row both clear the home indicator (safe-area inset).
+
+   The sheet is opaque on EVERY frame, not only at rest. It used to inherit the
+   desktop card's entrance: the overlay faded 0→1 and the sheet faded 0→1 on top
+   of it (opacities multiply) while rising 12px. On a centred card that reads as
+   a soft fade; on a sheet that covers the whole screen it shows the page
+   through the sheet for the whole open and close, with a 12px strip of page
+   above it — measured on a real Android Chrome at t=0: sheet opacity 0, top
+   12px, bottom 12px past the viewport; t=100ms: opacity 0.95. So on a phone
+   neither layer fades: the sheet slides up from the bottom edge and back down,
+   and the scrim stays at full opacity until the sheet has left. */
 @media (max-width: 600px) {
   .dialog-overlay {
     padding: 0;
@@ -755,6 +765,9 @@
     border: 0;
     border-radius: 0;
     box-shadow: none;
+    background: var(--workspace-dialog);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
   .dialog-overlay > .dialog > .dialog-head {
     padding-top: calc(16px + env(safe-area-inset-top, 0px));
@@ -768,15 +781,53 @@
     padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
   }
 }
-@media (max-width: 600px) and (prefers-reduced-motion: no-preference) {
-  /* A sheet rises instead of scaling in from the middle of the screen. */
+@media (max-width: 600px) {
+  /* Opacity is pinned to 1 on both layers in every state (open, entrance
+     from-frame, closed) — see the note above the ≤600px block. The closed
+     overlay still reaches opacity 0, but only after the sheet has slid out:
+     a delayed zero-length step, so Modal.tsx still gets the opacity
+     transitionend it unmounts on. */
   @starting-style {
+    .dialog-overlay {
+      opacity: 1;
+    }
     .dialog-overlay > .dialog {
-      transform: translateY(12px);
+      opacity: 1;
+      transform: none;
     }
   }
+  .dialog-overlay > .dialog {
+    opacity: 1;
+    transition: none;
+  }
+  .dialog-overlay[data-state="closed"] {
+    transition: opacity 0s linear 0.2s;
+  }
   .dialog-overlay[data-state="closed"] > .dialog {
-    transform: translateY(12px);
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (max-width: 600px) and (prefers-reduced-motion: no-preference) {
+  /* A sheet rises from the bottom edge instead of scaling in from the middle
+     of the screen; transform only, so it is opaque while it moves. */
+  @starting-style {
+    .dialog-overlay > .dialog {
+      transform: translateY(100%);
+    }
+  }
+  .dialog-overlay > .dialog {
+    transition: transform 0.2s var(--ease-out);
+  }
+  .dialog-overlay[data-state="closed"] > .dialog {
+    transform: translateY(100%);
+  }
+}
+@media (max-width: 600px) and (prefers-reduced-motion: reduce) {
+  /* No movement means nothing to wait for: the closed sheet and its scrim go
+     at once (Modal.tsx's 220ms safety timer unmounts them). */
+  .dialog-overlay[data-state="closed"] {
+    transition: none;
   }
 }
 

@@ -73,6 +73,14 @@ describe("system health page model", () => {
     expect(rows["rr-api"].detail).toBe("2 server errors in 60 min");
   });
 
+  it("shows no uptime for a container that is not running", () => {
+    const rows = Object.fromEntries(serviceRows(payload()).map((row) => [row.key, row]));
+    // Docker keeps the last StartedAt on a stopped container; rendering it would show an
+    // "uptime" climbing on every refresh for a service that is down.
+    expect(rows.backup).toMatchObject({ tone: "danger", health: "Exited", startedAt: null });
+    expect(rows["rr-api"].startedAt).toBe("2026-09-12T12:00:00.000Z");
+  });
+
   it("marks a healthy bot container as unreachable when its health check fails", () => {
     const rows = serviceRows(
       payload({

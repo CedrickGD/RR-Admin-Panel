@@ -12,6 +12,7 @@ export interface ServiceRow {
   health: string;
   /** One quiet line under the name: live figures where a source reports them, else the role. */
   detail: string;
+  /** Start of the CURRENT run; null while the container is not running, so uptime stays blank. */
   startedAt: string | null;
   restarts: number | null;
   cpuPercent: number | null;
@@ -131,7 +132,9 @@ export function serviceRows(payload: SystemStatusPayload): ServiceRow[] {
             health: payload.containers === null ? "Unknown" : "Not found",
           }),
       detail: SERVICE_ROLE[key],
-      startedAt: container?.startedAt ?? null,
+      // A stopped container keeps Docker's last StartedAt, and rendering it would show an
+      // "uptime" that grows on every refresh for a service that is down.
+      startedAt: container?.state === "running" ? container.startedAt : null,
       restarts: container?.restartCount ?? null,
       cpuPercent: container?.cpuPercent ?? null,
       memoryBytes: container?.memoryBytes ?? null,

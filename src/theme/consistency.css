@@ -253,9 +253,7 @@ html[data-theme] .creation-notice-icon {
 
 /* Text should grow its container, never collide with a clipped widget edge. */
 .page-header,
-.panel-head,
-.monitor-toolbar,
-.monitor-filter-row {
+.panel-head {
   overflow: visible;
 }
 .page-header > div,

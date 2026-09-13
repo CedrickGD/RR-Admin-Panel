@@ -11,9 +11,10 @@ import {
   Globe2,
   Radio,
   RadioTower,
-  X,
 } from "lucide-react";
-import { GlassDropdown } from "../components/GlassDropdown";
+import { PageToolbar } from "../components/ds/PageToolbar";
+import { SearchInput } from "../components/ds/SearchInput";
+import { Select } from "../components/ds/Select";
 import { KpiStatCard } from "../components/KpiStatCard";
 import {
   isSessionLive,
@@ -26,7 +27,7 @@ import {
   filterAndSortSessions,
   type SessionDirectorySortKey,
 } from "../utils/sessionDirectory";
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { CollapsiblePanel } from "../components/CollapsiblePanel";
 import { StatusBadge } from "../components/StatusBadge";
 import { Badge, LiveBadge } from "../components/ds/Badge";
@@ -56,7 +57,6 @@ interface LivePageProps {
   /** One-shot handshake: after the scroll+highlight lands, App clears the focus state. */
   onFocusConsumed?: () => void;
   onOpenMapSession: (sessionId: string) => void;
-  filterBar?: ReactNode;
 }
 
 const LIVE_SCOPES: TabItem<"all" | "errors">[] = [
@@ -287,44 +287,60 @@ export function LivePage({
           icon={<Globe2 />}
         />
       </div>
-      <section className="monitor-surface" aria-label="Live activity">
-        <div className="monitor-toolbar">
+      {/* The one filter place on this page (handoff §2.3), directly above the
+          sessions it filters. Replaces the old scope row plus the separate
+          filter row, whose always-visible "Clear filters" is the toolbar's
+          Reset now. */}
+      <PageToolbar
+        aria-label="Live session filters"
+        canReset={hasFilters}
+        onReset={clear}
+        left={
           <SegmentedControl
             aria-label="Live session filter"
             items={LIVE_SCOPES}
             value={onlyErrors ? "errors" : "all"}
             onChange={(key) => setOnlyErrors(key === "errors")}
           />
-        </div>
-        <div className="monitor-filter-row">
-          <div className="monitor-filter">
-            <GlassDropdown
-              placeholder="All versions"
-              options={[...options.versions].sort(compareVersionsNewestFirst)}
-              value={version}
-              onChange={setVersion}
-              align="left"
-            />
-          </div>
-          <div className="monitor-filter">
-            <GlassDropdown
-              placeholder="All countries"
-              options={options.countries.map((c) => c.value)}
-              renderOption={(key) => options.countries.find((c) => c.value === key)?.label ?? key}
-              value={country}
-              onChange={setCountry}
-              align="left"
-            />
-          </div>
-          {hasFilters && (
-            <Button size="sm" icon={<X />} onClick={clear}>
-              Clear filters
-            </Button>
-          )}
-          <span className="monitor-results">
-            {rows.length} live · expand a row for session details
-          </span>
-        </div>
+        }
+        search={
+          <SearchInput
+            aria-label="Search live sessions"
+            value={query}
+            onChange={setQuery}
+            placeholder="Search live sessions by customer or PC…"
+          />
+        }
+        filters={
+          <>
+            <Select
+              aria-label="App version"
+              value={version ?? ""}
+              onValueChange={(value) => setVersion(value || null)}
+            >
+              <option value="">All versions</option>
+              {[...options.versions].sort(compareVersionsNewestFirst).map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </Select>
+            <Select
+              aria-label="Country"
+              value={country ?? ""}
+              onValueChange={(value) => setCountry(value || null)}
+            >
+              <option value="">All countries</option>
+              {options.countries.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
+          </>
+        }
+      />
+      <section className="monitor-surface" aria-label="Live activity">
         <TableFrame stickyActions mobileLayout="stack">
           <caption className="table-caption">Live sessions, sortable by column</caption>
           <thead>
@@ -533,13 +549,6 @@ export function LivePage({
           <EmptyState
             icon={<Radio />}
             title={hasFilters ? "No matching live sessions" : "All quiet"}
-            action={
-              hasFilters ? (
-                <Button icon={<X />} onClick={clear}>
-                  Clear filters
-                </Button>
-              ) : undefined
-            }
           >
             {hasFilters
               ? "Nothing matches the current search and filters."

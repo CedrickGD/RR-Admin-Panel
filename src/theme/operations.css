@@ -406,13 +406,6 @@ html.sb-collapsed .sb-brand-img {
   border: 1px solid var(--line);
   overflow: visible;
 }
-.monitor-toolbar {
-  padding: 16px;
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  flex-wrap: wrap;
-}
 /* `.monitor-scopes` was the third hand-rolled "pick a sub-view" control (Session
    history, Live). Both rows are ds/SegmentedControl now, so only the dot is left. */
 .presence i,
@@ -422,29 +415,6 @@ html.sb-collapsed .sb-brand-img {
   border-radius: 50%;
   background: var(--ui-green);
   flex: none;
-}
-.monitor-filter-row {
-  padding: 0 16px 16px;
-  display: flex;
-  gap: 14px;
-  align-items: end;
-  flex-wrap: wrap;
-  border-bottom: 1px solid var(--line);
-}
-.monitor-filter {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.monitor-filter > span {
-  font-size: var(--fs-micro);
-  color: var(--text-3);
-}
-.monitor-results {
-  margin-left: auto;
-  color: var(--text-3);
-  font-size: var(--fs-micro);
-  align-self: center;
 }
 .table-sort {
   display: flex;
@@ -714,28 +684,12 @@ th:hover .table-sort .table-sort-icon-idle {
   /* No `.stat-grid` column count here: below 900px the KPI rows are auto-fit
      (css/base.css and app-glue.css, per grid size). A flat two-column rule at
      this point in the cascade outranked all of them and stranded the odd tile. */
-  .monitor-results {
-    width: 100%;
-    margin: 0;
-  }
 }
 @media (max-width: 600px) {
   /* Phone rung of the title ladder, on the record title's breakpoint and
      token so the two ladders match. Was the clamp floor, 21.6px. */
   .page-title {
     font-size: var(--fs-figure);
-  }
-  .monitor-toolbar {
-    gap: 12px;
-  }
-  .monitor-filter {
-    flex: 1 1 140px;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 4px;
-  }
-  .monitor-filter .gdrop-trigger {
-    width: 100%;
   }
   .history-detail-head {
     align-items: flex-start;

@@ -16,7 +16,6 @@ import {
   Radio,
   Search,
   UsersRound,
-  X,
 } from "lucide-react";
 import {
   Fragment,
@@ -26,9 +25,10 @@ import {
   useEffect,
   useMemo,
   useState,
-  type ReactNode,
 } from "react";
-import { GlassDropdown } from "../components/GlassDropdown";
+import { PageToolbar } from "../components/ds/PageToolbar";
+import { SearchInput } from "../components/ds/SearchInput";
+import { Select } from "../components/ds/Select";
 import { InstallsPanel } from "../components/InstallsPanel";
 import { KpiStatCard } from "../components/KpiStatCard";
 import { Button, IconButton } from "../components/ds/Button";
@@ -66,7 +66,6 @@ interface WorkersPageProps {
   focusedWorkerId?: string | null;
   onOpenMapSession: (id: string) => void;
   onOpenMapUser: (identity: string) => void;
-  filterBar?: ReactNode;
 }
 const nameOf = (user: UserRollupRecord) => user.userLabel?.trim() || user.identity;
 const versionOf = (user: UserRollupRecord) => user.displayVersion || user.appVersion || "Unknown";
@@ -109,7 +108,6 @@ export function WorkersPage({
   focusedWorkerId,
   onOpenMapSession,
   onOpenMapUser,
-  filterBar,
 }: WorkersPageProps) {
   const users = useCustomerDirectory(sourceUsers);
   const findProfile = useCustomerProfiles();
@@ -227,17 +225,14 @@ export function WorkersPage({
       <PageHeader
         page="workers"
         right={
-          <>
-            {filterBar}
-            <Button
-              permission="exports.read"
-              icon={<Download />}
-              onClick={download}
-              disabled={exporting || users === null || !rows.length}
-            >
-              {exporting ? "Exporting…" : "Export"}
-            </Button>
-          </>
+          <Button
+            permission="exports.read"
+            icon={<Download />}
+            onClick={download}
+            disabled={exporting || users === null || !rows.length}
+          >
+            {exporting ? "Exporting…" : "Export"}
+          </Button>
         }
       />
       <div className="stat-grid stat-grid-4">
@@ -271,44 +266,59 @@ export function WorkersPage({
           loading={users === null}
         />
       </div>
-      <section className="monitor-surface" aria-label="Customers and session history">
-        <div className="monitor-toolbar">
+      {/* The one filter place on this page (handoff §2.3), directly above the
+          history it filters. Replaces the old scope row plus the separate
+          filter row and its "Clear filters" button. */}
+      <PageToolbar
+        aria-label="Session history filters"
+        canReset={filtered}
+        onReset={clear}
+        left={
           <SegmentedControl
             aria-label="Activity filter"
             items={SCOPES}
             value={scope}
             onChange={setScope}
           />
-        </div>
-        <div className="monitor-filter-row">
-          <div className="monitor-filter">
-            <GlassDropdown
-              placeholder="All versions"
-              options={[...options.versions].sort(compareVersionsNewestFirst)}
-              value={version}
-              onChange={setVersion}
-              align="left"
-            />
-          </div>
-          <div className="monitor-filter">
-            <GlassDropdown
-              placeholder="All countries"
-              options={options.countries.map((c) => c.value)}
-              renderOption={(key) => options.countries.find((c) => c.value === key)?.label ?? key}
-              value={country}
-              onChange={setCountry}
-              align="left"
-            />
-          </div>
-          {filtered && (
-            <Button size="sm" icon={<X />} onClick={clear}>
-              Clear filters
-            </Button>
-          )}
-          <span className="monitor-results">
-            {formatNumber(rows.length)} customers · expand a row for sessions
-          </span>
-        </div>
+        }
+        search={
+          <SearchInput
+            aria-label="Search session history"
+            value={query}
+            onChange={setQuery}
+            placeholder="Search session history by customer or PC…"
+          />
+        }
+        filters={
+          <>
+            <Select
+              aria-label="App version"
+              value={version ?? ""}
+              onValueChange={(value) => setVersion(value || null)}
+            >
+              <option value="">All versions</option>
+              {[...options.versions].sort(compareVersionsNewestFirst).map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </Select>
+            <Select
+              aria-label="Country"
+              value={country ?? ""}
+              onValueChange={(value) => setCountry(value || null)}
+            >
+              <option value="">All countries</option>
+              {options.countries.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
+          </>
+        }
+      />
+      <section className="monitor-surface" aria-label="Customers and session history">
         {error && (
           <p className="inline-notice danger" role="alert">
             {error}
@@ -318,11 +328,6 @@ export function WorkersPage({
           <EmptyState
             icon={<Search />}
             title="No customers match"
-            action={
-              <Button icon={<X />} onClick={clear}>
-                Clear filters
-              </Button>
-            }
           >
             Nothing matches the current search and filters.
           </EmptyState>

@@ -227,7 +227,10 @@
    at the page gutter, on the same rule as the title and the first tile,
    instead of leaving a hole where the scope would have been. */
 .page-toolbar-search {
-  flex: 0 1 280px;
+  /* 340px fits the longest placeholder ("Search customer, PC, Discord or
+     HWID…") without truncating it; the field still shrinks to 180px when a
+     row of selects needs the room. */
+  flex: 0 1 340px;
   min-width: 180px;
 }
 .page-toolbar-left ~ .page-toolbar-search,

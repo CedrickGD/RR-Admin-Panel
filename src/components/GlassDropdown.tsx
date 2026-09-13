@@ -15,8 +15,15 @@ interface GlassDropdownProps {
   renderOption?: (option: string) => string;
   /** Show the filter input when the list is longer than this. Default 8. */
   searchThreshold?: number;
-  /** Popover anchor edge. Default "right". */
+  /** Popover anchor edge. Default "left" — the one alignment every ds/Select uses. */
   align?: "left" | "right";
+  /**
+   * Tint the trigger while a value is chosen (`.gdrop-active`). Right for a
+   * filter with an "All …" state, where a value means someone narrowed the
+   * list; wrong for a control that always holds a value (a time window), where
+   * the default would look like a filter someone set. Default true.
+   */
+  highlightValue?: boolean;
   /**
    * `id` of the trigger button. ds/Field points its `<label for>` at it, so it
    * has to land on the button — a `<label for>` aimed at a wrapper div is inert.
@@ -40,7 +47,8 @@ export function GlassDropdown({
   onChange,
   renderOption,
   searchThreshold = 8,
-  align = "right",
+  align = "left",
+  highlightValue = true,
   disabled,
   label: accessibleLabel,
   allowClear = true,
@@ -142,7 +150,7 @@ export function GlassDropdown({
   };
 
   return (
-    <div className={`gdrop${value ? " gdrop-active" : ""}`} ref={rootRef}>
+    <div className={`gdrop${value && highlightValue ? " gdrop-active" : ""}`} ref={rootRef}>
       <button
         type="button"
         disabled={disabled}

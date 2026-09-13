@@ -43,6 +43,10 @@ export function Select({
       };
     });
   const selected = String(value ?? defaultValue ?? options[0]?.value ?? "");
+  /* An "All …" option (value "") makes this a filter: choosing anything else
+     narrows the list, and the trigger says so. Without one the control always
+     holds a value, so its default must not look like a filter someone set. */
+  const hasAllOption = options.some((o) => o.value === "");
   // The id goes on the trigger button, not on this wrapper: a `<label for>`
   // pointing at a <div> is inert (ds/Field), so clicking the label did nothing
   // and the control had no programmatic label — only a duplicated aria-label.
@@ -56,7 +60,8 @@ export function Select({
         triggerId={id ?? ownId}
         describedBy={describedBy}
         invalid={invalid === true || invalid === "true"}
-        allowClear={options.some((o) => o.value === "")}
+        allowClear={hasAllOption}
+        highlightValue={hasAllOption}
         placeholder={options.find((o) => o.value === "")?.label ?? "Choose…"}
         options={options.filter((o) => o.value !== "").map((o) => o.value)}
         value={selected || null}

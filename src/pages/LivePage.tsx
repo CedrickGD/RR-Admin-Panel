@@ -261,7 +261,6 @@ export function LivePage({
       />
       <div className="stat-grid stat-grid-4">
         <KpiStatCard
-          density="compact"
           label="Online now"
           value={formatNumber(rows.length)}
           sub={hasFilters ? "Matching the current filters" : "Active in the last 6 minutes"}
@@ -269,14 +268,12 @@ export function LivePage({
           tone="success"
         />
         <KpiStatCard
-          density="compact"
           label="Discord RPC"
           value={formatNumber(rpcCount)}
           sub="Rich presence currently enabled"
           icon={<RadioTower />}
         />
         <KpiStatCard
-          density="compact"
           label="With errors"
           value={formatNumber(errorCount)}
           sub="Live sessions reporting a failure"
@@ -284,7 +281,6 @@ export function LivePage({
           tone={errorCount ? "danger" : "success"}
         />
         <KpiStatCard
-          density="compact"
           label="Countries"
           value={formatNumber(new Set(rows.map((s) => s.clientCountry).filter(Boolean)).size)}
           sub="Distinct countries online"

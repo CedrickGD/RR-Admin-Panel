@@ -315,10 +315,17 @@ html[data-theme] .live-update {
   line-height: 1.5;
 }
 @media (max-width: 600px) {
-  /* auto-fit, not two fixed columns: a 5-tile row left a lone orphan on the
-     last line, and 175px-wide tiles ellipsised almost every sub line. */
+  /* Two tiles per row on a phone (owner decision, WP 2.4): one full-width
+     tile per row turned a four-tile KPI row into a screen of scrolling. A
+     tile this narrow drops its icon well (the @container rule in
+     css/components.css), which keeps value and label on one line. An odd
+     tile count would strand the last tile at half width, so that one spans
+     the row. */
   html[data-theme] .stat-grid {
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  html[data-theme] .stat-grid > .stat-card:nth-of-type(odd):last-of-type {
+    grid-column: 1 / -1;
   }
 
   .page-content {

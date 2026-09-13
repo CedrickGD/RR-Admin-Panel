@@ -199,8 +199,9 @@
 .kpi-card-chevron { display: inline-block; vertical-align: -2px; margin-left: 4px; opacity: 0.55; }
 
 /* ── ds/PageToolbar — the one filter row per page ──────────────
-   One strip under the PageHeader: scope on the left, then search, then the
-   ds/Select filters and (only when something is set) Reset. No surface of its
+   One strip directly above the table or list it filters (below the KPI
+   tiles): scope on the left, then search, then the ds/Select filters and
+   (only when something is set) Reset. No surface of its
    own — a bordered bar under a bordered header reads as an empty panel — and
    no colour beyond the active segment and the focus ring.
 

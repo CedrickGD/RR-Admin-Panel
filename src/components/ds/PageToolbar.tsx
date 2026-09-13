@@ -6,7 +6,8 @@
  * bespoke `.monitor-filter-row` on Live), search existed in three separate
  * implementations, and "clear filters" was on some pages only, sometimes only
  * inside an empty state. This row replaces all of that: one strip directly
- * under the PageHeader, above the first panel.
+ * above the table or list it filters — below the KPI tiles, so the tiles stay
+ * the page summary and the controls sit next to what they change.
  *
  * Slots
  *  - `left`   — scope or view: a ds/SegmentedControl (filters) or ds/Tabs.
@@ -18,7 +19,7 @@
  *               behaves the same everywhere. It appears only when `canReset`,
  *               i.e. when at least one filter differs from its default.
  *
- * Heights: every control inside is --control-h (36px) — see
+ * Heights: every control inside is --control-h (34px) — see
  * theme/css/components.css. Colour: nothing accented except the active
  * segment; Reset is a ghost button.
  */

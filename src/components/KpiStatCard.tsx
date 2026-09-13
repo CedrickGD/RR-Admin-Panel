@@ -63,12 +63,6 @@ interface KpiStatCardProps {
    */
   size?: "compact" | "full";
   /**
-   * @deprecated The tile is compact everywhere now — one spec, one look. Kept
-   * so the monitoring pages that pass density="compact" keep compiling; it has
-   * no effect.
-   */
-  density?: "default" | "compact";
-  /**
    * Data still in flight: value and sub render as skeletons instead of "—" or
    * a "…loading" sub line, and the tile is not clickable.
    */

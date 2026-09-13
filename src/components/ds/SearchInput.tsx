@@ -16,9 +16,18 @@ export interface SearchInputProps {
   placeholder?: string;
   style?: CSSProperties;
   className?: string;
+  /** Accessible name; defaults to the placeholder, which is what the field promises. */
+  "aria-label"?: string;
 }
 
-export function SearchInput({ value, onChange, placeholder = "Search…", style, className = "" }: SearchInputProps) {
+export function SearchInput({
+  value,
+  onChange,
+  placeholder = "Search…",
+  style,
+  className = "",
+  "aria-label": ariaLabel,
+}: SearchInputProps) {
   return (
     <div className={`search-wrap${className ? ` ${className}` : ""}`} style={style}>
       <span className="search-icon"><Search size={14} /></span>
@@ -27,6 +36,7 @@ export function SearchInput({ value, onChange, placeholder = "Search…", style,
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
+        aria-label={ariaLabel ?? placeholder}
         spellCheck={false}
       />
     </div>

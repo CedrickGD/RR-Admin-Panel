@@ -21,7 +21,6 @@ import {
   useMemo,
   useState,
   type CSSProperties,
-  type ReactNode,
 } from "react";
 import { CollapsiblePanel } from "../components/CollapsiblePanel";
 import { Customer360Overlay, type Customer360Anchor } from "../components/Customer360Overlay";
@@ -60,7 +59,6 @@ import {
 
 interface CustomersPageProps {
   users: UserRollupRecord[] | null;
-  filterBar?: ReactNode;
 }
 
 type CustomerScope = "premium" | "free" | "online" | "attention" | "restricted";
@@ -261,7 +259,7 @@ function directorySkeletonColumns(showRestrictions: boolean): SkeletonColumn[] {
   ];
 }
 
-export function CustomersPage({ users: sourceUsers, filterBar }: CustomersPageProps) {
+export function CustomersPage({ users: sourceUsers }: CustomersPageProps) {
   const users = useCustomerDirectory(sourceUsers);
   const findProfile = useCustomerProfiles();
   const [query, setQuery] = useWorkspaceSearch("customers");
@@ -462,18 +460,52 @@ export function CustomersPage({ users: sourceUsers, filterBar }: CustomersPagePr
 
   return (
     <div className="page-content page-stack-lg">
-      <PageHeader kicker="Customer support" page="customers" right={filterBar} />
+      <PageHeader kicker="Customer support" page="customers" />
 
-      {/* The one filter place on this page (handoff §2.3). Search is the same
-          value the navbar field writes — useWorkspaceSearch("customers") is a
-          shared store — so both stay in step while the global search is still
-          around to be decided on. */}
+      <div className="stat-grid stat-grid-4">
+        <KpiStatCard
+          label="All-time customers"
+          value={formatNumber(totals.customers)}
+          sub="Every customer identity ever seen"
+          icon={<UsersRound />}
+          loading={!users}
+        />
+        <KpiStatCard
+          label="Online now"
+          value={formatNumber(totals.online)}
+          sub="Active customer sessions"
+          icon={<Radio />}
+          tone="success"
+          loading={!users}
+        />
+        <KpiStatCard
+          label="Premium"
+          value={formatNumber(totals.premium)}
+          sub="Customers linked to a paid license"
+          icon={<Crown />}
+          tone="accent"
+          loading={!users}
+        />
+        <KpiStatCard
+          label="Needs attention"
+          value={formatNumber(totals.attention)}
+          sub="Errors, suspension, or degraded state"
+          icon={<AlertTriangle />}
+          tone={totals.attention > 0 ? "danger" : "success"}
+          loading={!users}
+        />
+      </div>
+
+      {/* The one filter place on this page (handoff §2.3), directly above the
+          directory it filters. The search is this page's stored query
+          (useWorkspaceSearch), so a carried-over search is already in it. */}
       <PageToolbar
         aria-label="Customer filters"
         canReset={hasFilters}
         onReset={clearFilters}
         search={
           <SearchInput
+            aria-label="Search customers"
             value={query}
             onChange={setQuery}
             placeholder="Search customer, PC, Discord or HWID…"
@@ -532,40 +564,6 @@ export function CustomersPage({ users: sourceUsers, filterBar }: CustomersPagePr
           </>
         }
       />
-
-      <div className="stat-grid stat-grid-4">
-        <KpiStatCard
-          label="All-time customers"
-          value={formatNumber(totals.customers)}
-          sub="Every customer identity ever seen"
-          icon={<UsersRound />}
-          loading={!users}
-        />
-        <KpiStatCard
-          label="Online now"
-          value={formatNumber(totals.online)}
-          sub="Active customer sessions"
-          icon={<Radio />}
-          tone="success"
-          loading={!users}
-        />
-        <KpiStatCard
-          label="Premium"
-          value={formatNumber(totals.premium)}
-          sub="Customers linked to a paid license"
-          icon={<Crown />}
-          tone="accent"
-          loading={!users}
-        />
-        <KpiStatCard
-          label="Needs attention"
-          value={formatNumber(totals.attention)}
-          sub="Errors, suspension, or degraded state"
-          icon={<AlertTriangle />}
-          tone={totals.attention > 0 ? "danger" : "success"}
-          loading={!users}
-        />
-      </div>
 
       <CollapsiblePanel
         kicker="CRM"

@@ -242,7 +242,6 @@ export function WorkersPage({
       />
       <div className="stat-grid stat-grid-4">
         <KpiStatCard
-          density="compact"
           label="Customers"
           value={formatNumber(rows.length)}
           sub={filtered ? "Matching the current filters" : "All recorded customers"}
@@ -250,7 +249,6 @@ export function WorkersPage({
           loading={users === null}
         />
         <KpiStatCard
-          density="compact"
           label="Online now"
           value={formatNumber(totals.online)}
           sub="Customers active right now"
@@ -259,7 +257,6 @@ export function WorkersPage({
           loading={users === null}
         />
         <KpiStatCard
-          density="compact"
           label="Sessions"
           value={formatNumber(totals.sessions)}
           sub="Lifetime totals"
@@ -267,7 +264,6 @@ export function WorkersPage({
           loading={users === null}
         />
         <KpiStatCard
-          density="compact"
           label="Time in app"
           value={formatDuration(totals.seconds)}
           sub="Lifetime totals"

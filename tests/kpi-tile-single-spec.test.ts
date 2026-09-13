@@ -101,9 +101,20 @@ describe("PageToolbar is the one filter place on Customers", () => {
     expect(page).not.toContain("customer-directory-controls");
   });
 
-  it("reuses the navbar's search state so both fields stay in step", () => {
+  it("binds its search field to the page's stored search", () => {
+    // The navbar search is gone; this field is the only one, and the stored
+    // value (including the access redirect's carried-over query) lands here.
     expect(page).toContain('useWorkspaceSearch("customers")');
     expect(page).toContain("<SearchInput");
+  });
+
+  it("sits directly above the directory it filters, below the KPI tiles", () => {
+    const tiles = page.indexOf('<div className="stat-grid');
+    const toolbar = page.indexOf("<PageToolbar");
+    const directory = page.indexOf('title="Directory"');
+    expect(tiles).toBeGreaterThan(-1);
+    expect(toolbar).toBeGreaterThan(tiles);
+    expect(directory).toBeGreaterThan(toolbar);
   });
 
   it("offers Reset only while a filter differs from its default", () => {

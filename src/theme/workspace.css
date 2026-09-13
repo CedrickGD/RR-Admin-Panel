@@ -766,6 +766,17 @@ td {
   color: var(--text-1);
   font-weight: 550;
 }
+/* Customers → Restrictions opens with this summary straight under the section tabs. The 20px
+   figures on the body's 1.6 line box plus the top padding put ~13px of air above the digits, so
+   the tabs → content gap read far larger than the Directory tab's tabs → tiles gap, and a wrapped
+   row on a phone hung 18px below a 32px line. Figure-high rows, no top padding, a tight row gap. */
+.team-summary.customer-restrictions-summary {
+  padding-top: 0;
+  row-gap: 10px;
+}
+.customer-restrictions-summary strong {
+  line-height: 1;
+}
 .search-field {
   display: flex;
   gap: 8px;

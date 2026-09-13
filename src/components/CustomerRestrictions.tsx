@@ -431,7 +431,7 @@ export function CustomerRestrictions({
 
   return (
     <>
-      <div className="team-summary" aria-label="Restriction summary">
+      <div className="team-summary customer-restrictions-summary" aria-label="Restriction summary">
         <span>
           <Ban />
           <strong>{count(summary.permanent)}</strong>

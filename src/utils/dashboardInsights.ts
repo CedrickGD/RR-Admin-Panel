@@ -1,11 +1,11 @@
 import type { AppSessionRecord, SummaryPayload } from "../types/telemetry";
+import { isRealErrorEvent } from "./errorEvents";
 import { formatCountryLabel, getMacroRegion, resolveCountry } from "./geography";
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 const SESSION_START = "session_start";
 const SESSION_END = "session_end";
-const APP_ERROR = "app_error";
 
 export interface TrafficTimelinePoint {
   label: string;
@@ -319,7 +319,9 @@ export function buildTrafficTimeline(
       point.ended += 1;
     }
 
-    if (event.service === APP_ERROR) {
+    // recentEvents is the unfiltered newest-N window, so the predicate belongs here:
+    // background faults are noise and must not show up as errors in a chart.
+    if (isRealErrorEvent(event)) {
       point.errors += 1;
     }
   }
@@ -741,7 +743,9 @@ export function buildTimezoneActivity(
       point.started += 1;
     }
 
-    if (event.service === APP_ERROR) {
+    // recentEvents is the unfiltered newest-N window, so the predicate belongs here:
+    // background faults are noise and must not show up as errors in a chart.
+    if (isRealErrorEvent(event)) {
       point.errors += 1;
     }
   }

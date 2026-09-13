@@ -1,3 +1,4 @@
+import "../theme/customer-directory.css";
 import { TableFrame, RecordCell, RecordLink } from "../components/ds/TableFrame";
 import {
   CustomerAvatar,
@@ -24,7 +25,7 @@ import {
 import { CustomerRestrictions } from "../components/CustomerRestrictions";
 import { KpiStatCard } from "../components/KpiStatCard";
 import { Badge } from "../components/ds/Badge";
-import { Button, IconButton } from "../components/ds/Button";
+import { Button } from "../components/ds/Button";
 import { SortHeader, type SortState } from "../components/ds/DataTable";
 import { EmptyState } from "../components/ds/EmptyState";
 import { SkeletonRows, type SkeletonColumn } from "../components/ds/Skeleton";
@@ -32,6 +33,7 @@ import { PageHeader } from "../components/ds/PageHeader";
 import { PageToolbar } from "../components/ds/PageToolbar";
 import { SearchInput } from "../components/ds/SearchInput";
 import { Select } from "../components/ds/Select";
+import { SegmentedControl } from "../components/ds/SegmentedControl";
 import { Tabs, type TabItem } from "../components/ds/Tabs";
 import { RelativeTime } from "../components/ds/RelativeTime";
 import { usePanelPermission } from "../hooks/usePanelPermission";
@@ -60,6 +62,12 @@ interface CustomersPageProps {
 }
 
 type CustomerScope = "premium" | "free" | "online" | "attention";
+type DirectoryDensity = "comfortable" | "compact";
+
+const DIRECTORY_DENSITIES: TabItem<DirectoryDensity>[] = [
+  { key: "comfortable", label: "Comfortable" },
+  { key: "compact", label: "Compact" },
+];
 
 /**
  * The page's two sections (ds/Tabs — page sections, not a filter). "Suspended or banned" used to
@@ -166,6 +174,57 @@ function customerAnchor(user: UserRollupRecord): Customer360Anchor {
   };
 }
 
+/** Mobile cards retain the table's secondary facts in a native disclosure. */
+function CustomerDirectoryDetails({ user }: { user: UserRollupRecord }) {
+  return (
+    <details className="customer-directory-mobile-details">
+      <summary>App &amp; device details</summary>
+      <dl>
+        <div>
+          <dt>Version</dt>
+          <dd>{userVersionLabel(user)}</dd>
+        </div>
+        <div>
+          <dt>Device</dt>
+          <dd>{user.deviceModel?.trim() || user.platform?.trim() || "Not reported"}</dd>
+        </div>
+        <div>
+          <dt>Operating system</dt>
+          <dd>{user.osVersion?.trim() || "Not reported"}</dd>
+        </div>
+        <div>
+          <dt>Location</dt>
+          <dd>{locationLabel(user)}</dd>
+        </div>
+        <div>
+          <dt>Sessions</dt>
+          <dd>{formatNumber(user.sessions)}</dd>
+        </div>
+        <div>
+          <dt>Total time</dt>
+          <dd>
+            {user.totalDurationSeconds > 0
+              ? formatDuration(user.totalDurationSeconds)
+              : "Not reported"}
+          </dd>
+        </div>
+        <div>
+          <dt>First seen</dt>
+          <dd>{formatDate(user.firstSeen)}</dd>
+        </div>
+        <div>
+          <dt>Customer ID</dt>
+          <dd className="mono">{user.identity}</dd>
+        </div>
+        <div>
+          <dt>HWID</dt>
+          <dd className="mono">{user.hwid || "Not reported"}</dd>
+        </div>
+      </dl>
+    </details>
+  );
+}
+
 /**
  * The head of the directory table as the skeleton sees it: one entry per column,
  * in the same order and carrying the same priority tier, so a placeholder cell
@@ -174,14 +233,14 @@ function customerAnchor(user: UserRollupRecord): Customer360Anchor {
  */
 const DIRECTORY_SKELETON_COLUMNS: SkeletonColumn[] = [
   {}, // Customer
-  { className: "col-md" }, // Contact
-  {}, // Version
-  { className: "col-lg" }, // Device / OS
-  { className: "col-xl" }, // Location
-  {}, // Sessions
-  { className: "col-lg" }, // Total time
+  { className: "col-md customer-directory-secondary-cell" }, // Contact
+  { className: "customer-directory-secondary-cell" }, // Version
+  { className: "col-lg customer-directory-secondary-cell" }, // Device / OS
+  { className: "col-xl customer-directory-secondary-cell" }, // Location
+  { className: "customer-directory-secondary-cell" }, // Sessions
+  { className: "col-lg customer-directory-secondary-cell" }, // Total time
   {}, // Support
-  {}, // First seen
+  { className: "customer-directory-secondary-cell" }, // First seen
   {}, // Last seen
   {}, // Customer actions
 ];
@@ -195,6 +254,7 @@ export function CustomersPage({ users: sourceUsers }: CustomersPageProps) {
   }, [query]);
   const deferredQuery = useDeferredValue(query);
   const [filters, setFilters] = useState<UserDirectoryFilters>(EMPTY_FILTERS);
+  const [density, setDensity] = useState<DirectoryDensity>("comfortable");
   const [scope, setScope] = useState<CustomerScope | null>(null);
   const [sortKey, setSortKey] = useState<UserDirectorySortKey>("lastSeen");
   const [sortDirection, setSortDirection] = useState<DirectorySortDirection>("desc");
@@ -381,7 +441,11 @@ export function CustomersPage({ users: sourceUsers }: CustomersPageProps) {
           />
         </div>
       ) : (
-        <div className="page-stack-lg customer-directory-section" {...panelProps("directory")}>
+        <div
+          className="page-stack-lg customer-directory-section"
+          data-density={density}
+          {...panelProps("directory")}
+        >
           <div className="stat-grid stat-grid-4">
             <KpiStatCard
               label="All-time customers"
@@ -423,6 +487,15 @@ export function CustomersPage({ users: sourceUsers }: CustomersPageProps) {
             aria-label="Customer filters"
             canReset={hasFilters}
             onReset={clearFilters}
+            left={
+              <SegmentedControl
+                aria-label="Customer row density"
+                className="customer-directory-density"
+                value={density}
+                onChange={setDensity}
+                items={DIRECTORY_DENSITIES}
+              />
+            }
             search={
               <SearchInput
                 aria-label="Search customers"
@@ -486,7 +559,7 @@ export function CustomersPage({ users: sourceUsers }: CustomersPageProps) {
           />
 
           <CollapsiblePanel
-            kicker="CRM"
+            className="customer-directory-panel"
             title="Directory"
             collapsible={false}
             sub={
@@ -580,7 +653,7 @@ export function CustomersPage({ users: sourceUsers }: CustomersPageProps) {
                         <SkeletonRows columns={DIRECTORY_SKELETON_COLUMNS} />
                       ) : (
                         (paginated?.items ?? []).map((user) => (
-                          <tr key={user.identity}>
+                          <tr key={user.identity} className="customer-directory-row">
                             <td>
                               <div className="person-cell">
                                 <CustomerAvatar
@@ -598,21 +671,40 @@ export function CustomersPage({ users: sourceUsers }: CustomersPageProps) {
                                       {displayName(user)}
                                     </RecordLink>
                                   }
-                                  secondary={user.licenseTier === "premium" ? "Premium" : "Free"}
+                                  secondary={
+                                    <span className="customer-directory-identity-meta">
+                                      <span className="customer-directory-mobile-contact">
+                                        {discordHandle(user.discordUser)}
+                                      </span>
+                                      <span className="customer-directory-tier">
+                                        <span className="sr-only">License: </span>
+                                        {user.licenseTier === "premium" ? "Premium" : "Free"}
+                                      </span>
+                                      <span
+                                        className={`customer-directory-presence${user.isActive ? " is-online" : ""}`}
+                                      >
+                                        <span className="sr-only">Presence: </span>
+                                        {user.isActive ? "Online" : "Not active"}
+                                      </span>
+                                    </span>
+                                  }
                                 />
                               </div>
                             </td>
                             <td
-                              className="muted col-md"
+                              className="muted col-md customer-directory-secondary-cell"
                               data-label="Contact"
                               title={user.discordUser ?? undefined}
                             >
                               {discordHandle(user.discordUser)}
                             </td>
-                            <td data-label="Version">
+                            <td className="customer-directory-secondary-cell" data-label="Version">
                               <Badge tone="muted">{userVersionLabel(user)}</Badge>
                             </td>
-                            <td className="muted col-lg" data-label="Device / OS">
+                            <td
+                              className="muted col-lg customer-directory-secondary-cell"
+                              data-label="Device / OS"
+                            >
                               <div className="customer-directory-stacked">
                                 <span>
                                   {user.deviceModel?.trim() || user.platform?.trim() || "—"}
@@ -621,55 +713,74 @@ export function CustomersPage({ users: sourceUsers }: CustomersPageProps) {
                               </div>
                             </td>
                             <td
-                              className="muted col-xl"
+                              className="muted col-xl customer-directory-secondary-cell"
                               data-label="Location"
                               title={locationLabel(user)}
                             >
                               {locationLabel(user)}
                             </td>
-                            <td className="muted numeric" data-label="Sessions">
+                            <td
+                              className="muted numeric customer-directory-secondary-cell"
+                              data-label="Sessions"
+                            >
                               {formatNumber(user.sessions)}
                             </td>
-                            <td className="muted col-lg numeric" data-label="Total time">
+                            <td
+                              className="muted col-lg numeric customer-directory-secondary-cell"
+                              data-label="Total time"
+                            >
                               {user.totalDurationSeconds > 0
                                 ? formatDuration(user.totalDurationSeconds)
                                 : "—"}
                             </td>
-                            <td data-label="Support">
-                              <div className="customer-directory-support">
-                                {user.suspension ? (
-                                  <Badge
-                                    tone={user.suspension.mode === "ban" ? "danger" : "warning"}
-                                    title={
-                                      user.suspension.bannedUntil
-                                        ? `Lifts automatically on ${formatDate(user.suspension.bannedUntil)}`
-                                        : undefined
-                                    }
-                                  >
-                                    {user.suspension.mode === "ban"
-                                      ? "Banned"
-                                      : user.suspension.bannedUntil
-                                        ? `Suspended until ${formatDay(user.suspension.bannedUntil)}`
-                                        : "Suspended"}
-                                  </Badge>
-                                ) : null}
-                                {user.errors > 0 ? (
-                                  <Badge tone="warning">{formatNumber(user.errors)} errors</Badge>
-                                ) : null}
-                                {user.errors === 0 &&
-                                !user.suspension &&
-                                (user.lastStatus === "degraded" || user.lastStatus === "down") ? (
-                                  <Badge tone={user.lastStatus === "down" ? "danger" : "warning"}>
-                                    {user.lastStatus === "down" ? "Down" : "Degraded"}
-                                  </Badge>
-                                ) : null}
-                                {!needsAttention(user) ? (
-                                  <Badge tone="success">Clear</Badge>
-                                ) : null}
+                            <td className="customer-directory-status-cell" data-label="Support">
+                              <div className="customer-directory-status-group">
+                                <span className="customer-directory-status-label">App access</span>
+                                <div className="customer-directory-access">
+                                  {user.suspension ? (
+                                    <Badge
+                                      tone={user.suspension.mode === "ban" ? "danger" : "warning"}
+                                      title={
+                                        user.suspension.bannedUntil
+                                          ? `Lifts automatically on ${formatDate(user.suspension.bannedUntil)}`
+                                          : undefined
+                                      }
+                                    >
+                                      {user.suspension.mode === "ban"
+                                        ? "Banned"
+                                        : user.suspension.bannedUntil
+                                          ? `Suspended until ${formatDay(user.suspension.bannedUntil)}`
+                                          : "Suspended"}
+                                    </Badge>
+                                  ) : (
+                                    <span className="customer-directory-neutral">
+                                      {user.suspension === undefined
+                                        ? "Not reported"
+                                        : "No restriction reported"}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="customer-directory-status-group">
+                                <span className="customer-directory-status-label">Support</span>
+                                <div className="customer-directory-support">
+                                  {user.errors > 0 ? (
+                                    <Badge tone="warning">{formatNumber(user.errors)} errors</Badge>
+                                  ) : user.lastStatus === "degraded" ||
+                                    user.lastStatus === "down" ? (
+                                    <Badge tone={user.lastStatus === "down" ? "danger" : "warning"}>
+                                      {user.lastStatus === "down" ? "Down" : "Degraded"}
+                                    </Badge>
+                                  ) : (
+                                    <span className="customer-directory-neutral">
+                                      No errors reported
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             </td>
                             <td
-                              className="muted customer-directory-first-seen"
+                              className="muted customer-directory-first-seen customer-directory-secondary-cell"
                               data-label="First seen"
                             >
                               <RelativeTime iso={user.firstSeen} />
@@ -678,27 +789,36 @@ export function CustomersPage({ users: sourceUsers }: CustomersPageProps) {
                               className="muted customer-directory-last-seen"
                               data-label="Last seen"
                             >
-                              {user.isActive ? <span className="status-dot" /> : null}
                               <RelativeTime iso={user.lastSeen} />
                             </td>
-                            <td>
+                            <td className="customer-directory-actions-cell">
                               <div className="row-actions">
-                                {/* Suspending is a directory action, not something
-                                    buried one workspace deeper. */}
-                                <IconButton
+                                {/* Permissions and targets are shared with the full workspace. */}
+                                <Button
                                   permission="access.read"
                                   title="Manage app access"
+                                  className="customer-directory-action"
                                   icon={<ShieldCheck />}
                                   aria-label={`Manage app access for ${displayName(user)}`}
                                   onClick={() => setAccessTarget(accessTargetOf(user))}
-                                />
-                                <IconButton
+                                >
+                                  <span className="customer-directory-action-label">
+                                    App access
+                                  </span>
+                                </Button>
+                                <Button
                                   title="Open customer workspace"
+                                  className="customer-directory-action"
                                   icon={<ScanSearch />}
                                   aria-label={`Open Customer 360 for ${displayName(user)}`}
                                   onClick={() => setSelectedUser(user)}
-                                />
+                                >
+                                  <span className="customer-directory-action-label">
+                                    Customer 360
+                                  </span>
+                                </Button>
                               </div>
+                              <CustomerDirectoryDetails user={user} />
                             </td>
                           </tr>
                         ))

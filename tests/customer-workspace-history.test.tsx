@@ -144,11 +144,15 @@ async function waitFor(check: () => boolean, what: string, timeout = 3000) {
   }
 }
 
+/** Responsive controls retain one accessible label across their full and short text spans. */
+function controlLabel(element: Element | null): string {
+  return element?.getAttribute("aria-label")?.trim() || element?.textContent?.trim() || "";
+}
+
 function buttonNamed(name: string): HTMLButtonElement | null {
   return (
-    [...document.body.querySelectorAll("button")].find(
-      (button) => button.textContent?.trim() === name,
-    ) ?? null
+    [...document.body.querySelectorAll("button")].find((button) => controlLabel(button) === name) ??
+    null
   );
 }
 
@@ -206,7 +210,7 @@ describe("Customer 360 on the session history", () => {
     expect(history.state).toMatchObject({ scrollY: 40, rrLayer: { key: "customer", depth: 1 } });
     // Adopted, not pushed again: the Licenses entry is still the one ahead.
     expect(history.length).toBe(length + 1);
-    expect(document.querySelector('[role="tab"][aria-selected="true"]')?.textContent).toBe(
+    expect(controlLabel(document.querySelector('[role="tab"][aria-selected="true"]'))).toBe(
       "Support & history",
     );
 
@@ -278,7 +282,7 @@ describe("Customer 360 on the session history", () => {
     expect(layerOf(history.state)).toMatchObject({ key: "customer", depth: 1 });
     // The customer's page as a new entry, the workspace one above it.
     expect(push).toHaveBeenCalledTimes(2);
-    expect(document.querySelector('[role="tab"][aria-selected="true"]')?.textContent).toBe(
+    expect(controlLabel(document.querySelector('[role="tab"][aria-selected="true"]'))).toBe(
       "Support & history",
     );
 

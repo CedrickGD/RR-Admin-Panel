@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   AlertTriangle,
   Braces,
+  ChevronDown,
   KeyRound,
   Laptop,
   MessageSquareText,
@@ -17,12 +18,14 @@ import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 
 import type {
   Customer360Customer,
   Customer360DatabaseRow,
+  Customer360Feedback,
   CustomerConfidence,
   Customer360Selector,
   DiagnosticBundle,
 } from "../types/customer360";
 import type { AppSessionRecord } from "../types/telemetry";
 import { fetchCustomer360 } from "../utils/api";
+import { getCustomer360Overview } from "../utils/customer360Overview";
 import { useRefreshSignal } from "../utils/refreshBus";
 import {
   formatDate,
@@ -68,11 +71,11 @@ export interface Customer360OverlayProps {
 
 type TabKey = "summary" | "commerce" | "sessions" | "activity";
 
-const TABS: Array<{ key: TabKey; label: string; icon: ReactNode }> = [
-  { key: "summary", label: "Overview", icon: <UserRound /> },
-  { key: "commerce", label: "Licenses & orders", icon: <KeyRound /> },
-  { key: "sessions", label: "Devices & sessions", icon: <Laptop /> },
-  { key: "activity", label: "Support & history", icon: <Activity /> },
+const TABS: Array<{ key: TabKey; label: string; shortLabel: string; icon: ReactNode }> = [
+  { key: "summary", label: "Overview", shortLabel: "Overview", icon: <UserRound /> },
+  { key: "commerce", label: "Licenses & orders", shortLabel: "Licenses", icon: <KeyRound /> },
+  { key: "sessions", label: "Devices & sessions", shortLabel: "Devices", icon: <Laptop /> },
+  { key: "activity", label: "Support & history", shortLabel: "Support", icon: <Activity /> },
 ];
 
 function confidenceLabel(confidence: CustomerConfidence): string {
@@ -297,8 +300,8 @@ function DiagnosticReport({ report }: { report: DiagnosticBundle | null }) {
   );
 }
 
-/** The Overview tab. Identity and the key figures live in the left column, on every tab. */
-function SummaryTab({ customer }: { customer: Customer360Customer }) {
+/** Technical context belongs with devices, not ahead of the customer relationship. */
+function EnvironmentSummary({ customer }: { customer: Customer360Customer }) {
   const { summary } = customer;
   return (
     <div className="customer360-environment">
@@ -343,15 +346,214 @@ function SummaryTab({ customer }: { customer: Customer360Customer }) {
   );
 }
 
-/** The four numbers a support conversation starts from, on the KPI tile's type scale. */
+/** Customer-facing context first; partial sources never become an all-clear state. */
+export function Customer360Overview({
+  customer,
+  onOpenSection,
+}: {
+  customer: Customer360Customer;
+  onOpenSection: (tab: TabKey) => void;
+}) {
+  const canReadAccess = usePanelPermission("access.read");
+  const canReadLicenses = usePanelPermission("licenses.read");
+  const canReadSupport = usePanelPermission("support.read");
+  const canMonitor = usePanelPermission("monitoring.read");
+  const overview = getCustomer360Overview(customer);
+  const report = overview.openReports[0] ?? overview.latestReport;
+  const events: Array<{ id: string; label: string; detail: string; at: string; tab: TabKey }> = [
+    ...(canReadSupport
+      ? customer.feedback.map((item, index) => ({
+          id: `feedback-${item.report_id ?? item.id ?? index}`,
+          label: "In-app report received",
+          detail: item.category ? humanKey(item.category) : "Customer feedback",
+          at: item.created_at ?? "",
+          tab: "activity" as const,
+        }))
+      : []),
+    ...(canMonitor
+      ? customer.sessions.map((item) => ({
+          id: `session-${item.id}`,
+          label: "Session last seen",
+          detail: item.displayVersion ?? item.appVersion ?? "App session",
+          at: item.lastSeenAt ?? "",
+          tab: "sessions" as const,
+        }))
+      : []),
+    ...(canReadLicenses
+      ? customer.licenses.map((item) => ({
+          id: `license-${item.id}`,
+          label: "License activated",
+          detail: maskLicenseKey(item.license_key),
+          at: item.activated_at ?? "",
+          tab: "commerce" as const,
+        }))
+      : []),
+  ];
+  const recentEvents = events
+    .filter((event) => Number.isFinite(Date.parse(event.at)))
+    .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
+    .slice(0, 6);
+
+  return (
+    <div className="customer360-stack customer360-overview">
+      <section
+        className="customer360-card customer360-account-overview"
+        aria-label="Account overview"
+      >
+        <div className="customer360-overview-heading">
+          <span className="customer360-eyebrow">Customer overview</span>
+          <h2>Account at a glance</h2>
+        </div>
+        <dl className="customer360-account-facts">
+          {canReadAccess ? (
+            <div>
+              <dt>App access</dt>
+              <dd>
+                <Badge tone={overview.access.tone}>{overview.access.label}</Badge>
+              </dd>
+              <small>{overview.access.detail}</small>
+            </div>
+          ) : null}
+          {canReadLicenses ? (
+            <div>
+              <dt>License</dt>
+              <dd>
+                <Badge tone={overview.license.tone}>{overview.license.label}</Badge>
+              </dd>
+              <small>{overview.license.detail}</small>
+            </div>
+          ) : null}
+          {canReadSupport ? (
+            <>
+              <div>
+                <dt>Open reports</dt>
+                <dd>
+                  <Badge
+                    tone={
+                      overview.reportsUnavailable
+                        ? "muted"
+                        : overview.openReports.length
+                          ? "warning"
+                          : "muted"
+                    }
+                  >
+                    {overview.reportsUnavailable
+                      ? "Incomplete"
+                      : formatNumber(overview.openReports.length)}
+                  </Badge>
+                </dd>
+                <small>
+                  {overview.reportsUnavailable
+                    ? "Support data is incomplete"
+                    : "New and read, not archived"}
+                </small>
+              </div>
+              <div>
+                <dt>Last contact</dt>
+                <dd>
+                  {overview.latestContact ? (
+                    <RelativeTime iso={overview.latestContact} />
+                  ) : (
+                    "Not recorded"
+                  )}
+                </dd>
+                <small>In-app feedback</small>
+              </div>
+            </>
+          ) : null}
+        </dl>
+      </section>
+
+      {canReadSupport ? (
+        <section className="customer360-card customer360-priority" aria-label="Support focus">
+          <div className="customer360-priority-top">
+            <span className="customer360-eyebrow">
+              <MessageSquareText aria-hidden="true" />
+              {overview.openReports.length ? "Needs attention" : "Latest support"}
+            </span>
+            {report ? (
+              <Badge tone={statusTone(report.status)}>{report.status ?? "Unknown status"}</Badge>
+            ) : null}
+          </div>
+          {report ? (
+            <>
+              <h2>{report.category ? humanKey(report.category) : "In-app report"}</h2>
+              <p className="customer360-priority-copy">{report.message || "No message body."}</p>
+              <div className="customer360-priority-meta">
+                <span className="customer360-mono">
+                  {report.report_id ?? report.id ?? "Report"}
+                </span>
+                {report.created_at ? <RelativeTime iso={report.created_at} /> : null}
+                {report.diagnostics ? <span>Diagnostics attached</span> : null}
+              </div>
+            </>
+          ) : (
+            <p className="customer360-copy">
+              {overview.reportsUnavailable
+                ? "Support data is unavailable. Open the history for details."
+                : "No in-app reports recorded for this customer."}
+            </p>
+          )}
+          {overview.reportsUnavailable && report ? (
+            <p className="customer360-caption">
+              Some support data is unavailable; this is not the complete history.
+            </p>
+          ) : null}
+          <Button
+            variant={overview.openReports.length ? "accent" : "ghost"}
+            icon={<MessageSquareText />}
+            onClick={() => onOpenSection("activity")}
+          >
+            Open support history
+          </Button>
+        </section>
+      ) : null}
+
+      <section className="customer360-card" aria-label="Recent customer history">
+        <SectionHeading icon={<Activity />} title="Recent history" />
+        {recentEvents.length ? (
+          <ol className="customer360-history">
+            {recentEvents.map((event) => (
+              <li key={event.id}>
+                <span className="customer360-history-dot" aria-hidden="true" />
+                <div>
+                  <strong>{event.label}</strong>
+                  <span>{event.detail}</span>
+                </div>
+                <RelativeTime iso={event.at} />
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  aria-label={`View ${event.label.toLowerCase()}`}
+                  onClick={() => onOpenSection(event.tab)}
+                >
+                  View
+                </Button>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className="customer360-empty">
+            No dated history is available in the sections you can access.
+          </p>
+        )}
+        <p className="customer360-caption customer360-history-note">
+          Recent records only. Each tab contains its available history.
+        </p>
+      </section>
+    </div>
+  );
+}
+
+/** Secondary usage figures retain the existing shared type scale. */
 function KeyFigures({ customer }: { customer: Customer360Customer }) {
   const { summary } = customer;
   return (
     <section className="customer360-card" aria-label="Key figures">
       <dl className="customer360-figures">
         <div>
-          <dt>License</dt>
-          <dd>{summary.license_tier || "Unknown"}</dd>
+          <dt>Installations</dt>
+          <dd>{formatNumber(customer.installs.length)}</dd>
         </div>
         <div>
           <dt>Sessions</dt>
@@ -391,51 +593,62 @@ function IdentityCard({
   linkedAccount: string | null;
   onRawData: () => void;
 }) {
-  const { profile, summary, anchor } = customer;
-  const facts = [
-    { label: "Customer", value: profile.customer_name },
-    { label: "App label", value: profile.user_label },
+  const { profile, anchor } = customer;
+  const contactFacts = [
     { label: "Email", value: profile.email },
-    { label: "Discord", value: profile.discord },
-    { label: "Linked account", value: linkedAccount },
-    { label: "Verified Discord", value: profile.verified_discord },
+    { label: "Discord", value: profile.verified_discord || profile.discord || linkedAccount },
     { label: "Contact", value: profile.contact },
-  ].filter((fact) => fact.value !== null && fact.value !== undefined && fact.value !== "");
+  ].filter(
+    (fact, index, facts) =>
+      Boolean(fact.value) && facts.findIndex((other) => other.value === fact.value) === index,
+  );
   const requestedBy = String(anchor.requested_by ?? "");
   return (
     <section className="customer360-card customer360-identity">
-      <div className="customer360-card-head">
-        <SectionHeading icon={<UserRound />} title="Identity" />
-        <Button size="sm" icon={<Braces />} onClick={onRawData}>
-          Raw data
-        </Button>
-      </div>
+      <SectionHeading icon={<UserRound />} title="Contact" />
       <div className="customer360-badges">
-        <Badge tone={summary.is_active ? "success" : "muted"}>
-          {summary.is_active ? "Online" : "Offline"}
-        </Badge>
         <Badge tone={confidenceTone(anchor.confidence)}>{confidenceLabel(anchor.confidence)}</Badge>
       </div>
-      {facts.length > 0 ? (
+      {contactFacts.length ? (
         <dl className="customer360-facts">
-          {facts.map((fact) => (
+          {contactFacts.map((fact) => (
             <div key={fact.label}>
               <dt>{fact.label}</dt>
               <dd>{displayValue(fact.value)}</dd>
             </div>
           ))}
         </dl>
-      ) : null}
-      {anchor.requested_value ? (
-        <p className="customer360-anchor">
-          Opened from {ANCHOR_LABELS[requestedBy] ?? humanKey(requestedBy)}{" "}
-          <span className="customer360-mono">
-            {requestedBy === "license_key"
-              ? maskLicenseKey(anchor.requested_value)
-              : anchor.requested_value}
-          </span>
-        </p>
-      ) : null}
+      ) : (
+        <p className="customer360-caption">No contact details have been linked to this identity.</p>
+      )}
+      <details className="customer360-contact-details">
+        <summary>
+          <span>Identity &amp; technical details</span>
+          <ChevronDown aria-hidden="true" />
+        </summary>
+        <InfoGrid
+          items={[
+            { label: "Customer", value: profile.customer_name },
+            { label: "App label", value: profile.user_label },
+            { label: "Linked account", value: linkedAccount },
+            { label: "Install ID", value: anchor.install_id, mono: true },
+            { label: "Hardware ID", value: anchor.hwid, mono: true },
+          ]}
+        />
+        {anchor.requested_value ? (
+          <p className="customer360-anchor">
+            Opened from {ANCHOR_LABELS[requestedBy] ?? humanKey(requestedBy)}{" "}
+            <span className="customer360-mono">
+              {requestedBy === "license_key"
+                ? maskLicenseKey(anchor.requested_value)
+                : anchor.requested_value}
+            </span>
+          </p>
+        ) : null}
+        <Button size="sm" icon={<Braces />} onClick={onRawData}>
+          Raw data
+        </Button>
+      </details>
     </section>
   );
 }
@@ -624,52 +837,103 @@ function CommerceTab({ customer }: { customer: Customer360Customer }) {
   );
 }
 
+function FeedbackReport({ item, index }: { item: Customer360Feedback; index: number }) {
+  return (
+    <article className="customer360-feedback">
+      <div className="customer360-card-title">
+        <div>
+          <strong>{item.report_id ?? `Feedback ${index + 1}`}</strong>
+          <small>{item.created_at ? formatDate(item.created_at) : "Time unknown"}</small>
+        </div>
+        <Badge tone={statusTone(item.status)}>{item.status ?? "Unknown status"}</Badge>
+      </div>
+      <p>{item.message ?? "No message body."}</p>
+      <div className="customer360-priority-meta">
+        {item.category ? <span>{humanKey(item.category)}</span> : null}
+        {item.diagnostics ? <span>Diagnostics attached</span> : null}
+      </div>
+      <details className="customer360-inline-details">
+        <summary>Report details</summary>
+        <InfoGrid
+          items={[
+            { label: "Category", value: item.category },
+            { label: "Contact", value: item.contact },
+            { label: "Authentication", value: item.auth_mode },
+            { label: "Verified install", value: item.verified_install_id, mono: true },
+            { label: "Diagnostics", value: item.diagnostics?.report_id },
+          ]}
+        />
+        <RecordDetails record={item} />
+      </details>
+    </article>
+  );
+}
+
 function FeedbackTab({ customer }: { customer: Customer360Customer }) {
+  const { openReports, reportsUnavailable } = getCustomer360Overview(customer);
+  const archived = customer.feedback.filter((item) => item.status?.toLowerCase() === "archived");
+  const otherReports = customer.feedback.filter(
+    (item) => !["new", "read", "archived"].includes(item.status?.toLowerCase() ?? ""),
+  );
   return (
     <div className="customer360-stack">
       <SectionErrors customer={customer} names={["feedback"]} />
       <section className="customer360-card">
         <SectionHeading
           icon={<MessageSquareText />}
-          title="In-app reports"
-          count={customer.feedback.length}
+          title="Open in-app reports"
+          count={reportsUnavailable ? undefined : openReports.length}
         />
-        {customer.feedback.length === 0 ? (
-          <p className="customer360-empty">This customer has not sent in-app feedback.</p>
-        ) : (
+        <p className="customer360-caption customer360-report-note">
+          New and read reports stay open until archived. Reading a report does not resolve it.
+        </p>
+        {openReports.length ? (
           <div className="customer360-feedback-list">
-            {customer.feedback.map((item, index) => (
-              <article
-                className="customer360-feedback"
+            {openReports.map((item, index) => (
+              <FeedbackReport
                 key={String(item.report_id ?? item.id ?? index)}
-              >
-                <div className="customer360-card-title">
-                  <div>
-                    <strong>{item.report_id ?? `Feedback ${index + 1}`}</strong>
-                    <small>{item.created_at ? formatDate(item.created_at) : "Time unknown"}</small>
-                  </div>
-                  <Badge tone={statusTone(item.status)}>
-                    {item.status ?? item.category ?? "submitted"}
-                  </Badge>
-                </div>
-                <p>{item.message ?? "No message body."}</p>
-                <InfoGrid
-                  items={[
-                    { label: "Category", value: item.category },
-                    { label: "Contact", value: item.contact },
-                    { label: "Authentication", value: item.auth_mode },
-                    { label: "Verified install", value: item.verified_install_id, mono: true },
-                    { label: "Diagnostics", value: item.diagnostics?.report_id },
-                  ]}
-                />
-                <details className="customer360-inline-details">
-                  <summary>All feedback fields</summary>
-                  <RecordDetails record={item} />
-                </details>
-              </article>
+                item={item}
+                index={index}
+              />
             ))}
           </div>
+        ) : (
+          <p className="customer360-empty">
+            {reportsUnavailable
+              ? "A complete open-report count is unavailable."
+              : "No open in-app reports."}
+          </p>
         )}
+        {otherReports.length ? (
+          <div className="customer360-feedback-list">
+            <p className="customer360-caption">Reports with an unrecognized status</p>
+            {otherReports.map((item, index) => (
+              <FeedbackReport
+                key={String(item.report_id ?? item.id ?? index)}
+                item={item}
+                index={index}
+              />
+            ))}
+          </div>
+        ) : null}
+        {archived.length ? (
+          <details className="customer360-support-archive">
+            <summary>
+              <span>Archived reports</span>
+              <Badge tone="muted">{archived.length}</Badge>
+              <ChevronDown aria-hidden="true" />
+            </summary>
+            <div className="customer360-feedback-list">
+              {archived.map((item, index) => (
+                <FeedbackReport
+                  key={String(item.report_id ?? item.id ?? index)}
+                  item={item}
+                  index={index}
+                />
+              ))}
+            </div>
+          </details>
+        ) : null}
       </section>
     </div>
   );
@@ -868,6 +1132,13 @@ export function Customer360View({
     }
   }, [open, selector, value]);
 
+  function openSection(key: TabKey) {
+    const index = visibleTabs.findIndex((tab) => tab.key === key);
+    if (index < 0) return;
+    setActiveTab(key);
+    window.requestAnimationFrame(() => tabRefs.current[index]?.focus());
+  }
+
   function onTabKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
     let next = index;
     if (event.key === "ArrowRight" || event.key === "ArrowDown")
@@ -893,11 +1164,36 @@ export function Customer360View({
     }
   }
 
-  // Two columns from 1100px (theme/css/components.css): who the customer is and
-  // the key figures on the left, the tabbed record on the right. One column
-  // below, left column first.
+  // Tabs precede contact details in DOM order, so phone navigation stays reachable.
+  // The desktop grid keeps the compact identity rail beside the active record.
   const body = customer ? (
     <div className="customer360-layout">
+      <div className="customer360-tabs" role="tablist" aria-label="Customer information sections">
+        {visibleTabs.map((tab, index) => (
+          <button
+            key={tab.key}
+            ref={(node) => {
+              tabRefs.current[index] = node;
+            }}
+            type="button"
+            role="tab"
+            aria-label={tab.label}
+            id={`customer360-tab-${tab.key}`}
+            aria-selected={activeTab === tab.key}
+            aria-controls={`customer360-panel-${tab.key}`}
+            tabIndex={activeTab === tab.key ? 0 : -1}
+            className={activeTab === tab.key ? "active" : undefined}
+            onClick={() => setActiveTab(tab.key)}
+            onKeyDown={(event) => onTabKeyDown(event, index)}
+          >
+            {tab.icon}
+            <span className="customer360-tab-label">{tab.label}</span>
+            <span className="customer360-tab-short" aria-hidden="true">
+              {tab.shortLabel}
+            </span>
+          </button>
+        ))}
+      </div>
       <aside className="customer360-side" aria-label="Customer summary">
         <SectionErrors customer={customer} names={["profile", "summary"]} />
         <IdentityCard
@@ -905,31 +1201,15 @@ export function Customer360View({
           linkedAccount={accountProfile ? `@${accountProfile.discordUsername}` : null}
           onRawData={() => setRawOpen(true)}
         />
-        <KeyFigures customer={customer} />
+        <details className="customer360-usage-details">
+          <summary>
+            <span>Devices &amp; usage</span>
+            <ChevronDown aria-hidden="true" />
+          </summary>
+          <KeyFigures customer={customer} />
+        </details>
       </aside>
       <div className="customer360-main">
-        <div className="customer360-tabs" role="tablist" aria-label="Customer information sections">
-          {visibleTabs.map((tab, index) => (
-            <button
-              key={tab.key}
-              ref={(node) => {
-                tabRefs.current[index] = node;
-              }}
-              type="button"
-              role="tab"
-              id={`customer360-tab-${tab.key}`}
-              aria-selected={activeTab === tab.key}
-              aria-controls={`customer360-panel-${tab.key}`}
-              tabIndex={activeTab === tab.key ? 0 : -1}
-              className={activeTab === tab.key ? "active" : undefined}
-              onClick={() => setActiveTab(tab.key)}
-              onKeyDown={(event) => onTabKeyDown(event, index)}
-            >
-              {tab.icon}
-              <span>{tab.label}</span>
-            </button>
-          ))}
-        </div>
         <div
           className="customer360-content"
           role="tabpanel"
@@ -937,11 +1217,16 @@ export function Customer360View({
           aria-labelledby={`customer360-tab-${activeTab}`}
           tabIndex={0}
         >
-          {activeTab === "summary" ? <SummaryTab customer={customer} /> : null}
+          {activeTab === "summary" ? (
+            <Customer360Overview customer={customer} onOpenSection={openSection} />
+          ) : null}
           {activeTab === "activity" ? (
             <>
               <FeedbackTab customer={customer} />
-              <ActivityTab customer={customer} />
+              <details className="customer-advanced">
+                <summary>Session activity &amp; errors</summary>
+                <ActivityTab customer={customer} />
+              </details>
               <details className="customer-advanced">
                 <summary>Diagnostics</summary>
                 <DiagnosticReport report={customer.diagnostics} />
@@ -952,6 +1237,7 @@ export function Customer360View({
           {activeTab === "sessions" ? (
             <>
               <SessionsTab customer={customer} />
+              <EnvironmentSummary customer={customer} />
               <details className="customer-advanced">
                 <summary>App settings & features</summary>
                 <SettingsTab customer={customer} />
@@ -1018,14 +1304,22 @@ export function Customer360View({
             Back to workspace
           </Button>
           <div className="customer-heading-identity">
-            {accountProfile && (
-              <CustomerAvatar profile={accountProfile} label={accountProfile.displayName} />
-            )}
+            <CustomerAvatar
+              profile={accountProfile}
+              label={accountProfile?.displayName ?? titleFor(customer, session, anchor)}
+            />
             <div>
               <h1 tabIndex={-1}>
                 {accountProfile?.displayName ?? titleFor(customer, session, anchor)}
               </h1>
-              <p>Customer workspace · 360</p>
+              <div className="customer360-heading-meta">
+                <span>Customer record</span>
+                {customer ? (
+                  <Badge tone={customer.summary.is_active ? "success" : "muted"}>
+                    {customer.summary.is_active ? "Online" : "Offline"}
+                  </Badge>
+                ) : null}
+              </div>
             </div>
           </div>
         </header>
@@ -1044,7 +1338,7 @@ export function Customer360View({
             <Button
               permission="support.read"
               icon={<MessageSquareText />}
-              onClick={() => setActiveTab("activity")}
+              onClick={() => openSection("activity")}
             >
               Support history
             </Button>

@@ -2,6 +2,7 @@ import { TableFrame, RecordCell } from "../components/ds/TableFrame";
 import { Select } from "../components/ds/Select";
 import { useEffect, useRef, useState } from "react";
 import {
+  Ban,
   Check,
   ChevronDown,
   Clock3,
@@ -24,6 +25,7 @@ import {
   type PermissionOverrides,
 } from "../../shared/panel-policy";
 import { PageHeader } from "../components/ds/PageHeader";
+import { describeAuditEntry } from "../utils/auditEntry";
 import { Button, IconButton } from "../components/ds/Button";
 import { EmptyState } from "../components/ds/EmptyState";
 import { Field } from "../components/ds/Field";
@@ -120,13 +122,6 @@ function asGroup(s: Partial<SessionGroup> & { id?: string; email: string }): Ses
     ids: s.ids ?? (s.id ? [s.id] : []),
   };
 }
-const AUDIT_LABELS: Record<string, string> = {
-  save: "Access updated",
-  kick: "All sessions ended",
-  revoke: "Access removed",
-  restore: "Access restored",
-  "end-session": "Session ended",
-};
 type Editor = {
   email: string;
   displayName: string;
@@ -540,30 +535,43 @@ export function TeamPage() {
                 </div>
               </div>
             )}
-            {data?.audit.map((a) => (
-              <div key={a.id}>
-                <span className="audit-icon">
-                  <ShieldCheck size={16} />
-                </span>
-                <div>
-                  <strong>{AUDIT_LABELS[a.action] ?? "Access change"}</strong>
-                  <p>
-                    {a.target} · by {a.actor}
-                  </p>
-                  {a.detail && (
-                    <details>
-                      <summary>View permission changes</summary>
-                      <pre>{JSON.stringify(JSON.parse(a.detail), null, 2)}</pre>
-                    </details>
-                  )}
+            {data?.audit.map((a) => {
+              // Member changes keep their permission JSON; customer restrictions read as sentences.
+              const entry = describeAuditEntry(a);
+              return (
+                <div key={a.id}>
+                  <span className="audit-icon">
+                    {entry.kind === "customer-restrict" ? (
+                      <Ban size={16} />
+                    ) : entry.kind === "customer-lift" ? (
+                      <RotateCcw size={16} />
+                    ) : (
+                      <ShieldCheck size={16} />
+                    )}
+                  </span>
+                  <div>
+                    <strong>{entry.title}</strong>
+                    <p>
+                      {entry.subject} · by {a.actor}
+                    </p>
+                    {entry.lines.map((line) => (
+                      <p key={line}>{line}</p>
+                    ))}
+                    {entry.raw && (
+                      <details>
+                        <summary>View permission changes</summary>
+                        <pre>{entry.raw}</pre>
+                      </details>
+                    )}
+                  </div>
+                  <time>{displayDate(a.created_at)}</time>
                 </div>
-                <time>{displayDate(a.created_at)}</time>
-              </div>
-            ))}
+              );
+            })}
           </div>
           {data && !data.audit.length && (
             <EmptyState icon={<ShieldCheck />} title="No access changes yet">
-              Role and permission changes are recorded here as they happen.
+              Panel access changes and customer restrictions are recorded here as they happen.
             </EmptyState>
           )}
         </section>

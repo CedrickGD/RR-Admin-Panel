@@ -83,7 +83,7 @@ describe('"#/access" still resolves to the customer directory', () => {
     expect(isPageKey(hashPageToken("#/access"))).toBe(false);
     expect(isPageKey(hashPageToken("#/customers"))).toBe(true);
     expect(app).toContain("function hashNamesItsPage()");
-    expect(app).toContain('window.history.replaceState(null, "", `#/${key}`)');
+    expect(app).toContain('window.history.replaceState(window.history.state, "", `#/${key}`)');
   });
 });
 

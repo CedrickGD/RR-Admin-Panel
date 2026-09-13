@@ -156,7 +156,9 @@ export default function App() {
       if (hashNamesItsPage()) {
         window.location.hash = desired;
       } else {
-        window.history.replaceState(null, "", desired);
+        // Only the address is tidied: the entry keeps its state (a history
+        // layer's record, which a reload adopts).
+        window.history.replaceState(window.history.state, "", desired);
       }
     }
     try {
@@ -175,12 +177,14 @@ export default function App() {
       setPage(key);
       // An alias never stays in the address bar, even when it resolves to the
       // page already on screen — the sync effect above only runs on a change.
-      if (!isPageKey(token)) window.history.replaceState(null, "", `#/${key}`);
+      // The entry keeps its state (a history layer's record).
+      if (!isPageKey(token)) window.history.replaceState(window.history.state, "", `#/${key}`);
     };
     // Back/Forward between entries whose query differs too (Customer 360 and
     // the Licenses hand-off carry ?customer=… / ?customerReturn=…) fires only
     // popstate, never hashchange, which used to leave the old page on screen
-    // under the new address.
+    // under the new address. A step that changes the hash fires both events, so
+    // this runs twice for it on purpose — keep the handler idempotent.
     window.addEventListener("hashchange", onHashChange);
     window.addEventListener("popstate", onHashChange);
     return () => {

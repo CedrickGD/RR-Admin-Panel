@@ -40,7 +40,7 @@ import { usePanelPermission } from "../hooks/usePanelPermission";
 import type { DayPoint, StatsPayload, SummaryPayload, ThemeMode } from "../types/telemetry";
 import { buildRegionBreakdown, buildTrafficTimeline } from "../utils/dashboardInsights";
 import { formatDuration, formatNumber } from "../utils/format";
-import { isOverviewErrorInWindow } from "../utils/overviewErrors";
+import { isOverviewErrorInWindow } from "../utils/errorEvents";
 import { topVersionsByUsers } from "../utils/versionBreakdown";
 
 interface OverviewPageProps {

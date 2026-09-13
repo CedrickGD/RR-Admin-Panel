@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isOverviewErrorInWindow } from "../src/utils/overviewErrors";
+import { isOverviewErrorInWindow } from "../src/utils/errorEvents";
 
 const CUTOFF = Date.parse("2026-08-31T12:00:00.000Z");
 

@@ -40,6 +40,7 @@ import type {
   ErrorUserGroup,
 } from "../types/telemetry";
 import { formatDate, formatNumber } from "../utils/format";
+import { BACKGROUND_ERROR_KIND, isRealErrorRow } from "../utils/errorEvents";
 
 type ViewKey = "users" | "failures";
 type SortKey = "errors" | "firstError" | "lastError";
@@ -71,7 +72,6 @@ const RANGES: Array<{ key: ErrorsRangeKey; label: string; title: string; phrase:
   },
 ];
 
-const BACKGROUND_KIND = "background";
 const UNATTRIBUTED_IDENTITY = "unattributed";
 const USER_COLUMN_COUNT = 10;
 const SKELETON_ROWS = 6;
@@ -130,7 +130,7 @@ function kindLabel(kind: string | null): string {
 
 function kindTone(kind: string | null): "danger" | "warning" | "muted" {
   if (kind === "unhandled") return "danger";
-  if (kind === BACKGROUND_KIND) return "warning";
+  if (kind === BACKGROUND_ERROR_KIND) return "warning";
   return "muted";
 }
 
@@ -326,7 +326,7 @@ function ErrorEventCard({ event }: { event: ErrorEventDetail }) {
           size={13}
           style={{
             flexShrink: 0,
-            color: event.kind === BACKGROUND_KIND ? "var(--warning)" : "var(--danger)",
+            color: event.kind === BACKGROUND_ERROR_KIND ? "var(--warning)" : "var(--danger)",
           }}
         />
         <span className="mono error-event-type">{event.type?.trim() || "error"}</span>
@@ -395,7 +395,7 @@ export function ErrorsPage() {
     return current.users
       .map((group) => {
         // The API ships real errors only; builds before WP 2.9 still mixed background events in.
-        const visibleEvents = group.events.filter((event) => event.kind !== BACKGROUND_KIND);
+        const visibleEvents = group.events.filter(isRealErrorRow);
         return {
           ...group,
           visibleEvents,

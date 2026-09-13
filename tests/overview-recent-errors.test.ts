@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { loadStats, parseStatsFilters } from "../functions/_lib/stats";
 import { loadSummary } from "../functions/_lib/storage";
-import { isOverviewErrorInWindow } from "../src/utils/overviewErrors";
+import { isOverviewErrorInWindow } from "../src/utils/errorEvents";
 import {
   backgroundFault,
   createTelemetryTestDb,

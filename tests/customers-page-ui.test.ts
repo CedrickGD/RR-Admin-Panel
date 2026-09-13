@@ -11,6 +11,7 @@ const nav = source("../src/components/Navbar.tsx");
 const pageMeta = source("../src/pageMeta.ts");
 const telemetry = source("../src/types/telemetry.ts");
 const app = source("../src/App.tsx");
+const restrictions = source("../src/components/CustomerRestrictions.tsx");
 
 describe("Customers CRM page", () => {
   it("is a dedicated Users navigation destination backed by the all-time rollup", () => {
@@ -27,27 +28,55 @@ describe("Customers CRM page", () => {
     expect(app).toContain('page === "customers"');
     expect(app).toContain("<CustomersPage users={users} />");
     expect(page).toContain('page="customers"');
-    // Still the shared directory helper over the rollup — `source` is that
-    // rollup plus the restrictions that have no rollup row (see below).
-    expect(page).toContain("filterAndSortUsers(source");
+    // Still the shared directory helper over the all-time rollup.
+    expect(page).toContain("filterAndSortUsers(users");
     expect(page).toContain("all-time customer records");
   });
 
-  it("lists restrictions the telemetry rollup cannot see, with reason, issuer and first seen", () => {
-    // The rollup comes from app_sessions, so a customer banned before they ever
-    // launched the app has no row in it; the restricted scope loads the
-    // enforcement records themselves and folds the orphans in.
+  it("splits the page into Directory and Restrictions sections", () => {
+    // Page sections are ds/Tabs (a filter would be a SegmentedControl), and the
+    // open section is deep-linkable as ?section=restrictions.
+    expect(page).toContain("<Tabs");
+    expect(page).toContain('aria-label="Customer sections"');
+    expect(page).toContain('const SECTION_PARAM = "section"');
+    expect(page).toContain('key: "restrictions"');
+    expect(page).toContain("<CustomerRestrictions");
+    // The section and its records need access.read; without it there is no tab row.
     expect(page).toContain('usePanelPermission("access.read")');
+    expect(page).toContain('canReadAccess ? requestedSection : "directory"');
     expect(page).toContain("fetchAdminSuspensions");
-    expect(page).toContain("restrictionAsDirectoryRow");
-    expect(page).toContain('const restrictedScope = scope === "restricted"');
-    // Reason and "who issued it" are a column, not a tooltip; it is mounted
-    // only with the scope that selects restricted customers.
-    expect(page).toContain('{showRestrictions ? <th scope="col">Restriction</th> : null}');
-    expect(page).toContain("restriction.created_by");
-    // First seen: the sort key existed in userDirectory, the header did not.
-    expect(page).toContain('label="First seen"');
-    expect(page).toContain('sortKey="firstSeen"');
+    // The KPI tiles belong to the Directory section.
+    expect(page.indexOf('label="All-time customers"')).toBeGreaterThan(
+      page.indexOf('section === "restrictions" ?'),
+    );
+    // The tab label's count is neutral text, not a count pill.
+    expect(page).toContain("`Restrictions · ${activeRestrictions}`");
+  });
+
+  it("no longer carries a restricted scope or a Restriction column in the directory", () => {
+    expect(page).not.toContain('"restricted"');
+    expect(page).not.toContain("restrictedScope");
+    expect(page).not.toContain("Restriction</th>");
+    expect(page).not.toContain("restrictionAsDirectoryRow");
+    expect(page).not.toContain("customer-directory-restricted");
+  });
+
+  it("lists restrictions with the lift behind access.write and a confirmation", () => {
+    expect(restrictions).toContain('usePanelPermission("access.write")');
+    expect(restrictions).toContain('permission="access.write"');
+    expect(restrictions).toContain("postLiftSuspension");
+    // A lift re-pulls this list and the directory rows through the refresh bus.
+    expect(restrictions).toContain("emitRefresh()");
+    expect(restrictions).toContain('title="Lift restriction"');
+    // Toolbar: status scope, search, type, Reset.
+    expect(restrictions).toContain("<PageToolbar");
+    expect(restrictions).toContain('aria-label="Restriction status"');
+    expect(restrictions).toContain('aria-label="Restriction type"');
+    // Stacked cards on a phone; every cell labelled by ds/DataTable.
+    expect(restrictions).toContain("<DataTable");
+    expect(restrictions).toContain('mobileLayout="stack"');
+    // Customer 360 through the shared navigation helper.
+    expect(restrictions).toContain("openCustomerWorkspace(");
   });
 
   it("provides support-focused search, filters, and summaries", () => {

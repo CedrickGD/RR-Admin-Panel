@@ -24,6 +24,7 @@ const telemetry = source("../src/types/telemetry.ts");
 const nav = source("../src/components/Navbar.tsx");
 const policy = source("../shared/panel-policy.ts");
 const api = source("../src/utils/api.ts");
+const customers = source("../src/pages/CustomersPage.tsx");
 
 /** sessionStorage stand-in: the routing helpers take storage as an argument. */
 function storage(initial: Record<string, string> = {}) {
@@ -51,6 +52,26 @@ describe("the App access page is retired", () => {
     // back in the sidebar rail, the breadcrumb and the browser tab title.
     expect(pageMeta).not.toMatch(/^\s*access:\s*\{/m);
     expect(nav).not.toMatch(/\["access",/);
+  });
+});
+
+describe("restrictions live in Customers, not on a page of their own", () => {
+  it("has no page key, label, route or navigation item", () => {
+    expect(PAGE_KEYS).not.toContain("restrictions");
+    expect(isPageKey("restrictions")).toBe(false);
+    expect(resolvePageKey("restrictions")).toBeNull();
+    expect(pageMeta).not.toMatch(/^\s*restrictions:\s*\{/m);
+    expect(nav).not.toMatch(/\["restrictions",/);
+    expect(existsSync(path("../src/pages/RestrictionsPage.tsx"))).toBe(false);
+    expect(app).not.toContain("RestrictionsPage");
+    expect(policy).not.toMatch(/^\s*restrictions:\s*"access\.read",/m);
+  });
+
+  it("is a section of the customer directory, opened by ?section=restrictions", () => {
+    expect(existsSync(path("../src/components/CustomerRestrictions.tsx"))).toBe(true);
+    expect(customers).toContain("<CustomerRestrictions");
+    expect(customers).toContain('const SECTION_PARAM = "section"');
+    expect(customers).toContain('usePanelPermission("access.read")');
   });
 });
 

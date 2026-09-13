@@ -31,9 +31,9 @@ export const LAST_PAGE_STORAGE_KEY = "rr:last-page";
 
 /* ── Retired page: "access" ──────────────────────────────────────
    The App access page was folded into the customer directory (audit F067).
-   The directory now lists every restriction in force — including the ones
-   the telemetry rollup cannot see — with its reason and who issued it, so a
-   second page would only duplicate it.
+   Customers → Restrictions (?section=restrictions) now lists every
+   restriction — active first, then lifted — with its reason, who issued it
+   and a Lift action, so a second page would only duplicate it.
 
    "access" is deliberately NOT a PageKey any more: it has no sidebar item,
    no PAGE_META label and no route branch, because nothing should offer it

@@ -1298,26 +1298,6 @@ select.glass-input {
     display: none;
   }
 }
-/* The restricted scope adds an untiered 285px "Restriction" column — it is the
-   reason that scope was chosen, so it never bows out. Every tier therefore has
-   to go roughly 150px earlier than in the default view. Without this the
-   directory scrolled sideways on that scope at 1440px: 1220px wanted, 1130px
-   there. */
-@container tablefit (max-width: 1524px) {
-  .customer-directory-restricted .col-xl {
-    display: none;
-  }
-}
-@container tablefit (max-width: 1425px) {
-  .customer-directory-restricted .col-lg {
-    display: none;
-  }
-}
-@container tablefit (max-width: 1219px) {
-  .customer-directory-restricted .col-md {
-    display: none;
-  }
-}
 /* Errors — 10 columns, and the narrowest of the three. Discord, Platform,
    Location and First error all read back in the row's expanded detail grid. */
 @container tablefit (max-width: 1096px) {

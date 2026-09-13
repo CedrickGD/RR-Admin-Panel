@@ -197,7 +197,8 @@ CREATE TABLE IF NOT EXISTS access_suspensions (
   created_by TEXT,                   -- admin email
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
-  lifted_at TEXT
+  lifted_at TEXT,
+  lifted_by TEXT                     -- panel account that lifted it (null while active)
 );
 
 CREATE INDEX IF NOT EXISTS idx_access_suspensions_active ON access_suspensions(is_active, identity);

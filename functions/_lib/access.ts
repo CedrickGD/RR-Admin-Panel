@@ -30,6 +30,8 @@ export interface SuspensionRow {
   created_at: string;
   updated_at: string;
   lifted_at: string | null;
+  /** Panel account that lifted the restriction; null while active and for lifts before it was recorded. */
+  lifted_by: string | null;
 }
 
 export interface DiscordLinkRow {
@@ -67,7 +69,8 @@ const ACCESS_SCHEMA_STATEMENTS = [
     created_by TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
-    lifted_at TEXT
+    lifted_at TEXT,
+    lifted_by TEXT
   )`,
   `CREATE INDEX IF NOT EXISTS idx_access_suspensions_active ON access_suspensions(is_active, identity)`,
   `CREATE INDEX IF NOT EXISTS idx_access_suspensions_hwid ON access_suspensions(hwid)`,
@@ -84,26 +87,71 @@ const ACCESS_SCHEMA_STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS idx_discord_links_license ON discord_links(license_key)`,
 ];
 
-let accessSchemaReady = false;
+/**
+ * Columns added after `access_suspensions` shipped. SQLite has no `ADD COLUMN IF NOT EXISTS`; on a
+ * database that already has the column the statement fails with "duplicate column name", which is
+ * the success case. Anything else is rethrown.
+ */
+const ACCESS_MIGRATIONS = [`ALTER TABLE access_suspensions ADD COLUMN lifted_by TEXT`];
+
+// Per database, not per module: one process can talk to more than one DB (the tests open a fresh
+// in-memory database per case), and a module-wide flag skipped the DDL for every DB after the first.
+const accessSchemaReady = new WeakMap<object, Promise<void>>();
 
 export async function ensureAccessSchema(env: RuntimeEnv): Promise<void> {
   const db = requireDb(env);
-  if (accessSchemaReady) return;
+  let ready = accessSchemaReady.get(db);
+  if (!ready) {
+    ready = prepareAccessSchema(db);
+    accessSchemaReady.set(db, ready);
+    ready.catch(() => accessSchemaReady.delete(db));
+  }
+  await ready;
+}
 
-  // Cold-start fast path: probe the two tables once and skip the DDL storm when current.
+async function prepareAccessSchema(db: D1Database): Promise<void> {
+  // Cold-start fast path: probe both tables, including the newest column, and skip the DDL storm
+  // when the schema is current.
   try {
-    await db.prepare("SELECT identity FROM access_suspensions LIMIT 1").first();
+    await db.prepare("SELECT lifted_by FROM access_suspensions LIMIT 1").first();
     await db.prepare("SELECT discord_id FROM discord_links LIMIT 1").first();
-    accessSchemaReady = true;
     return;
   } catch {
-    // Missing table — fall through to the idempotent DDL run.
+    // Missing table or column — fall through to the idempotent DDL run.
   }
 
   for (const query of ACCESS_SCHEMA_STATEMENTS) {
     await db.prepare(query).run();
   }
-  accessSchemaReady = true;
+  for (const query of ACCESS_MIGRATIONS) {
+    try {
+      await db.prepare(query).run();
+    } catch (err) {
+      if (!/duplicate column/i.test(err instanceof Error ? err.message : String(err))) throw err;
+    }
+  }
+}
+
+/** What a customer-access entry in `panel_audit.detail` carries (JSON). */
+export interface AccessAuditDetail {
+  /** Customer name as the record knew it, so the history reads without a lookup. */
+  customer: string | null;
+  type: "permanent" | "temporary";
+  until: string | null;
+  reason: string | null;
+  /** Only on `customer-suspend-change`: the restriction that was replaced. */
+  previous?: { type: "permanent" | "temporary"; until: string | null; reason: string | null };
+}
+
+/** `panel_audit.action` values written by the customer-access endpoints. */
+export const ACCESS_AUDIT_ACTIONS = {
+  suspend: "customer-suspend",
+  change: "customer-suspend-change",
+  lift: "customer-lift",
+} as const;
+
+export function accessAuditType(mode: SuspensionMode): AccessAuditDetail["type"] {
+  return mode === "ban" ? "permanent" : "temporary";
 }
 
 /** A suspension is in force when active and either permanent or its timed window hasn't passed. */

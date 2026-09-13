@@ -1,7 +1,17 @@
 import { requireDashboardAccess } from "../../../_lib/admin";
-import { ensureAccessSchema, findPaidLicensesForHwid } from "../../../_lib/access";
+import {
+  ACCESS_AUDIT_ACTIONS,
+  accessAuditType,
+  ensureAccessSchema,
+  findPaidLicensesForHwid,
+  isSuspensionActive,
+  type AccessAuditDetail,
+  type SuspensionMode,
+  type SuspensionRow,
+} from "../../../_lib/access";
 import { toIsoOrNull } from "../../../_lib/content";
 import { error, json, readJsonBody, nowIso } from "../../../_lib/http";
+import { auditPanel, ensurePanelSchema } from "../../../_lib/panel-access";
 import { internalError } from "../../../_lib/responses";
 import type { RuntimeEnv } from "../../../_lib/types";
 
@@ -16,6 +26,9 @@ type HandlerContext = {
  * it however it identifies itself. Upsert-by-identity, so re-suspending simply updates the row and
  * re-activates it. `had_paid_license` is snapshotted at write time from the licenses bound to the
  * hwid — the warning the admin already saw, frozen onto the record.
+ *
+ * Every write lands in panel_audit: `customer-suspend` when the customer had no restriction in
+ * force, `customer-suspend-change` (with the replaced restriction as `previous`) when one was.
  */
 export async function onRequestPost(context: HandlerContext): Promise<Response> {
   try {
@@ -44,7 +57,7 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
       return error(400, "identity, hwid or install_id is required.");
     }
 
-    const mode = body.mode === "suspend" ? "suspend" : "ban";
+    const mode: SuspensionMode = body.mode === "suspend" ? "suspend" : "ban";
     const bannedUntil = mode === "suspend" ? toIsoOrNull(body.banned_until) : null;
     if (mode === "suspend" && !bannedUntil) {
       return error(400, "A timed suspension requires a valid banned_until date.");
@@ -64,13 +77,21 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
     const paidKeys =
       paidLicenses.length > 0 ? paidLicenses.map((l) => l.license_key).join(",") : null;
 
+    // Read before the upsert: whether this replaces a restriction in force decides the history entry.
+    const previous = await db
+      .prepare(`SELECT * FROM access_suspensions WHERE identity = ?`)
+      .bind(identity)
+      .first<SuspensionRow>();
+
+    const actor = access.access.user.email;
     const now = nowIso();
     await db
       .prepare(
         `INSERT INTO access_suspensions
           (identity, hwid, install_id, user_label, mode, reason, banned_until, is_active,
-           had_paid_license, paid_license_keys, created_by, created_at, updated_at, lifted_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, NULL)
+           had_paid_license, paid_license_keys, created_by, created_at, updated_at, lifted_at,
+           lifted_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, NULL, NULL)
          ON CONFLICT(identity) DO UPDATE SET
            hwid = COALESCE(excluded.hwid, access_suspensions.hwid),
            install_id = COALESCE(excluded.install_id, access_suspensions.install_id),
@@ -83,7 +104,8 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
            paid_license_keys = excluded.paid_license_keys,
            created_by = excluded.created_by,
            updated_at = excluded.updated_at,
-           lifted_at = NULL`,
+           lifted_at = NULL,
+           lifted_by = NULL`,
       )
       .bind(
         identity,
@@ -95,11 +117,35 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
         bannedUntil,
         hadPaid,
         paidKeys,
-        access.access.user.email,
+        actor,
         now,
         now,
       )
       .run();
+
+    const replaced = isSuspensionActive(previous, now) ? previous : null;
+    const detail: AccessAuditDetail = {
+      customer: userLabel ?? previous?.user_label ?? null,
+      type: accessAuditType(mode),
+      until: bannedUntil,
+      reason,
+      ...(replaced
+        ? {
+            previous: {
+              type: accessAuditType(replaced.mode),
+              until: replaced.banned_until,
+              reason: replaced.reason,
+            },
+          }
+        : {}),
+    };
+    await recordAudit(
+      context.env,
+      actor,
+      identity,
+      replaced ? ACCESS_AUDIT_ACTIONS.change : ACCESS_AUDIT_ACTIONS.suspend,
+      detail,
+    );
 
     return json({
       ok: true,
@@ -112,5 +158,25 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
     });
   } catch (err) {
     return internalError(context.request, "Unable to complete the request.", err);
+  }
+}
+
+/**
+ * The restriction has already been written when this runs. A failing history insert is logged,
+ * not returned: answering 500 would tell the admin nothing happened while the app is already
+ * locked.
+ */
+async function recordAudit(
+  env: RuntimeEnv,
+  actor: string,
+  identity: string,
+  action: string,
+  detail: AccessAuditDetail,
+): Promise<void> {
+  try {
+    await ensurePanelSchema(env);
+    await auditPanel(env, actor, identity, action, JSON.stringify(detail));
+  } catch (err) {
+    console.error("access suspend: audit row not written", err);
   }
 }

@@ -12,9 +12,9 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { WorldHeatmap } from "../components/charts/WorldHeatmap";
 import { EmptyState } from "../components/ds/EmptyState";
 import { MetaRow, PageHeader } from "../components/ds/PageHeader";
+import { PageToolbar } from "../components/ds/PageToolbar";
 import { RelativeTime } from "../components/ds/RelativeTime";
 import { SegmentedControl, type TabItem } from "../components/ds/SegmentedControl";
-import { GlassDropdown } from "../components/GlassDropdown";
 import { KpiStatCard } from "../components/KpiStatCard";
 import type {
   AppSessionRecord,
@@ -40,25 +40,11 @@ import { formatNumber, timeAgo } from "../utils/format";
 type MapView = "live" | "alltime";
 
 const ALL_REGIONS = ["North America", "South America", "Europe", "Asia", "Africa", "Oceania"];
-const REGION_SHORT: Record<string, string> = {
-  "North America": "NA",
-  "South America": "SA",
-  Europe: "EU",
-  Asia: "AS",
-  Africa: "AF",
-  Oceania: "OC",
-};
 
-/** `regionFilter === null` in radiogroup terms: no region narrows the map. */
-const ALL_REGIONS_KEY = "all";
-/** The chips stay two letters; `title` spells each one out. */
-const REGION_FILTERS: TabItem[] = [
-  { key: ALL_REGIONS_KEY, label: "All", title: "All regions" },
-  ...ALL_REGIONS.map((region) => ({
-    key: region,
-    label: REGION_SHORT[region] ?? region,
-    title: region,
-  })),
+/** Live dots or the all-time rollup — a view over the same map, so a radiogroup. */
+const MAP_VIEWS: TabItem<MapView>[] = [
+  { key: "live", label: "Live" },
+  { key: "alltime", label: "All time" },
 ];
 
 export interface MapFocusTarget {
@@ -76,7 +62,6 @@ interface HeatmapPageProps {
   focusedTarget?: MapFocusTarget | null;
   /** One-shot handshake: the page copies the target into local state, then tells App to clear it. */
   onFocusConsumed?: () => void;
-  filterBar?: ReactNode;
 }
 
 interface StatChip {
@@ -145,7 +130,6 @@ export function HeatmapPage({
   onOpenSession,
   focusedTarget = null,
   onFocusConsumed,
-  filterBar,
 }: HeatmapPageProps) {
   const [view, setView] = useState<MapView>("live");
   const [regionFilter, setRegionFilter] = useState<string | null>(null);
@@ -523,30 +507,12 @@ export function HeatmapPage({
 
   return (
     <div className="page-content page-stack-lg heatmap-page">
-      {/* Header — view seg + country filter + meta right; region chips on their own row */}
+      {/* Header — title left, map meta right. The view and the geo filters are
+          in the toolbar above the map. */}
       <PageHeader
         kicker="Geography"
         page="heatmap"
         right={
-          <>
-            {filterBar}
-            {/* View mode */}
-            <Select
-              aria-label="Time window"
-              value={view}
-              onValueChange={(value) => setView(value as "live" | "alltime")}
-            >
-              <option value="live">Live</option>
-              <option value="alltime">All time</option>
-            </Select>
-            {/* Country filter */}
-            <GlassDropdown
-              placeholder="All countries"
-              options={countryCodes}
-              value={countryCode}
-              onChange={setCountryCode}
-              renderOption={renderCountryOption}
-            />
             <MetaRow
               items={[
                 { label: "Errors", value: formatNumber(errorTotal) },
@@ -560,21 +526,8 @@ export function HeatmapPage({
                 },
               ]}
             />
-          </>
         }
       />
-
-      {/* Region chips — a filter over the map that is already drawn, so
-          radiogroup semantics: "All" is the way back, not a second click on
-          the selected chip. */}
-      <div className="filters">
-        <SegmentedControl
-          aria-label="Region filter"
-          items={REGION_FILTERS}
-          value={regionFilter ?? ALL_REGIONS_KEY}
-          onChange={(key) => selectRegion(key === ALL_REGIONS_KEY ? null : key)}
-        />
-      </div>
 
       {/* KPI row */}
       <div className="stat-grid stat-grid-6">
@@ -590,6 +543,56 @@ export function HeatmapPage({
           />
         ))}
       </div>
+
+      {/* The one filter place on this page (handoff §2.3), directly above the
+          map it filters: Live / All time left, region and country right. They
+          used to be split over the page header (two different dropdown
+          components side by side) and a separate region chip row. The in-map hover menu
+          is the map's own chrome and is not part of this (WP 2.8). */}
+      <PageToolbar
+        aria-label="Map filters"
+        canReset={filtersActive}
+        onReset={() => {
+          setRegionFilter(null);
+          setCountryCode(null);
+        }}
+        left={
+          <SegmentedControl
+            aria-label="Map view"
+            items={MAP_VIEWS}
+            value={view}
+            onChange={setView}
+          />
+        }
+        filters={
+          <>
+            <Select
+              aria-label="Region"
+              value={regionFilter ?? ""}
+              onValueChange={(value) => selectRegion(value || null)}
+            >
+              <option value="">All regions</option>
+              {ALL_REGIONS.map((region) => (
+                <option key={region} value={region}>
+                  {region}
+                </option>
+              ))}
+            </Select>
+            <Select
+              aria-label="Country"
+              value={countryCode ?? ""}
+              onValueChange={(value) => setCountryCode(value || null)}
+            >
+              <option value="">All countries</option>
+              {countryCodes.map((code) => (
+                <option key={code} value={code}>
+                  {renderCountryOption(code)}
+                </option>
+              ))}
+            </Select>
+          </>
+        }
+      />
 
       {/* Map + regions — Regional Load sits beside the map; stretch the row so the
           side panel tracks the map height instead of leaving a dead band below. */}

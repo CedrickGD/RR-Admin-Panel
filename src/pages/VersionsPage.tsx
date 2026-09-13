@@ -1,6 +1,5 @@
-import { Select } from "../components/ds/Select";
 import { CircleCheck, Crown, Download, History, Layers, Package } from "lucide-react";
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { CollapsiblePanel } from "../components/CollapsiblePanel";
 import { KpiStatCard, type KpiDrilldown } from "../components/KpiStatCard";
 import { Badge } from "../components/ds/Badge";
@@ -9,6 +8,8 @@ import { DataTable, type DataTableColumn } from "../components/ds/DataTable";
 import { EmptyState } from "../components/ds/EmptyState";
 import { KvList } from "../components/ds/KvList";
 import { PageHeader } from "../components/ds/PageHeader";
+import { PageToolbar } from "../components/ds/PageToolbar";
+import { SegmentedControl, type TabItem } from "../components/ds/SegmentedControl";
 import { RadialGauge } from "../components/ds/RadialGauge";
 import { RankList } from "../components/ds/RankList";
 import { Skeleton } from "../components/ds/Skeleton";
@@ -25,7 +26,6 @@ interface VersionsPageProps {
   stats: StatsPayload | null;
   theme: ThemeMode;
   accentHue?: number;
-  filterBar?: ReactNode;
 }
 
 type AdoptionView = "current" | "alltime";
@@ -51,6 +51,12 @@ interface ChartRow extends VersionRow {
 
 const LEGACY_KEY = "legacy";
 const LEGACY_LABEL = "Legacy (pre-1.4)";
+
+/** Current adoption or everyone who ever ran a version — a view, so a radiogroup. */
+const ADOPTION_VIEWS: TabItem<AdoptionView>[] = [
+  { key: "current", label: "Current" },
+  { key: "alltime", label: "All time" },
+];
 
 /** Canonicalize any version string to a 3-part key ("1.4" -> "1.4.0"); "legacy" passes through. */
 function normalizeVersionKey(raw: string): string {
@@ -134,7 +140,7 @@ const RELEASE_COLUMNS: Array<DataTableColumn<VersionRow>> = [
 /** The four adoption tiles, so the loading state reserves their exact labels. */
 const VERSION_KPI_LABELS = ["On latest", "Outdated", "Versions tracked", "Top version"];
 
-export function VersionsPage({ stats, theme, accentHue = 217, filterBar }: VersionsPageProps) {
+export function VersionsPage({ stats, theme, accentHue = 217 }: VersionsPageProps) {
   const latestVersion = useLatestVersion();
   const releaseVersions = useReleaseVersions();
   const [view, setView] = useState<AdoptionView>("current");
@@ -346,7 +352,7 @@ export function VersionsPage({ stats, theme, accentHue = 217, filterBar }: Versi
   if (!stats) {
     return (
       <div className="page-content page-stack-lg">
-        <PageHeader kicker="Distribution" page="versions" right={filterBar} />
+        <PageHeader kicker="Distribution" page="versions" />
 
         <div className="stat-grid stat-grid-4">
           {VERSION_KPI_LABELS.map((label) => (
@@ -372,24 +378,7 @@ export function VersionsPage({ stats, theme, accentHue = 217, filterBar }: Versi
 
   return (
     <div className="page-content page-stack-lg">
-      {/* Header — mandate kicker left; latest badge + view toggle + global filters right */}
-      <PageHeader
-        kicker="Distribution"
-        page="versions"
-        right={
-          <>
-            <Select
-              aria-label="Time window"
-              value={view}
-              onValueChange={(value) => setView(value as "current" | "alltime")}
-            >
-              <option value="current">Current</option>
-              <option value="alltime">All time</option>
-            </Select>
-            {filterBar}
-          </>
-        }
-      />
+      <PageHeader kicker="Distribution" page="versions" />
 
       {/* Adoption KPIs — version-specific only (lifetime totals live on Overview) */}
       <div className="stat-grid stat-grid-4">
@@ -434,6 +423,21 @@ export function VersionsPage({ stats, theme, accentHue = 217, filterBar }: Versi
           chartColor={chartPalette.sessionsLine}
         />
       </div>
+
+      {/* The one filter place on this page (handoff §2.3), directly above the
+          adoption panels it re-views. It used to be a ds/Select in the page
+          header. */}
+      <PageToolbar
+        aria-label="Version adoption view"
+        left={
+          <SegmentedControl
+            aria-label="Adoption view"
+            items={ADOPTION_VIEWS}
+            value={view}
+            onChange={setView}
+          />
+        }
+      />
 
       {/* Adoption funnel: rank bars left, coverage gauges + latest release right */}
       <div className="main-side">

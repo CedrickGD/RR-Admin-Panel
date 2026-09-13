@@ -241,15 +241,6 @@ body::after {
   flex: 1;
 }
 
-/* Filter row below the page header (Heatmap region chips): wraps like
-   .page-header-right and pulls slightly toward the header it follows. */
-.page-content > .filters {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: -4px;
-}
 
 /* Live: session row highlighted by show-on-map focus
    (scrollIntoView target) */

@@ -1,5 +1,5 @@
 import { Activity, Clock, Gauge, Radio, TrendingUp } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import {
   Area,
   AreaChart,
@@ -15,6 +15,7 @@ import { TelemetryChartTooltip } from "../components/charts/TelemetryChartToolti
 import { TimezoneUsageChart } from "../components/charts/TimezoneUsageChart";
 import { CollapsiblePanel } from "../components/CollapsiblePanel";
 import { MetaRow, PageHeader } from "../components/ds/PageHeader";
+import { PageToolbar } from "../components/ds/PageToolbar";
 import { RelativeTime } from "../components/ds/RelativeTime";
 import { SegmentedControl, type TabItem } from "../components/ds/SegmentedControl";
 import { KpiStatCard } from "../components/KpiStatCard";
@@ -32,7 +33,6 @@ interface TrafficPageProps {
   stats: StatsPayload | null;
   theme: ThemeMode;
   accentHue?: number;
-  filterBar?: ReactNode;
 }
 
 /** Matches the two <Area> series below: solid actuals, dashed projection. */
@@ -103,7 +103,7 @@ function buildPrediction(
   return forecast;
 }
 
-export function TrafficPage({ summary, stats, theme, filterBar }: TrafficPageProps) {
+export function TrafficPage({ summary, stats, theme }: TrafficPageProps) {
   const [insightView, setInsightView] = useState<"daily" | "timezones">("daily");
 
   // Daily series: prefer server-side aggregates over the FULL history (follows
@@ -163,7 +163,6 @@ export function TrafficPage({ summary, stats, theme, filterBar }: TrafficPagePro
         kicker="Telemetry"
         page="traffic"
         sub="Daily trends, forecast, and timezone activity."
-        right={filterBar}
       />
 
       {/* Stat cards — traffic-specific only (lifetime totals live on Overview) */}
@@ -207,6 +206,21 @@ export function TrafficPage({ summary, stats, theme, filterBar }: TrafficPagePro
         />
       </div>
 
+      {/* The one filter place on this page (handoff §2.3), directly above the
+          chart it switches. Both views answer "who was active", so it is a
+          radiogroup, not tabs. It used to sit in the chart's panel head. */}
+      <PageToolbar
+        aria-label="Traffic view"
+        left={
+          <SegmentedControl
+            aria-label="Traffic insight view"
+            value={insightView}
+            onChange={setInsightView}
+            items={INSIGHT_VIEWS}
+          />
+        }
+      />
+
       {/* Daily / Timezone toggle — the main chart */}
       <CollapsiblePanel
         kicker="Trends"
@@ -217,8 +231,9 @@ export function TrafficPage({ summary, stats, theme, filterBar }: TrafficPagePro
             : `Daily unique customers · ${forecastDays} d forecast (dashed).`
           : "Timezone-local activity from the loaded event window."}
         right={
-          /* The view switch lives in the header next to the legend and meta,
-             never over the plot area (docs/panel-workspace.md, Charts). */
+          /* Legend and meta only: the Daily / Timezones switch is in the page
+             toolbar right above this panel, never over the plot area
+             (docs/panel-workspace.md, Charts). */
           <div className="chart-head-tools">
             {/* Names the two curves the daily chart draws; the timezone grid labels its own. */}
             {insightView === "daily" ? <ChartLegend items={DAILY_LEGEND} /> : null}
@@ -228,14 +243,6 @@ export function TrafficPage({ summary, stats, theme, filterBar }: TrafficPagePro
                 { label: "Sessions", value: formatNumber(metaSessions) },
                 { label: "Errors", value: formatNumber(metaErrors) },
               ]}
-            />
-            {/* Both views answer "who was active", so this narrows the panel
-                rather than swapping panels: radiogroup, not tablist. */}
-            <SegmentedControl
-              aria-label="Traffic insight view"
-              value={insightView}
-              onChange={setInsightView}
-              items={INSIGHT_VIEWS}
             />
           </div>
         }

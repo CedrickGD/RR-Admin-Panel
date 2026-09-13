@@ -111,9 +111,26 @@ export function Modal({
     onClose();
   }
 
-  // Back goes through the same exit as the X: clean work closes, unsaved work
-  // raises the discard step (the entry is spent either way).
-  useHistoryLayer(open && Boolean(onClose), requestClose);
+  // Back is one more exit, but it arrives with the dialog's history entry
+  // already spent. Clean work closes. Unsaved work raises the discard step and
+  // refuses the close, which leaves the layer held without an entry: "Keep
+  // editing" (or Escape) retains it — pushes the entry again — so the next Back
+  // targets this dialog, not the page or workspace under it, and "Discard"
+  // closes with nothing left to step back over. A second Back while the prompt
+  // is up, or a close from under the dialog (its parent layer, another page),
+  // cannot be refused and closes for good.
+  const historyLayer = useHistoryLayer(open && Boolean(onClose), (_reason, canStay) => {
+    if (canStay && isDirty?.()) {
+      setConfirmDiscard(true);
+      return false;
+    }
+    onClose?.();
+  });
+
+  function keepEditing() {
+    setConfirmDiscard(false);
+    historyLayer.retain();
+  }
 
   useEffect(() => {
     if (open) {
@@ -144,7 +161,7 @@ export function Modal({
         event.preventDefault();
         event.stopPropagation();
         // A reflex Escape never discards unsaved edits — it asks first.
-        if (confirmDiscard) setConfirmDiscard(false);
+        if (confirmDiscard) keepEditing();
         else requestClose();
         return;
       }
@@ -303,7 +320,7 @@ export function Modal({
                 ref={keepEditingRef}
                 type="button"
                 className="btn btn-ghost"
-                onClick={() => setConfirmDiscard(false)}
+                onClick={keepEditing}
               >
                 Keep editing
               </button>

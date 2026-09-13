@@ -1,6 +1,7 @@
 import { StrictMode, act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Modal } from "../src/components/ds/Modal";
 import {
   resetHistoryLayers,
   useHistoryLayer,
@@ -111,6 +112,46 @@ function Layer({
     options,
   );
   return open ? <>{children}</> : null;
+}
+
+/** The rrLayer depth of every recorded entry, oldest first. */
+function depths() {
+  return fake.entries.map(
+    (entry) => (entry.state as { rrLayer?: { depth: number } } | null)?.rrLayer?.depth ?? 0,
+  );
+}
+
+function buttonNamed(name: string): HTMLButtonElement | null {
+  return (
+    [...document.body.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === name,
+    ) ?? null
+  );
+}
+
+/** A form dialog with unsaved edits, owned like CustomerAccessDialog owns its Modal. */
+function DirtyDialog({
+  control,
+  onClosed,
+}: {
+  control: Record<string, Control>;
+  onClosed: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  control.dialog = { setOpen };
+  return (
+    <Modal
+      open={open}
+      onClose={() => {
+        onClosed();
+        setOpen(false);
+      }}
+      isDirty={() => true}
+      title="Edit access"
+    >
+      <input defaultValue="typed, not saved" />
+    </Modal>
+  );
 }
 
 function TopProbe({ seen }: { seen: Array<string | null> }) {
@@ -343,5 +384,180 @@ describe("useHistoryLayer", () => {
       "http://localhost:3000/#/customers",
       "http://localhost:3000/?customer=a#/customers",
     ]);
+  });
+});
+
+describe("a layer that keeps itself open on Back", () => {
+  it("holds the layer when onClose returns false and takes a new entry on retain()", async () => {
+    const calls: Array<[HistoryLayerCloseReason, boolean]> = [];
+    let retain = () => {};
+    function Guarded() {
+      const [open, setOpen] = useState(true);
+      const layer = useHistoryLayer(open, (reason, canStay) => {
+        calls.push([reason, canStay]);
+        if (canStay) return false;
+        setOpen(false);
+      });
+      retain = layer.retain;
+      return open ? <p>guarded</p> : null;
+    }
+    const seen: Array<string | null> = [];
+    await act(async () =>
+      root.render(
+        <>
+          <Guarded />
+          <TopProbe seen={seen} />
+        </>,
+      ),
+    );
+    await flush();
+    const own = seen.at(-1);
+    expect(own).not.toBeNull();
+
+    await act(async () => fake.browserBack());
+    await flush();
+    expect(calls).toEqual([["back", true]]);
+    expect(container.textContent).toBe("guarded");
+    // Still the top layer while it waits, but its entry is spent.
+    expect(seen.at(-1)).toBe(own);
+    expect(fake.index()).toBe(0);
+
+    await act(async () => retain());
+    await flush();
+    expect(fake.pushState).toHaveBeenCalledTimes(2);
+    expect(fake.index()).toBe(1);
+    expect(depths()).toEqual([0, 1]);
+    // retain() on a layer that has its entry is a no-op.
+    await act(async () => retain());
+    expect(fake.pushState).toHaveBeenCalledTimes(2);
+
+    // The next Back targets the layer again.
+    await act(async () => fake.browserBack());
+    await flush();
+    expect(calls).toEqual([
+      ["back", true],
+      ["back", true],
+    ]);
+    expect(container.textContent).toBe("guarded");
+  });
+
+  it("a second Back while the layer waits cannot keep it open", async () => {
+    history.pushState(null, "", location.href);
+    const calls: Array<[HistoryLayerCloseReason, boolean]> = [];
+    function Guarded() {
+      const [open, setOpen] = useState(true);
+      useHistoryLayer(open, (reason, canStay) => {
+        calls.push([reason, canStay]);
+        if (canStay) return false;
+        setOpen(false);
+      });
+      return open ? <p>guarded</p> : null;
+    }
+    await act(async () => root.render(<Guarded />));
+    await flush();
+    await act(async () => fake.browserBack());
+    await flush();
+    await act(async () => fake.browserBack());
+    await flush();
+    expect(calls).toEqual([
+      ["back", true],
+      ["back", false],
+    ]);
+    expect(container.textContent).toBe("");
+    expect(fake.index()).toBe(0);
+    expect(fake.back).not.toHaveBeenCalled();
+    expect(fake.go).not.toHaveBeenCalled();
+  });
+});
+
+describe("ds/Modal with unsaved changes on the history layer", () => {
+  async function openDirtyDialogOverWorkspace() {
+    const control: Record<string, Control> = {};
+    const closes: Array<[string, HistoryLayerCloseReason]> = [];
+    const seen: Array<string | null> = [];
+    const onClosed = vi.fn();
+    await act(async () =>
+      root.render(
+        <>
+          <Layer
+            name="workspace"
+            options={{ key: "workspace" }}
+            control={control}
+            closes={closes}
+          />
+          <DirtyDialog control={control} onClosed={onClosed} />
+          <TopProbe seen={seen} />
+        </>,
+      ),
+    );
+    await flush();
+    await act(async () => control.dialog.setOpen(true));
+    await flush();
+    expect(depths()).toEqual([0, 1, 2]);
+    const dialogTop = seen.at(-1);
+    expect(dialogTop).not.toBe("workspace");
+    return { closes, seen, onClosed, dialogTop };
+  }
+
+  it("Back → Keep editing takes a new entry, so the next Back asks again instead of closing the workspace", async () => {
+    const { closes, seen, onClosed, dialogTop } = await openDirtyDialogOverWorkspace();
+
+    await act(async () => fake.browserBack());
+    await flush();
+    expect(buttonNamed("Keep editing")).not.toBeNull();
+    expect(onClosed).not.toHaveBeenCalled();
+    expect(fake.index()).toBe(1);
+
+    await act(async () => buttonNamed("Keep editing")!.click());
+    await flush();
+    expect(buttonNamed("Keep editing")).toBeNull();
+    expect(fake.pushState).toHaveBeenCalledTimes(3);
+    expect(fake.index()).toBe(2);
+    expect(depths()).toEqual([0, 1, 2]);
+    expect(fake.entries[2].url).toBe(fake.entries[1].url);
+    expect(seen.at(-1)).toBe(dialogTop);
+
+    await act(async () => fake.browserBack());
+    await flush();
+    // The prompt again — not the workspace underneath closing.
+    expect(buttonNamed("Keep editing")).not.toBeNull();
+    expect(document.body.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(closes).toEqual([]);
+    expect(onClosed).not.toHaveBeenCalled();
+    expect(fake.index()).toBe(1);
+    expect(seen.at(-1)).toBe(dialogTop);
+    expect(fake.back).not.toHaveBeenCalled();
+    expect(fake.go).not.toHaveBeenCalled();
+  });
+
+  it("Back → Discard closes the dialog without stepping back again (its entry is already spent)", async () => {
+    const { closes, seen, onClosed } = await openDirtyDialogOverWorkspace();
+
+    await act(async () => fake.browserBack());
+    await flush();
+    await act(async () => buttonNamed("Discard")!.click());
+    await flush();
+    expect(onClosed).toHaveBeenCalledTimes(1);
+    expect(fake.back).not.toHaveBeenCalled();
+    expect(fake.go).not.toHaveBeenCalled();
+    expect(fake.pushState).toHaveBeenCalledTimes(2);
+    expect(fake.index()).toBe(1);
+    expect(closes).toEqual([]);
+    expect(seen.at(-1)).toBe("workspace");
+  });
+
+  it("Escape on a Back-triggered prompt keeps editing and takes a new entry too", async () => {
+    const { closes, seen, dialogTop } = await openDirtyDialogOverWorkspace();
+
+    await act(async () => fake.browserBack());
+    await flush();
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+    await flush();
+    expect(buttonNamed("Keep editing")).toBeNull();
+    expect(fake.index()).toBe(2);
+    expect(seen.at(-1)).toBe(dialogTop);
+    expect(closes).toEqual([]);
   });
 });

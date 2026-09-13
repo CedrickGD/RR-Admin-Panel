@@ -993,6 +993,11 @@ export function WorldHeatmap({
     menuRef,
   );
 
+  // The info card closes the same way — a press outside it (the canvas included) or Escape, which
+  // it takes before the selection/fullscreen Escape. Its own X keeps working.
+  const infoPanelRef = useRef<HTMLDivElement | null>(null);
+  useDismiss(showPanel, () => setShowPanel(false), infoPanelRef);
+
   // Entering or leaving fullscreen (a button, Escape or Back) moves the trigger away from the menu.
   useEffect(() => {
     setMenuOpen(false);
@@ -1433,7 +1438,7 @@ export function WorldHeatmap({
         <div className="world-heatmap-overlay" />
 
         {showPanel ? (
-          <div className="world-heatmap-floating-panel">
+          <div className="world-heatmap-floating-panel" ref={infoPanelRef}>
             <div className="world-heatmap-floating-head">
               <Globe2 className="h-4 w-4" />
               <span>Live sessions</span>

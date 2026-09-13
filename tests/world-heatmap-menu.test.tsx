@@ -329,3 +329,36 @@ describe("WorldHeatmap in-map menu", () => {
     expect(document.activeElement).toBe(inMenu('[data-style="tactical"]'));
   });
 });
+
+describe("WorldHeatmap info panel", () => {
+  const infoPanel = () => container.querySelector<HTMLElement>(".world-heatmap-floating-panel");
+  const openInfo = () => {
+    openMenu();
+    act(() => inMenu('[data-action="info"]').click());
+  };
+
+  it("closes on a press outside it, the map canvas included, and stays open for one inside", () => {
+    const map = renderMap();
+    openInfo();
+    pointerDown(infoPanel()!);
+    expect(infoPanel()).not.toBeNull();
+    pointerDown(map.canvas);
+    expect(infoPanel()).toBeNull();
+  });
+
+  it("takes Escape before fullscreen does", () => {
+    renderMap();
+    act(() => button("Fullscreen").click());
+    openInfo();
+    escape();
+    expect(infoPanel()).toBeNull();
+    expect(container.querySelector(".world-heatmap-fullscreen")).not.toBeNull();
+  });
+
+  it("still closes from its own close button", () => {
+    renderMap();
+    openInfo();
+    act(() => infoPanel()!.querySelector<HTMLButtonElement>('button[aria-label="Close"]')!.click());
+    expect(infoPanel()).toBeNull();
+  });
+});

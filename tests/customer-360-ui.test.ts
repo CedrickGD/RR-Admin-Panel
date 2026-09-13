@@ -79,6 +79,24 @@ describe("Customer 360 workspace", () => {
     expect(css).not.toContain(".customer-360-modal");
   });
 
+  it("lays the workspace out as identity + figures beside the tabbed record", () => {
+    expect(overlay).toContain('className="customer360-layout"');
+    expect(overlay).toContain('className="customer360-side"');
+    expect(overlay).toContain("<KeyFigures customer={customer} />");
+    // The complete record sits behind a button, not in an always-rendered dump.
+    expect(overlay).toContain("Raw data");
+    expect(overlay).toContain('className="customer360-raw-dialog"');
+    expect(overlay).not.toContain("Advanced · technical record");
+    // Tab icons are rendered and no longer hidden again by CSS; the anchor line is shown.
+    expect(overlay).toContain("{tab.icon}");
+    const workspace = source("../src/theme/workspace.css");
+    expect(workspace).not.toMatch(/.customer360-tabs svg {s*display: none;/);
+    expect(workspace).not.toMatch(/.customer360-anchor {s*display: none;/);
+    expect(workspace).toMatch(/.customer360-card {s*padding: 16px;/);
+    // A license key the workspace was opened by is masked like every other one.
+    expect(overlay).toContain("maskLicenseKey(anchor.requested_value)");
+  });
+
   it("does not expose full license keys in collapsed Customer 360 rows", () => {
     expect(overlay).toContain("maskLicenseKey(row.license_key)");
     expect(overlay).toContain("<RecordDetails record={raw} />");

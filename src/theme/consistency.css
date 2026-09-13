@@ -580,12 +580,8 @@ html[data-theme] .customer360-copy {
   line-height: 1.6;
 }
 html[data-theme] .customer360-info-grid {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
-  gap: 8px;
-  padding: 6px;
-}
-html[data-theme] .customer360-info {
-  padding: 8px 10px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: 12px 24px;
 }
 html[data-theme] .world-heatmap,
 html[data-theme] .world-heatmap-map,
@@ -700,11 +696,9 @@ html[data-theme] :is(.panel, .glass, .monitor-surface, .stat-card, .customer360-
 }
 html[data-theme]
   :is(
-    .customer360-metrics > div,
     .customer360-record,
     .customer360-record[open] > summary,
     .customer360-feedback,
-    .customer360-json,
     .license-lookup-card,
     .license-lookup-results,
     .license-workflow-success > code,
@@ -739,18 +733,14 @@ html[data-theme] .customer360-tabs button.active {
 
 /* Customer content must shrink within the workspace, including long error records. */
 .customer-workspace .customer360-shell {
-  display: block;
   min-width: 0;
   max-width: 100%;
-}
-.customer360-shell {
-  grid-template-columns: minmax(0, 1fr);
 }
 .customer-workspace-head {
   display: grid;
   justify-items: start;
-  gap: 18px;
-  margin-bottom: 18px;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 .customer-workspace-head .customer-back {
   margin-left: 0;
@@ -787,7 +777,7 @@ html[data-theme] .customer-action-bar .btn {
    opaque state spans the full width; --workspace-pad-top mirrors that padding
    (workspace.css sets 28px, 16px below 600px). */
 .customer-workspace {
-  --workspace-pad-top: 28px;
+  --workspace-pad-top: 24px;
 }
 .customer-workspace-bar {
   position: sticky;
@@ -800,15 +790,25 @@ html[data-theme] .customer-action-bar .btn {
   margin: calc(var(--workspace-pad-top) * -1) calc(var(--page-pad) * -1) 0;
   padding: var(--workspace-pad-top) var(--page-pad) 0;
   border-bottom: 1px solid transparent;
+  /* The name on the left, the customer's actions on the right of the same
+     row when they fit; they wrap under it when they do not. */
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  column-gap: 16px;
   /* Colour only — the height change is instant, so scrolling never chases a
      transitioning bar (and there is no motion to remove for reduced motion). */
   transition:
     background var(--t-fast),
     border-color var(--t-fast);
 }
+.customer-workspace-bar .customer-workspace-head {
+  flex: 1 1 320px;
+  min-width: 0;
+}
 .customer-workspace-bar .customer-workspace-head,
 .customer-workspace-bar .customer-action-bar {
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 /* Scrolled: opaque so records pass behind it, and compact so the record keeps
    the height — the name and the actions survive, the decoration does not.
@@ -821,7 +821,7 @@ html[data-theme] .customer-action-bar .btn {
   border-bottom-color: var(--line);
 }
 .customer-workspace-bar.is-stuck :is(.customer-workspace-head, .customer-action-bar) {
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 .customer-workspace-bar.is-stuck .customer-workspace-head p {
   display: none;
@@ -835,32 +835,12 @@ html[data-theme] .customer-action-bar .btn {
   height: 32px;
   flex-basis: 32px;
 }
-.customer360-identity-main {
-  flex-wrap: wrap;
-  gap: 10px 16px;
-  line-height: 1.5;
-}
-html[data-theme] .customer360-identity-main :is(span, strong, .badge) {
-  font-size: var(--fs-small);
-  line-height: 1.5;
-}
-.customer360-identity-main > span:last-child {
-  flex: 0 1 auto;
-  white-space: normal;
-  overflow: visible;
-  overflow-wrap: anywhere;
-}
-.customer360-identity-main .badge {
-  padding: 0;
-  border: 0;
-  background: transparent;
-}
 .customer-workspace .customer360-content {
   display: grid;
-  gap: 18px;
+  gap: 16px;
   min-width: 0;
   max-width: 100%;
-  padding: 18px 0;
+  padding: 0;
 }
 .customer360-content
   :is(
@@ -932,13 +912,9 @@ textarea.customer360-mono {
 .customer360-section-heading h3 {
   font-size: var(--fs-strong);
 }
-html[data-theme] .customer360-metrics span {
-  font-size: var(--fs-tiny);
-  line-height: 1.5;
-}
 .customer-workspace .customer360-tabs {
   flex-wrap: wrap;
-  gap: 0 22px;
+  gap: 0 20px;
 }
 html[data-theme] .customer360-tabs button {
   font-size: var(--fs-small);
@@ -1005,11 +981,16 @@ html[data-theme] .customer360-tabs button {
   overflow-wrap: anywhere;
 }
 @media (max-width: 600px) {
-  .customer-workspace .customer360-tabs button span {
-    display: inline;
+  /* Four tabs with icons do not fit one phone row: two even columns instead
+     of a ragged wrap (and never a sideways scroll). */
+  .customer-workspace .customer360-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 16px;
   }
-  .customer360-card {
-    padding: 16px;
+  .customer-workspace .customer360-tabs button {
+    min-width: 0;
+    justify-content: flex-start;
   }
   /* Mirrors the workspace's own padding-top at this width (workspace.css). */
   .customer-workspace {

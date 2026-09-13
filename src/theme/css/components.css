@@ -835,29 +835,47 @@
 
 /* ── Customer 360 workspace ───────────────────────────────────
    Customer360View only ever renders inline, as the `.customer-workspace`
-   section CustomerWorkspaceRouter mounts; these are its sections. */
-.customer360-shell {
-  min-height: 0;
-  flex: 1;
+   section CustomerWorkspaceRouter mounts; these are its sections.
+
+   Layout: one column, and from 1100px two — a fixed 320px left column with
+   the key figures and the identity card (it holds on every tab), the tabs and
+   the tab's content on the right. Spacing is on the 4px grid: 16px between
+   cards and columns, 16px inside a card, 12px between a card's parts. */
+.customer360-layout {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
 }
-.customer360-identity-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+@media (min-width: 1100px) {
+  .customer360-layout { grid-template-columns: 320px minmax(0, 1fr); }
+}
+.customer360-side,
+.customer360-main {
+  display: grid;
+  gap: 16px;
+  align-content: start;
   min-width: 0;
-  padding: 10px 22px;
-  border-bottom: 1px solid var(--line-row);
-  background: hsl(225 50% 75% / 0.025);
-  color: var(--text-2);
-  font-size: var(--fs-small);
 }
-.customer360-identity-main { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.customer360-identity-main > span:last-child { min-width: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.customer360-anchor { color: var(--text-3); font-size: var(--fs-tiny); white-space: nowrap; }
-.customer360-anchor strong { color: var(--text-2); font-family: var(--font-mono); font-weight: 500; }
+/* A card heading with an action at its right edge (Identity + "Raw data"). */
+.customer360-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.customer360-card-head > .customer360-section-heading { margin-bottom: 0; }
+.customer360-badges { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+/* Label | value rows: the identity card is narrow, so a label column keeps
+   every value on one left edge instead of a stack of label-over-value pairs. */
+.customer360-facts { display: grid; gap: 8px; margin: 0; }
+.customer360-facts > div { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 12px; align-items: baseline; }
+.customer360-facts dt { color: var(--text-3); font-size: var(--fs-tiny); }
+.customer360-facts dd { min-width: 0; margin: 0; color: var(--text-1); font-size: var(--fs-small); line-height: 1.5; overflow-wrap: anywhere; }
+.customer360-anchor { margin: 12px 0 0; padding-top: 12px; border-top: 1px solid var(--line-row); color: var(--text-3); font-size: var(--fs-tiny); line-height: 1.5; overflow-wrap: anywhere; }
+.customer360-anchor .customer360-mono { color: var(--text-2); }
+/* The key figures use the KPI tile's type scale (.stat-value / .stat-label
+   above): label --fs-tiny, value --fs-figure in the display face. */
+.customer360-figures { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 12px; margin: 0; }
+.customer360-figures > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.customer360-figures dt { color: var(--text-2); font-size: var(--fs-tiny); font-weight: 500; }
+.customer360-figures dd { margin: 0; color: var(--text-1); font-family: var(--font-display); font-size: var(--fs-figure); font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; overflow-wrap: anywhere; }
+.customer360-figures dd.is-danger { color: var(--danger-text); }
 .customer360-tabs {
   display: flex;
   gap: 4px;
@@ -896,9 +914,11 @@
   padding: 18px 20px 24px;
   scrollbar-gutter: stable;
 }
-.customer360-stack { display: flex; flex-direction: column; gap: 14px; }
-.customer360-two-col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
-.customer360-three-col { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; align-items: start; }
+/* Column counts follow the room the right column actually has (it is 320px
+   narrower from 1100px), not a viewport breakpoint. */
+.customer360-stack { display: flex; flex-direction: column; gap: 16px; }
+.customer360-two-col { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 16px; align-items: start; }
+.customer360-three-col { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 16px; align-items: start; }
 .customer360-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 12px; align-items: start; }
 .customer360-card {
   min-width: 0;
@@ -917,16 +937,15 @@
 .customer360-section-heading h3 { margin: 0; color: var(--text-1); font: 650 0.875rem var(--font-display); }
 .customer360-section-icon { display: inline-grid; place-items: center; color: var(--accent-text); }
 .customer360-section-icon svg { width: 15px; height: 15px; }
+/* No frame of its own: the card around it is the frame, and a second border
+   inside it read as a box in a box. */
 .customer360-info-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 0;
   margin: 0;
-  border: 1px solid var(--line-row);
-  border-radius: 9px;
-  overflow: hidden;
 }
-.customer360-info { min-width: 0; padding: 9px 10px; border-right: 1px solid var(--line-row); border-bottom: 1px solid var(--line-row); }
+.customer360-info { min-width: 0; }
 .customer360-info dt,
 .customer360-record-fields dt { margin: 0 0 3px; color: var(--text-3); font-weight: 650; letter-spacing: 0.07em; text-transform: uppercase; }
 .customer360-info dd,
@@ -939,13 +958,8 @@
    this is the un-themed fallback, so it needs no !important either. */
 .customer360-mono { font-family: var(--font-mono); }
 .customer360-mono:not(input, textarea) { font-size: var(--fs-tiny); }
-.customer360-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
-.customer360-metrics > div { padding: 13px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); }
-.customer360-metrics span { display: block; color: var(--text-3); font-size: var(--fs-tiny); text-transform: uppercase; letter-spacing: 0.07em; }
-.customer360-metrics strong { display: block; margin-top: 3px; color: var(--text-1); font: 700 var(--fs-section) var(--font-display); }
-.customer360-metrics strong.is-danger { color: var(--danger-text); }
-.customer360-record-list { display: flex; flex-direction: column; gap: 7px; }
-.customer360-record { border: 1px solid var(--line-row); border-radius: 9px; background: hsl(225 50% 75% / 0.025); overflow: hidden; }
+.customer360-record-list { display: flex; flex-direction: column; gap: 8px; }
+.customer360-record { border: 1px solid var(--line-row); border-radius: var(--r-sm); background: hsl(225 50% 75% / 0.025); overflow: hidden; }
 .customer360-record > summary {
   display: flex;
   align-items: center;
@@ -963,7 +977,7 @@
 .customer360-record[open] > summary { border-bottom: 1px solid var(--line-row); background: hsl(225 50% 75% / 0.035); }
 .customer360-record-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin: 0; }
 .customer360-record-fields > div { min-width: 0; padding: 9px 10px; border-right: 1px solid var(--line-row); border-bottom: 1px solid var(--line-row); }
-.customer360-card-title { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.customer360-card-title { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
 .customer360-card-title > div:first-child { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .customer360-card-title strong { color: var(--text-1); font-size: var(--fs-small); }
 .customer360-card-title small,
@@ -983,8 +997,8 @@
 .customer360-feature-grid > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border: 1px solid var(--line-row); border-radius: 8px; }
 .customer360-feature-grid span { min-width: 0; color: var(--text-2); font-size: var(--fs-small); overflow: hidden; text-overflow: ellipsis; }
 .customer360-feature-grid strong { color: var(--text-1); font-size: var(--fs-small); }
-.customer360-feedback-list { display: flex; flex-direction: column; gap: 10px; }
-.customer360-feedback { padding: 13px; border: 1px solid var(--line-row); border-radius: 10px; background: hsl(225 50% 75% / 0.022); }
+.customer360-feedback-list { display: flex; flex-direction: column; gap: 12px; }
+.customer360-feedback { padding: 12px; border: 1px solid var(--line-row); border-radius: var(--r-sm); background: hsl(225 50% 75% / 0.022); }
 .customer360-feedback > p { margin: 8px 0 12px; color: var(--text-1); line-height: 1.55; white-space: pre-wrap; }
 .customer360-inline-details { margin-top: 10px; color: var(--text-2); font-size: var(--fs-small); }
 .customer360-inline-details > summary { cursor: pointer; }
@@ -997,28 +1011,16 @@
 .customer360-callout-danger { background: var(--danger-sub); border-color: hsl(4 86% 58% / 0.25); color: var(--danger); }
 .customer360-empty { margin: 0; padding: 16px 8px; color: var(--text-3); font-size: var(--fs-small); text-align: center; }
 .customer360-load-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center; color: var(--text-2); }
-.customer360-shell > .customer360-load-state:only-child { grid-row: 1 / -1; }
 .customer360-load-state > span { color: var(--text-3); font-size: var(--fs-small); }
 .customer360-load-state .customer360-card,
 .customer360-load-state .customer360-callout { width: min(720px, 100%); text-align: left; }
 .customer360-activity-details { margin-top: 12px; }
-/* The dump's 11.5px sat between two steps of the scale; it rounds up to 12px. */
-.customer360-json { max-height: calc(100dvh - 310px); margin: 0; padding: 13px; overflow: auto; border: 1px solid var(--line-row); border-radius: 9px; background: hsl(235 55% 4% / 0.56); color: var(--text-2); font: var(--fs-tiny)/1.55 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
-
-@media (max-width: 900px) {
-  .customer360-three-col { grid-template-columns: 1fr; }
-  .customer360-two-col { grid-template-columns: 1fr; }
-  .customer360-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .customer360-anchor { display: none; }
-}
+/* The complete record, in the "Raw data" dialog. The dialog body scrolls, so
+   the dump needs no height of its own. */
+.dialog.customer360-raw-dialog { width: min(880px, 100%); }
+.customer360-json { margin: 0; padding: 12px; border: 1px solid var(--line-row); border-radius: var(--r-sm); background: var(--surface-2); color: var(--text-2); font: var(--fs-tiny)/1.55 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
 
 @media (max-width: 600px) {
-  .customer360-identity-bar { padding: 9px 14px; }
-  .customer360-tabs { padding-inline: 8px; }
-  .customer360-content { padding: 13px 12px 20px; }
-  .customer360-tabs button span { display: none; }
-  .customer360-tabs button { padding: 9px 12px; }
-  .customer360-metrics { grid-template-columns: 1fr 1fr; }
   .customer360-info-grid,
   .customer360-record-fields { grid-template-columns: 1fr; }
 }

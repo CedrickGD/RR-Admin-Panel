@@ -963,7 +963,7 @@ td {
   z-index: 45;
   background: var(--bg);
   overflow: auto;
-  padding: 28px var(--page-pad);
+  padding: 24px var(--page-pad);
 }
 .customer-workspace-head {
   display: flex;
@@ -987,22 +987,21 @@ td {
 .customer-workspace .customer360-content {
   max-height: none;
   overflow: visible;
-  padding: 22px 0;
-}
-.customer-workspace .customer360-shell {
-  height: auto;
+  padding: 0;
 }
 .customer-workspace .customer360-tabs {
   padding: 0;
   background: transparent;
   border-bottom: 1px solid var(--line);
-  gap: 22px;
+  gap: 20px;
 }
+/* The icons stay: they are the sidebar's icons for the same things (key for
+   licenses, laptop for devices), and they still fit two to a row on a phone. */
 .customer360-tabs button {
   border-radius: 0;
   background: none;
   color: var(--text-3);
-  padding: 14px 0;
+  padding: 12px 0;
   font-size: var(--fs-tiny);
   border: 0;
   border-bottom: 2px solid transparent;
@@ -1012,38 +1011,20 @@ td {
   border-color: var(--accent);
   color: var(--text-1);
 }
-.customer360-tabs svg {
-  display: none;
-}
-.customer360-identity-bar {
-  padding: 12px 0;
-  margin-bottom: 18px;
-  border: none;
-  background: none;
-}
-.customer360-anchor {
-  display: none;
-}
 .customer360-card {
-  padding: 22px;
-}
-.customer360-info-grid {
-  gap: 16px;
-}
-.customer360-json {
-  background: var(--surface-2);
-  color: var(--text-2);
+  padding: 16px;
 }
 .customer-advanced {
   border-top: 1px solid var(--line);
-  padding-top: 18px;
-  margin-top: 22px;
+  padding-top: 16px;
 }
 .customer-advanced > summary {
   cursor: pointer;
   color: var(--text-3);
   font-size: var(--fs-tiny);
-  margin-bottom: 18px;
+}
+.customer-advanced[open] > summary {
+  margin-bottom: 16px;
 }
 .customer360-feedback,
 .license-workflow-success > code,
@@ -1291,8 +1272,10 @@ html[data-theme="light"] .recharts-default-tooltip {
     align-items: flex-start;
     gap: 12px;
   }
+  /* The navbar's back arrow is the way out on a phone (useTopHistoryLayer);
+     a second back button here only pushed the customer down the screen. */
   .customer-workspace-head .customer-back {
-    margin-left: 0;
+    display: none;
   }
   .customer-heading-identity {
     flex-wrap: wrap;
@@ -1456,10 +1439,6 @@ button:disabled {
 .customer360-info {
   background: transparent;
   border: 0;
-  padding: 8px 0;
-}
-.customer360-info-grid {
-  column-gap: 28px;
 }
 .customer-workspace h1:focus {
   outline: 0;

@@ -251,9 +251,7 @@ export function ErrorsPage() {
         return {
           ...group,
           visibleEvents,
-          visibleCount: showBackground
-            ? group.errorCount + group.backgroundCount
-            : group.errorCount,
+          visibleCount: group.errorCount,
           // Events ship newest-first; the newest visible one is exact. The oldest is
           // only exact when nothing was capped away — otherwise keep the server bound.
           lastAt: visibleEvents[0]?.timestamp ?? group.lastErrorAt,
@@ -713,14 +711,6 @@ export function ErrorsPage() {
                           <td className="numeric" data-label="Errors">
                             <span className="cell-inline">
                               <Badge tone="danger">{formatNumber(user.visibleCount)}</Badge>
-                              {showBackground && user.backgroundCount > 0 ? (
-                                <span
-                                  className="error-cell-bg"
-                                  title="Background task errors included in the count"
-                                >
-                                  {formatNumber(user.backgroundCount)} bg
-                                </span>
-                              ) : null}
                             </span>
                           </td>
                           <td className="cell-truncate" data-label="Top type">
@@ -794,7 +784,7 @@ export function ErrorsPage() {
                                       },
                                       {
                                         k: "Errors in range",
-                                        v: `${formatNumber(user.errorCount)} real · ${formatNumber(user.backgroundCount)} background`,
+                                        v: formatNumber(user.errorCount),
                                       },
                                       { k: "First error", v: formatDate(user.firstAt) },
                                       { k: "Last error", v: formatDate(user.lastAt) },

@@ -1,11 +1,19 @@
 import { nowIso } from "./http";
 import { ensureTelemetrySchema } from "./storage";
-import type { ErrorEventDetail, ErrorsPayload, ErrorUserGroup, RuntimeEnv } from "./types";
+import type {
+  BackgroundFaultGroup,
+  ErrorEventDetail,
+  ErrorsPayload,
+  ErrorUserGroup,
+  RuntimeEnv,
+} from "./types";
 
 const APP_ERROR = "app_error";
 const BACKGROUND_KIND = "background";
-// One request scans at most this many error rows, newest first — bounds the
-// payload while still covering months of realistic error volume.
+// One request scans at most this many REAL error rows, newest first — bounds the
+// payload while still covering months of realistic error volume. Background
+// faults are excluded from this scan (see loadBackgroundFaults), so a client
+// stuck in a background-error loop can never fill the window.
 const EVENT_SCAN_LIMIT = 4000;
 // The ingest key ships inside the client binary, so ts is attacker-influencable:
 // far-future timestamps would sort first forever (retention only prunes ts < cutoff)
@@ -15,11 +23,14 @@ const FUTURE_SKEW_TOLERANCE_MS = 48 * 60 * 60 * 1000;
 // Same threat, other axis: unique fabricated hwids mint one group per event and
 // dodge the per-user caps — cap how many user groups one response ships.
 const MAX_USER_GROUPS = 500;
-// Per-user caps keep one noisy install from flooding the payload. Real and
-// background errors are capped separately so a burst of background noise can
-// never crowd the real failures out of the detail list.
+// Per-user cap keeps one noisy install from flooding the payload.
 const MAX_REAL_EVENTS_PER_USER = 100;
-const MAX_BACKGROUND_EVENTS_PER_USER = 40;
+// Background faults ship as aggregates, never as rows, so no scan limit applies.
+// Code, exception type and version are still client-supplied text: cap how many
+// groups, versions per group and characters per value one response carries.
+const MAX_BACKGROUND_FAULT_GROUPS = 50;
+const MAX_VERSIONS_PER_FAULT = 12;
+const MAX_FAULT_TEXT_LENGTH = 160;
 const MAX_EXTRA_KEYS = 16;
 const MAX_EXTRA_VALUE_LENGTH = 300;
 const UNATTRIBUTED_IDENTITY = "unattributed";
@@ -97,6 +108,19 @@ interface ErrorEventRow {
   received_at: string;
 }
 
+interface BackgroundFaultRow {
+  code: string | null;
+  exception_type: string | null;
+  events: number | string;
+  installs: number | string;
+  sessions: number | string;
+  versions: string | null;
+  first_seen: string;
+  last_seen: string;
+  total_events: number | string;
+  total_groups: number | string;
+}
+
 interface EnrichSessionRow {
   session_id: string;
   install_id: string;
@@ -125,23 +149,88 @@ interface WorkingGroup {
   identity: string;
   metricHwid: string | null;
   metricInstallId: string | null;
-  real: ErrorEventDetail[];
-  background: ErrorEventDetail[];
+  events: ErrorEventDetail[];
   errorCount: number;
-  backgroundCount: number;
   // Scan order is newest-first, so the first event seen is the latest.
-  lastRealAt: string | null;
-  firstRealAt: string | null;
-  lastAnyAt: string;
-  firstAnyAt: string;
+  lastErrorAt: string;
+  firstErrorAt: string;
+}
+
+// Client-supplied metric text, trimmed; json_extract hands numbers back as numbers.
+const metricTextSql = (key: string) =>
+  `NULLIF(TRIM(CAST(json_extract(metrics_json, '$.${key}') AS TEXT)), '')`;
+
+/**
+ * Background faults in range, one row per error code + base exception type.
+ *
+ * error_kind = 'background' is the desktop client reporting an unobserved task
+ * exception (production: RR-E1003, an AggregateException wrapping the real
+ * exception in `base_exception_type`). It loops hundreds of times per session,
+ * so rows would be noise: the panel gets the aggregate — events, distinct
+ * installs (hwid, else install_id — the session rollup's identity), distinct
+ * sessions, versions, first/last seen. The cutoff is computed in JS and bound
+ * (ts is ISO text with T and Z; SQLite's own clock functions format differently).
+ * The window totals are taken before LIMIT, so they cover every group.
+ */
+async function loadBackgroundFaults(
+  db: NonNullable<RuntimeEnv["DB"]>,
+  cutoffIso: string | null,
+  futureBoundIso: string,
+): Promise<{ groups: BackgroundFaultGroup[]; totalEvents: number; totalGroups: number }> {
+  const rows = await db
+    .prepare(
+      `WITH faults AS (
+         SELECT ts,
+           ${metricTextSql("error_code")} AS code,
+           COALESCE(${metricTextSql("base_exception_type")}, ${metricTextSql("exception_type")}) AS exception_type,
+           COALESCE(${metricTextSql("hwid")}, ${metricTextSql("install_id")}) AS install_key,
+           ${metricTextSql("session_id")} AS session_id,
+           ${metricTextSql("app_version")} AS app_version
+         FROM telemetry_events
+         WHERE service = ? AND ts >= ? AND ts <= ?
+           AND json_extract(metrics_json, '$.error_kind') = ?
+       )
+       SELECT code, exception_type,
+         COUNT(*) AS events,
+         COUNT(DISTINCT install_key) AS installs,
+         COUNT(DISTINCT session_id) AS sessions,
+         GROUP_CONCAT(DISTINCT app_version) AS versions,
+         MIN(ts) AS first_seen,
+         MAX(ts) AS last_seen,
+         SUM(COUNT(*)) OVER () AS total_events,
+         COUNT(*) OVER () AS total_groups
+       FROM faults
+       GROUP BY code, exception_type
+       ORDER BY events DESC, last_seen DESC
+       LIMIT ?`,
+    )
+    .bind(APP_ERROR, cutoffIso ?? "", futureBoundIso, BACKGROUND_KIND, MAX_BACKGROUND_FAULT_GROUPS)
+    .all<BackgroundFaultRow>();
+
+  const first = rows.results[0];
+  return {
+    groups: rows.results.map((row) => ({
+      code: clampText(row.code),
+      exceptionType: clampText(row.exception_type),
+      events: toNumber(row.events),
+      installs: toNumber(row.installs),
+      sessions: toNumber(row.sessions),
+      versions: splitVersions(row.versions),
+      firstSeen: row.first_seen,
+      lastSeen: row.last_seen,
+    })),
+    totalEvents: first ? toNumber(first.total_events) : 0,
+    totalGroups: first ? toNumber(first.total_groups) : 0,
+  };
 }
 
 /**
- * Every retained error event in range, grouped under the same user identity
- * the session rollup uses (hwid when known, else install_id). Attribution
- * reads the event's own metrics first, then canonicalizes through the session
- * table so an event that only carried an install_id still lands on the same
- * user as its hwid-bearing siblings.
+ * Every retained real error event in range, grouped under the same user
+ * identity the session rollup uses (hwid when known, else install_id).
+ * Attribution reads the event's own metrics first, then canonicalizes through
+ * the session table so an event that only carried an install_id still lands on
+ * the same user as its hwid-bearing siblings. Background faults are not in the
+ * user groups; they ship aggregated in `backgroundFaults`.
  */
 export async function loadErrorsByUser(
   env: RuntimeEnv,
@@ -155,27 +244,19 @@ export async function loadErrorsByUser(
   await ensureTelemetrySchema(db);
 
   const futureBoundIso = new Date(Date.now() + FUTURE_SKEW_TOLERANCE_MS).toISOString();
-  const eventsStatement = range.cutoffIso
-    ? db
-        .prepare(
-          `SELECT event_id, source, ts, metrics_json, message, received_at
-           FROM telemetry_events
-           WHERE service = ? AND ts >= ? AND ts <= ?
-           ORDER BY ts DESC
-           LIMIT ?`,
-        )
-        .bind(APP_ERROR, range.cutoffIso, futureBoundIso, EVENT_SCAN_LIMIT + 1)
-    : db
-        .prepare(
-          `SELECT event_id, source, ts, metrics_json, message, received_at
-           FROM telemetry_events
-           WHERE service = ? AND ts <= ?
-           ORDER BY ts DESC
-           LIMIT ?`,
-        )
-        .bind(APP_ERROR, futureBoundIso, EVENT_SCAN_LIMIT + 1);
+  // `ts >= ''` holds for every ISO timestamp, so "all" needs no second statement.
+  const eventsStatement = db
+    .prepare(
+      `SELECT event_id, source, ts, metrics_json, message, received_at
+       FROM telemetry_events
+       WHERE service = ? AND ts >= ? AND ts <= ?
+         AND COALESCE(json_extract(metrics_json, '$.error_kind'), '') != ?
+       ORDER BY ts DESC
+       LIMIT ?`,
+    )
+    .bind(APP_ERROR, range.cutoffIso ?? "", futureBoundIso, BACKGROUND_KIND, EVENT_SCAN_LIMIT + 1);
 
-  const [eventRows, sessionRows, licenseRows] = await Promise.all([
+  const [eventRows, sessionRows, licenseRows, background] = await Promise.all([
     eventsStatement.all<ErrorEventRow>(),
     // app_sessions has no retention (only telemetry_events is pruned), so an
     // unbounded scan degrades forever. Newest rows carry the identity/context
@@ -195,6 +276,7 @@ export async function loadErrorsByUser(
       .prepare(`SELECT hwid FROM licenses WHERE hwid IS NOT NULL AND status = 'active'`)
       .all<{ hwid: string }>()
       .catch(() => ({ results: [] as Array<{ hwid: string }> })),
+    loadBackgroundFaults(db, range.cutoffIso, futureBoundIso),
   ]);
 
   const scanTruncated = eventRows.results.length > EVENT_SCAN_LIMIT;
@@ -246,8 +328,6 @@ export async function loadErrorsByUser(
     const hwid = metricText(metrics, "hwid");
     const installId = metricText(metrics, "install_id");
     const sessionId = metricText(metrics, "session_id");
-    const kind = metricText(metrics, "error_kind");
-    const isBackground = kind === BACKGROUND_KIND;
 
     const identity = resolveIdentity(
       hwid,
@@ -263,40 +343,27 @@ export async function loadErrorsByUser(
         identity,
         metricHwid: null,
         metricInstallId: null,
-        real: [],
-        background: [],
+        events: [],
         errorCount: 0,
-        backgroundCount: 0,
-        lastRealAt: null,
-        firstRealAt: null,
-        lastAnyAt: row.ts,
-        firstAnyAt: row.ts,
+        lastErrorAt: row.ts,
+        firstErrorAt: row.ts,
       };
       working.set(identity, group);
     }
 
     group.metricHwid = group.metricHwid ?? hwid;
     group.metricInstallId = group.metricInstallId ?? installId;
-    group.firstAnyAt = row.ts;
+    group.firstErrorAt = row.ts;
+    group.errorCount += 1;
 
-    if (isBackground) {
-      group.backgroundCount += 1;
-    } else {
-      group.errorCount += 1;
-      group.lastRealAt = group.lastRealAt ?? row.ts;
-      group.firstRealAt = row.ts;
-    }
-
-    const bucket = isBackground ? group.background : group.real;
-    const cap = isBackground ? MAX_BACKGROUND_EVENTS_PER_USER : MAX_REAL_EVENTS_PER_USER;
-    if (bucket.length < cap) {
-      bucket.push({
+    if (group.events.length < MAX_REAL_EVENTS_PER_USER) {
+      group.events.push({
         id: row.event_id,
         timestamp: row.ts,
         receivedAt: row.received_at,
         message: row.message ?? null,
         type: metricText(metrics, "exception_type"),
-        kind,
+        kind: metricText(metrics, "error_kind"),
         code: metricText(metrics, "error_code"),
         sessionId,
         appVersion: metricText(metrics, "app_version"),
@@ -310,9 +377,6 @@ export async function loadErrorsByUser(
     .map((group) => {
       const context = byIdentity.get(group.identity) ?? null;
       const row = context?.row ?? null;
-      const merged = [...group.real, ...group.background].sort(
-        (left, right) => Date.parse(right.timestamp) - Date.parse(left.timestamp),
-      );
       const hwid = row?.hwid?.trim() || group.metricHwid;
 
       return {
@@ -335,12 +399,11 @@ export async function loadErrorsByUser(
         isActive: context?.isActive ?? false,
         lastSeen: row?.last_seen_at ?? null,
         errorCount: group.errorCount,
-        backgroundCount: group.backgroundCount,
-        firstErrorAt: group.firstRealAt ?? group.firstAnyAt,
-        lastErrorAt: group.lastRealAt ?? group.lastAnyAt,
-        events: merged,
-        truncated:
-          group.errorCount > group.real.length || group.backgroundCount > group.background.length,
+        firstErrorAt: group.firstErrorAt,
+        lastErrorAt: group.lastErrorAt,
+        // Scan order is newest-first, so the list already is.
+        events: group.events,
+        truncated: group.errorCount > group.events.length,
       };
     })
     .sort((left, right) => Date.parse(right.lastErrorAt) - Date.parse(left.lastErrorAt));
@@ -350,17 +413,11 @@ export async function loadErrorsByUser(
 
   // Totals cover the full scan, not just the groups that ship.
   let totalErrors = 0;
-  let totalBackground = 0;
-  let affectedUsers = 0;
   let lastErrorAt: string | null = null;
   for (const user of allUsers) {
     totalErrors += user.errorCount;
-    totalBackground += user.backgroundCount;
-    if (user.errorCount > 0) {
-      affectedUsers += 1;
-      if (lastErrorAt === null || Date.parse(user.lastErrorAt) > Date.parse(lastErrorAt)) {
-        lastErrorAt = user.lastErrorAt;
-      }
+    if (lastErrorAt === null || Date.parse(user.lastErrorAt) > Date.parse(lastErrorAt)) {
+      lastErrorAt = user.lastErrorAt;
     }
   }
 
@@ -372,12 +429,57 @@ export async function loadErrorsByUser(
     usersTruncated,
     totals: {
       errors: totalErrors,
-      backgroundErrors: totalBackground,
-      affectedUsers,
+      backgroundErrors: background.totalEvents,
+      affectedUsers: allUsers.length,
       lastErrorAt,
     },
     users,
+    backgroundFaults: background.groups,
+    backgroundFaultsTruncated: background.totalGroups > background.groups.length,
   };
+}
+
+function clampText(value: string | null): string | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  const text = String(value).trim();
+  if (!text) {
+    return null;
+  }
+  return text.length > MAX_FAULT_TEXT_LENGTH ? `${text.slice(0, MAX_FAULT_TEXT_LENGTH)}…` : text;
+}
+
+/** GROUP_CONCAT(DISTINCT …) list → unique versions, newest first, capped. */
+function splitVersions(value: string | null): string[] {
+  if (!value) {
+    return [];
+  }
+  const unique = new Set<string>();
+  for (const part of value.split(",")) {
+    const text = clampText(part);
+    if (text) {
+      unique.add(text);
+    }
+  }
+  return [...unique].sort(compareVersionsDesc).slice(0, MAX_VERSIONS_PER_FAULT);
+}
+
+function compareVersionsDesc(left: string, right: string): number {
+  const a = left.split(/[.\-+]/);
+  const b = right.split(/[.\-+]/);
+  for (let index = 0; index < Math.max(a.length, b.length); index += 1) {
+    const x = Number.parseInt(a[index] ?? "", 10);
+    const y = Number.parseInt(b[index] ?? "", 10);
+    const bothNumeric = Number.isFinite(x) && Number.isFinite(y);
+    if (bothNumeric && x !== y) {
+      return y - x;
+    }
+    if (!bothNumeric && (a[index] ?? "") !== (b[index] ?? "")) {
+      return (b[index] ?? "").localeCompare(a[index] ?? "");
+    }
+  }
+  return 0;
 }
 
 function resolveIdentity(

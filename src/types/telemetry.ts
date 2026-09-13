@@ -304,29 +304,56 @@ export interface ErrorUserGroup {
   lastSeen: string | null;
   /** Real (non-background) errors in range — counted before the per-user event cap. */
   errorCount: number;
-  backgroundCount: number;
   firstErrorAt: string;
   lastErrorAt: string;
-  /** Newest first; capped per user, background events flagged via `kind`. */
+  /** Newest first; capped per user. Real errors only — background faults ship aggregated. */
   events: ErrorEventDetail[];
   truncated: boolean;
+}
+
+/**
+ * One background fault: error_kind = 'background' events grouped by error code and base
+ * exception type. A desktop-client bug (an unobserved task exception thrown in a loop), not a
+ * crash — never counted as an error in any KPI or per-customer count.
+ */
+export interface BackgroundFaultGroup {
+  /** metrics.error_code, e.g. "RR-E1003". */
+  code: string | null;
+  /** metrics.base_exception_type (the wrapped exception), else metrics.exception_type. */
+  exceptionType: string | null;
+  events: number;
+  /** Distinct hwid, else install_id — the identity the customer rollup uses. */
+  installs: number;
+  sessions: number;
+  /** Distinct app versions, newest first (capped). */
+  versions: string[];
+  firstSeen: string;
+  lastSeen: string;
 }
 
 export interface ErrorsPayload {
   generatedAt: string;
   range: string;
   cutoff: string | null;
-  /** True when the range held more error events than one scan reads (oldest are missing). */
+  /**
+   * True when the range held more real error events than one scan reads — the oldest are
+   * missing from `users` and `totals.errors`. Background faults never count toward it.
+   */
   scanTruncated: boolean;
   /** True when more users had errors than one response ships (totals still cover everyone). */
   usersTruncated: boolean;
   totals: {
     errors: number;
+    /** Background fault events in range, over every group (not only the shipped ones). */
     backgroundErrors: number;
     affectedUsers: number;
     lastErrorAt: string | null;
   };
   users: ErrorUserGroup[];
+  /** Most frequent first. Optional: rr-api builds before WP 2.9 do not send it. */
+  backgroundFaults?: BackgroundFaultGroup[];
+  /** True when more fault groups exist than one response ships. */
+  backgroundFaultsTruncated?: boolean;
 }
 
 export interface SummaryPayload {

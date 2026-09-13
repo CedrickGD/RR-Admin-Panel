@@ -723,6 +723,11 @@ function buildSessionExportText(sessions: AppSessionRecord[], storage: StorageBa
   return lines.join("\n");
 }
 
+/** Tests only: each fresh in-memory database needs the schema run again. */
+export function resetTelemetrySchemaStateForTests(): void {
+  schemaReady = false;
+}
+
 export async function ensureTelemetrySchema(db: RuntimeEnv["DB"]): Promise<void> {
   if (!db || schemaReady) {
     return;

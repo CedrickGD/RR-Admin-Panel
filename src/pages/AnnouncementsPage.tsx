@@ -1,7 +1,7 @@
 import { TableFrame } from "../components/ds/TableFrame";
 import { Select } from "../components/ds/Select";
 import { Megaphone, Plus, Trash2, Pencil } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Badge } from "../components/ds/Badge";
 import { Button, IconButton } from "../components/ds/Button";
 import { EmptyState } from "../components/ds/EmptyState";
@@ -28,9 +28,6 @@ interface AnnouncementRecord {
   updated_at: string;
 }
 
-interface AnnouncementsPageProps {
-  filterBar?: ReactNode;
-}
 
 interface FormState {
   title: string;
@@ -97,7 +94,7 @@ function displayStatus(a: AnnouncementRecord): {
   return { label: "Live", tone: "success" };
 }
 
-export function AnnouncementsPage({ filterBar }: AnnouncementsPageProps) {
+export function AnnouncementsPage() {
   const [announcements, setAnnouncements] = useState<AnnouncementRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -277,7 +274,6 @@ export function AnnouncementsPage({ filterBar }: AnnouncementsPageProps) {
         page="announcements"
         right={
           <>
-            {filterBar}
             <Button
               variant="primary"
               size="sm"

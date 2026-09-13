@@ -17,7 +17,7 @@ import {
   ShoppingCart,
   User,
 } from "lucide-react";
-import { useEffect, useState, useMemo, useRef, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, useMemo, useRef, type FormEvent } from "react";
 import { Badge } from "../components/ds/Badge";
 import { Button, IconButton } from "../components/ds/Button";
 import { EmptyState } from "../components/ds/EmptyState";
@@ -29,6 +29,8 @@ import { SkeletonRows } from "../components/ds/Skeleton";
 import { Tabs, type TabItem } from "../components/ds/Tabs";
 import { StatusBadge } from "../components/StatusBadge";
 import { PageHeader } from "../components/ds/PageHeader";
+import { PageToolbar } from "../components/ds/PageToolbar";
+import { SearchInput } from "../components/ds/SearchInput";
 import { RelativeTime } from "../components/ds/RelativeTime";
 import { CustomerReturnLink } from "../components/CustomerReturnLink";
 import { useWorkspaceSearch } from "../hooks/useWorkspaceSearch";
@@ -213,14 +215,12 @@ interface LicensesPageProps {
   summary?: SummaryPayload | null;
   onOpenSession?: (sessionId: string) => void;
   onOpenWorker?: (hwid: string) => void;
-  filterBar?: ReactNode;
 }
 
 export function LicensesPage({
   summary,
   onOpenSession,
   onOpenWorker,
-  filterBar,
 }: LicensesPageProps) {
   const canWrite = usePanelPermission("licenses.write");
   const [licenses, setLicenses] = useState<LicenseRecord[]>([]);
@@ -730,6 +730,41 @@ export function LicensesPage({
     setCreatedOnly(false);
   };
 
+  /* The one filter place on this page (handoff §2.3), directly above the
+     inventory it filters. The section switch above it is ds/Tabs (Inventory /
+     Order lookup / Bulk generate are page sections, not filters). The scope
+     only exists while freshly created keys do — it is the same "created only"
+     filter the creation notice toggles, nothing new. Reset replaces the
+     "Clear filters" that used to appear only inside the empty state. */
+  const inventoryToolbar = (
+    <PageToolbar
+      aria-label="License filters"
+      canReset={hasLicenseFilters}
+      onReset={clearLicenseFilters}
+      left={
+        createdKeys.length > 0 ? (
+          <SegmentedControl
+            aria-label="License scope"
+            items={[
+              { key: "all", label: "All licenses" },
+              { key: "created", label: "Just created", count: createdKeys.length },
+            ]}
+            value={createdOnly ? "created" : "all"}
+            onChange={(key) => setCreatedOnly(key === "created")}
+          />
+        ) : undefined
+      }
+      search={
+        <SearchInput
+          aria-label="Search licenses"
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder="Search licenses, customers, orders…"
+        />
+      }
+    />
+  );
+
   const renderTable = (lics: LicenseRecord[], title: string) => (
     <section
       className="panel"
@@ -751,15 +786,6 @@ export function LicensesPage({
         <EmptyState
           icon={<Key />}
           title="No licenses found"
-          // Filtered to nothing: the way out sits in the empty state, like every
-          // other filtered list in the console.
-          action={
-            hasLicenseFilters ? (
-              <Button size="sm" icon={<X size={14} />} onClick={clearLicenseFilters}>
-                Clear filters
-              </Button>
-            ) : undefined
-          }
         >
           {hasLicenseFilters
             ? "No licenses match your current search filter."
@@ -1021,7 +1047,6 @@ export function LicensesPage({
         page="licenses"
         right={
           <>
-            {workspaceTab === "inventory" ? filterBar : null}
             {/* One primary way to sell a license, reachable from every tab. */}
             <Button
               variant="primary"
@@ -1097,6 +1122,7 @@ export function LicensesPage({
         value={workspaceTab}
         onChange={setWorkspaceTab}
       />
+      {workspaceTab === "inventory" && inventoryToolbar}
       {workspaceTab === "inventory" && renderTable(sortedLicenses, "All licenses")}
       {workspaceTab === "lookup" && (
         <section

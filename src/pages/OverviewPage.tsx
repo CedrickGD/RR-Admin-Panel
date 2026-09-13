@@ -12,7 +12,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { useCallback, useMemo, useState, type ComponentProps, type ReactNode } from "react";
+import { useCallback, useMemo, useState, type ComponentProps } from "react";
 import {
   Area,
   Bar,
@@ -47,7 +47,6 @@ interface OverviewPageProps {
   stats: StatsPayload | null;
   theme: ThemeMode;
   accentHue?: number;
-  filterBar?: ReactNode;
 }
 
 const TIME_WINDOWS = [
@@ -97,7 +96,7 @@ function sumSessionsSince(series: DayPoint[], days: number): number {
   return series.reduce((acc, p) => (p.day >= cutoff ? acc + p.sessions : acc), 0);
 }
 
-export function OverviewPage({ summary, stats, filterBar }: OverviewPageProps) {
+export function OverviewPage({ summary, stats }: OverviewPageProps) {
   const canMonitor = usePanelPermission("monitoring.read");
   const canReadSupport = usePanelPermission("support.read");
   const traffic = useMemo(() => buildTrafficTimeline(summary, 24, "UTC"), [summary]);
@@ -258,7 +257,7 @@ export function OverviewPage({ summary, stats, filterBar }: OverviewPageProps) {
   return (
     <div className="page-content page-stack-lg">
       {/* Page header — title from PAGE_META left, global filters right */}
-      <PageHeader page="overview" right={filterBar} />
+      <PageHeader page="overview" />
 
       {/* Two-column grid: left (stats + chart), right (side panels) */}
 

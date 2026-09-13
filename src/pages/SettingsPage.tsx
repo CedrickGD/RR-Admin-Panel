@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import {
   Check,
   ImagePlus,
@@ -27,7 +27,6 @@ type Props = {
   user: AuthUser;
   authMode: AuthMode;
   onLogout: () => void;
-  filterBar?: ReactNode;
 };
 export function SettingsPage({ user, authMode, onLogout }: Props) {
   const { appearance: a, updateAppearance: update, syncStatus, retrySync } = useAppearance();

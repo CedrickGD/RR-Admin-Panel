@@ -51,6 +51,8 @@ import { Select } from "./ds/Select";
 import { SkeletonRows } from "./ds/Skeleton";
 import { RecordCell, RecordLink, TableFrame } from "./ds/TableFrame";
 
+const NO_WRAP: CSSProperties = { whiteSpace: "nowrap" };
+
 const VIEWS: TabItem<RestrictionView>[] = [
   { key: "active", label: "Active" },
   { key: "lifted", label: "Lifted" },
@@ -262,7 +264,7 @@ export function CustomerRestrictions({
                   Until {formatDay(record.banned_until)}
                 </Badge>
               </span>
-              <small>{remainingTime(record.banned_until!, nowMs)}</small>
+              <small style={NO_WRAP}>{remainingTime(record.banned_until!, nowMs)}</small>
             </div>
           );
         }
@@ -271,7 +273,7 @@ export function CustomerRestrictions({
             <span>
               <Badge tone="muted">{state === "lifted" ? "Lifted" : "Expired"}</Badge>
             </span>
-            <small>
+            <small style={NO_WRAP}>
               {state === "expired"
                 ? `ended ${formatDay(record.banned_until)}`
                 : permanent
@@ -289,7 +291,7 @@ export function CustomerRestrictions({
         record.reason ? (
           <span
             className="cell-truncate"
-            style={{ display: "block", "--cell-max": "280px" } as CSSProperties}
+            style={{ display: "block", "--cell-max": "360px" } as CSSProperties}
             title={record.reason}
           >
             {record.reason}
@@ -318,14 +320,12 @@ export function CustomerRestrictions({
             key: "ended",
             header: "Lifted",
             render: (entry: RestrictionEntry) =>
-              entry.state === "active" ? (
+              entry.state !== "lifted" ? (
                 <span className="muted">—</span>
               ) : (
                 <div className="customer-directory-stacked">
                   <span title={entry.record.lifted_by ?? undefined}>
-                    {entry.state === "expired"
-                      ? "Ran out"
-                      : (entry.record.lifted_by ?? "Not recorded")}
+                    {entry.record.lifted_by ?? "Not recorded"}
                   </span>
                   <small>
                     <RelativeTime iso={entry.endedAt} />
@@ -435,18 +435,17 @@ export function CustomerRestrictions({
         <span>
           <Ban />
           <strong>{count(summary.permanent)}</strong>
-          {summary.permanent === 1 ? "permanent ban" : "permanent bans"}
+          permanent
         </span>
         <span>
           <Clock3 />
           <strong>{count(summary.temporary)}</strong>
-          {summary.temporary === 1 ? "suspension with an end date" : "suspensions with an end date"}
-          {summary.nextEnd ? ` · next ends ${formatDay(summary.nextEnd)}` : ""}
+          temporary
         </span>
         <span>
           <RotateCcw />
           <strong>{count(summary.liftedRecently)}</strong>
-          lifted in the last {RECENT_LIFT_DAYS} days
+          lifted in {RECENT_LIFT_DAYS} days
         </span>
       </div>
 
@@ -507,7 +506,7 @@ export function CustomerRestrictions({
         collapsible={false}
         sub={
           records
-            ? `${formatNumber(shown.length)} of ${formatNumber(entries.length)} shown · active first, newest on top`
+            ? `${formatNumber(shown.length)} of ${formatNumber(entries.length)} shown`
             : "Loading customer restrictions…"
         }
       >

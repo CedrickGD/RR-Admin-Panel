@@ -180,6 +180,8 @@ export interface SuspensionRecord {
   created_at: string;
   updated_at: string;
   lifted_at: string | null;
+  /** Panel account that lifted it. Optional: older API builds do not send the column. */
+  lifted_by?: string | null;
 }
 
 /** One registered install (rr.install.v1) of a device, from GET /api/admin/installs?hwid=. */

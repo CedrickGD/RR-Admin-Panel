@@ -1,4 +1,4 @@
-import { TableFrame } from "../components/ds/TableFrame";
+import { TableFrame, RecordCell, RecordLink } from "../components/ds/TableFrame";
 import {
   CustomerAvatar,
   useCustomerDirectory,
@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { CollapsiblePanel } from "../components/CollapsiblePanel";
 import { Customer360Overlay, type Customer360Anchor } from "../components/Customer360Overlay";
 import {
   CustomerAccessDialog,
@@ -355,7 +356,7 @@ export function CustomersPage({ users: sourceUsers }: CustomersPageProps) {
       : {};
 
   return (
-    <div className="page-content page-stack-lg customer-directory-workspace">
+    <div className="page-content page-stack-lg">
       <PageHeader kicker="Customer support" page="customers" />
 
       {canReadAccess ? (
@@ -380,8 +381,8 @@ export function CustomersPage({ users: sourceUsers }: CustomersPageProps) {
           />
         </div>
       ) : (
-        <div className="page-stack-lg customer-directory-section" {...panelProps("directory")}>
-          <div className="stat-grid stat-grid-4 customer-directory-stats">
+        <div className="page-stack-lg" {...panelProps("directory")}>
+          <div className="stat-grid stat-grid-4">
             <KpiStatCard
               label="All-time customers"
               value={formatNumber(totals.customers)}
@@ -415,84 +416,85 @@ export function CustomersPage({ users: sourceUsers }: CustomersPageProps) {
             />
           </div>
 
-          <section className="panel customer-directory-panel" aria-label="Customer directory">
-            <div className="customer-directory-toolbar">
-              <PageToolbar
-                aria-label="Customer filters"
-                canReset={hasFilters}
-                onReset={clearFilters}
-                search={
-                  <SearchInput
-                    aria-label="Search customers"
-                    value={query}
-                    onChange={setQuery}
-                    placeholder="Search customer, PC, Discord or HWID…"
-                  />
-                }
-                filters={
-                  <>
-                    <Select
-                      aria-label="Customer scope"
-                      value={scope ?? ""}
-                      onValueChange={(value) => updateScope(value || null)}
-                    >
-                      <option value="">All customers</option>
-                      {CUSTOMER_SCOPES.map((value) => (
-                        <option key={value} value={value}>
-                          {SCOPE_LABELS[value]}
-                        </option>
-                      ))}
-                    </Select>
-                    <Select
-                      aria-label="App version"
-                      value={filters.version ?? ""}
-                      onValueChange={(value) => updateFilter("version", value || null)}
-                    >
-                      <option value="">All versions</option>
-                      {filterOptions.versions.map((value) => (
-                        <option key={value} value={value}>
-                          {versionLabel(value)}
-                        </option>
-                      ))}
-                    </Select>
-                    <Select
-                      aria-label="Continent"
-                      value={filters.continent ?? ""}
-                      onValueChange={(value) => updateFilter("continent", value || null)}
-                    >
-                      <option value="">All continents</option>
-                      {filterOptions.continents.map((value) => (
-                        <option key={value} value={value}>
-                          {value}
-                        </option>
-                      ))}
-                    </Select>
-                    <Select
-                      aria-label="Country"
-                      value={filters.country ?? ""}
-                      onValueChange={(value) => updateFilter("country", value || null)}
-                    >
-                      <option value="">All countries</option>
-                      {filterOptions.countries.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </Select>
-                  </>
-                }
+          {/* The one filter place on this page (handoff §2.3), directly above the
+              directory it filters. The search is this page's stored query
+              (useWorkspaceSearch), so a carried-over search is already in it. */}
+          <PageToolbar
+            aria-label="Customer filters"
+            canReset={hasFilters}
+            onReset={clearFilters}
+            search={
+              <SearchInput
+                aria-label="Search customers"
+                value={query}
+                onChange={setQuery}
+                placeholder="Search customer, PC, Discord or HWID…"
               />
-            </div>
-            <div className="customer-directory-meta" role="status" aria-live="polite">
-              <p className="customer-directory-count">
-                {directoryUsers
-                  ? hasFilters
-                    ? `${formatNumber(directoryUsers.length)} of ${formatNumber(users?.length ?? 0)} customers`
-                    : `${formatNumber(directoryUsers.length)} customers`
-                  : "Loading customer records..."}
-              </p>
-              <span className="customer-directory-meta-note">All-time records</span>
-            </div>
+            }
+            filters={
+              <>
+                <Select
+                  aria-label="Customer scope"
+                  value={scope ?? ""}
+                  onValueChange={(value) => updateScope(value || null)}
+                >
+                  <option value="">All customers</option>
+                  {CUSTOMER_SCOPES.map((value) => (
+                    <option key={value} value={value}>
+                      {SCOPE_LABELS[value]}
+                    </option>
+                  ))}
+                </Select>
+                <Select
+                  aria-label="App version"
+                  value={filters.version ?? ""}
+                  onValueChange={(value) => updateFilter("version", value || null)}
+                >
+                  <option value="">All versions</option>
+                  {filterOptions.versions.map((value) => (
+                    <option key={value} value={value}>
+                      {versionLabel(value)}
+                    </option>
+                  ))}
+                </Select>
+                <Select
+                  aria-label="Continent"
+                  value={filters.continent ?? ""}
+                  onValueChange={(value) => updateFilter("continent", value || null)}
+                >
+                  <option value="">All continents</option>
+                  {filterOptions.continents.map((value) => (
+                    <option key={value} value={value}>
+                      {value}
+                    </option>
+                  ))}
+                </Select>
+                <Select
+                  aria-label="Country"
+                  value={filters.country ?? ""}
+                  onValueChange={(value) => updateFilter("country", value || null)}
+                >
+                  <option value="">All countries</option>
+                  {filterOptions.countries.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </Select>
+              </>
+            }
+          />
+
+          <CollapsiblePanel
+            kicker="CRM"
+            title="Directory"
+            collapsible={false}
+            sub={
+              directoryUsers
+                ? `${formatNumber(directoryUsers.length)} of ${formatNumber(users?.length ?? 0)} shown · all-time customer records`
+                : "Loading all-time customer records…"
+            }
+          >
             <div className="panel-body-flush">
               {directoryUsers === null || directoryUsers.length > 0 ? (
                 <>
@@ -578,43 +580,39 @@ export function CustomersPage({ users: sourceUsers }: CustomersPageProps) {
                         <SkeletonRows columns={DIRECTORY_SKELETON_COLUMNS} />
                       ) : (
                         (paginated?.items ?? []).map((user) => (
-                          <tr key={user.identity} className="customer-directory-row">
-                            <td className="customer-directory-customer">
-                              <Button
-                                variant="ghost"
-                                className="customer-directory-identity"
-                                title="Open customer workspace"
-                                aria-label={`Open customer workspace for ${displayName(user)}`}
-                                onClick={() => setSelectedUser(user)}
-                              >
+                          <tr key={user.identity}>
+                            <td>
+                              <div className="person-cell">
                                 <CustomerAvatar
                                   profile={findProfile(user.identity, user.hwid)}
                                   label={displayName(user)}
                                 />
-                                <span className="customer-directory-identity-copy">
-                                  <span className="customer-directory-name">
-                                    {displayName(user)}
-                                  </span>
-                                  <span className="customer-directory-tier">
-                                    {user.licenseTier === "premium" ? "Premium" : "Free"}
-                                  </span>
-                                </span>
-                              </Button>
+                                <RecordCell
+                                  primary={
+                                    // The name opens the same workspace as the row action,
+                                    // so Customer 360 is one click away from the first column.
+                                    <RecordLink
+                                      title="Open customer workspace"
+                                      onClick={() => setSelectedUser(user)}
+                                    >
+                                      {displayName(user)}
+                                    </RecordLink>
+                                  }
+                                  secondary={user.licenseTier === "premium" ? "Premium" : "Free"}
+                                />
+                              </div>
                             </td>
                             <td
-                              className="muted col-md customer-directory-contact customer-directory-secondary"
+                              className="muted col-md"
                               data-label="Contact"
                               title={user.discordUser ?? undefined}
                             >
                               {discordHandle(user.discordUser)}
                             </td>
-                            <td className="customer-directory-secondary" data-label="Version">
+                            <td data-label="Version">
                               <Badge tone="muted">{userVersionLabel(user)}</Badge>
                             </td>
-                            <td
-                              className="muted col-lg customer-directory-secondary"
-                              data-label="Device / OS"
-                            >
+                            <td className="muted col-lg" data-label="Device / OS">
                               <div className="customer-directory-stacked">
                                 <span>
                                   {user.deviceModel?.trim() || user.platform?.trim() || "—"}
@@ -623,22 +621,16 @@ export function CustomersPage({ users: sourceUsers }: CustomersPageProps) {
                               </div>
                             </td>
                             <td
-                              className="muted col-xl customer-directory-secondary"
+                              className="muted col-xl"
                               data-label="Location"
                               title={locationLabel(user)}
                             >
                               {locationLabel(user)}
                             </td>
-                            <td
-                              className="muted numeric customer-directory-secondary"
-                              data-label="Sessions"
-                            >
+                            <td className="muted numeric" data-label="Sessions">
                               {formatNumber(user.sessions)}
                             </td>
-                            <td
-                              className="muted col-lg numeric customer-directory-secondary"
-                              data-label="Total time"
-                            >
+                            <td className="muted col-lg numeric" data-label="Total time">
                               {user.totalDurationSeconds > 0
                                 ? formatDuration(user.totalDurationSeconds)
                                 : "—"}
@@ -671,17 +663,19 @@ export function CustomersPage({ users: sourceUsers }: CustomersPageProps) {
                                     {user.lastStatus === "down" ? "Down" : "Degraded"}
                                   </Badge>
                                 ) : null}
-                                {!needsAttention(user) ? <Badge tone="success">Clear</Badge> : null}
+                                {!needsAttention(user) ? (
+                                  <Badge tone="success">Clear</Badge>
+                                ) : null}
                               </div>
                             </td>
                             <td
-                              className="muted customer-directory-first-seen customer-directory-secondary"
+                              className="muted customer-directory-first-seen"
                               data-label="First seen"
                             >
                               <RelativeTime iso={user.firstSeen} />
                             </td>
                             <td
-                              className="muted customer-directory-last-seen customer-directory-secondary"
+                              className="muted customer-directory-last-seen"
                               data-label="Last seen"
                             >
                               {user.isActive ? <span className="status-dot" /> : null}
@@ -741,7 +735,7 @@ export function CustomersPage({ users: sourceUsers }: CustomersPageProps) {
                 </EmptyState>
               )}
             </div>
-          </section>
+          </CollapsiblePanel>
         </div>
       )}
 

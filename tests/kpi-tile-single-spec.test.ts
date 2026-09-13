@@ -26,7 +26,6 @@ const OTHER_LAYERS = [
   "../src/theme/workspace.css",
   "../src/theme/operations.css",
   "../src/theme/consistency.css",
-  "../src/theme/customer-system.css",
 ];
 /** Properties that decide how big the tile and its text are. */
 const GEOMETRY =
@@ -110,16 +109,13 @@ describe("PageToolbar is the one filter place on Customers", () => {
     expect(page).toContain("<SearchInput");
   });
 
-  it("sits inside the directory surface, below the KPI tiles and above the records", () => {
+  it("sits directly above the directory it filters, below the KPI tiles", () => {
     const tiles = page.indexOf('<div className="stat-grid');
-    const surface = page.indexOf('className="panel customer-directory-panel"');
     const toolbar = page.indexOf("<PageToolbar");
-    const directory = page.indexOf("<TableFrame");
+    const directory = page.indexOf('title="Directory"');
     expect(tiles).toBeGreaterThan(-1);
-    expect(surface).toBeGreaterThan(tiles);
-    expect(toolbar).toBeGreaterThan(surface);
+    expect(toolbar).toBeGreaterThan(tiles);
     expect(directory).toBeGreaterThan(toolbar);
-    expect(page).not.toContain('title="Directory"');
   });
 
   it("offers Reset only while a filter differs from its default", () => {

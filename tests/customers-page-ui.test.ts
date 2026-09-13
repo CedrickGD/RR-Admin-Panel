@@ -33,7 +33,7 @@ describe("Customers CRM page", () => {
     expect(page).toContain('page="customers"');
     // Still the shared directory helper over the all-time rollup.
     expect(page).toContain("filterAndSortUsers(users");
-    expect(page).toContain("All-time records");
+    expect(page).toContain("all-time customer records");
   });
 
   it("splits the page into Directory and Restrictions sections", () => {

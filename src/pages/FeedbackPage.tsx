@@ -1,5 +1,5 @@
-import { Archive, Check, Mail, MessageSquare, Trash2, User, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Archive, Check, Mail, MessageSquare, Trash2, User } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { matchesFeedbackStatus } from "../utils/feedbackInbox";
 import { Badge } from "../components/ds/Badge";
 import { Button, IconButton } from "../components/ds/Button";
@@ -7,6 +7,7 @@ import { EmptyState } from "../components/ds/EmptyState";
 import { FormError } from "../components/ds/Field";
 import { Modal, ModalActions } from "../components/ds/Modal";
 import { PageHeader } from "../components/ds/PageHeader";
+import { PageToolbar } from "../components/ds/PageToolbar";
 import { RelativeTime } from "../components/ds/RelativeTime";
 import { SearchInput } from "../components/ds/SearchInput";
 import { SegmentedControl, type TabItem } from "../components/ds/SegmentedControl";
@@ -36,7 +37,6 @@ interface FeedbackRecord {
 
 interface FeedbackPageProps {
   summary?: SummaryPayload | null;
-  filterBar?: ReactNode;
 }
 
 /** Fixed status tones: new stands out (info), read/archived recede (muted — grey = done/off). */
@@ -74,12 +74,13 @@ function isLongMessage(message: string): boolean {
   return message.length > 240 || (message.match(/\n/g)?.length ?? 0) >= 4;
 }
 
-export function FeedbackPage({ summary, filterBar }: FeedbackPageProps) {
+export function FeedbackPage({ summary }: FeedbackPageProps) {
   const canOpenCustomer = usePanelPermission("customers.read");
   const [feedback, setFeedback] = useState<FeedbackRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [tab, setTab] = useState<FeedbackTab>("all");
+  const feedbackFiltersActive = searchQuery.trim().length > 0 || tab !== "all";
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [deleteCandidate, setDeleteCandidate] = useState<FeedbackRecord | null>(null);
   const [replyCandidate, setReplyCandidate] = useState<FeedbackRecord | null>(null);
@@ -212,18 +213,35 @@ export function FeedbackPage({ summary, filterBar }: FeedbackPageProps) {
       <PageHeader
         kicker="Inbox"
         page="feedback"
-        right={
-          <>
-            {filterBar}
-            {/* A filter over one list, not a panel switch — the default
-                radiogroup roles are the honest ones (ds/SegmentedControl). */}
-            <SegmentedControl
-              aria-label="Filter by status"
-              items={statusTabs}
-              value={tab}
-              onChange={setTab}
-            />
-          </>
+      />
+
+      {/* The one filter place on this page (handoff §2.3), directly above the
+          inbox it filters: status left, search right, Reset while either is
+          set. Both used to sit apart — status in the page header, search in
+          the panel head. A filter over one list, so the segmented control
+          keeps its radiogroup roles. */}
+      <PageToolbar
+        aria-label="Feedback filters"
+        canReset={feedbackFiltersActive}
+        onReset={() => {
+          setSearchQuery("");
+          setTab("all");
+        }}
+        left={
+          <SegmentedControl
+            aria-label="Filter by status"
+            items={statusTabs}
+            value={tab}
+            onChange={setTab}
+          />
+        }
+        search={
+          <SearchInput
+            aria-label="Search feedback"
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Search message, customer, license…"
+          />
         }
       />
 
@@ -232,14 +250,6 @@ export function FeedbackPage({ summary, filterBar }: FeedbackPageProps) {
           <div className="panel-head-left">
             <h2 className="section-title">Messages</h2>
             <p className="section-sub">Feedback submitted from the app, linked to its author</p>
-          </div>
-          <div className="panel-head-right">
-            <SearchInput
-              value={searchQuery}
-              onChange={setSearchQuery}
-              placeholder="Search message, customer, license…"
-              className="search-wrap-280"
-            />
           </div>
         </div>
         {listError && (
@@ -262,22 +272,8 @@ export function FeedbackPage({ summary, filterBar }: FeedbackPageProps) {
           <EmptyState
             icon={<MessageSquare />}
             title="No feedback"
-            action={
-              searchQuery || tab !== "all" ? (
-                <Button
-                  size="sm"
-                  icon={<X size={14} />}
-                  onClick={() => {
-                    setSearchQuery("");
-                    setTab("all");
-                  }}
-                >
-                  Clear filters
-                </Button>
-              ) : undefined
-            }
           >
-            {searchQuery || tab !== "all"
+            {feedbackFiltersActive
               ? "Nothing matches the current filter."
               : "Feedback submitted from the app will show up here."}
           </EmptyState>

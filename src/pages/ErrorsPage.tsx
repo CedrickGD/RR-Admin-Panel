@@ -5,8 +5,6 @@ import {
   ChevronDown,
   ChevronRight,
   ChevronUp,
-  Eye,
-  EyeOff,
   Search,
   Timer,
   Users as UsersIcon,
@@ -21,6 +19,7 @@ import { Button, IconButton } from "../components/ds/Button";
 import { DetailGrid, SortHeader, type SortState } from "../components/ds/DataTable";
 import { EmptyState } from "../components/ds/EmptyState";
 import { PageHeader } from "../components/ds/PageHeader";
+import { PageToolbar } from "../components/ds/PageToolbar";
 import { RelativeTime } from "../components/ds/RelativeTime";
 import { SearchInput } from "../components/ds/SearchInput";
 import { SegmentedControl, type TabItem } from "../components/ds/SegmentedControl";
@@ -224,6 +223,13 @@ export function ErrorsPage() {
   const [view, setView] = useState<ViewKey>("users");
   const [query, setQuery] = useState("");
   const [showBackground, setShowBackground] = useState(false);
+  /** Filters, not the grouping view: what the toolbar's Reset puts back. */
+  const errorFiltersActive = query.trim().length > 0 || range !== "24h" || showBackground;
+  function resetErrorFilters() {
+    setQuery("");
+    setRange("24h");
+    setShowBackground(false);
+  }
   const [expandedUsers, setExpandedUsers] = useState<string[]>([]);
   // "Has ever expanded" memory — rows never expanded keep costing nothing (no detail DOM).
   const [expandedEverUsers, setExpandedEverUsers] = useState<Set<string>>(new Set());
@@ -443,29 +449,6 @@ export function ErrorsPage() {
         kicker="Failures"
         page="errors"
         sub="Every collected error, linked to the customer it came from."
-        right={
-          <>
-            <Select
-              aria-label="Time window"
-              value={range}
-              onValueChange={(value) => setRange(value as ErrorsRangeKey)}
-            >
-              {RANGES.map((r) => (
-                <option key={r.key} value={r.key}>
-                  {r.title}
-                </option>
-              ))}
-            </Select>
-            {/* Panel switch, not a filter — pill look, tab semantics. */}
-            <SegmentedControl
-              as="tablist"
-              aria-label="Error grouping"
-              items={VIEW_TABS}
-              value={view}
-              onChange={setView}
-            />
-          </>
-        }
       />
 
       {/* KPIs */}
@@ -532,6 +515,60 @@ export function ErrorsPage() {
         </p>
       ) : null}
 
+      {/* The one filter place on this page (handoff §2.3), directly above the
+          panel it filters: grouping left (a view switch over the same errors,
+          so a radiogroup, not tabs), then search, time window and the
+          background-task switch. Reset puts the filters back; the grouping is
+          a view, not a filter, so it stays. */}
+      <PageToolbar
+        aria-label="Error filters"
+        canReset={errorFiltersActive}
+        onReset={resetErrorFilters}
+        left={
+          <SegmentedControl
+            aria-label="Error grouping"
+            items={VIEW_TABS}
+            value={view}
+            onChange={setView}
+          />
+        }
+        search={
+          <SearchInput
+            aria-label="Search errors"
+            value={query}
+            onChange={setQuery}
+            placeholder={
+              view === "users" ? "Search customer, Discord, error…" : "Search failure, customer…"
+            }
+          />
+        }
+        filters={
+          <>
+            <Select
+              aria-label="Time window"
+              value={range}
+              onValueChange={(value) => setRange(value as ErrorsRangeKey)}
+            >
+              {RANGES.map((r) => (
+                <option key={r.key} value={r.key}>
+                  {r.title}
+                </option>
+              ))}
+            </Select>
+            <Select
+              aria-label="Background task errors"
+              value={showBackground ? "shown" : "hidden"}
+              onValueChange={(value) => setShowBackground(value === "shown")}
+            >
+              <option value="hidden">Background hidden</option>
+              <option value="shown">
+                {`Background included${backgroundTotal > 0 ? ` (${formatNumber(backgroundTotal)})` : ""}`}
+              </option>
+            </Select>
+          </>
+        }
+      />
+
       <CollapsiblePanel
         kicker={view === "users" ? "Linked" : "Grouped"}
         title={view === "users" ? "Customers with errors" : "Failures"}
@@ -545,31 +582,6 @@ export function ErrorsPage() {
               : undefined
         }
         padding="flush"
-        right={
-          <>
-            <SearchInput
-              value={query}
-              onChange={setQuery}
-              placeholder={
-                view === "users" ? "Search customer, Discord, error…" : "Search failure, customer…"
-              }
-              className="search-wrap-280"
-            />
-            <Button
-              size="sm"
-              icon={showBackground ? <Eye /> : <EyeOff />}
-              className={showBackground ? "is-active" : ""}
-              onClick={() => setShowBackground((v) => !v)}
-              title={
-                showBackground
-                  ? "Background task errors are shown — click to hide them"
-                  : "Background task errors are hidden — click to include them"
-              }
-            >
-              Background{backgroundTotal > 0 ? ` (${formatNumber(backgroundTotal)})` : ""}
-            </Button>
-          </>
-        }
       >
         {view === "users" ? (
           unavailable ? (
@@ -837,15 +849,7 @@ export function ErrorsPage() {
               </tbody>
             </TableFrame>
           ) : query ? (
-            <EmptyState
-              icon={<Search />}
-              title="No customers match"
-              action={
-                <Button size="sm" icon={<X />} onClick={() => setQuery("")}>
-                  Clear search
-                </Button>
-              }
-            >
+            <EmptyState icon={<Search />} title="No customers match">
               No affected customer matches “{query}”.
             </EmptyState>
           ) : (

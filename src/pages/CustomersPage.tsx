@@ -356,7 +356,7 @@ export function CustomersPage({ users: sourceUsers }: CustomersPageProps) {
       : {};
 
   return (
-    <div className="page-content page-stack-lg">
+    <div className="page-content page-stack-lg customer-glass customer-directory-workspace">
       <PageHeader kicker="Customer support" page="customers" />
 
       {canReadAccess ? (
@@ -381,7 +381,7 @@ export function CustomersPage({ users: sourceUsers }: CustomersPageProps) {
           />
         </div>
       ) : (
-        <div className="page-stack-lg" {...panelProps("directory")}>
+        <div className="page-stack-lg customer-directory-section" {...panelProps("directory")}>
           <div className="stat-grid stat-grid-4">
             <KpiStatCard
               label="All-time customers"

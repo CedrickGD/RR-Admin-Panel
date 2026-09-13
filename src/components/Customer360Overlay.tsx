@@ -301,36 +301,45 @@ function DiagnosticReport({ report }: { report: DiagnosticBundle | null }) {
 function SummaryTab({ customer }: { customer: Customer360Customer }) {
   const { summary } = customer;
   return (
-    <section className="customer360-card">
-      <SectionHeading icon={<Laptop />} title="Environment" />
-      <InfoGrid
-        items={[
-          { label: "App version", value: summary.display_version ?? summary.app_version },
-          { label: "Platform", value: summary.platform },
-          { label: "OS", value: summary.os_version },
-          { label: "Device", value: summary.device_model },
-          {
-            label: "Country",
-            value: resolveCountry(summary.country)?.label ?? summary.country,
-          },
-          {
-            label: "City / region",
-            value: [summary.city, summary.region].filter(Boolean).join(", "),
-          },
-          { label: "Timezone", value: summary.timezone },
-          {
-            label: "First seen",
-            value: summary.first_seen ? formatDate(summary.first_seen) : null,
-          },
-          {
-            label: "Last seen",
-            value: summary.last_seen
-              ? `${formatDate(summary.last_seen)} (${timeAgo(summary.last_seen)})`
-              : null,
-          },
-        ]}
-      />
-    </section>
+    <div className="customer360-environment">
+      <section className="customer360-card">
+        <SectionHeading icon={<Laptop />} title="App & device" />
+        <InfoGrid
+          items={[
+            { label: "App version", value: summary.display_version ?? summary.app_version },
+            { label: "Platform", value: summary.platform },
+            { label: "OS", value: summary.os_version },
+            { label: "Device", value: summary.device_model },
+          ]}
+        />
+      </section>
+      <section className="customer360-card">
+        <SectionHeading icon={<RefreshCw />} title="Location & activity" />
+        <InfoGrid
+          items={[
+            {
+              label: "Country",
+              value: resolveCountry(summary.country)?.label ?? summary.country,
+            },
+            {
+              label: "City / region",
+              value: [summary.city, summary.region].filter(Boolean).join(", "),
+            },
+            { label: "Timezone", value: summary.timezone },
+            {
+              label: "First seen",
+              value: summary.first_seen ? formatDate(summary.first_seen) : null,
+            },
+            {
+              label: "Last seen",
+              value: summary.last_seen
+                ? `${formatDate(summary.last_seen)} (${timeAgo(summary.last_seen)})`
+                : null,
+            },
+          ]}
+        />
+      </section>
+    </div>
   );
 }
 
@@ -394,7 +403,7 @@ function IdentityCard({
   ].filter((fact) => fact.value !== null && fact.value !== undefined && fact.value !== "");
   const requestedBy = String(anchor.requested_by ?? "");
   return (
-    <section className="customer360-card">
+    <section className="customer360-card customer360-identity">
       <div className="customer360-card-head">
         <SectionHeading icon={<UserRound />} title="Identity" />
         <Button size="sm" icon={<Braces />} onClick={onRawData}>
@@ -891,12 +900,12 @@ export function Customer360View({
     <div className="customer360-layout">
       <aside className="customer360-side" aria-label="Customer summary">
         <SectionErrors customer={customer} names={["profile", "summary"]} />
-        <KeyFigures customer={customer} />
         <IdentityCard
           customer={customer}
           linkedAccount={accountProfile ? `@${accountProfile.discordUsername}` : null}
           onRawData={() => setRawOpen(true)}
         />
+        <KeyFigures customer={customer} />
       </aside>
       <div className="customer360-main">
         <div className="customer360-tabs" role="tablist" aria-label="Customer information sections">
@@ -994,7 +1003,7 @@ export function Customer360View({
   }
   return (
     <section
-      className={`customer-workspace${handoff === "fade" ? " is-leaving" : ""}`}
+      className={`customer-workspace customer-glass${handoff === "fade" ? " is-leaving" : ""}`}
       aria-label="Customer 360"
       aria-hidden={handoff ? true : undefined}
       inert={Boolean(handoff)}

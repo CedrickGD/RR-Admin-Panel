@@ -7,6 +7,7 @@ import "./theme/app-glue.css";
 import "./theme/workspace.css";
 import "./theme/operations.css";
 import "./theme/consistency.css";
+import "./theme/customer-glass.css";
 import { redirectLegacyPagesHost } from "./utils/legacyPagesRedirect";
 
 const root = document.getElementById("root");

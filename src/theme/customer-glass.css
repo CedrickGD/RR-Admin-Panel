@@ -1,0 +1,127 @@
+/* Customer workspaces extend the existing transparent theme, not its palette.
+   Keep the selected scene visible. No opaque card fills or additional blur.
+   The fixed workspace root, pinned cells, and menus retain their own coverage. */
+.customer-glass {
+  --record-glass-fill: var(--workspace-surface);
+  --record-glass-edge: color-mix(in srgb, var(--accent) 12%, var(--line));
+  --record-glass-tint: color-mix(in srgb, var(--accent) 5%, transparent);
+  --record-glass-sheen: color-mix(in srgb, var(--text-1) 6%, transparent);
+  --record-glass-radius: 12px;
+  --record-glass-padding: 18px;
+  --record-glass-gap: 16px;
+}
+
+/* Match the background-qualified surface rule in consistency.css without
+   changing global tokens or the appearance of unrelated workspaces. */
+html[data-theme] .customer-glass :is(.panel, .customer360-card),
+html[data-background]:not([data-background="plain"])
+  .customer-glass
+  :is(.panel, .customer360-card) {
+  background:
+    linear-gradient(135deg, var(--record-glass-tint), transparent 58%),
+    var(--record-glass-fill);
+  border-color: var(--record-glass-edge);
+  border-radius: var(--record-glass-radius);
+  box-shadow: inset 0 1px 0 var(--record-glass-sheen);
+}
+
+/* Density comes from spacing, not from hiding helper text or changing the
+   shared KPI specification. Search remains directly above its directory. */
+.page-content.customer-directory-workspace {
+  gap: 20px;
+}
+
+.customer-directory-workspace .customer-directory-section {
+  gap: var(--record-glass-gap);
+}
+
+.customer-directory-workspace .page-header {
+  margin-bottom: 0;
+}
+
+.customer-directory-workspace .panel-head {
+  padding: 14px var(--record-glass-padding);
+}
+
+/* Retain the table frame's pinned-cell paints and scrolling behavior. Apply
+   the accent to the name interaction rather than painting every row. */
+.customer-directory-workspace .person-cell {
+  gap: 12px;
+}
+
+.customer-directory-workspace .record-link {
+  text-underline-offset: 4px;
+}
+
+.customer-directory-workspace .record-link:hover {
+  color: var(--accent-text);
+}
+
+/* Reuse the existing identity rail, section headings, and definition lists.
+   Do not put a background on the full workspace or its content wrapper. */
+html[data-theme] .customer-glass .customer360-card {
+  padding: var(--record-glass-padding);
+}
+
+html[data-theme] .customer-glass .customer360-card.customer360-identity {
+  box-shadow:
+    inset 2px 0 0 var(--accent),
+    inset 0 1px 0 var(--record-glass-sheen);
+}
+
+.customer-glass .customer360-side > .customer360-card {
+  min-width: 0;
+  width: 100%;
+}
+
+.customer-glass .customer360-card-head {
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.customer-glass .customer360-environment {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  align-items: stretch;
+  gap: var(--record-glass-gap);
+  min-width: 0;
+}
+
+.customer-glass .customer360-environment > .customer360-card {
+  min-width: 0;
+  margin: 0;
+}
+
+html[data-theme] .customer-glass .customer360-environment .customer360-info-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+@media (max-width: 600px) {
+  .customer-glass {
+    --record-glass-padding: 14px;
+    --record-glass-gap: 14px;
+  }
+
+  .page-content.customer-directory-workspace {
+    gap: var(--record-glass-gap);
+  }
+
+  .customer-glass .customer360-card-head {
+    flex-wrap: wrap;
+  }
+
+  .customer-directory-workspace .record-link {
+    min-height: 44px;
+  }
+
+  html[data-theme] .customer-glass .customer360-environment .customer360-info-grid {
+    column-gap: 12px;
+  }
+}
+
+@media (max-width: 359px) {
+  html[data-theme] .customer-glass .customer360-environment .customer360-info-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

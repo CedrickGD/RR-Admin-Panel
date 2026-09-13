@@ -399,15 +399,20 @@ async function loadSummaryD1(env: RuntimeEnv): Promise<SummaryPayload> {
       )
       .bind(RECENT_SESSION_LIMIT)
       .all<D1SessionRow>(),
+    // Overview's recent-errors feed (it shows the last 24 h only). Background faults are
+    // filtered here, not in the browser: a client looping on RR-E1003 used to fill the whole
+    // newest-50 window and starve real errors out of the feed. The 24 h bound walks
+    // idx_events_ts, so the scan stays small even when no real error exists at all.
     db
       .prepare(
         `SELECT event_id, source, service, ts, status, metrics_json, message, received_at
          FROM telemetry_events
-         WHERE service = ?
-         ORDER BY id DESC
+         WHERE ts >= ? AND service = ?
+           AND COALESCE(json_extract(metrics_json, '$.error_kind'), '') != 'background'
+         ORDER BY ts DESC
          LIMIT ?`,
       )
-      .bind(APP_ERROR, RECENT_ERROR_LIMIT)
+      .bind(hoursAgoIso(24), APP_ERROR, RECENT_ERROR_LIMIT)
       .all<D1EventRow>(),
     db
       .prepare(
@@ -653,7 +658,10 @@ function buildSummaryFromCollections(
 
   const recentEvents = events.slice(0, RECENT_EVENT_LIMIT);
   const recentErrors = recentEvents
-    .filter((event) => event.service === APP_ERROR)
+    .filter(
+      (event) =>
+        event.service === APP_ERROR && String(event.metrics["error_kind"] ?? "") !== "background",
+    )
     .slice(0, RECENT_ERROR_LIMIT);
   const startOfDay = startOfUtcDayIso();
   const errorCutoff = hoursAgoIso(24);

@@ -145,6 +145,20 @@ export function buildUserDirectoryOptions(
   };
 }
 
+/**
+ * Customers "Needs attention": a real error, an active restriction, or a degraded/down last
+ * status. `errors` sums the sessions' error_count, which counts real errors only — background
+ * faults (the RR-E1003 client loop) never flag a customer.
+ */
+export function needsAttention(user: UserRollupRecord): boolean {
+  return (
+    user.errors > 0 ||
+    Boolean(user.suspension) ||
+    user.lastStatus === "degraded" ||
+    user.lastStatus === "down"
+  );
+}
+
 export function filterAndSortUsers(
   users: readonly UserRollupRecord[],
   query: string,

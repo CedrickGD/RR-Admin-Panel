@@ -245,8 +245,9 @@ export async function onRequestGet(context: HandlerContext): Promise<Response> {
             (sum, row) => sum + Math.max(0, row.durationSeconds ?? 0),
             0,
           ),
+          // Real errors only: background faults stay listed under Errors, never counted.
           error_count: Math.max(
-            errors.length,
+            errors.filter((row) => row.kind !== "background").length,
             sessions.reduce((sum, row) => sum + Math.max(0, row.errorCount), 0),
           ),
         },

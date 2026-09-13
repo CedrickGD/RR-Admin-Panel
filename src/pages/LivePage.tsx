@@ -147,7 +147,10 @@ function buildLiveSessionTimeline(
       return Number.isFinite(ts) && ts >= rangeStart && ts <= rangeEnd;
     })
     .sort((a, b) => parseTimestamp(a.timestamp) - parseTimestamp(b.timestamp));
-  const errorEvents = relevantEvents.filter((e) => e.service === APP_ERROR);
+  // Real errors only, like session.errorCount below — background faults are not errors.
+  const errorEvents = relevantEvents.filter(
+    (e) => e.service === APP_ERROR && e.metrics["error_kind"] !== "background",
+  );
   const visibleErrors = errorEvents.slice(-MAX_LIVE_TIMELINE_MARKERS);
   const duration = hasRange ? Math.max(1, rangeEnd - rangeStart) : 1;
   const markers = visibleErrors.map((event, index) => {

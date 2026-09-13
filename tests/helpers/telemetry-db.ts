@@ -31,13 +31,14 @@ export interface TelemetryTestDb {
 
 let sequence = 0;
 
-export function createTelemetryTestDb(): TelemetryTestDb {
+/** `vars` are rr-api environment variables, e.g. the legacy ingest key for worker tests. */
+export function createTelemetryTestDb(vars: Record<string, string> = {}): TelemetryTestDb {
   resetTelemetrySchemaStateForTests();
   const handle = createInMemoryDatabase();
   const schemaPath = locateSchemaFile();
   if (!schemaPath) throw new Error("schema.sql not found");
   applySchema(handle, readFileSync(schemaPath, "utf8"));
-  const env = buildRuntimeEnv({}, createD1Database(handle));
+  const env = buildRuntimeEnv(vars, createD1Database(handle));
 
   const insert = handle.prepare(
     `INSERT INTO telemetry_events (event_id, source, service, ts, status, metrics_json, message, received_at)

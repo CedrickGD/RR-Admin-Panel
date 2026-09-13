@@ -1080,6 +1080,9 @@ function mergeSessionRecord(
   let durationSeconds = existing?.durationSeconds ?? null;
   let isActive = existing?.isActive ?? true;
   let errorCount = existing?.errorCount ?? 0;
+  // A background fault is noise, not a state change: it neither counts as an error nor replaces
+  // the session's last event / status (see the APP_ERROR branch below).
+  const backgroundFault = event.service === APP_ERROR && isBackgroundError(event.metrics);
 
   // Client events are fire-and-forget HTTP calls, so a start/heartbeat/feature event can
   // land AFTER the session_end it logically preceded. Only events strictly newer than the
@@ -1116,7 +1119,12 @@ function mergeSessionRecord(
       durationBetween(startedAt, endedAt);
     isActive = false;
   } else if (event.service === APP_ERROR) {
-    errorCount += 1;
+    // Background faults are the desktop client reporting an unobserved task exception in a
+    // loop (RR-E1003, hundreds per session). They are not errors: counting them flagged every
+    // affected customer in Customers, Heatmap, Live, Workers and Customer 360.
+    if (!backgroundFault) {
+      errorCount += 1;
+    }
   } else {
     // Feature usage event: tally it and treat it as liveness like a heartbeat.
     if (mayReopenClosedSession) {
@@ -1159,8 +1167,8 @@ function mergeSessionRecord(
     endedAt,
     durationSeconds,
     isActive,
-    lastEvent: event.service,
-    lastStatus: event.status,
+    lastEvent: backgroundFault ? (existing?.lastEvent ?? event.service) : event.service,
+    lastStatus: backgroundFault ? (existing?.lastStatus ?? "ok") : event.status,
     errorCount,
   };
 }
@@ -1340,6 +1348,11 @@ function buildInfo(env: RuntimeEnv): HealthPayload["build"] {
     environment: env.CF_PAGES ? "pages" : "local",
     generatedAt: nowIso(),
   };
+}
+
+/** error_kind 'background', matched exactly like the KPI queries do in SQL. */
+function isBackgroundError(metrics: Record<string, unknown>): boolean {
+  return metrics["error_kind"] === "background";
 }
 
 function readSessionId(event: TelemetryEvent): string | null {

@@ -254,4 +254,56 @@ describe("GET /api/admin/customer-360", () => {
     });
     expect(viewer.status).toBe(403);
   });
+
+  it("lists background faults under Errors but does not count them in the summary", async () => {
+    const backgroundRow = (n: number) => ({
+      event_id: `bg-${n}`,
+      source: "desktop",
+      ts: `2026-09-03T10:01:0${n}.000Z`,
+      metrics_json: JSON.stringify({
+        hwid: HWID,
+        session_id: SESSION_ID,
+        error_kind: "background",
+        error_code: "RR-E1003",
+        exception_type: "System.AggregateException",
+      }),
+      message: "A Task's exception(s) were not observed.",
+      received_at: `2026-09-03T10:01:0${n}.000Z`,
+    });
+    const mock = createMockD1({
+      first: [
+        { match: /FROM app_sessions WHERE session_id = \? LIMIT 1/, result: SESSION },
+        {
+          match: /SUM\(CASE WHEN session_id LIKE 'install:%'/,
+          result: { legacy_rows: 0, first_seen: SESSION.started_at, legacy_last_seen: null },
+        },
+      ],
+      all: [
+        {
+          match: /SELECT session_id, install_id, hwid, source, user_label.*FROM app_sessions WHERE/,
+          result: { results: [SESSION] },
+        },
+        {
+          match: /FROM telemetry_events WHERE service = 'app_error'/,
+          result: { results: [backgroundRow(1), backgroundRow(2), backgroundRow(3)] },
+        },
+      ],
+    });
+
+    const response = await customer360({
+      request: createSyntheticRequest({
+        path: "/api/admin/customer-360",
+        query: { session_id: SESSION_ID },
+        headers: await accessIdentityHeaders(ADMIN),
+      }),
+      env: env(mock.db),
+    });
+
+    expect(response.status).toBe(200);
+    const payload = (await response.json()) as Record<string, any>;
+    expect(payload.customer.errors).toHaveLength(3);
+    expect(payload.customer.errors[0].kind).toBe("background");
+    // SESSION.error_count (real errors) is 1; the three background rows add nothing.
+    expect(payload.customer.summary.error_count).toBe(1);
+  });
 });

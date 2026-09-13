@@ -49,6 +49,7 @@ import {
   buildUserDirectoryOptions,
   defaultUserSortDirection,
   filterAndSortUsers,
+  needsAttention,
   type DirectorySortDirection,
   type UserDirectoryFilters,
   type UserDirectorySortKey,
@@ -125,15 +126,6 @@ function locationLabel(user: UserRollupRecord): string {
     [user.city, resolveCountry(user.country)?.label ?? user.country]
       .filter((value) => Boolean(value?.trim()))
       .join(", ") || "—"
-  );
-}
-
-function needsAttention(user: UserRollupRecord): boolean {
-  return (
-    user.errors > 0 ||
-    Boolean(user.suspension) ||
-    user.lastStatus === "degraded" ||
-    user.lastStatus === "down"
   );
 }
 

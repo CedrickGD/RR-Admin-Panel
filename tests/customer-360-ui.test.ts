@@ -39,7 +39,8 @@ describe("Customer 360 workspace", () => {
     expect(modal).toContain("event.target === event.currentTarget");
     expect(modal).toContain('event.key === "Escape"');
     expect(modal).toContain('event.key !== "Tab"');
-    expect(modal).toContain('document.body.style.overflow = "hidden"');
+    expect(modal).toContain('document.documentElement.style.overflow = "hidden"');
+    expect(modal).toContain("useHistoryLayer(open && Boolean(onClose), requestClose)");
     expect(modal).toContain("target?.isConnected");
   });
 

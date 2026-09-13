@@ -735,6 +735,52 @@
   background: var(--surface-float);
 }
 
+/* ≤600px: the dialog is a full-screen sheet. Same markup, so the head keeps
+   the title on the left and the X top-right; the sheet is opaque (the fill is
+   --workspace-dialog from consistency.css) and only its body scrolls — the page
+   underneath is locked on <html> by ds/Modal. Selectors carry one class more
+   than the ≤600px head/body padding in consistency.css, which would otherwise
+   win on source order. The bottom padding and the sticky action row both clear
+   the home indicator (safe-area inset). */
+@media (max-width: 600px) {
+  .dialog-overlay {
+    padding: 0;
+    align-items: stretch;
+  }
+  .dialog-overlay > .dialog {
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    max-height: none;
+    gap: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .dialog-overlay > .dialog > .dialog-head {
+    padding-top: calc(16px + env(safe-area-inset-top, 0px));
+  }
+  .dialog-overlay > .dialog > .dialog-body {
+    flex: 1;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+  .dialog-overlay > .dialog > .dialog-body .dialog-actions {
+    bottom: calc(-16px - env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  }
+}
+@media (max-width: 600px) and (prefers-reduced-motion: no-preference) {
+  /* A sheet rises instead of scaling in from the middle of the screen. */
+  @starting-style {
+    .dialog-overlay > .dialog {
+      transform: translateY(12px);
+    }
+  }
+  .dialog-overlay[data-state="closed"] > .dialog {
+    transform: translateY(12px);
+  }
+}
+
 /* ── KPI drill-down contents (ds/Modal TimespanGrid + BreakdownList) ──
    The dialog these sit in is `.dialog`, above; only the KPI-specific rows the
    drill-down fills it with are here. */

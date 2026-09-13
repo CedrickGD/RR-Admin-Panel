@@ -1,6 +1,7 @@
 import { X } from "lucide-react";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { useHistoryLayer } from "../../hooks/useHistoryLayer";
 
 export interface ModalProps {
   open: boolean;
@@ -56,7 +57,11 @@ const FIELD_SELECTOR = [
  * forms, detail views and the KPI drill-downs it was first written for — an
  * opaque floating surface over a blurred scrim. Escape / scrim click closes
  * unless the caller opts out (dismissOnScrim) or reports unsaved edits
- * (isDirty). Its CSS is one block in theme/css/components.css.
+ * (isDirty). Its CSS is one block in theme/css/components.css; at 600px and
+ * below the same markup is a full-screen sheet (title left, X right).
+ *
+ * Every open dialog owns one history entry (useHistoryLayer): the browser or
+ * phone Back closes it like the X does, instead of leaving the page under it.
  */
 export function Modal({
   open,
@@ -108,6 +113,10 @@ export function Modal({
     }
     onClose();
   }
+
+  // Back goes through the same exit as the X: clean work closes, unsaved work
+  // raises the discard step (the entry is spent either way).
+  useHistoryLayer(open && Boolean(onClose), requestClose);
 
   useEffect(() => {
     if (open) {
@@ -179,8 +188,12 @@ export function Modal({
 
     restoreFocusRef.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    // Lock the viewport on <html>, not <body>: html carries overflow-x: clip
+    // (workspace.css), so an overflow on body stops propagating to the viewport
+    // and turns body into its own scroller, which drops the sticky navbar out of
+    // view on a scrolled page.
+    const previousOverflow = document.documentElement.style.overflow;
+    document.documentElement.style.overflow = "hidden";
     const firstField = () =>
       [...(contentRef.current?.querySelectorAll<HTMLElement>(FIELD_SELECTOR) ?? [])].find(
         (node) => node.offsetParent !== null,
@@ -216,7 +229,7 @@ export function Modal({
     return () => {
       window.cancelAnimationFrame(frame);
       watcher?.disconnect();
-      document.body.style.overflow = previousOverflow;
+      document.documentElement.style.overflow = previousOverflow;
       const target = restoreFocusRef.current;
       restoreFocusRef.current = null;
       if (target?.isConnected) target.focus();

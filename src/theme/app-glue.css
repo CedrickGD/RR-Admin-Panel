@@ -1205,21 +1205,6 @@ select.glass-input {
   }
 }
 
-.user-directory-controls {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.user-directory-controls .gdrop-trigger {
-  min-width: 116px;
-  max-width: 170px;
-}
-.customer-directory-controls .search-wrap {
-  flex: 1 1 260px;
-  max-width: 330px;
-}
 /* No width floor for the directory here: a 1040px one used to sit at this spot
    and never shipped, because consistency.css sets min-width on the same table
    at higher specificity. Two files naming different floors for one table was
@@ -1253,12 +1238,6 @@ select.glass-input {
 }
 .customer-directory-last-seen .status-dot {
   margin-right: 6px;
-}
-@media (max-width: 900px) {
-  .user-directory-controls {
-    justify-content: flex-start;
-    width: 100%;
-  }
 }
 
 /* ── FIT-FIRST TABLES ────────────────────────────────────────────

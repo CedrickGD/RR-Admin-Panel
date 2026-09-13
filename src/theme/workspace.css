@@ -1434,9 +1434,6 @@ button:disabled {
   font-size: var(--fs-micro);
   color: var(--text-3);
 }
-.customer-directory-controls {
-  justify-content: flex-start;
-}
 .workspace-bar {
   background: var(--bg);
 }

@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
@@ -122,5 +123,88 @@ describe("PageToolbar is the one filter place on Customers", () => {
     expect(page).toContain("onReset={clearFilters}");
     const toolbar = source("../src/components/ds/PageToolbar.tsx");
     expect(toolbar).toContain("{onReset && canReset ?");
+  });
+});
+
+describe("tiles on a phone", () => {
+  it("shows two KPI tiles per row at <=600px and lets an odd last tile span the row", () => {
+    const layer = source("../src/theme/consistency.css");
+    expect(layer).toMatch(
+      /html\[data-theme\] \.stat-grid \{\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/,
+    );
+    expect(layer).toContain(".stat-card:nth-of-type(odd):last-of-type");
+  });
+});
+
+/*
+ * Handoff 2026-09-12 §2.3, rolled out: one PageToolbar per page that filters
+ * anything, directly above the list it filters; ds/SearchInput and ds/Select
+ * as the only search and dropdown; no navbar search; no second filter row.
+ */
+describe("one filter place per page", () => {
+  const root = fileURLToPath(new URL("../", import.meta.url));
+
+  function tsxFiles(dir: string): string[] {
+    const out: string[] = [];
+    for (const entry of readdirSync(join(root, dir), { withFileTypes: true })) {
+      const path = dir + "/" + entry.name;
+      if (entry.isDirectory()) out.push(...tsxFiles(path));
+      else if (entry.name.endsWith(".tsx")) out.push(path);
+    }
+    return out;
+  }
+  const read = (file: string) => readFileSync(join(root, file), "utf8");
+
+  it("keeps GlassDropdown an internal detail of ds/Select", () => {
+    const offenders = [...tsxFiles("src/pages"), ...tsxFiles("src/components")]
+      .filter(
+        (file) =>
+          file !== "src/components/ds/Select.tsx" && file !== "src/components/GlassDropdown.tsx",
+      )
+      .filter((file) => /import[^;]*\bGlassDropdown\b[^;]*from/.test(read(file)));
+    expect(offenders).toEqual([]);
+  });
+
+  it("has no search field in the navbar", () => {
+    const nav = read("src/components/Navbar.tsx");
+    expect(nav).not.toContain("workspace-search");
+    expect(nav).not.toContain("<input");
+    expect(nav).not.toContain("useWorkspaceSearch");
+  });
+
+  it("retires the old filter homes and the empty filterBar slots", () => {
+    for (const file of tsxFiles("src/pages")) {
+      const text = read(file);
+      expect(text, file).not.toMatch(
+        /className="(filters|monitor-toolbar|monitor-filter-row|monitor-filter|user-directory-controls[^"]*)"/,
+      );
+      expect(text, file).not.toContain("filterBar");
+    }
+    expect(read("src/App.tsx")).not.toContain("filterBar");
+  });
+
+  it("gives every page that filters a PageToolbar, and no toolbar to the pages that do not", () => {
+    for (const page of [
+      "Customers",
+      "Licenses",
+      "Live",
+      "Workers",
+      "Errors",
+      "Feedback",
+      "Heatmap",
+      "Traffic",
+      "Versions",
+    ]) {
+      expect(read("src/pages/" + page + "Page.tsx"), page).toContain("<PageToolbar");
+    }
+    for (const page of ["Overview", "Announcements", "SystemStatus", "Settings", "Team"]) {
+      expect(read("src/pages/" + page + "Page.tsx"), page).not.toContain("<PageToolbar");
+    }
+  });
+
+  it("keeps SegmentedControl a radiogroup; page sections are ds/Tabs", () => {
+    const segmented = read("src/components/ds/SegmentedControl.tsx");
+    expect(segmented).not.toContain('"tablist"');
+    expect(segmented).toContain('role="radiogroup"');
   });
 });

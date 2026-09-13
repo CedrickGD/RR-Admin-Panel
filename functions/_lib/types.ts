@@ -90,6 +90,13 @@ export interface RuntimeEnv {
   CF_PAGES?: string;
   CF_PAGES_BRANCH?: string;
   CF_PAGES_COMMIT_SHA?: string;
+  // System health sources, rr-api only (GET /api/admin/system). DB_PATH is the SQLite file,
+  // BACKUP_DIR the read-only backup mount; BOT_URL and DOCKER_PROXY_URL default to the compose
+  // services on Node and are unset (null sections) on Pages.
+  DB_PATH?: string;
+  BACKUP_DIR?: string;
+  BOT_URL?: string;
+  DOCKER_PROXY_URL?: string;
 }
 
 export interface TelemetryEvent {

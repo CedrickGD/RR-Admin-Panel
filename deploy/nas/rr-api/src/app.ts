@@ -4,6 +4,7 @@
 import { Hono } from "hono";
 
 import type { WorkerModule } from "../../../../backend-worker/index.js";
+import { enableServerErrorRing, recordServerError } from "../../../../functions/_lib/http-error-ring";
 import { attachCloudflareContext } from "./cf-request";
 import { installWorkersGlobals } from "./cf-polyfills";
 import type { RrApiEnv } from "./env";
@@ -88,6 +89,8 @@ export interface RrApiApp {
 
 export function createApp(options: CreateAppOptions): RrApiApp {
   installWorkersGlobals();
+  // Counts this process's 5xx responses for the System health page (resets on restart).
+  enableServerErrorRing();
 
   const { env, worker } = options;
   const routes = options.routes ?? generatedRoutes;
@@ -101,6 +104,11 @@ export function createApp(options: CreateAppOptions): RrApiApp {
   const app = new Hono();
 
   app.get("/health", (c) => c.json({ ok: true, service: SERVICE_NAME }));
+
+  app.use("*", async (c, next) => {
+    await next();
+    if (c.res.status >= 500) recordServerError();
+  });
 
   app.all("*", async (c) => {
     // Proxy shells (worker / Pages) authenticate with ORIGIN_KEY and hand over the real client's

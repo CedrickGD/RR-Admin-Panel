@@ -61,6 +61,20 @@ export interface SystemContainer {
   memoryLimitBytes: number | null;
 }
 
+/**
+ * Whether a source could be read on this request. `null` alone cannot say why a section is
+ * missing, so a section that can both be absent and fail carries its state here:
+ * - "ok": the source answered.
+ * - "unavailable": the source is configured for this runtime but failed (docker-proxy stopped,
+ *   internal network broken), so a missing section must not read as "nothing is wrong".
+ * - "not-configured": this runtime has no such source at all (Cloudflare Pages has no Docker).
+ */
+export type SystemSourceState = "ok" | "unavailable" | "not-configured";
+
+export interface SystemSources {
+  containers: SystemSourceState;
+}
+
 export type IncidentSeverity = "warning" | "critical";
 
 export interface SystemIncident {
@@ -86,5 +100,7 @@ export interface SystemStatusPayload {
   serverErrors: { last5Minutes: number; last60Minutes: number } | null;
   bot: SystemBot | null;
   containers: SystemContainer[] | null;
+  /** Why a nullable section is missing. Optional: an older rr-api build does not send it. */
+  sources?: SystemSources;
   incidents: SystemIncident[];
 }

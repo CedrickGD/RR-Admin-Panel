@@ -5,6 +5,8 @@ import type {
   SystemEventRates,
   SystemIncident,
   SystemOverall,
+  SystemSourceState,
+  SystemSources,
   SystemStatusPayload,
 } from "../../shared/system-status";
 import { loadBotHealth, type FetchLike } from "./bot-health";
@@ -133,9 +135,15 @@ export interface IncidentInput {
   backup: SystemBackup | null;
   bot: SystemBot | null;
   containers: SystemContainer[] | null;
+  /** Why a null section is null. Omitted by callers that cannot tell the two apart. */
+  sources?: SystemSources;
 }
 
-/** Server-side incident rules; a source that reported null raises nothing (the page says why). */
+/**
+ * Server-side incident rules. A source that is simply not part of this runtime raises nothing
+ * (the page says so), but a source that IS configured and then failed raises a warning: an
+ * unreadable container list must never be summarised as "every check passed".
+ */
 export function computeIncidents(input: IncidentInput, now: number): SystemIncident[] {
   const incidents: SystemIncident[] = [];
   if (!input.database.reachable)
@@ -145,6 +153,15 @@ export function computeIncidents(input: IncidentInput, now: number): SystemIncid
       service: "database",
       title: "Database unreachable",
       detail: "A test read against the database failed.",
+    });
+
+  if (input.sources?.containers === "unavailable")
+    incidents.push({
+      id: "containers-unavailable",
+      severity: "warning",
+      service: "docker-proxy",
+      title: "Container data unavailable",
+      detail: "docker-proxy did not answer, so no container could be checked on this refresh.",
     });
 
   for (const container of input.containers ?? []) {
@@ -230,6 +247,12 @@ function settled<T>(result: PromiseSettledResult<T | null>): T | null {
   return result.status === "fulfilled" ? result.value : null;
 }
 
+/** Rejected = configured but broken; null = this runtime has no such source at all. */
+function sourceState<T>(result: PromiseSettledResult<T | null>): SystemSourceState {
+  if (result.status === "rejected") return "unavailable";
+  return result.value === null ? "not-configured" : "ok";
+}
+
 /** Builds the whole payload; every source is independent, so one failing never blanks the rest. */
 export async function buildSystemStatus(
   env: RuntimeEnv,
@@ -249,12 +272,14 @@ export async function buildSystemStatus(
     loadContainers(env, fetchFn, clock),
   ]);
 
+  const sources: SystemSources = { containers: sourceState(containers) };
   const parts: IncidentInput = {
     database: settled(database) ?? { reachable: false },
     events: settled(events),
     backup: settled(backup),
     bot: settled(bot),
     containers: settled(containers),
+    sources,
   };
   const incidents = computeIncidents(parts, now);
   return {
@@ -273,6 +298,7 @@ export async function buildSystemStatus(
     serverErrors: serverErrorCounts(now),
     bot: parts.bot,
     containers: parts.containers,
+    sources,
     incidents,
   };
 }

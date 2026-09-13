@@ -48,12 +48,24 @@ interface KpiStatCardProps {
   drilldown?: KpiDrilldown | null;
   /** Optional chart shade within the workspace accent palette. */
   chartColor?: string;
-  /** Optional mini trend rendered on the tile's right side (replaces the icon well). */
+  /** Optional mini trend. Only rendered when `showSpark` is on — see below. */
   spark?: number[];
   /**
-   * "default" is the KPI row on Overview/Customers/Heatmap; "compact" is the
-   * denser monitoring row (Session history, Live) — same tile, less padding and
-   * a smaller value, so those pages need no second tile component.
+   * Opt in to the sparkline well. Off by default: on a 64px tile the spark was
+   * the widest thing in the row and it is decoration beside a number, so it
+   * costs the label its space for nothing.
+   */
+  showSpark?: boolean;
+  /**
+   * "compact" (default) is the one tile: 64px, 20px value, icon well left.
+   * "full" is the old 108px hero tile, kept opt-in for the rare place a number
+   * may still earn the room. Nothing uses it today.
+   */
+  size?: "compact" | "full";
+  /**
+   * @deprecated The tile is compact everywhere now — one spec, one look. Kept
+   * so the monitoring pages that pass density="compact" keep compiling; it has
+   * no effect.
    */
   density?: "default" | "compact";
   /**
@@ -64,8 +76,9 @@ interface KpiStatCardProps {
 }
 
 /**
- * KPI stat tile (DS KpiTile): label / display value / one-line sub on the left,
- * sparkline or icon well on the right, accent tick on the left edge.
+ * KPI stat tile (DS KpiTile): 28px icon well on the left, then the value and
+ * its label on one line with a quiet sub line under them. 64px tall, one
+ * specification in theme/css/components.css and nowhere else.
  * Pass `drilldown` to make it clickable with a detail modal.
  */
 export function KpiStatCard({
@@ -77,10 +90,14 @@ export function KpiStatCard({
   drilldown,
   chartColor,
   spark,
-  density = "default",
+  showSpark = false,
+  size = "compact",
   loading = false,
 }: KpiStatCardProps) {
   const [open, setOpen] = useState(false);
+  // A series alone is not enough: the well only opens when the call site asks
+  // for it, so every tile in a row keeps the same left-to-right rhythm.
+  const withSpark = Boolean(showSpark && spark && spark.length > 1);
   // The pop animation replays by remounting on a changed value, which only a
   // scalar can key. Element values (e.g. <RelativeTime />) re-render themselves.
   const valueKey = typeof value === "string" || typeof value === "number" ? value : undefined;
@@ -98,7 +115,7 @@ export function KpiStatCard({
     <>
       <article
         aria-busy={loading || undefined}
-        className={`stat-card${spark && spark.length > 1 ? " has-spark" : " has-icon"}${density === "compact" ? " stat-card-compact" : ""}${expandable ? " kpi-card-clickable" : ""}`}
+        className={`stat-card${withSpark ? " has-spark stat-card-spark" : " has-icon"}${size === "full" ? " stat-card-full" : ""}${expandable ? " kpi-card-clickable" : ""}`}
         onClick={expandable ? () => setOpen(true) : undefined}
         role={expandable ? "button" : undefined}
         tabIndex={expandable ? 0 : undefined}
@@ -113,30 +130,48 @@ export function KpiStatCard({
             : undefined
         }
       >
+        {/* Icon well first in the DOM, not only in CSS: it sits on the left of
+            the tile and the reading order should say so. */}
+        <div className="tile-side" aria-hidden="true">
+          {withSpark && spark ? (
+            <Sparkline values={spark} color={chartColor ?? "var(--accent)"} />
+          ) : (
+            <span className="tile-icon">{icon ?? <Activity size={14} />}</span>
+          )}
+        </div>
         <div className="tile-main">
-          <span className="stat-label">{label}</span>
           {loading ? (
             <>
-              <strong className="stat-value">
-                <Skeleton width={64} height={density === "compact" ? 15 : 19} />
-              </strong>
+              <div className="tile-line">
+                <strong className="stat-value">
+                  <Skeleton width={44} height={15} />
+                </strong>
+                <span className="stat-label">{label}</span>
+              </div>
               <p className="stat-sub">
                 <Skeleton width={104} height={9} />
               </p>
             </>
           ) : (
             <>
-              <strong className="stat-value tile-value-pop" key={valueKey}>
-                {value}
-                {delta !== undefined && delta !== null ? (
-                  <span
-                    className={`stat-card-delta ${Number(delta) >= 0 ? "stat-card-delta-positive" : "stat-card-delta-negative"}`}
-                  >
-                    {Number(delta) >= 0 ? "+" : ""}
-                    {delta}%
-                  </span>
-                ) : null}
-              </strong>
+              {/* Value before label on one line: a row of tiles then reads down
+                  one column of numbers instead of one column of captions. */}
+              <div className="tile-line">
+                <strong className="stat-value tile-value-pop" key={valueKey}>
+                  {value}
+                  {delta !== undefined && delta !== null ? (
+                    <span
+                      className={`stat-card-delta ${Number(delta) >= 0 ? "stat-card-delta-positive" : "stat-card-delta-negative"}`}
+                    >
+                      {Number(delta) >= 0 ? "+" : ""}
+                      {delta}%
+                    </span>
+                  ) : null}
+                </strong>
+                <span className="stat-label" title={label}>
+                  {label}
+                </span>
+              </div>
               <p className="stat-sub" title={sub}>
                 {/* The text truncates, the chevron does not — it sits outside
                     the ellipsised span so it can never be the part cut off. */}
@@ -148,13 +183,6 @@ export function KpiStatCard({
                 ) : null}
               </p>
             </>
-          )}
-        </div>
-        <div className="tile-side" aria-hidden="true">
-          {spark && spark.length > 1 ? (
-            <Sparkline values={spark} color={chartColor ?? "var(--accent)"} />
-          ) : (
-            <span className="tile-icon">{icon ?? <Activity size={14} />}</span>
           )}
         </div>
       </article>

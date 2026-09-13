@@ -44,79 +44,113 @@
 .panel-collapsed .panel-body-clip { grid-template-rows: 0fr; }
 .panel-body-inner { overflow: hidden; min-height: 0; }
 
-/* ── KPI stat tile: value left, spark/icon right, accent tick ── */
+/* ── KPI stat tile — THE single specification ──────────────────
+   Phase 5 (handoff 2026-09-12, §2.4): `.stat-card` used to be declared in six
+   files at once (index.css, app-glue.css, operations.css, workspace.css,
+   consistency.css and here); the one that actually painted was
+   workspace.css's `min-height:108px; padding:20px 22px`, which is why every
+   earlier attempt to shrink the tile did nothing. All five others are gone —
+   geometry, type scale, icon well and the accent tick live here and nowhere
+   else. What stays in the theme layers for this element is colour only (the
+   translucent fill under an animated background, consistency.css).
+
+   Geometry: 64px floor, 10px/14px padding, 28px icon well on the LEFT, then
+   one line of "value · label" and a quiet sub line under it. Value over label
+   would need a third text row and blows the 64px budget; value-then-label on
+   one line keeps the numbers of a four-tile row on one vertical rule, which is
+   the calmer read.
+
+   Type: label --fs-tiny (12px) muted · value --fs-figure (20px) display face ·
+   sub --fs-micro (11px). One size at every width — tokens/typography.css's
+   documented quirk (the compact tile jumping UP to --fs-figure at the 768px
+   rung) cannot happen any more because --fs-figure IS the size. */
 .stat-card {
   position: relative;
   background: var(--surface-1);
-  backdrop-filter: blur(var(--glass-blur)) saturate(150%);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  /* No backdrop blur: workspace.css used to switch it off for tiles from a
+     later layer, and the frost belongs to panels, not to a 64px tile. */
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   border: 1px solid var(--line);
-  border-radius: var(--r);
-  padding: 11px 13px;
+  /* 12px, the radius operations.css gave every console surface. */
+  border-radius: 12px;
+  padding: 10px 14px;
   display: flex;
   flex-direction: row;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 12px;
   /* Floor, not a fixed height: tiles with and without a sub line still line up
      across a KPI row. */
-  min-height: 72px;
+  min-height: 64px;
   overflow: hidden;
-  transition: border-color 0.15s, background 0.15s, box-shadow 0.18s, transform 0.18s var(--ease-smooth);
-}
-/* Signature: accent tick on the tile's left edge */
-.stat-card::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 12px;
-  bottom: 12px;
-  width: 2px;
-  border-radius: 0 2px 2px 0;
-  background: hsl(var(--ah) var(--as) var(--al) / 0.55);
-  transform-origin: center;
-  transition: background 0.15s, transform 0.18s var(--ease-smooth);
+  box-shadow: none;
+  /* The tile is its own query container — see the @container rule below. */
+  container-type: inline-size;
+  container-name: tile;
+  transition: border-color var(--t-med), background var(--t-med);
 }
 .stat-card:hover {
   background: var(--surface-2);
   border-color: var(--line-hi);
 }
-.stat-card:hover::before { background: var(--accent); }
-@media (hover: hover) and (pointer: fine) {
-  .stat-card:hover { transform: translateY(-1px); }
-  .stat-card:hover::before { transform: scaleY(1.2); }
-}
-/* Compact density (KpiStatCard density="compact") — the denser monitoring row
-   on Session history / Live. Same tile, lower floor and a smaller number, so
-   those pages need no second tile component. Padding is deliberately not
-   restated here: inside a `.stat-grid` it comes from the theme layers
-   (9px 16px), which is already the dense value. */
-.stat-card-compact { min-height: 56px; }
-.stat-card-compact .stat-value { font-size: var(--fs-section); }
 
-/* One type scale for the tile: label var(--fs-small) 13px, value var(--fs-stat),
-   sub var(--fs-tiny) 12px — the sub is quieter than the label it explains, which
-   the three competing font-size rules in app-glue/operations/consistency had
-   inverted. Those are gone. `min-height` keeps a row of tiles aligned whether or
-   not a tile has a sub line. */
-.tile-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+/* Icon well on the left, ahead of the text; the sparkline (opt-in, see below)
+   takes the same slot. */
+.tile-side {
+  flex: none;
+  display: flex;
+  align-items: center;
+}
+.tile-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-sm);
+  display: grid;
+  place-items: center;
+  color: var(--accent-text);
+  /* Outline, not a filled chip: the accent belongs to the primary action and
+     the active state, and four filled accent chips in a KPI row is not that. */
+  background: transparent;
+  border: 1px solid var(--line);
+}
+.tile-icon svg { width: 15px; height: 15px; }
+/* The sparkline well is off on the standard tile — it is decoration next to a
+   number, and it was the widest thing in a 64px row. `showSpark` opts in. */
+.tile-spark { display: none; }
+.stat-card-spark .tile-spark { display: block; }
+
+.tile-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+/* Value and label share one line: value first so a row of tiles reads down a
+   single column of numbers. */
+.tile-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.stat-value {
+  flex: none;
+  font-family: var(--font-display);
+  font-size: var(--fs-figure);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: var(--text-1);
+  display: flex;
+  align-items: baseline;
+  column-gap: 6px;
+  white-space: nowrap;
+}
 .stat-label {
-  font-size: var(--fs-small);
+  min-width: 0;
+  font-size: var(--fs-tiny);
   font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
+  text-transform: none;
+  letter-spacing: 0;
   color: var(--text-3);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-.stat-value {
-  font-family: var(--font-display);
-  font-size: var(--fs-stat);
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--text-1);
-  line-height: 1.1;
 }
 /* One line, ellipsised — the full text is on the tile's title attribute. The
    drill-down chevron sits outside the truncating span so it is never the part
@@ -125,24 +159,36 @@
   display: flex;
   align-items: center;
   min-width: 0;
-  font-size: var(--fs-tiny);
-  color: var(--text-2);
-  margin: 2px 0 0;
+  margin: 0;
+  font-size: var(--fs-micro);
+  line-height: 1.35;
+  color: var(--text-3);
 }
 .stat-sub-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .stat-sub .kpi-card-chevron { flex: none; }
-.tile-side { flex: none; display: flex; align-items: center; }
-.tile-spark { display: block; }
-.tile-icon {
-  width: 28px;
-  height: 28px;
-  border-radius: var(--r-sm);
-  display: grid;
-  place-items: center;
-  color: var(--text-3);
-  background: var(--surface-3);
-  border: 1px solid var(--line);
+
+/* A narrow tile, not a narrow viewport, is what squeezes the label: at 390px
+   the 4-up grid collapses to ONE 358px column (tiles are wide there) while a
+   768px tablet still shows four ~175px tiles. So this steps on the tile own
+   width — the same @container pattern the wide tables use (app-glue.css).
+   What gives way is the icon well, not the height and not the label: the icon
+   is decoration beside a number (operations.css used to drop it at <=768px for
+   the same reason), while a tile that grows to three rows breaks the one thing
+   a KPI row must do, which is line up. */
+@container tile (max-width: 200px) {
+  .tile-side { display: none; }
 }
+
+/* Opt-in full tile (KpiStatCard size="full") — the old default, kept for the
+   one place a hero number may still earn the room. Used nowhere today. */
+.stat-card-full {
+  min-height: 108px;
+  padding: 18px 20px;
+  align-items: flex-start;
+}
+.stat-card-full .tile-line { flex-direction: column; align-items: flex-start; gap: 2px; }
+.stat-card-full .stat-value { font-size: var(--fs-stat); line-height: 1.2; }
+.stat-card-full .stat-label { font-size: var(--fs-small); }
 
 .stat-card-delta { font-size: var(--fs-tiny); font-weight: 600; margin-left: 8px; vertical-align: 4px; }
 .stat-card-delta-positive { color: var(--success); }
@@ -151,6 +197,95 @@
 .kpi-card-clickable { cursor: pointer; }
 .kpi-card-clickable:active { transform: translateY(0) scale(0.99); }
 .kpi-card-chevron { display: inline-block; vertical-align: -2px; margin-left: 4px; opacity: 0.55; }
+
+/* ── ds/PageToolbar — the one filter row per page ──────────────
+   One strip under the PageHeader: scope on the left, then search, then the
+   ds/Select filters and (only when something is set) Reset. No surface of its
+   own — a bordered bar under a bordered header reads as an empty panel — and
+   no colour beyond the active segment and the focus ring.
+
+   Heights: the console had buttons and dropdown triggers at 34px
+   (operations.css) and a segmented pill at ~33px, which is why a filter row
+   never sat on one baseline. Everything in here is pinned to --control-h; the
+   pin is scoped to the toolbar, so no other page moves. */
+.page-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.page-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+/* Search takes the slack on desktop, up to a readable field width. It is
+   pushed right only when a scope sits on the left — otherwise the row starts
+   at the page gutter, on the same rule as the title and the first tile,
+   instead of leaving a hole where the scope would have been. */
+.page-toolbar-search {
+  flex: 0 1 280px;
+  min-width: 180px;
+}
+.page-toolbar-left ~ .page-toolbar-search,
+.page-toolbar-left + .page-toolbar-filters { margin-left: auto; }
+.page-toolbar-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.page-toolbar :is(.btn, .gdrop-trigger, .glass-input, .ds-seg) {
+  height: var(--control-h);
+  min-height: var(--control-h);
+}
+.page-toolbar .glass-input { width: 100%; }
+.page-toolbar .ds-seg { padding: 3px; flex-wrap: nowrap; }
+.page-toolbar .ds-seg-btn { height: calc(var(--control-h) - 8px); }
+.page-toolbar .custom-select,
+.page-toolbar .gdrop,
+.page-toolbar .gdrop-trigger { min-width: 0; }
+
+/* Phone: the search gets its own full-width row first — it is the control
+   people reach for — and the rest wraps two-up underneath. Wrapping beats a
+   horizontally scrolling strip here: a scroll strip hides half the filters
+   behind a gesture with no affordance, which is exactly the "where is it"
+   problem this row exists to end. */
+@media (max-width: 768px) {
+  .page-toolbar {
+    align-items: stretch;
+    gap: 8px;
+  }
+  .page-toolbar-search {
+    order: -1;
+    flex: 1 0 100%;
+    margin-left: 0;
+  }
+  .page-toolbar-left {
+    flex: 1 0 100%;
+    /* The scope pills are the one control that may run wider than the screen;
+       let them scroll rather than break the row grid. */
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .page-toolbar-left::-webkit-scrollbar { display: none; }
+  .page-toolbar-filters {
+    flex: 1 0 100%;
+    margin-left: 0;
+  }
+  /* Two selects per row. Reset keeps its own width and sits at the right end
+     of whatever row it lands on — stretched across the full width it read as
+     the loudest control on the page, which is the opposite of what it is. */
+  .page-toolbar-filters > * { flex: 1 1 calc(50% - 4px); min-width: 0; }
+  .page-toolbar-filters > .btn { flex: 0 0 auto; margin-left: auto; }
+  .page-toolbar-filters .gdrop,
+  .page-toolbar-filters .gdrop-trigger { width: 100%; }
+  .page-toolbar-filters .gdrop-trigger { justify-content: space-between; }
+}
 
 /* ── Badges & chips ───────────────────────────────────────────── */
 .badge {

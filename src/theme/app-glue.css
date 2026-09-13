@@ -55,21 +55,8 @@ body::after {
 /* Panels have no drop shadows — frost is the depth. Only floating
    surfaces (menus, modals) keep --shadow-float. */
 .panel,
-.stat-card,
-.stat-card:hover,
 .login-card {
   box-shadow: none;
-}
-
-/* Old stat-card bottom glow line — the DS signature is the 2px
-   accent tick on the LEFT edge (components.css ::before). */
-.stat-card::after {
-  display: none;
-}
-/* The label reclaims the gutter the old floating top-right icon chip used to
-   reserve; DS tiles put the icon in a .tile-icon well instead. */
-.stat-label {
-  padding-right: 0;
 }
 
 /* Static accent glow hairlines on panel edges — retired (no static
@@ -110,15 +97,6 @@ body::after {
 }
 
 /* ── Component/page port needs ─────────────────────────────────── */
-
-/* KPI tile icon wells render lucide icons at the DS 14px regardless
-   of caller-passed Tailwind utility classes (pages still pass
-   h-4 w-4 = 16px, a no-op in this codebase) or the lucide 24px
-   default. */
-.tile-icon svg {
-  width: 14px;
-  height: 14px;
-}
 
 /* App extension to the KPI drill-down: the recharts area section between
    TimespanGrid and BreakdownList. (Currently also in index.css; this copy
@@ -623,12 +601,6 @@ svg * {
 .world-heatmap-map canvas {
   filter: none;
 }
-.stat-card {
-  background: var(--surface-1);
-}
-.stat-card:hover {
-  background: var(--surface-2);
-}
 /* Floating surfaces compensate with deeper fills (no blur behind) */
 .gdrop-menu {
   background: hsl(240 30% 11% / 0.97);
@@ -1007,85 +979,6 @@ select.glass-input {
   padding-right: 30px;
   text-overflow: ellipsis;
 }
-
-/* ── KPI cards: DENSE rows. Bare icon right, tight stack left
-   (tiny label / value / sub) — ~58px tall, no boxes, no ticks. Raw
-   label/value/sub cards (no tile wrappers) stack the same. ── */
-.stat-card {
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  text-align: left;
-  gap: 10px;
-  padding: 9px 13px;
-}
-.stat-card:not(:has(.tile-main)) {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 1px;
-}
-.stat-card::before {
-  content: none;
-} /* left accent tick retired */
-.stat-card .tile-main {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-.stat-card .tile-side {
-  display: flex;
-  flex: none;
-  align-items: center;
-}
-
-.tile-icon {
-  background: none;
-  border: none;
-  width: auto;
-  height: auto;
-  color: var(--text-3);
-  transition: color var(--t-med) var(--ease-smooth);
-}
-.tile-icon svg {
-  width: 15px;
-  height: 15px;
-  stroke-width: 2;
-}
-.stat-card:hover .tile-icon {
-  color: var(--accent-text);
-}
-
-/* Type sizes live in theme/css/components.css (one scale, from the tokens);
-   these rules keep only the ambience pass's layout. */
-.stat-card .stat-value {
-  line-height: 1.15;
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  column-gap: 6px;
-  min-width: 0;
-}
-.stat-card .stat-label {
-  letter-spacing: 0.1em;
-}
-.stat-card .stat-sub {
-  margin-top: 1px;
-}
-/* Narrow phone cards truncate almost every sub-line mid-word — let them wrap
-   to two clamped lines instead of ellipsizing the information away. The clamp
-   goes on the text span, since the sub line is now a flex row (text + the
-   drill-down chevron). */
-@media (max-width: 480px) {
-  .stat-card .stat-sub { align-items: flex-start; }
-  .stat-card .stat-sub-text {
-    white-space: normal;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-  }
-}
-
 /* ── Page switch: quick rise so navigation feels alive ──────────── */
 /* No fill mode: a filling transform animation keeps .page-enter a containing
    block for fixed descendants in Chromium forever, which trapped the heatmap's

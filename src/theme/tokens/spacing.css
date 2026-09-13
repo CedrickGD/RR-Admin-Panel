@@ -18,6 +18,13 @@
   --pad-panel-x: 16px;      /* panel horizontal padding */
   --page-pad: 32px;         /* page gutter; see the breakpoints below */
 
+  /* Control height — the one number every control in a PageToolbar aligns to
+     (ds/Input, ds/Select trigger, SegmentedControl, Button). The console had no
+     such token: buttons and dropdown triggers were pinned to 34px in
+     operations.css and the segmented pill fell out of its padding at ~33px, so
+     a filter row never lined up. */
+  --control-h: 36px;
+
   /* Motion — purposeful, fast, no bounce except value pops */
   --ease-rise:   cubic-bezier(0.21, 0.9, 0.35, 1);   /* @kind other */ /* entrances */
   --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);       /* @kind other */ /* collapses, fills, gauges */

@@ -65,7 +65,10 @@ export function GlassDropdown({
   useLayoutEffect(() => {
     if (!open || !menuRef.current || !rootRef.current) return;
     const menu = menuRef.current;
-    menu.showPopover?.();
+    // `align` re-runs this effect while the popover is already showing (and StrictMode runs it
+    // twice), but showPopover() on a showing popover throws InvalidStateError. Browsers without
+    // the Popover API skip both calls.
+    if (menu.showPopover && !menu.matches(":popover-open")) menu.showPopover();
     const position = () => {
       const rect = rootRef.current!.getBoundingClientRect();
       const below = window.innerHeight - rect.bottom - 12;

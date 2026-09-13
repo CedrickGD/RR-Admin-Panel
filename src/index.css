@@ -1093,7 +1093,9 @@ h6 {
 .world-heatmap-floating-panel {
   top: 14px;
   left: 14px;
-  max-width: min(300px, calc(100% - 28px));
+  /* Ends before the controls column on the right (14px inset + 40px + an 8px gap): on a phone the
+     full-width card ran under the menu trigger and zoom buttons and lost its text behind them. */
+  max-width: min(300px, calc(100% - 76px));
   padding: 12px;
   border-radius: 12px;
 }

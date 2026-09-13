@@ -13,6 +13,7 @@ import { createAppSessionToken, hashPassword } from "../../functions/_lib/auth";
 import { loadBotHealth } from "../../functions/_lib/bot-health";
 import {
   CACHE_TTL_MS,
+  healthFromStatus,
   isProjectContainer,
   loadContainers,
   resetContainerCache,
@@ -211,26 +212,34 @@ describe("bot health passthrough", () => {
   });
 });
 
-describe("containers via docker-socket-proxy", () => {
-  const base = "http://docker-proxy:2375";
+describe("containers via docker-gateway", () => {
+  const base = "http://docker-gateway:2375";
   const routes: Routes = {
     [`${base}/containers/json?all=1`]: [
       {
         Id: "a1",
         Names: ["/razorreaper-rr-api-1"],
         State: "running",
+        Status: "Up 30 hours (healthy)",
         Labels: { "com.docker.compose.service": "rr-api" },
       },
-      { Id: "b2", Names: ["/razorreaper-bot-1"], State: "running", Labels: {} },
+      {
+        Id: "b2",
+        Names: ["/razorreaper-bot-1"],
+        State: "running",
+        Status: "Up 10 minutes (unhealthy)",
+        Labels: {},
+      },
       {
         Id: "c3",
         Names: ["/razorreaper-backup-1"],
         State: "exited",
+        Status: "Exited (0) 2 minutes ago",
         Labels: { "com.docker.compose.service": "backup" },
       },
       { Id: "h4", Names: ["/homeassistant-app"], State: "running", Labels: {} },
     ],
-    [`${base}/containers/a1/json`]: {
+    [`${base}/containers/razorreaper-rr-api-1/json`]: {
       RestartCount: 0,
       State: {
         Status: "running",
@@ -238,7 +247,7 @@ describe("containers via docker-socket-proxy", () => {
         Health: { Status: "healthy" },
       },
     },
-    [`${base}/containers/a1/stats?stream=false`]: {
+    [`${base}/containers/razorreaper-rr-api-1/stats?stream=false`]: {
       cpu_stats: {
         cpu_usage: { total_usage: 2_000_000 },
         system_cpu_usage: 100_000_000,
@@ -247,12 +256,11 @@ describe("containers via docker-socket-proxy", () => {
       precpu_stats: { cpu_usage: { total_usage: 1_000_000 }, system_cpu_usage: 50_000_000 },
       memory_stats: { usage: 120 * MB, limit: 1024 * MB, stats: { inactive_file: 15 * MB } },
     },
-    [`${base}/containers/b2/json`]: {
-      RestartCount: 2,
-      State: { Status: "running", StartedAt: iso(-10 * MINUTE), Health: { Status: "unhealthy" } },
+    // No inspect route for the bot: the gateway refuses it, exactly like the NAS does.
+    [`${base}/containers/razorreaper-bot-1/stats?stream=false`]: {
+      memory_stats: { usage: 56 * MB },
     },
-    [`${base}/containers/b2/stats?stream=false`]: { memory_stats: { usage: 56 * MB } },
-    [`${base}/containers/c3/json`]: {
+    [`${base}/containers/razorreaper-backup-1/json`]: {
       RestartCount: 0,
       State: { Status: "exited", StartedAt: "0001-01-01T00:00:00Z" },
     },
@@ -266,7 +274,15 @@ describe("containers via docker-socket-proxy", () => {
     expect(isProjectContainer("/homeassistant-app")).toBe(false);
   });
 
-  it("lists, inspects and samples project containers in parallel", async () => {
+  it("reads the healthcheck verdict out of the list status line", () => {
+    expect(healthFromStatus("Up 30 hours (healthy)")).toBe("healthy");
+    expect(healthFromStatus("Up 10 minutes (unhealthy)")).toBe("unhealthy");
+    expect(healthFromStatus("Up 3 seconds (health: starting)")).toBe("starting");
+    expect(healthFromStatus("Up 2 days")).toBe("none");
+    expect(healthFromStatus(undefined)).toBe("none");
+  });
+
+  it("lists, inspects and samples project containers by name, in parallel", async () => {
     const fetchFn = fakeFetch(routes);
     const containers = await loadContainers({}, fetchFn, () => NOW);
     expect(containers).toEqual([
@@ -282,12 +298,14 @@ describe("containers via docker-socket-proxy", () => {
         memoryLimitBytes: null,
       },
       {
+        // Inspect is refused for the bot, so uptime and restarts are "not reported" (null),
+        // never a stand-in 0; state and health still come from the list entry.
         service: "bot",
         name: "razorreaper-bot-1",
         state: "running",
         health: "unhealthy",
-        startedAt: iso(-10 * MINUTE),
-        restartCount: 2,
+        startedAt: null,
+        restartCount: null,
         cpuPercent: null,
         memoryBytes: 56 * MB,
         memoryLimitBytes: null,
@@ -305,8 +323,10 @@ describe("containers via docker-socket-proxy", () => {
       },
     ]);
     const urls = fetchFn.mock.calls.map((call) => call[0]);
-    expect(urls.some((url) => url.includes("/h4/"))).toBe(false);
-    expect(urls).not.toContain(`${base}/containers/c3/stats?stream=false`);
+    // Addressed by container name, never by id: the gateway allowlist matches on the name.
+    expect(urls.some((url) => /\/containers\/(a1|b2|c3|h4)\//.test(url))).toBe(false);
+    expect(urls.some((url) => url.includes("homeassistant"))).toBe(false);
+    expect(urls).not.toContain(`${base}/containers/razorreaper-backup-1/stats?stream=false`);
   });
 
   it("serves a cached result for 15 seconds", async () => {
@@ -404,6 +424,21 @@ describe("incident rules", () => {
       "container-restarted-admin",
     ]);
     expect(overallFrom(incidents.slice(2))).toBe("degraded");
+  });
+
+  it("raises no restart warning when the restart count was not readable", () => {
+    const base = healthy.containers![0];
+    expect(
+      computeIncidents(
+        {
+          ...healthy,
+          containers: [
+            { ...base, service: "bot", restartCount: null, startedAt: iso(-5 * MINUTE) },
+          ],
+        },
+        NOW,
+      ),
+    ).toEqual([]);
   });
 
   it("stays silent for sources that reported nothing", () => {

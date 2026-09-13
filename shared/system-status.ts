@@ -54,8 +54,10 @@ export interface SystemContainer {
   /** Docker state: running, restarting, exited, paused, created, dead. */
   state: string;
   health: ContainerHealth;
+  /** Null when Docker inspect is not readable for this container (docker-gateway allowlist). */
   startedAt: string | null;
-  restartCount: number;
+  /** Null for the same reason — "not reported", never a stand-in 0. */
+  restartCount: number | null;
   cpuPercent: number | null;
   memoryBytes: number | null;
   memoryLimitBytes: number | null;

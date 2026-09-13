@@ -4,12 +4,14 @@ import { isNodeRuntime } from "./runtime";
 import type { RuntimeEnv } from "./types";
 
 /**
- * Container state through the read-only docker-socket-proxy sidecar (compose service
- * `docker-proxy`, CONTAINERS=1 and POST=0): list, inspect and one-shot stats, never a write.
+ * Container state through the docker-gateway sidecar (compose service `docker-gateway`, a Caddy
+ * path allowlist in front of docker-socket-proxy): the project container list, inspect for the
+ * services its allowlist names, and one-shot stats — never a write, never /archive or /logs.
+ * Containers are addressed by name, not id, because the allowlist matches on the name.
  * Results are cached per module for CACHE_TTL_MS so a page polling every 30 s from several tabs
  * costs one Docker round per window; `stats?stream=false` alone takes about a second.
  */
-export const DEFAULT_DOCKER_PROXY_URL = "http://docker-proxy:2375";
+export const DEFAULT_DOCKER_PROXY_URL = "http://docker-gateway:2375";
 export const CACHE_TTL_MS = 15_000;
 const REQUEST_TIMEOUT_MS = 4_000;
 /** Compose project name from deploy/nas/compose.yml (`name: razorreaper`). */
@@ -36,6 +38,8 @@ interface DockerListItem {
   Id: string;
   Names?: string[];
   State?: string;
+  /** Human summary, e.g. "Up 3 minutes (healthy)" — the only health source without inspect. */
+  Status?: string;
   Labels?: Record<string, string>;
 }
 
@@ -68,6 +72,19 @@ function toHealth(value: string | undefined): ContainerHealth {
   return value === "healthy" || value === "unhealthy" || value === "starting" ? value : "none";
 }
 
+/**
+ * Healthcheck verdict out of the list entry's `Status` string. The list is the only source for
+ * containers the gateway refuses to inspect (the bot), and Docker writes the verdict there in a
+ * fixed form: "Up 3 minutes (healthy)" / "(unhealthy)" / "(health: starting)".
+ */
+export function healthFromStatus(status: string | undefined): ContainerHealth {
+  if (!status) return "none";
+  if (status.includes("(healthy)")) return "healthy";
+  if (status.includes("(unhealthy)")) return "unhealthy";
+  if (status.includes("(health: starting)")) return "starting";
+  return "none";
+}
+
 /** `docker stats` CPU%: container CPU delta over host CPU delta, times online CPUs. */
 export function cpuPercent(stats: DockerStats): number | null {
   const cpu = stats.cpu_stats;
@@ -95,10 +112,12 @@ async function describeContainer(
 ): Promise<SystemContainer> {
   const name = (item.Names?.[0] ?? item.Id).replace(/^\//, "");
   const running = item.State === "running";
+  // Both calls may come back 403 from the gateway (inspect is allowlisted per service); the page
+  // then shows "—" for what only inspect can answer rather than inventing a value.
   const [inspect, stats] = await Promise.all([
-    getJson<DockerInspect>(fetchFn, `${base}/containers/${item.Id}/json`).catch(() => null),
+    getJson<DockerInspect>(fetchFn, `${base}/containers/${name}/json`).catch(() => null),
     running
-      ? getJson<DockerStats>(fetchFn, `${base}/containers/${item.Id}/stats?stream=false`).catch(
+      ? getJson<DockerStats>(fetchFn, `${base}/containers/${name}/stats?stream=false`).catch(
           () => null,
         )
       : Promise.resolve(null),
@@ -108,10 +127,10 @@ async function describeContainer(
     service: item.Labels?.["com.docker.compose.service"] ?? serviceFromName(name),
     name,
     state: inspect?.State?.Status ?? item.State ?? "unknown",
-    health: toHealth(inspect?.State?.Health?.Status),
+    health: inspect ? toHealth(inspect.State?.Health?.Status) : healthFromStatus(item.Status),
     // Docker reports "0001-01-01T00:00:00Z" for a container that never started.
     startedAt: startedAt && !startedAt.startsWith("0001-") ? startedAt : null,
-    restartCount: inspect?.RestartCount ?? 0,
+    restartCount: inspect ? (inspect.RestartCount ?? 0) : null,
     cpuPercent: stats ? cpuPercent(stats) : null,
     memoryBytes: stats ? memoryBytes(stats) : null,
     memoryLimitBytes: stats?.memory_stats?.limit ?? null,

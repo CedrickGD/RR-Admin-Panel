@@ -167,13 +167,21 @@ export function computeIncidents(input: IncidentInput, now: number): SystemIncid
         detail: "The container healthcheck is failing.",
       });
     const started = Date.parse(container.startedAt ?? "");
-    if (container.restartCount > 0 && Number.isFinite(started) && now - started < RECENT_RESTART_MS)
+    // restartCount is null when docker-gateway does not allow inspect for this container; an
+    // unknown restart count raises nothing, like every other source that reported null.
+    const restarts = container.restartCount;
+    if (
+      restarts !== null &&
+      restarts > 0 &&
+      Number.isFinite(started) &&
+      now - started < RECENT_RESTART_MS
+    )
       incidents.push({
         id: `container-restarted-${container.service}`,
         severity: "warning",
         service: container.service,
         title: `${container.service} restarted recently`,
-        detail: `Restarted ${container.restartCount} time${container.restartCount === 1 ? "" : "s"}; the current run started ${Math.max(1, Math.round((now - started) / MINUTE_MS))} min ago.`,
+        detail: `Restarted ${restarts} time${restarts === 1 ? "" : "s"}; the current run started ${Math.max(1, Math.round((now - started) / MINUTE_MS))} min ago.`,
       });
   }
 

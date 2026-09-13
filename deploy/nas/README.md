@@ -96,6 +96,50 @@ files, then set the worker's `MEDIA_ORIGIN=https://media.<domain>/` and redeploy
 `backup` runs nightly at 03:15: `sqlite3 .backup` of the rr-api DB into `/volume1/docker/razorreaper/backups`
 (30-day retention). Media is static — copy it once to the HDD pool; optional weekly offsite with rclone -> R2.
 
+## Docker access for the System health page
+
+The page's container table is fed through two hops, `rr-api -> docker-gateway -> docker-proxy`,
+on two `internal` networks; rr-api has no route to the socket proxy itself.
+`docker-socket-proxy` can only gate whole API *sections* — `CONTAINERS=1` allows every non-POST
+call under `/containers`, for **every** container on the host, which includes reading another
+container's `Config.Env` and pulling arbitrary files out of it via `/archive`.
+`docker-gateway` (`caddy:2-alpine`, config in `docker-gateway/Caddyfile`) is the path allowlist
+that the socket proxy cannot be. It permits exactly three `GET` shapes and replaces the query
+string on each:
+
+| Request rr-api may make | Forwarded as |
+| --- | --- |
+| `GET /containers/json` | `/containers/json?all=1&filters={"label":["com.docker.compose.project=razorreaper"]}` |
+| `GET /containers/razorreaper-{admin,backup,caddy,cloudflared,docker-gateway,docker-proxy,rr-api}-<n>/json` | same path, no query |
+| `GET /containers/razorreaper-<service>-<n>/stats` | same path, `?stream=false` |
+
+Everything else gets `403` from the gateway without the socket proxy being touched: `/archive`,
+`/logs`, `/export`, `/top`, `/changes`, any container outside this compose project, any non-GET
+method, and `/containers/razorreaper-bot-1/json` — the bot is the one project container whose
+`Config.Env` holds secrets rr-api does not already have (Discord `TOKEN`, `NOTIFIER_*`,
+`VERIFY_*`), so it is left out of the inspect allowlist on purpose. The cost is visible and
+intended: the bot row on the System health page shows `—` for **Uptime** and **Restarts**, because
+only inspect reports `State.StartedAt` and `RestartCount`. Its state and healthcheck verdict still
+come from the container list, and its own `/health` probe still drives the row.
+
+Adding a service to `compose.yml` does not open inspect for it — the allowlist is a positive list,
+so a new service reports `—` in those two columns until it is added to the Caddyfile deliberately.
+
+Verify after a deploy (from inside rr-api, which is the only container that can reach the gateway):
+
+```bash
+docker compose exec rr-api sh -lc '
+  for p in /containers/json /containers/razorreaper-rr-api-1/json \
+           /containers/razorreaper-bot-1/stats /containers/razorreaper-bot-1/json \
+           /containers/razorreaper-cloudflared-1/archive?path=/etc/cloudflared/creds \
+           /containers/razorreaper-bot-1/logs /containers/homeassistant-app-1/json /images/json; do
+    printf "%s -> " "$p"
+    wget -qS -O /dev/null "http://docker-gateway:2375$p" 2>&1 | sed -n "s|.*HTTP/1.1 ||p" | head -1
+  done'
+```
+
+Expected: `200` for the first three, `403` for the rest.
+
 ## rr-api (W3.5)
 
 `deploy/nas/rr-api/` is a Node 22 service that runs the repo's **unchanged** Pages Functions

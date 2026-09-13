@@ -27,6 +27,7 @@ export const SERVICE_ORDER = [
   "cloudflared",
   "backup",
   "database",
+  "docker-gateway",
   "docker-proxy",
 ] as const;
 
@@ -38,6 +39,7 @@ const SERVICE_ROLE: Record<string, string> = {
   cloudflared: "Cloudflare tunnel",
   backup: "Nightly database backup",
   database: "SQLite database",
+  "docker-gateway": "Docker allowlist for this page",
   "docker-proxy": "Read-only Docker access",
 };
 

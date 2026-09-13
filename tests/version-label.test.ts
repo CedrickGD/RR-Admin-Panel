@@ -1,11 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import {
-  LEGACY_VERSION_LABEL,
-  isLegacyVersion,
-  versionLabel,
-} from "../src/utils/versionLabel";
+import { LEGACY_VERSION_LABEL, isLegacyVersion, versionLabel } from "../src/utils/versionLabel";
 
 describe("versionLabel", () => {
   it("spells out the legacy bucket the same way everywhere", () => {

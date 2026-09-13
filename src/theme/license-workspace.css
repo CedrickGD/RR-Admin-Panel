@@ -1,0 +1,381 @@
+/* License workspace: existing theme alpha surfaces, no new palette or blur. */
+html[data-theme] .license-workspace {
+  min-width: 0;
+  gap: 18px;
+}
+html[data-theme] .license-workspace :is(.panel, .page-toolbar) {
+  background: var(--workspace-surface);
+  border-color: var(--line);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+html[data-theme] .license-workspace .panel-head {
+  align-items: flex-start;
+  gap: 14px;
+}
+html[data-theme] .license-workspace .section-title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+html[data-theme] .license-workspace .section-sub,
+html[data-theme] .license-workspace .license-inventory-count {
+  font-size: var(--fs-small);
+  color: var(--text-3);
+  line-height: 1.5;
+}
+.license-workspace .license-inventory-count {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.license-workspace-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 5px;
+  color: var(--text-3);
+  font-size: var(--fs-small);
+}
+html[data-theme] .license-workspace .license-table .record-cell {
+  min-width: 0;
+  max-width: 255px;
+}
+html[data-theme] .license-workspace .license-table td:first-child .record-cell {
+  min-width: 155px;
+}
+html[data-theme] .license-workspace .license-table td:first-child .record-primary {
+  white-space: normal;
+}
+html[data-theme] .license-workspace .license-table > tbody > tr > td {
+  height: 64px;
+  padding: 12px;
+  vertical-align: top;
+  font-size: var(--fs-small);
+}
+.license-customer-identity {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  min-width: 0;
+}
+.license-customer-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text-2);
+}
+html[data-theme] .license-workspace .license-customer-cell .record-primary {
+  font-size: var(--fs-body);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.license-customer-cell .record-secondary > span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+html[data-theme] .license-workspace .license-key-cell {
+  align-items: flex-start;
+  max-width: 245px;
+}
+.license-workspace .license-key-cell > .mono {
+  overflow-wrap: anywhere;
+  white-space: normal;
+  padding-top: 4px;
+  font-size: var(--fs-small);
+}
+.license-workspace :is(.license-duration-cell, .license-usage-cell) {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.license-binding-state,
+.license-session-state {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-3);
+  font-size: var(--fs-small);
+}
+.license-session-context {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 130px;
+}
+html[data-theme] .license-workspace .license-table .license-row-actions {
+  flex-wrap: nowrap;
+  gap: 4px;
+}
+html[data-theme] .license-workspace .license-table .license-row-actions .btn {
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  min-height: 30px;
+  padding: 6px;
+  border-radius: 8px;
+}
+.license-action-label,
+.license-mobile-context {
+  display: none;
+}
+.license-workspace :is(.license-order-details, .license-technical-details) {
+  margin-top: 6px;
+  max-width: 310px;
+}
+.license-workspace
+  :is(.license-order-details, .license-technical-details, .license-mobile-context)
+  > summary {
+  padding: 5px 0;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  cursor: pointer;
+}
+.license-workspace summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+.license-context-note {
+  margin: 8px 0;
+  color: var(--text-3);
+  font-size: var(--fs-small);
+  line-height: 1.5;
+}
+.license-context-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 10px 0;
+  padding: 10px 0;
+  border-top: 1px solid var(--line-row);
+  text-align: left;
+  white-space: normal;
+}
+.license-context-facts > div {
+  min-width: 0;
+}
+.license-context-facts dt {
+  margin-bottom: 3px;
+  color: var(--text-3);
+  font-size: var(--fs-small);
+}
+.license-context-facts dd {
+  margin: 0;
+  color: var(--text-1);
+  font-size: var(--fs-small);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.license-context-wide {
+  grid-column: 1 / -1;
+}
+html[data-theme] .license-workspace :is(.license-lookup-results, .license-lookup-card) {
+  background: transparent;
+  box-shadow: none;
+  border-color: var(--line);
+}
+html[data-theme] .license-workspace .license-lookup-results {
+  padding: 0;
+  border: 0;
+}
+html[data-theme] .license-workspace .license-lookup-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+  padding: 16px;
+  border-radius: var(--r-sm);
+}
+html[data-theme] .license-workspace .license-lookup-cards {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+  gap: 14px;
+}
+.license-workspace .license-lookup-customer {
+  font-size: var(--fs-body);
+  color: var(--text-1);
+  overflow-wrap: anywhere;
+}
+.license-workspace .license-lookup-contact {
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  overflow-wrap: anywhere;
+}
+html[data-theme] .license-workspace .license-lookup-key {
+  flex-wrap: wrap;
+  overflow-wrap: anywhere;
+  font-size: var(--fs-small);
+}
+html[data-theme] .license-workspace .license-lookup-card-actions {
+  flex-wrap: wrap;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-row);
+}
+html[data-theme] .dialog.license-workspace-dialog {
+  background: var(--workspace-surface-strong);
+  border-color: var(--line);
+  backdrop-filter: none;
+}
+.license-workspace-dialog :is(.section-sub, .license-edit-facts, .license-workflow-note) {
+  overflow-wrap: anywhere;
+}
+.license-workspace-dialog .license-edit-facts {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line-row);
+  background: transparent;
+}
+
+@media (max-width: 900px) {
+  html[data-theme] .license-workspace .license-table > tbody {
+    display: grid;
+    gap: 12px;
+    padding: 12px;
+  }
+  html[data-theme] .license-workspace .license-table > tbody > tr.license-inventory-row {
+    margin: 0;
+    padding: 14px;
+    background: transparent;
+    border-color: var(--line);
+    border-radius: 12px;
+  }
+  html[data-theme] .license-workspace .license-table > tbody > tr > td {
+    min-width: 0;
+    width: auto;
+    height: auto;
+    padding: 7px 0;
+    background: transparent;
+    font-size: var(--fs-small);
+  }
+  html[data-theme] .license-workspace .license-table > tbody > tr > .license-row-secondary {
+    display: none;
+  }
+  html[data-theme] .license-workspace .license-table > tbody > tr > .license-inventory-key {
+    display: block;
+  }
+  html[data-theme] .license-workspace .license-table > tbody > tr > .license-inventory-key::before {
+    content: none;
+  }
+  html[data-theme] .license-workspace .license-table :is(.record-cell, .license-key-cell) {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+  }
+  html[data-theme] .license-workspace .license-table .license-key-cell {
+    justify-content: space-between;
+    gap: 8px;
+  }
+  html[data-theme] .license-workspace .license-table .license-status-cell {
+    align-items: center;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .license-workspace .license-status-cell .license-binding-state {
+    margin-top: 0;
+  }
+  html[data-theme]
+    .license-workspace
+    .data-table-wrap
+    .license-table
+    > tbody
+    > tr
+    > td.license-actions-cell:last-child {
+    display: block;
+    position: static;
+    width: auto;
+    min-width: 0;
+    margin-top: 8px;
+    padding: 12px 0 0;
+    border-top: 1px solid var(--line-row);
+    background: transparent;
+    box-shadow: none;
+  }
+  html[data-theme] .license-workspace .license-table .license-row-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  html[data-theme] .license-workspace .license-table .license-row-actions .btn {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    height: auto;
+    padding: 10px 8px;
+    font-size: var(--fs-small);
+    white-space: normal;
+  }
+  .license-workspace .license-action-label {
+    display: inline;
+  }
+  .license-workspace .license-mobile-context {
+    display: block;
+    margin-top: 8px;
+  }
+  .license-workspace .license-mobile-context > summary {
+    min-height: 44px;
+    padding: 12px 0;
+  }
+  .license-workspace .license-mobile-context .record-link {
+    min-height: 44px;
+  }
+  html[data-theme]
+    .license-workspace
+    :is(.btn-icon, .btn, .gdrop-trigger, [role="tab"], [role="radio"]) {
+    min-height: 44px;
+  }
+  html[data-theme] .license-workspace .btn-icon {
+    min-width: 44px;
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+  }
+  html[data-theme] .license-workspace :is(input:not([type="checkbox"]), .search-input) {
+    min-height: 44px;
+    font-size: var(--fs-body);
+  }
+  .license-workspace [role="tablist"] {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .license-workspace [role="tab"] {
+    flex-shrink: 0;
+  }
+}
+@media (max-width: 600px) {
+  html[data-theme] .license-workspace .panel-head {
+    flex-direction: column;
+    gap: 8px;
+  }
+  html[data-theme] .license-workspace .license-lookup-card {
+    padding: 12px;
+  }
+  html[data-theme] .license-workspace .license-lookup-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  html[data-theme] .license-workspace .license-lookup-card-actions .btn {
+    flex: 1 1 140px;
+  }
+  html[data-theme]
+    .license-workspace-dialog
+    :is(.btn, .btn-icon, .gdrop-trigger, input:not([type="checkbox"])) {
+    min-height: 44px;
+  }
+  html[data-theme] .license-workspace-dialog .btn-icon {
+    min-width: 44px;
+  }
+  html[data-theme] .license-workspace-dialog :is(input, textarea) {
+    font-size: var(--fs-body);
+  }
+  .license-workspace-dialog .dialog-actions {
+    flex-wrap: wrap;
+  }
+  .license-workspace-dialog .dialog-actions .btn {
+    flex: 1 1 120px;
+  }
+}

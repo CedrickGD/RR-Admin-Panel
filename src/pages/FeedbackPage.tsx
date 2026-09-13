@@ -1,8 +1,19 @@
-import { Archive, Check, Mail, MessageSquare, Trash2, User } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import "../theme/support-workspace.css";
+import {
+  Archive,
+  Check,
+  ChevronDown,
+  Inbox,
+  Mail,
+  MessageSquare,
+  RotateCcw,
+  Trash2,
+  User,
+} from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { matchesFeedbackStatus } from "../utils/feedbackInbox";
 import { Badge } from "../components/ds/Badge";
-import { Button, IconButton } from "../components/ds/Button";
+import { Button } from "../components/ds/Button";
 import { EmptyState } from "../components/ds/EmptyState";
 import { FormError } from "../components/ds/Field";
 import { Modal, ModalActions } from "../components/ds/Modal";
@@ -39,7 +50,7 @@ interface FeedbackPageProps {
   summary?: SummaryPayload | null;
 }
 
-/** Fixed status tones: new stands out (info), read/archived recede (muted — grey = done/off). */
+// Read is an inbox state, not a resolution. Only archived reports leave Inbox.
 const STATUS_TONE: Record<FeedbackStatus, "info" | "muted"> = {
   new: "info",
   read: "muted",
@@ -52,32 +63,36 @@ const STATUS_LABEL: Record<FeedbackStatus, string> = {
   archived: "Archived",
 };
 
-/** The inbox filter: every status, plus the "all" pseudo-status. */
 type FeedbackTab = "all" | FeedbackStatus;
-
 const STATUS_TABS: TabItem<FeedbackTab>[] = [
   { key: "all", label: "Inbox" },
   { key: "new", label: "New" },
   { key: "read", label: "Read" },
   { key: "archived", label: "Archived" },
 ];
-
-/** Long messages get clamped to keep card height — and the action buttons — stable. */
-const CLAMP_STYLE: CSSProperties = {
-  display: "-webkit-box",
-  WebkitLineClamp: 4,
-  WebkitBoxOrient: "vertical",
-  overflow: "hidden",
+const INBOX_TITLES: Record<FeedbackTab, string> = {
+  all: "Support inbox",
+  new: "New reports",
+  read: "Read reports",
+  archived: "Archived reports",
 };
 
 function isLongMessage(message: string): boolean {
   return message.length > 240 || (message.match(/\n/g)?.length ?? 0) >= 4;
 }
 
+function maskedIdentifier(value: string | null): string {
+  if (!value) return "Not recorded";
+  return value.length > 8 ? `****${value.slice(-4)}` : "********";
+}
+
 export function FeedbackPage({ summary }: FeedbackPageProps) {
   const canOpenCustomer = usePanelPermission("customers.read");
+  const canManage = usePanelPermission("support.write");
   const [feedback, setFeedback] = useState<FeedbackRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [tab, setTab] = useState<FeedbackTab>("all");
   const feedbackFiltersActive = searchQuery.trim().length > 0 || tab !== "all";
@@ -85,12 +100,12 @@ export function FeedbackPage({ summary }: FeedbackPageProps) {
   const [deleteCandidate, setDeleteCandidate] = useState<FeedbackRecord | null>(null);
   const [replyCandidate, setReplyCandidate] = useState<FeedbackRecord | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  // Failures report inline — in the dialog for the delete, in the panel head for
-  // a status change. Nothing on this page reports itself through window.alert().
+  const [pendingStatus, setPendingStatus] = useState<number | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [listError, setListError] = useState<string | null>(null);
   const requestVersion = useRef(0);
   const fetching = useRef(false);
+  const changingStatus = useRef(false);
 
   const fetchFeedback = async (silent = false) => {
     if (fetching.current) return;
@@ -102,9 +117,17 @@ export function FeedbackPage({ summary }: FeedbackPageProps) {
       url.searchParams.set("_ts", String(Date.now()));
       const res = await fetchApi(url.toString(), { cache: "no-store", credentials: "include" });
       const data = await res.json();
-      if (data.ok && request === requestVersion.current) setFeedback(data.feedback ?? []);
-    } catch (e) {
-      console.error(e);
+      if (!res.ok || !data.ok || !Array.isArray(data.feedback)) {
+        throw new Error("Feedback could not be loaded.");
+      }
+      if (request === requestVersion.current) {
+        setFeedback(data.feedback);
+        setHasLoaded(true);
+        setLoadError(null);
+      }
+    } catch {
+      if (request === requestVersion.current)
+        setLoadError("Feedback could not be loaded. Please try again.");
     } finally {
       fetching.current = false;
       if (!silent) setLoading(false);
@@ -112,13 +135,15 @@ export function FeedbackPage({ summary }: FeedbackPageProps) {
   };
 
   useEffect(() => {
-    fetchFeedback();
+    void fetchFeedback();
   }, []);
-
-  // Header refresh button: silent re-pull from the worker, no skeleton flash.
   useRefreshSignal(() => void fetchFeedback(true));
 
   const setStatus = async (item: FeedbackRecord, status: FeedbackStatus) => {
+    if (!canManage || changingStatus.current || isDeleting) return;
+    changingStatus.current = true;
+    setPendingStatus(item.id);
+    setListError(null);
     try {
       const url = new URL(apiUrl(`/api/admin/feedback/${item.id}`), window.location.origin);
       const res = await fetchApi(
@@ -132,22 +157,19 @@ export function FeedbackPage({ summary }: FeedbackPageProps) {
         { retry: false },
       );
       const data = await res.json();
-      if (data.ok) {
-        ++requestVersion.current;
-        setListError(null);
-        // Update locally to avoid a full refetch flicker.
-        setFeedback((prev) => prev.map((f) => (f.id === item.id ? { ...f, status } : f)));
-      } else {
-        setListError(data.error || "The status could not be updated.");
-      }
-    } catch (e) {
-      console.error(e);
-      setListError("The status could not be updated.");
+      if (!res.ok || !data.ok) throw new Error("Status update failed.");
+      ++requestVersion.current;
+      setFeedback((prev) => prev.map((f) => (f.id === item.id ? { ...f, status } : f)));
+    } catch {
+      setListError("The status could not be updated. The report has not been moved.");
+    } finally {
+      changingStatus.current = false;
+      setPendingStatus(null);
     }
   };
 
   const confirmDelete = async () => {
-    if (!deleteCandidate) return;
+    if (!deleteCandidate || !canManage || isDeleting || changingStatus.current) return;
     setIsDeleting(true);
     setDeleteError(null);
     try {
@@ -160,18 +182,12 @@ export function FeedbackPage({ summary }: FeedbackPageProps) {
         { method: "DELETE", credentials: "include" },
         { retry: false },
       );
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(`Failed to delete: ${errData.error || res.statusText}`);
-      }
+      if (!res.ok) throw new Error("Delete failed.");
       setFeedback((prev) => prev.filter((f) => f.id !== deleteCandidate.id));
       ++requestVersion.current;
       setDeleteCandidate(null);
-    } catch (err) {
-      console.error(err);
-      // The dialog stays open with the reason in it, the way Licenses and
-      // Announcements report a failed delete.
-      setDeleteError(err instanceof Error ? err.message : "The feedback could not be deleted.");
+    } catch {
+      setDeleteError("The feedback could not be deleted. Please try again.");
     } finally {
       setIsDeleting(false);
     }
@@ -185,41 +201,39 @@ export function FeedbackPage({ summary }: FeedbackPageProps) {
     });
   };
 
-  const newCount = useMemo(() => feedback.filter((f) => f.status === "new").length, [feedback]);
-  // The unread count rides on the "New" tab instead of a separate badge beside it.
   const statusTabs = useMemo<TabItem<FeedbackTab>[]>(
-    () => STATUS_TABS.map((t) => (t.key === "new" ? { ...t, count: newCount } : t)),
-    [newCount],
+    () =>
+      STATUS_TABS.map((item) => ({
+        ...item,
+        count: hasLoaded
+          ? feedback.filter((f) => matchesFeedbackStatus(f.status, item.key)).length
+          : undefined,
+      })),
+    [feedback, hasLoaded],
   );
 
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return feedback
       .filter((f) => matchesFeedbackStatus(f.status, tab))
-      .filter((f) => {
-        if (!q) return true;
-        return (
-          f.message.toLowerCase().includes(q) ||
-          f.contact?.toLowerCase().includes(q) ||
-          f.machine_name?.toLowerCase().includes(q) ||
-          f.license_key?.toLowerCase().includes(q) ||
-          f.hwid?.toLowerCase().includes(q)
-        );
-      });
+      .filter(
+        (f) =>
+          !q ||
+          [
+            f.message,
+            f.contact,
+            f.machine_name,
+            f.license_key,
+            f.hwid,
+            f.install_id,
+            String(f.id),
+          ].some((value) => value?.toLowerCase().includes(q)),
+      );
   }, [feedback, tab, searchQuery]);
 
   return (
-    <div className="page-content page-stack-lg">
-      <PageHeader
-        kicker="Inbox"
-        page="feedback"
-      />
-
-      {/* The one filter place on this page (handoff §2.3), directly above the
-          inbox it filters: status left, search right, Reset while either is
-          set. Both used to sit apart — status in the page header, search in
-          the panel head. A filter over one list, so the segmented control
-          keeps its radiogroup roles. */}
+    <div className="page-content page-stack-lg support-workspace">
+      <PageHeader kicker="Customer support" page="feedback" />
       <PageToolbar
         aria-label="Feedback filters"
         canReset={feedbackFiltersActive}
@@ -240,45 +254,83 @@ export function FeedbackPage({ summary }: FeedbackPageProps) {
             aria-label="Search feedback"
             value={searchQuery}
             onChange={setSearchQuery}
-            placeholder="Search message, customer, license…"
+            placeholder="Search message, customer, report..."
           />
         }
       />
 
-      <section className="panel">
-        <div className="panel-head">
+      <section className="panel support-inbox" aria-labelledby="support-inbox-title">
+        <div className="panel-head support-inbox-head">
           <div className="panel-head-left">
-            <h2 className="section-title">Messages</h2>
-            <p className="section-sub">Feedback submitted from the app, linked to its author</p>
+            <h2 className="section-title" id="support-inbox-title">
+              {INBOX_TITLES[tab]}
+            </h2>
+            <p className="section-sub">
+              {tab === "archived"
+                ? "Archived separately. Move a report to Inbox when it needs attention again."
+                : "New and read reports stay here until archived. Read does not mean resolved."}
+            </p>
           </div>
+          {hasLoaded && (
+            <span className="support-result-count" role="status">
+              {filtered.length} of {feedback.length} loaded reports
+            </span>
+          )}
         </div>
+
         {listError && (
-          <p className="inline-notice danger" role="alert">
+          <p className="inline-notice danger support-notice" role="alert">
             {listError}
           </p>
         )}
+        {loadError && hasLoaded && (
+          <div className="inline-notice danger support-notice" role="alert">
+            <span>Could not refresh feedback. Showing the last loaded reports.</span>
+            <Button variant="ghost" icon={<RotateCcw />} onClick={() => void fetchFeedback(true)}>
+              Retry
+            </Button>
+          </div>
+        )}
 
         {loading ? (
-          <div className="panel-body panel-body-stack" aria-busy="true">
+          <div className="support-inbox-list" aria-busy="true" aria-label="Loading feedback">
             {[0, 1, 2].map((i) => (
-              <div key={i} className="feedback-card">
-                <Skeleton width={120} />
-                <Skeleton width="70%" style={{ marginTop: 10 }} />
-                <Skeleton width="45%" style={{ marginTop: 6 }} />
+              <div key={i} className="support-report support-loading">
+                <Skeleton width={150} />
+                <Skeleton width="85%" />
+                <Skeleton width="60%" />
               </div>
             ))}
           </div>
-        ) : filtered.length === 0 ? (
+        ) : loadError && !hasLoaded ? (
           <EmptyState
             icon={<MessageSquare />}
-            title="No feedback"
+            title="Feedback unavailable"
+            action={
+              <Button variant="ghost" icon={<RotateCcw />} onClick={() => void fetchFeedback()}>
+                Retry
+              </Button>
+            }
+          >
+            {loadError}
+          </EmptyState>
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            icon={tab === "archived" ? <Archive /> : <Inbox />}
+            title={
+              searchQuery.trim()
+                ? "No matching reports"
+                : tab === "archived"
+                  ? "No archived reports"
+                  : "No feedback"
+            }
           >
             {feedbackFiltersActive
               ? "Nothing matches the current filter."
               : "Feedback submitted from the app will show up here."}
           </EmptyState>
         ) : (
-          <div className="panel-body panel-body-stack">
+          <div className="support-inbox-list">
             {filtered.map((f) => {
               const isNew = f.status === "new";
               const long = isLongMessage(f.message);
@@ -288,121 +340,175 @@ export function FeedbackPage({ summary }: FeedbackPageProps) {
                     (s) => (s.hwid ?? "").toLowerCase() === f.hwid!.toLowerCase(),
                   )
                 : undefined;
-
+              const author = f.machine_name || f.contact || "Report author";
               return (
-                <div key={f.id} className={`feedback-card feedback-item ${isNew ? "is-new" : ""}`}>
-                  {/* header: status + time · actions */}
-                  <div className="feedback-item-head">
-                    <div className="feedback-item-status">
-                      <Badge tone={STATUS_TONE[f.status]}>{STATUS_LABEL[f.status]}</Badge>
-                      <span className="feedback-item-time">
-                        <RelativeTime iso={f.created_at} />
-                      </span>
+                <article
+                  key={f.id}
+                  aria-label={`Feedback report ${f.id}`}
+                  className={`support-report${isNew ? " is-new" : ""}`}
+                  aria-busy={pendingStatus === f.id || undefined}
+                >
+                  <div className="support-report-identity">
+                    <span className="support-author-avatar" aria-hidden="true">
+                      <User />
+                    </span>
+                    <div className="support-author">
+                      <h3>{author}</h3>
+                      {f.contact && f.contact !== author && (
+                        <span className="support-contact">
+                          <Mail aria-hidden="true" />
+                          {f.contact}
+                        </span>
+                      )}
                     </div>
-                    <div className="feedback-item-actions">
+                    <div className="support-report-state">
+                      <Badge tone={STATUS_TONE[f.status] ?? "muted"}>
+                        {STATUS_LABEL[f.status] ?? "Unknown"}
+                      </Badge>
+                      <RelativeTime iso={f.created_at} />
+                    </div>
+                  </div>
+
+                  <div className="support-report-content">
+                    <p
+                      id={`feedback-message-${f.id}`}
+                      className={`support-report-message${long && !isExpanded ? " is-clamped" : ""}`}
+                    >
+                      {f.message}
+                    </p>
+                    {long && (
                       <Button
                         variant="ghost"
-                        icon={<MessageSquare size={16} />}
+                        size="sm"
+                        className="support-expand"
+                        aria-expanded={isExpanded}
+                        aria-controls={`feedback-message-${f.id}`}
+                        onClick={() => toggleExpand(f.id)}
+                      >
+                        {isExpanded ? "Show less" : "Show more"}
+                      </Button>
+                    )}
+                  </div>
+
+                  <div className="support-report-footer">
+                    <div className="support-report-context">
+                      <span className="support-report-id">Report #{f.id}</span>
+                      {canOpenCustomer && (
+                        <a
+                          href={`?customerBy=feedback_id&customer=${f.id}#/feedback`}
+                          onClick={(event) => {
+                            if (
+                              event.button !== 0 ||
+                              event.ctrlKey ||
+                              event.metaKey ||
+                              event.shiftKey ||
+                              event.altKey
+                            )
+                              return;
+                            event.preventDefault();
+                            navigateCustomerUrl(new URL(event.currentTarget.href));
+                          }}
+                          title="Open this customer's 360 view"
+                          className="record-link support-customer-link"
+                        >
+                          <User aria-hidden="true" />
+                          Customer 360
+                        </a>
+                      )}
+                      {liveSession && (
+                        <span className="support-presence">
+                          <span className="status-dot" />
+                          Online now
+                        </span>
+                      )}
+                    </div>
+                    <div className="support-report-actions">
+                      {f.status === "new" && (
+                        <Button
+                          variant="ghost"
+                          icon={<Check />}
+                          permission="support.write"
+                          disabled={pendingStatus !== null || isDeleting}
+                          onClick={() => void setStatus(f, "read")}
+                        >
+                          Mark read
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        icon={f.status === "archived" ? <Inbox /> : <Archive />}
+                        permission="support.write"
+                        disabled={pendingStatus !== null || isDeleting}
+                        onClick={() =>
+                          void setStatus(f, f.status === "archived" ? "read" : "archived")
+                        }
+                      >
+                        {f.status === "archived" ? "Move to inbox" : "Archive"}
+                      </Button>
+                      <Button
+                        variant="accent"
+                        icon={<MessageSquare />}
                         onClick={() => setReplyCandidate(f)}
                       >
                         Replies
                       </Button>
-                      {f.status !== "read" ? (
-                        <IconButton
-                          icon={<Check />}
-                          size={16}
-                          title="Mark read"
-                          permission="support.write"
-                          onClick={() => setStatus(f, "read")}
-                        />
-                      ) : null}
-                      {f.status !== "archived" ? (
-                        <IconButton
-                          icon={<Archive />}
-                          size={16}
-                          title="Archive"
-                          permission="support.write"
-                          onClick={() => setStatus(f, "archived")}
-                        />
-                      ) : null}
-                      <IconButton
-                        icon={<Trash2 />}
-                        size={16}
-                        title="Delete"
-                        style={{ color: "var(--danger)" }}
-                        permission="support.write"
-                        onClick={() => {
-                          setDeleteError(null);
-                          setDeleteCandidate(f);
-                        }}
-                      />
                     </div>
                   </div>
 
-                  {/* message — anatomy in .feedback-item-msg; only the
-                      conditional 4-line clamp stays an inline style */}
-                  <p
-                    className="feedback-item-msg"
-                    style={long && !isExpanded ? CLAMP_STYLE : undefined}
-                  >
-                    {f.message}
-                  </p>
-                  {long ? (
-                    <button
-                      type="button"
-                      onClick={() => toggleExpand(f.id)}
-                      className="btn btn-ghost"
+                  <details className="support-report-details">
+                    <summary>
+                      <span>Report details</span>
+                      <ChevronDown aria-hidden="true" />
+                    </summary>
+                    <dl className="support-report-facts">
+                      <div>
+                        <dt>Report ID</dt>
+                        <dd>#{f.id}</dd>
+                      </div>
+                      <div>
+                        <dt>App version</dt>
+                        <dd>{f.app_version || "Not recorded"}</dd>
+                      </div>
+                      <div>
+                        <dt>Platform</dt>
+                        <dd>{f.platform || "Not recorded"}</dd>
+                      </div>
+                      <div>
+                        <dt>Installation</dt>
+                        <dd>
+                          <code>{maskedIdentifier(f.install_id)}</code>
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>License key</dt>
+                        <dd>
+                          <code>{maskedIdentifier(f.license_key)}</code>
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Device ID</dt>
+                        <dd>
+                          <code>{maskedIdentifier(f.hwid)}</code>
+                        </dd>
+                      </div>
+                    </dl>
+                    <p className="support-details-help">
+                      Identifiers are masked. Full customer context is available in Customer 360.
+                    </p>
+                    <Button
+                      variant="danger"
+                      icon={<Trash2 />}
+                      permission="support.write"
+                      disabled={pendingStatus !== null || isDeleting}
+                      onClick={() => {
+                        setDeleteError(null);
+                        setDeleteCandidate(f);
+                      }}
                     >
-                      {isExpanded ? "Show less" : "Show more"}
-                    </button>
-                  ) : null}
-
-                  {/* meta: author link + context */}
-                  <div className="feedback-item-meta">
-                    {canOpenCustomer ? (
-                      <a
-                        href={`?customerBy=feedback_id&customer=${f.id}#/feedback`}
-                        onClick={(event) => {
-                          if (
-                            event.button !== 0 ||
-                            event.ctrlKey ||
-                            event.metaKey ||
-                            event.shiftKey ||
-                            event.altKey
-                          )
-                            return;
-                          event.preventDefault();
-                          navigateCustomerUrl(new URL(event.currentTarget.href));
-                        }}
-                        title="Open this customer's 360 view"
-                        className="record-link"
-                      >
-                        <User size={16} />
-                        Customer 360 · {f.machine_name || "Report author"}
-                        {liveSession ? <span className="status-dot" title="Online now" /> : null}
-                      </a>
-                    ) : f.machine_name ? (
-                      <span className="feedback-item-fact">
-                        <User size={12} />
-                        {f.machine_name}
-                      </span>
-                    ) : null}
-                    {f.contact ? (
-                      <span className="feedback-item-fact" title="Contact for a reply">
-                        <Mail size={12} />
-                        {f.contact}
-                      </span>
-                    ) : null}
-                    {f.app_version ? <span>v{f.app_version}</span> : null}
-                    {f.platform ? <span>{f.platform}</span> : null}
-                    {f.license_key ? <span className="mono">{f.license_key}</span> : null}
-                    {f.hwid ? (
-                      <span className="mono" title={f.hwid}>
-                        HWID {f.hwid.slice(0, 10)}…
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
+                      Delete report
+                    </Button>
+                  </details>
+                </article>
               );
             })}
           </div>
@@ -418,20 +524,25 @@ export function FeedbackPage({ summary }: FeedbackPageProps) {
       )}
       <Modal
         open={!!deleteCandidate}
-        onClose={() => {
-          setDeleteError(null);
-          setDeleteCandidate(null);
-        }}
+        onClose={
+          isDeleting
+            ? undefined
+            : () => {
+                setDeleteError(null);
+                setDeleteCandidate(null);
+              }
+        }
         kicker="Danger zone"
         title="Delete feedback"
         sub="This permanently removes this feedback entry. It cannot be recovered."
       >
+        <p className="support-delete-context">
+          Report #{deleteCandidate?.id} from{" "}
+          {deleteCandidate?.machine_name || deleteCandidate?.contact || "Report author"}
+        </p>
         <FormError message={deleteError} />
-        {/* ModalActions, not an inline-styled row: the action row sticks to the
-            bottom of the dialog everywhere else. Cancel carries no permission —
-            leaving a dialog is not a privilege (ds/Modal). */}
         <ModalActions>
-          <Button variant="ghost" onClick={() => setDeleteCandidate(null)}>
+          <Button variant="ghost" disabled={isDeleting} onClick={() => setDeleteCandidate(null)}>
             Cancel
           </Button>
           <Button
@@ -440,7 +551,7 @@ export function FeedbackPage({ summary }: FeedbackPageProps) {
             onClick={confirmDelete}
             disabled={isDeleting}
           >
-            {isDeleting ? "Deleting…" : "Delete feedback"}
+            {isDeleting ? "Deleting..." : "Delete feedback"}
           </Button>
         </ModalActions>
       </Modal>

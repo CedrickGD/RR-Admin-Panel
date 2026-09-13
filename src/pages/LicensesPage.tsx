@@ -1,4 +1,5 @@
-import { TableFrame, RecordCell } from "../components/ds/TableFrame";
+import { TableFrame, RecordCell, RecordLink } from "../components/ds/TableFrame";
+import "../theme/license-workspace.css";
 import { Select } from "../components/ds/Select";
 import { usePanelPermission } from "../hooks/usePanelPermission";
 import {
@@ -27,7 +28,6 @@ import { Modal, ModalActions } from "../components/ds/Modal";
 import { SegmentedControl } from "../components/ds/SegmentedControl";
 import { SkeletonRows } from "../components/ds/Skeleton";
 import { Tabs, type TabItem } from "../components/ds/Tabs";
-import { StatusBadge } from "../components/StatusBadge";
 import { PageHeader } from "../components/ds/PageHeader";
 import { PageToolbar } from "../components/ds/PageToolbar";
 import { SearchInput } from "../components/ds/SearchInput";
@@ -211,17 +211,340 @@ function CopyKeyButton({ value, copied, onCopy, size = 12 }: CopyKeyButtonProps)
   );
 }
 
+function licenseDuration(license: LicenseRecord): string {
+  if (license.type === "lifetime") return "Lifetime";
+  const days = license.duration_days || 0;
+  if (days && days < 1 / 24) return `${Math.round(days * 1440)} Mins`;
+  if (days && days < 1) return `${Math.round(days * 24)} Hours`;
+  if (days && days % 365 === 0) return `${days / 365} Years`;
+  if (days && days % 30 === 0) return `${days / 30} Months`;
+  if (days && days % 7 === 0) return `${days / 7} Weeks`;
+  return `${Math.round(days)} Days`;
+}
+
+function LicenseOrderFacts({ license }: { license: LicenseRecord }) {
+  return (
+    <div className="license-order-context">
+      <p className="license-context-note">Recorded order information, not payment confirmation.</p>
+      <dl className="license-context-facts">
+        <div>
+          <dt>Order ID</dt>
+          <dd className="mono">{license.order_id || "Not recorded"}</dd>
+        </div>
+        <div>
+          <dt>Source</dt>
+          <dd>{license.order_source || "Not recorded"}</dd>
+        </div>
+        <div>
+          <dt>Purchased</dt>
+          <dd>{license.purchased_at ? formatDate(license.purchased_at) : "Not recorded"}</dd>
+        </div>
+        <div>
+          <dt>Buyer Discord</dt>
+          <dd>
+            {license.customer_discord ? discordHandle(license.customer_discord) : "Not recorded"}
+          </dd>
+        </div>
+        <div>
+          <dt>Verified Discord</dt>
+          <dd>
+            {license.verified_discord ? discordHandle(license.verified_discord) : "Not reported"}
+          </dd>
+        </div>
+        {license.order_note ? (
+          <div className="license-context-wide">
+            <dt>Order note</dt>
+            <dd>{license.order_note}</dd>
+          </div>
+        ) : null}
+      </dl>
+    </div>
+  );
+}
+
+function LicenseOrderDetails({ license }: { license: LicenseRecord }) {
+  return (
+    <details className="license-order-details">
+      <summary>Order details</summary>
+      <LicenseOrderFacts license={license} />
+    </details>
+  );
+}
+
+function LicenseDeviceFacts({ license }: { license: LicenseRecord }) {
+  return (
+    <dl className="license-context-facts">
+      <div>
+        <dt>Duration</dt>
+        <dd>{licenseDuration(license)}</dd>
+      </div>
+      <div>
+        <dt>Seats used</dt>
+        <dd>
+          {license.usage_count} / {license.max_uses === -1 ? "Unlimited" : license.max_uses}
+        </dd>
+      </div>
+      <div>
+        <dt>Hardware ID</dt>
+        <dd className="mono">{license.hwid || "Unbound"}</dd>
+      </div>
+      <div>
+        <dt>Session ID</dt>
+        <dd className="mono">{license.session_id || "Not reported"}</dd>
+      </div>
+      <div>
+        <dt>App version</dt>
+        <dd>{license.app_version || "Not reported"}</dd>
+      </div>
+      <div>
+        <dt>Country</dt>
+        <dd>{license.client_country || "Not reported"}</dd>
+      </div>
+      <div>
+        <dt>IP address</dt>
+        <dd className="mono">{license.client_ip || "Not reported"}</dd>
+      </div>
+      <div>
+        <dt>Last session activity</dt>
+        <dd>
+          {license.session_last_seen ? formatDate(license.session_last_seen) : "Not reported"}
+        </dd>
+      </div>
+      <div>
+        <dt>Created</dt>
+        <dd>{formatDate(license.created_at)}</dd>
+      </div>
+      <div>
+        <dt>Activated</dt>
+        <dd>{license.activated_at ? formatDate(license.activated_at) : "Not activated"}</dd>
+      </div>
+      <div>
+        <dt>Expires</dt>
+        <dd>
+          {license.expires_at
+            ? formatDate(license.expires_at)
+            : license.type === "lifetime"
+              ? "No expiry"
+              : "Not started"}
+        </dd>
+      </div>
+    </dl>
+  );
+}
+
+interface LicenseSessionLinkProps {
+  license: LicenseRecord;
+  isLive: boolean;
+  onOpenSession?: (sessionId: string) => void;
+  onOpenWorker?: (hwid: string) => void;
+}
+
+function LicenseSessionLink({
+  license,
+  isLive,
+  onOpenSession,
+  onOpenWorker,
+}: LicenseSessionLinkProps) {
+  if (!license.hwid) return <span className="license-binding-state">Unbound</span>;
+  const canOpen =
+    (isLive && Boolean(onOpenSession) && Boolean(license.session_id)) || Boolean(onOpenWorker);
+  return (
+    <div className="license-session-context">
+      {canOpen ? (
+        <RecordLink
+          onClick={() => {
+            if (isLive && onOpenSession && license.session_id) onOpenSession(license.session_id);
+            else if (onOpenWorker && license.hwid) onOpenWorker(license.hwid);
+          }}
+          title={isLive ? "View live session" : "View customer sessions"}
+        >
+          {license.user_label || "Customer sessions"}
+        </RecordLink>
+      ) : (
+        <span>{license.user_label || "Bound device"}</span>
+      )}
+      <span className="license-session-state">{isLive ? "Live session" : "Session history"}</span>
+    </div>
+  );
+}
+
+interface LicenseInventoryRowProps extends LicenseSessionLinkProps {
+  copiedValue: string | null;
+  highlighted?: boolean;
+  onCopy: (value: string) => void;
+  onActivate: (license: LicenseRecord) => void;
+  onBind: (license: LicenseRecord) => void;
+  onEdit: (license: LicenseRecord) => void;
+  onDelete: (license: LicenseRecord) => void;
+}
+
+/** Presentation only: all mutations, permission checks and navigation stay with their existing owners. */
+export function LicenseInventoryRow({
+  license,
+  isLive,
+  copiedValue,
+  highlighted = false,
+  onCopy,
+  onOpenSession,
+  onOpenWorker,
+  onActivate,
+  onBind,
+  onEdit,
+  onDelete,
+}: LicenseInventoryRowProps) {
+  const customer =
+    license.customer_name ||
+    license.customer_email ||
+    (license.customer_discord || license.verified_discord
+      ? discordHandle((license.customer_discord || license.verified_discord)!)
+      : license.user_label || "Unassigned");
+  const sessionProps = { license, isLive, onOpenSession, onOpenWorker };
+  return (
+    <tr className={highlighted ? "license-inventory-row row-created" : "license-inventory-row"}>
+      <td className="license-customer-cell" data-label="Customer">
+        <div className="license-customer-identity">
+          <span className="license-customer-icon" aria-hidden="true">
+            <User size={15} />
+          </span>
+          <RecordCell
+            primary={customer}
+            secondary={
+              <>
+                {license.customer_name && license.customer_email ? (
+                  <span>{license.customer_email}</span>
+                ) : null}
+                {license.customer_discord ? (
+                  <span>{discordHandle(license.customer_discord)}</span>
+                ) : null}
+                {!license.customer_name &&
+                !license.customer_email &&
+                !license.customer_discord &&
+                !license.verified_discord ? (
+                  <span>No buyer attribution</span>
+                ) : null}
+              </>
+            }
+          />
+        </div>
+      </td>
+      <td className="license-inventory-key" data-label="License key">
+        <RecordCell
+          primary={
+            <span className="license-key-cell">
+              <span className="mono">{license.license_key}</span>
+              <CopyKeyButton
+                value={license.license_key}
+                copied={copiedValue === license.license_key}
+                onCopy={onCopy}
+              />
+            </span>
+          }
+          secondary={
+            <>
+              {isMasterLicense(license) ? "Master license" : "License"}
+              {highlighted ? <span className="created-label"> · New</span> : null}
+            </>
+          }
+        />
+      </td>
+      <td className="license-row-secondary" data-label="Order">
+        <RecordCell
+          primary={license.order_id || "No order recorded"}
+          secondary={license.order_source || undefined}
+        />
+        <LicenseOrderDetails license={license} />
+      </td>
+      <td className="license-row-secondary license-duration-cell" data-label="Duration">
+        {licenseDuration(license)}
+      </td>
+      <td className="license-row-secondary license-usage-cell" data-label="Usage">
+        {license.usage_count} / {license.max_uses === -1 ? "Unlimited" : license.max_uses}
+      </td>
+      <td className="license-status-cell" data-label="License status">
+        <Badge
+          tone={
+            license.status === "active"
+              ? "success"
+              : license.status === "revoked"
+                ? "danger"
+                : "warning"
+          }
+        >
+          {license.status ? license.status[0].toUpperCase() + license.status.slice(1) : "Unknown"}
+        </Badge>
+        <span className="license-binding-state">{license.hwid ? "Bound" : "Unbound"}</span>
+      </td>
+      <td className="license-row-secondary" data-label="Linked session">
+        <LicenseSessionLink {...sessionProps} />
+        <details className="license-technical-details">
+          <summary>Device details</summary>
+          <LicenseDeviceFacts license={license} />
+        </details>
+      </td>
+      <td className="license-actions-cell">
+        <div className="row-actions license-row-actions">
+          <Button
+            size="xs"
+            permission="licenses.write"
+            title="Activate for a registered install"
+            icon={<PlayCircle />}
+            aria-label={`Activate ${license.license_key} for an install`}
+            onClick={() => onActivate(license)}
+            disabled={license.status === "revoked"}
+          >
+            <span className="license-action-label">Activate</span>
+          </Button>
+          <Button
+            size="xs"
+            permission="licenses.write"
+            title="Bind another device"
+            icon={<Link2 />}
+            aria-label={`Bind ${license.license_key} to a device`}
+            onClick={() => onBind(license)}
+            disabled={license.status === "revoked"}
+          >
+            <span className="license-action-label">Bind device</span>
+          </Button>
+          <Button
+            size="xs"
+            permission="licenses.write"
+            title="Edit customer / order info"
+            icon={<Pencil />}
+            aria-label={`Edit customer / order info for ${license.license_key}`}
+            onClick={() => onEdit(license)}
+          >
+            <span className="license-action-label">Edit order</span>
+          </Button>
+          <Button
+            size="xs"
+            variant="danger"
+            permission="licenses.write"
+            title="Permanently delete license"
+            icon={<Trash2 />}
+            aria-label={`Permanently delete ${license.license_key}`}
+            onClick={() => onDelete(license)}
+          >
+            <span className="license-action-label">Delete</span>
+          </Button>
+        </div>
+        <details className="license-mobile-context">
+          <summary>Order &amp; device details</summary>
+          <LicenseOrderFacts license={license} />
+          <LicenseDeviceFacts license={license} />
+          <LicenseSessionLink {...sessionProps} />
+        </details>
+      </td>
+    </tr>
+  );
+}
+
 interface LicensesPageProps {
   summary?: SummaryPayload | null;
   onOpenSession?: (sessionId: string) => void;
   onOpenWorker?: (hwid: string) => void;
 }
 
-export function LicensesPage({
-  summary,
-  onOpenSession,
-  onOpenWorker,
-}: LicensesPageProps) {
+export function LicensesPage({ summary, onOpenSession, onOpenWorker }: LicensesPageProps) {
   const canWrite = usePanelPermission("licenses.write");
   const [licenses, setLicenses] = useState<LicenseRecord[]>([]);
   const [createdKeys, setCreatedKeys] = useState<string[]>([]);
@@ -767,8 +1090,7 @@ export function LicensesPage({
 
   const renderTable = (lics: LicenseRecord[], title: string) => (
     <section
-      className="panel"
-      style={{ marginBottom: 24 }}
+      className="panel license-inventory-panel"
       role="tabpanel"
       id="licenses-panel-inventory"
       aria-labelledby="licenses-panel-inventory-tab"
@@ -776,17 +1098,20 @@ export function LicensesPage({
       <div className="panel-head">
         <div className="panel-head-left">
           <h2 className="section-title">{title}</h2>
+          <p className="section-sub">
+            Customers, license state and recorded orders. Device activity is shown separately.
+          </p>
         </div>
         <div className="panel-head-right">
-          <span className="text-muted">{lics.length} licenses</span>
+          <span className="license-inventory-count" role="status">
+            {loading && !licenses.length
+              ? "Loading inventory..."
+              : `${lics.length} shown / ${licenses.length} loaded`}
+          </span>
         </div>
       </div>
-
       {!loading && lics.length === 0 ? (
-        <EmptyState
-          icon={<Key />}
-          title="No licenses found"
-        >
+        <EmptyState icon={<Key />} title="No licenses found">
           {hasLicenseFilters
             ? "No licenses match your current search filter."
             : "No license keys generated yet."}
@@ -804,236 +1129,40 @@ export function LicensesPage({
           </caption>
           <thead>
             <tr>
-              <th scope="col">License key</th>
               <th scope="col">Customer</th>
+              <th scope="col">License key</th>
               <th scope="col">Order</th>
               <th scope="col">Duration</th>
-              {/* Usage and Linked session carry no priority tier on purpose: this
-                  table has no expanded row and no drawer, so a hidden column is
-                  gone rather than folded away — and Linked session holds the only
-                  button that opens the bound session or worker. The table scrolls
-                  sideways instead (about 100px at 1440 now that the actions are
-                  icons); a scrollbar is recoverable, a lost action is not. */}
               <th scope="col">Usage</th>
-              <th scope="col">Status</th>
+              <th scope="col">License status</th>
               <th scope="col">Linked session</th>
               <th scope="col" aria-label="License actions" />
             </tr>
           </thead>
           <tbody>
-            {/* The table shape is reserved while the first load runs — a
-                skeleton, never a centred "Loading licenses…" spinner that the
-                rows then push out of the way. A reload keeps the rows it has. */}
             {loading && lics.length === 0 && <SkeletonRows columns={8} />}
-            {lics.map((lic) => {
-              const isMaster = isMasterLicense(lic);
-              return (
-                <tr
-                  key={lic.id}
-                  className={[
-                    highlightCreated && createdKeys.includes(lic.license_key) ? "row-created" : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                >
-                  <td>
-                    <RecordCell
-                      primary={
-                        <span className="license-key-cell">
-                          <span className="mono">{lic.license_key}</span>
-                          <CopyKeyButton
-                            value={lic.license_key}
-                            copied={copiedValue === lic.license_key}
-                            onCopy={(value) => void copyValue(value)}
-                          />
-                        </span>
-                      }
-                      secondary={
-                        <>
-                          {isMaster ? "Master license" : "License"}
-                          {highlightCreated && createdKeys.includes(lic.license_key) && (
-                            <span className="created-label"> · New</span>
-                          )}
-                        </>
-                      }
-                    />
-                  </td>
-                  <td data-label="Customer">
-                    <RecordCell
-                      primary={
-                        lic.customer_name ||
-                        lic.customer_email ||
-                        (lic.customer_discord || lic.verified_discord
-                          ? discordHandle((lic.customer_discord || lic.verified_discord)!)
-                          : "Unassigned")
-                      }
-                      secondary={
-                        <>
-                          {lic.customer_name && lic.customer_email ? (
-                            <span>
-                              {lic.customer_email}
-                              <br />
-                            </span>
-                          ) : null}
-                          {lic.customer_discord ? (
-                            <span>
-                              {discordHandle(lic.customer_discord)}
-                              <br />
-                            </span>
-                          ) : null}
-                          {lic.verified_discord && lic.verified_discord !== lic.customer_discord ? (
-                            <span>Verified: {discordHandle(lic.verified_discord)}</span>
-                          ) : null}
-                        </>
-                      }
-                    />
-                  </td>
-                  <td data-label="Order">
-                    <RecordCell
-                      primary={lic.order_id || "—"}
-                      secondary={
-                        <>
-                          {lic.order_source}
-                          {lic.order_source && lic.purchased_at ? " · " : null}
-                          {lic.purchased_at ? <RelativeTime iso={lic.purchased_at} /> : null}
-                        </>
-                      }
-                    />
-                  </td>
-                  <td data-label="Duration" style={{ whiteSpace: "nowrap" }}>
-                    <span style={{ color: "var(--text-1)", fontWeight: 500 }}>
-                      {lic.type === "lifetime"
-                        ? "Lifetime"
-                        : lic.duration_days && lic.duration_days < 1 / 24
-                          ? `${Math.round(lic.duration_days * 1440)} Mins`
-                          : lic.duration_days && lic.duration_days < 1
-                            ? `${Math.round(lic.duration_days * 24)} Hours`
-                            : lic.duration_days && lic.duration_days % 365 === 0
-                              ? `${lic.duration_days / 365} Years`
-                              : lic.duration_days && lic.duration_days % 30 === 0
-                                ? `${lic.duration_days / 30} Months`
-                                : lic.duration_days && lic.duration_days % 7 === 0
-                                  ? `${lic.duration_days / 7} Weeks`
-                                  : `${Math.round(lic.duration_days || 0)} Days`}
-                    </span>
-                  </td>
-                  <td data-label="Usage">
-                    {lic.usage_count} / {lic.max_uses === -1 ? "Unlimited" : lic.max_uses}
-                  </td>
-                  <td data-label="Status">
-                    <StatusBadge
-                      presence={
-                        lic.status === "active"
-                          ? "online"
-                          : lic.status === "revoked"
-                            ? "unreachable"
-                            : "idle"
-                      }
-                      label={lic.status[0].toUpperCase() + lic.status.slice(1)}
-                    />
-                  </td>
-                  <td data-label="Linked session">
-                    {lic.hwid ? (
-                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                        <User size={12} style={{ color: "var(--text-2)" }} />
-                        {lic.session_id || lic.hwid ? (
-                          (() => {
-                            const isLive =
-                              lic.session_id &&
-                              summary?.activeSessions.some((s) => s.id === lic.session_id);
-                            return (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (isLive && onOpenSession && lic.session_id) {
-                                    onOpenSession(lic.session_id);
-                                  } else if (onOpenWorker && lic.hwid) {
-                                    onOpenWorker(lic.hwid);
-                                  }
-                                }}
-                                className="record-link"
-                                title={isLive ? "View live session" : "View customer sessions"}
-                              >
-                                {lic.user_label || "Unknown customer"}
-                              </button>
-                            );
-                          })()
-                        ) : (
-                          <strong
-                            style={{
-                              color: "var(--text-1)",
-                              fontSize: "var(--fs-small)",
-                              maxWidth: "120px",
-                              whiteSpace: "nowrap",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                            }}
-                            title={lic.user_label || "Unknown customer"}
-                          >
-                            {lic.user_label || "Unknown customer"}
-                          </strong>
-                        )}
-                      </div>
-                    ) : (
-                      <span
-                        style={{
-                          color: "var(--text-2)",
-                          fontStyle: "italic",
-                          fontSize: "var(--fs-small)",
-                        }}
-                      >
-                        Unbound
-                      </span>
-                    )}
-                  </td>
-                  <td>
-                    {/* Icon-only, like the customer, live and error tables: four
-                        labelled buttons made this column 442px wide and pushed
-                        the table past 1700px. At icon width it fits from ~1540px
-                        and scrolls ~100px at 1440 instead of ~350px. */}
-                    <div className="row-actions">
-                      <IconButton
-                        permission="licenses.write"
-                        title="Activate for a registered install"
-                        icon={<PlayCircle />}
-                        aria-label={`Activate ${lic.license_key} for an install`}
-                        onClick={() => openLicenseAction(lic, "activate")}
-                        disabled={lic.status === "revoked"}
-                      />
-                      <IconButton
-                        permission="licenses.write"
-                        title="Bind another device"
-                        icon={<Link2 />}
-                        aria-label={`Bind ${lic.license_key} to a device`}
-                        onClick={() => openLicenseAction(lic, "bind")}
-                        disabled={lic.status === "revoked"}
-                      />
-                      <IconButton
-                        permission="licenses.write"
-                        title="Edit customer / order info"
-                        icon={<Pencil />}
-                        aria-label={`Edit customer / order info for ${lic.license_key}`}
-                        onClick={() => openEdit(lic)}
-                      />
-                      {/* Destructive, so it wears the danger colour the way the
-                          announcement and feedback tables' delete icons do —
-                          .btn-icon has no danger variant of its own. */}
-                      <IconButton
-                        permission="licenses.write"
-                        title="Permanently delete license"
-                        icon={<Trash2 />}
-                        aria-label={`Permanently delete ${lic.license_key}`}
-                        style={{ color: "var(--danger)" }}
-                        onClick={() => {
-                          setDeleteError(null);
-                          setDeleteCandidate(lic);
-                        }}
-                      />
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
+            {lics.map((lic) => (
+              <LicenseInventoryRow
+                key={lic.id}
+                license={lic}
+                isLive={Boolean(
+                  lic.session_id &&
+                  summary?.activeSessions.some((session) => session.id === lic.session_id),
+                )}
+                copiedValue={copiedValue}
+                highlighted={highlightCreated && createdKeys.includes(lic.license_key)}
+                onCopy={(value) => void copyValue(value)}
+                onOpenSession={onOpenSession}
+                onOpenWorker={onOpenWorker}
+                onActivate={(license) => openLicenseAction(license, "activate")}
+                onBind={(license) => openLicenseAction(license, "bind")}
+                onEdit={openEdit}
+                onDelete={(license) => {
+                  setDeleteError(null);
+                  setDeleteCandidate(license);
+                }}
+              />
+            ))}
           </tbody>
         </TableFrame>
       )}
@@ -1041,7 +1170,7 @@ export function LicensesPage({
   );
 
   return (
-    <div className="page-content page-stack-lg">
+    <div className="page-content page-stack-lg license-workspace">
       <CustomerReturnLink />
       <PageHeader
         page="licenses"
@@ -1133,11 +1262,11 @@ export function LicensesPage({
         >
           <div className="panel-head">
             <div className="panel-head-left">
-              <p className="kicker kicker-row">
+              <p className="license-workspace-eyebrow">
                 <SearchCheck size={12} /> Customer fulfilment
               </p>
               <h2 className="section-title" id="license-order-lookup-title">
-                Find a purchase and grant access
+                Find a purchase
               </h2>
               <p className="section-sub">
                 Start with the order ID from the customer. Search by customer only when the order is
@@ -1196,12 +1325,12 @@ export function LicensesPage({
                     <strong>
                       {lookupResults.length === 0
                         ? "No license found"
-                        : `${lookupResults.length} license${lookupResults.length === 1 ? "" : "s"} found`}
+                        : `${lookupResults.length} license${lookupResults.length === 1 ? "" : "s"} returned`}
                     </strong>
                     <span>
                       {lookupMode === "order_id"
                         ? `Exact order ${lookupValue.trim()}`
-                        : `Customer match for “${lookupValue.trim()}”`}
+                        : `Customer match for “${lookupValue.trim()}” (up to 200 results)`}
                     </span>
                   </div>
                   {lookupResults.length === 0 ? (
@@ -1223,6 +1352,15 @@ export function LicensesPage({
                         key={license.id || license.license_key}
                       >
                         <div className="license-lookup-card-main">
+                          <strong className="license-lookup-customer">
+                            {license.customer_name ||
+                              license.customer_email ||
+                              license.customer_discord ||
+                              "Customer not named"}
+                          </strong>
+                          {license.customer_name && license.customer_email ? (
+                            <span className="license-lookup-contact">{license.customer_email}</span>
+                          ) : null}
                           <span className="license-lookup-key customer360-mono">
                             {revealedLookupKeys.has(license.license_key)
                               ? license.license_key
@@ -1275,17 +1413,12 @@ export function LicensesPage({
                                 : `${license.duration_days ?? "?"} days`}
                             </span>
                             <span>
-                              {license.customer_name ??
-                                license.customer_email ??
-                                license.customer_discord ??
-                                "Customer not named"}
-                            </span>
-                            <span>
                               {license.hwid
                                 ? `Bound · ${license.usage_count}/${license.max_uses === -1 ? "∞" : license.max_uses}`
                                 : "Not bound yet"}
                             </span>
                           </div>
+                          <LicenseOrderDetails license={license} />
                         </div>
                         <div className="license-lookup-card-actions">
                           <Button
@@ -1331,7 +1464,7 @@ export function LicensesPage({
         >
           <div className="panel-head">
             <div className="panel-head-left">
-              <p className="kicker kicker-row">
+              <p className="license-workspace-eyebrow">
                 <Plus size={12} /> Bulk generate
               </p>
               <h2 className="section-title">License generator</h2>
@@ -1351,7 +1484,7 @@ export function LicensesPage({
             {/* The generator is the batch path; a single sale belongs in the
                 audited issue flow, which is one click away in the header. */}
             <p className="license-generator-note">
-              Keys created here carry no order record. For a single purchase use{" "}
+              Bulk generation is a separate batch workflow. For a single purchase use{" "}
               <strong>Issue license</strong> in the page header — it requires an order ID and is
               replay-safe.
             </p>
@@ -1492,6 +1625,7 @@ export function LicensesPage({
       )}
 
       <Modal
+        className="license-workspace-dialog"
         open={issueOpen}
         onClose={() => (issueBusy ? undefined : setIssueOpen(false))}
         dismissOnScrim={false}
@@ -1657,6 +1791,7 @@ export function LicensesPage({
       </Modal>
 
       <Modal
+        className="license-workspace-dialog"
         open={licenseAction !== null}
         onClose={() => (actionBusy ? undefined : setLicenseAction(null))}
         dismissOnScrim={false}
@@ -1795,6 +1930,7 @@ export function LicensesPage({
       </Modal>
 
       <Modal
+        className="license-workspace-dialog"
         open={!!deleteCandidate}
         onClose={() => (isDeleting ? undefined : setDeleteCandidate(null))}
         kicker="Danger zone"
@@ -1824,6 +1960,7 @@ export function LicensesPage({
 
       {/* Customer / order attribution editor */}
       <Modal
+        className="license-workspace-dialog"
         open={!!editCandidate}
         onClose={() => (isSavingEdit ? null : setEditCandidate(null))}
         dismissOnScrim={false}

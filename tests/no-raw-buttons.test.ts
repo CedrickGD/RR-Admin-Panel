@@ -22,16 +22,6 @@ const ALLOWED: Array<{ file: string; count: number; why: string }> = [
     why: "two whole-row disclosures (.person-cell, .error-group-row) plus one hand-written .btn-ghost",
   },
   {
-    file: "src/pages/FeedbackPage.tsx",
-    count: 1,
-    why: "hand-written .btn.btn-ghost — a straight ds/Button migration",
-  },
-  {
-    file: "src/pages/LicensesPage.tsx",
-    count: 1,
-    why: "record link in the inventory table — migrate to ds/RecordLink",
-  },
-  {
     file: "src/pages/LivePage.tsx",
     count: 1,
     why: "the .person-cell row disclosure: avatar, name and state in one control",

@@ -23,9 +23,10 @@ import type {
   Customer360Selector,
   DiagnosticBundle,
 } from "../types/customer360";
-import type { AppSessionRecord } from "../types/telemetry";
+import type { AppSessionRecord, ErrorEventDetail } from "../types/telemetry";
 import { fetchCustomer360 } from "../utils/api";
 import { getCustomer360Overview } from "../utils/customer360Overview";
+import { isRealErrorRow } from "../utils/errorEvents";
 import { useRefreshSignal } from "../utils/refreshBus";
 import {
   formatDate,
@@ -250,6 +251,38 @@ function RecordList({
         );
       })}
     </div>
+  );
+}
+
+/**
+ * Errors for one customer. The heading counts what Key figures counts — real
+ * errors — while background faults stay listed and labelled below it, because
+ * support needs to see the noise without it being called a crash.
+ */
+function ErrorsSection({ errors }: { errors: ErrorEventDetail[] }) {
+  const realErrors = errors.filter(isRealErrorRow).length;
+  const backgroundFaults = errors.length - realErrors;
+  return (
+    <section className="customer360-card">
+      <SectionHeading icon={<AlertTriangle />} title="Errors" count={realErrors} />
+      <RecordList
+        rows={errors}
+        empty="No errors are linked to this customer."
+        label={(row, index) => displayValue(row.message ?? row.type ?? `Error ${index + 1}`)}
+        meta={(row) =>
+          `${displayValue(row.type ?? row.kind)} · ${row.timestamp ? formatDate(String(row.timestamp)) : "time unknown"}`
+        }
+        badge={(row) => String(row.kind ?? "error")}
+      />
+      {backgroundFaults > 0 ? (
+        <p className="customer360-caption">
+          {backgroundFaults === 1
+            ? "1 background fault is listed above"
+            : `${formatNumber(backgroundFaults)} background faults are listed above`}
+          {" — a known client bug that does not crash the app, so it is never counted as an error."}
+        </p>
+      ) : null}
+    </section>
   );
 }
 
@@ -739,18 +772,7 @@ function ActivityTab({ customer }: { customer: Customer360Customer }) {
           <p className="customer360-empty">No activity history is available.</p>
         )}
       </section>
-      <section className="customer360-card">
-        <SectionHeading icon={<AlertTriangle />} title="Errors" count={customer.errors.length} />
-        <RecordList
-          rows={customer.errors}
-          empty="No errors are linked to this customer."
-          label={(row, index) => displayValue(row.message ?? row.type ?? `Error ${index + 1}`)}
-          meta={(row) =>
-            `${displayValue(row.type ?? row.kind)} · ${row.timestamp ? formatDate(String(row.timestamp)) : "time unknown"}`
-          }
-          badge={(row) => String(row.kind ?? "error")}
-        />
-      </section>
+      <ErrorsSection errors={customer.errors} />
     </div>
   );
 }

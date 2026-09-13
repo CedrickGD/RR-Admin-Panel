@@ -113,6 +113,10 @@ const SELECTORS: readonly CustomerSelector[] = [
 const SIMPLE_ID_PATTERN = /^[^\p{Cc}\p{Cf}]{1,128}$/u;
 const HWID_PATTERN = /^[^\s\p{Cc}]{1,64}$/u;
 const ERROR_LIMIT = 200;
+/** Background faults are listed for context, on their own budget so they cannot crowd out a
+    real error. Matches the kind the KPI queries exclude (functions/_lib/errors.ts). */
+const BACKGROUND_ERROR_LIMIT = 40;
+const BACKGROUND_KIND = "background";
 
 export async function onRequestGet(context: HandlerContext): Promise<Response> {
   try {
@@ -247,7 +251,7 @@ export async function onRequestGet(context: HandlerContext): Promise<Response> {
           ),
           // Real errors only: background faults stay listed under Errors, never counted.
           error_count: Math.max(
-            errors.filter((row) => row.kind !== "background").length,
+            errors.filter((row) => row.kind !== BACKGROUND_KIND).length,
             sessions.reduce((sum, row) => sum + Math.max(0, row.errorCount), 0),
           ),
         },
@@ -702,18 +706,39 @@ async function loadUsage(
   });
 }
 
+/**
+ * Real errors and background faults on separate budgets.
+ *
+ * One shared cap let a client looping on RR-E1003 fill all 200 rows with
+ * seconds of noise, so a real crash reported at any other moment was missing
+ * from the one screen support opens to answer "what broke for this user".
+ * Background faults stay in the list — the panel labels them and counts them
+ * nowhere — but they can no longer evict a real error.
+ */
 async function loadErrors(db: D1Database, anchor: AnchorSeed): Promise<ErrorEventDetail[]> {
   const safeMetrics = "CASE WHEN json_valid(metrics_json) THEN metrics_json ELSE '{}' END";
+  const columns = "event_id, source, ts, metrics_json, message, received_at";
   const rows = await db
     .prepare(
-      `SELECT event_id, source, ts, metrics_json, message, received_at
-       FROM telemetry_events
-       WHERE service = 'app_error' AND (
-         (? IS NOT NULL AND json_extract(${safeMetrics}, '$.hwid') = ?) OR
-         (? IS NOT NULL AND json_extract(${safeMetrics}, '$.install_id') = ?) OR
-         (? IS NOT NULL AND json_extract(${safeMetrics}, '$.session_id') = ?)
+      `WITH anchored AS (
+         SELECT ${columns},
+                COALESCE(json_extract(${safeMetrics}, '$.error_kind'), '') AS error_kind
+         FROM telemetry_events
+         WHERE service = 'app_error' AND (
+           (? IS NOT NULL AND json_extract(${safeMetrics}, '$.hwid') = ?) OR
+           (? IS NOT NULL AND json_extract(${safeMetrics}, '$.install_id') = ?) OR
+           (? IS NOT NULL AND json_extract(${safeMetrics}, '$.session_id') = ?)
+         )
        )
-       ORDER BY ts DESC LIMIT ${ERROR_LIMIT}`,
+       SELECT * FROM (
+         SELECT ${columns} FROM anchored WHERE error_kind != ? ORDER BY ts DESC LIMIT ${ERROR_LIMIT}
+       )
+       UNION ALL
+       SELECT * FROM (
+         SELECT ${columns} FROM anchored
+         WHERE error_kind = ? ORDER BY ts DESC LIMIT ${BACKGROUND_ERROR_LIMIT}
+       )
+       ORDER BY ts DESC`,
     )
     .bind(
       anchor.hwid,
@@ -722,6 +747,8 @@ async function loadErrors(db: D1Database, anchor: AnchorSeed): Promise<ErrorEven
       anchor.installId,
       anchor.requestedSessionId,
       anchor.requestedSessionId,
+      BACKGROUND_KIND,
+      BACKGROUND_KIND,
     )
     .all<ErrorRow>();
   return rows.results.map(mapError);

@@ -2,6 +2,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { CustomerWorkspaceRouter } from "../src/components/CustomerWorkspaceRouter";
+import { CustomerReturnLink } from "../src/components/CustomerReturnLink";
 import { resetHistoryLayers } from "../src/hooks/useHistoryLayer";
 import { PanelIdentity } from "../src/hooks/usePanelPermission";
 import type { AuthUser } from "../src/types/telemetry";
@@ -161,6 +162,13 @@ function workspaceShown(): boolean {
   );
 }
 
+/** The dialog that is open (not fading out), if any. */
+function openDialog(): HTMLElement | null {
+  return document.querySelector<HTMLElement>(
+    '[data-modal-root="true"][data-state="open"] [role="dialog"]',
+  );
+}
+
 function layerOf(state: unknown) {
   return (state as { rrLayer?: { key: string | null; depth: number } } | null)?.rrLayer ?? null;
 }
@@ -208,6 +216,133 @@ describe("Customer 360 on the session history", () => {
       "the page after the second Back",
     );
     expect(layerOf(history.state)).toBeNull();
+  });
+
+  it("a dialog over Customer 360 closes on Back, and the next Back closes Customer 360", async () => {
+    await mount();
+    await act(async () => openCustomerWorkspace({ selector: "hwid", value: "device-1" }));
+    await waitFor(workspaceShown, "Customer 360");
+    const length = history.length;
+
+    await act(async () => buttonNamed("Raw data")!.click());
+    await waitFor(() => openDialog() !== null, "the Raw data dialog");
+    expect(history.length).toBe(length + 1);
+    expect(location.href).toBe(CUSTOMER);
+    expect(history.state).toMatchObject({
+      rrLayer: { key: null, depth: 2, chain: [{ key: "customer" }, { key: null }] },
+    });
+
+    history.back();
+    await waitFor(() => openDialog() === null, "the dialog to close on Back");
+    expect(workspaceShown()).toBe(true);
+    expect(location.href).toBe(CUSTOMER);
+    expect(layerOf(history.state)).toMatchObject({ key: "customer", depth: 1 });
+
+    history.back();
+    await waitFor(
+      () => location.href === PAGE && !document.querySelector("section.customer-workspace"),
+      "the page after the second Back",
+    );
+    expect(layerOf(history.state)).toBeNull();
+  });
+
+  it('"Back to customer" on Licenses opens the same Customer 360 and tab again', async () => {
+    const saved = new URL(CUSTOMER);
+    saved.searchParams.set("customerTab", "activity");
+    const returnPath = saved.pathname + saved.search + saved.hash;
+    history.replaceState(
+      null,
+      "",
+      `http://localhost:3000/?customerReturn=${encodeURIComponent(returnPath)}#/licenses`,
+    );
+    await act(async () =>
+      root.render(
+        <PanelIdentity.Provider value={OWNER}>
+          <main>
+            <div className="page-enter">
+              <CustomerReturnLink />
+            </div>
+          </main>
+          <CustomerWorkspaceRouter user={OWNER} />
+        </PanelIdentity.Provider>,
+      ),
+    );
+    // history.length also counts forward entries earlier tests left behind; count pushes.
+    const push = vi.spyOn(history, "pushState");
+
+    await act(async () => buttonNamed("Back to customer")!.click());
+    await waitFor(workspaceShown, "Customer 360");
+    expect(location.href).toBe(
+      "http://localhost:3000/?customer=device-1&customerBy=hwid&customerTab=activity#/customers",
+    );
+    expect(layerOf(history.state)).toMatchObject({ key: "customer", depth: 1 });
+    // The customer's page as a new entry, the workspace one above it.
+    expect(push).toHaveBeenCalledTimes(2);
+    expect(document.querySelector('[role="tab"][aria-selected="true"]')?.textContent).toBe(
+      "Support & history",
+    );
+
+    history.back();
+    await waitFor(
+      () => location.href === PAGE && !document.querySelector("section.customer-workspace"),
+      "the customer's page after Back",
+    );
+  });
+
+  it("Back on the access dialog with unsaved changes asks first: Keep editing keeps Back on the dialog, Discard leaves Customer 360 open", async () => {
+    await mount();
+    await act(async () => openCustomerWorkspace({ selector: "hwid", value: "device-1" }));
+    await waitFor(workspaceShown, "Customer 360");
+    const length = history.length;
+
+    await act(async () => buttonNamed("Manage app access")!.click());
+    await waitFor(
+      () => Boolean(openDialog()?.querySelector(".gdrop-trigger:not([disabled])")),
+      "the access dialog to load",
+    );
+    // Unsaved work: Access switched from Allowed to Permanent ban.
+    await act(async () =>
+      openDialog()!.querySelector<HTMLButtonElement>(".gdrop-trigger")!.click(),
+    );
+    await act(async () =>
+      [...openDialog()!.querySelectorAll<HTMLButtonElement>('[role="option"]')]
+        .find((option) => option.textContent?.trim() === "Permanent ban")!
+        .click(),
+    );
+    expect(history.length).toBe(length + 1);
+    expect(layerOf(history.state)).toMatchObject({ key: null, depth: 2 });
+
+    history.back();
+    await waitFor(() => buttonNamed("Keep editing") !== null, "the discard prompt");
+    expect(openDialog()).not.toBeNull();
+    expect(workspaceShown()).toBe(true);
+    expect(layerOf(history.state)).toMatchObject({ key: "customer", depth: 1 });
+
+    await act(async () => buttonNamed("Keep editing")!.click());
+    // The dialog has its own entry again, pushed in place of the one Back left ahead.
+    expect(history.length).toBe(length + 1);
+    expect(location.href).toBe(CUSTOMER);
+    expect(layerOf(history.state)).toMatchObject({ key: null, depth: 2 });
+
+    // So Back targets the dialog again: the prompt, not Customer 360 closing.
+    history.back();
+    await waitFor(() => buttonNamed("Keep editing") !== null, "the discard prompt again");
+    expect(workspaceShown()).toBe(true);
+    expect(layerOf(history.state)).toMatchObject({ key: "customer", depth: 1 });
+
+    const back = vi.spyOn(history, "back");
+    const go = vi.spyOn(history, "go");
+    await act(async () => buttonNamed("Discard")!.click());
+    await waitFor(() => openDialog() === null, "the dialog to close");
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    // Its entry was already spent: nothing steps back again, and Customer 360 stays.
+    expect(back).not.toHaveBeenCalled();
+    expect(go).not.toHaveBeenCalled();
+    expect(workspaceShown()).toBe(true);
+    expect(location.href).toBe(CUSTOMER);
+    expect(layerOf(history.state)).toMatchObject({ key: "customer", depth: 1 });
   });
 
   it("after a reload with a keyless dialog open above it, adopts its own entry without pushing or rewriting", async () => {

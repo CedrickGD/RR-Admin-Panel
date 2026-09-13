@@ -43,19 +43,14 @@ describe("Customer 360 workspace", () => {
     expect(modal).toContain('event.key === "Escape"');
     expect(modal).toContain('event.key !== "Tab"');
     expect(modal).toContain('document.documentElement.style.overflow = "hidden"');
-    expect(modal).toContain("useHistoryLayer(open && Boolean(onClose)");
     expect(modal).toContain("target?.isConnected");
   });
 
-  it("keeps one history entry for the workspace, so Back from Licenses returns to it", () => {
-    expect(router).toContain("useHistoryLayer(");
-    expect(router).toContain('key: "customer"');
-    // The layer hook owns the entry; the router never pushes one by hand.
-    expect(router).not.toContain("history.pushState");
-    // Licenses is pushed on top of the workspace entry, not after closing it.
-    expect(overlay).toContain("navigateCustomerUrl(customerActionUrl(here, activeTab))");
-    expect(overlay).not.toMatch(/onClose\(\);\s*navigateCustomerUrl/);
-    // Back between entries whose query differs fires popstate only.
+  it("has App follow popstate as well as hashchange", () => {
+    // Back/Forward between entries whose query differs (Customer 360, the Licenses
+    // hand-off) fires popstate only. App is too heavy to mount in a test, so this
+    // one wiring stays a grep; the history flows themselves are driven for real in
+    // customer-workspace-history.test.tsx.
     expect(app).toContain('window.addEventListener("popstate", onHashChange)');
   });
 
@@ -105,11 +100,10 @@ describe("Customer 360 workspace", () => {
     expect(bar).toContain("top: calc(var(--workspace-pad-top) * -1)");
     expect(bar).not.toContain("transparent");
     // The page behind "Manage licenses" is loaded before the swap, and the workspace
-    // stays on top until that page has content instead of unmounting in the same frame.
+    // stays on top until that page has content instead of unmounting in the same frame
+    // (the hold itself is asserted in customer-workspace-history.test.tsx).
     expect(overlay).toContain('import("../pages/LicensesPage")');
-    expect(overlay).toContain('new Event("rr:customer-handoff")');
     expect(router).toContain('[aria-label="Loading page"]');
-    expect(router).toContain("setLeaving(anchor)");
     expect(layer).toContain(".customer-workspace.is-leaving");
   });
 

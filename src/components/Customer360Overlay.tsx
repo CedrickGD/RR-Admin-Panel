@@ -781,6 +781,14 @@ export function Customer360View({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
+  // "Manage licenses" swaps this workspace for the Licenses page. Load that
+  // page's code while the workspace is open, so the swap lands on the page
+  // itself instead of an empty screen with only a spinner over the background
+  // while the chunk downloads.
+  useEffect(() => {
+    if (open && canReadLicenses) void import("../pages/LicensesPage");
+  }, [open, canReadLicenses]);
+
   // Compact the sticky bar as soon as the workspace scrolls under it.
   useEffect(() => {
     const element = workspaceRef.current;

@@ -97,6 +97,17 @@ describe("Customer 360 workspace", () => {
     expect(overlay).toContain("maskLicenseKey(anchor.requested_value)");
   });
 
+  it("keeps the workspace bar opaque and flush in both states (nothing shows through)", () => {
+    const layer = source("../src/theme/consistency.css");
+    const bar = layer.match(/\.customer-workspace-bar \{[^}]*\}/)?.[0] ?? "";
+    expect(bar).toContain("background: var(--workspace-solid)");
+    expect(bar).toContain("border-bottom: 1px solid var(--line)");
+    expect(bar).toContain("top: calc(var(--workspace-pad-top) * -1)");
+    expect(bar).not.toContain("transparent");
+    // The page behind "Manage licenses" is loaded before the swap.
+    expect(overlay).toContain('import("../pages/LicensesPage")');
+  });
+
   it("does not expose full license keys in collapsed Customer 360 rows", () => {
     expect(overlay).toContain("maskLicenseKey(row.license_key)");
     expect(overlay).toContain("<RecordDetails record={raw} />");

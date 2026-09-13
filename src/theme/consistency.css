@@ -773,15 +773,23 @@ html[data-theme] .customer-action-bar .btn {
 
 /* The customer workspace is its own scroll container, so its identity and the
    customer's actions ride along in one sticky bar instead of scrolling out of
-   reach. The negative margins pull the bar into the workspace padding so the
-   opaque state spans the full width; --workspace-pad-top mirrors that padding
-   (workspace.css sets 28px, 16px below 600px). */
+   reach. The negative margins pull the bar into the workspace padding so it
+   spans the full width and sits on the workspace's top edge;
+   --workspace-pad-top mirrors that padding (workspace.css sets 24px, 16px
+   below 600px). */
 .customer-workspace {
   --workspace-pad-top: 24px;
 }
+/* Opaque in both states. It used to be transparent until the workspace
+   scrolled, so the PanelBackground canvas ran straight through the name and
+   "Manage licenses". And `top` is the negative padding, not 0: the sticky
+   inset is measured from the scroll container's content box, so top: 0 held the
+   bar 24px below its own place — content started under it, and once stuck a
+   24px strip above it showed the record scrolling past. */
 .customer-workspace-bar {
   position: sticky;
-  top: 0;
+  top: calc(var(--workspace-pad-top) * -1);
+  background: var(--workspace-solid);
   /* Above the pinned table header (z-index 5) and the pinned action column (6),
      which stick inside their own scroll box and would otherwise pass over the
      bar. `.customer-workspace` isolates the context, so 20 competes with
@@ -789,18 +797,13 @@ html[data-theme] .customer-action-bar .btn {
   z-index: 20;
   margin: calc(var(--workspace-pad-top) * -1) calc(var(--page-pad) * -1) 0;
   padding: var(--workspace-pad-top) var(--page-pad) 0;
-  border-bottom: 1px solid transparent;
+  border-bottom: 1px solid var(--line);
   /* The name on the left, the customer's actions on the right of the same
      row when they fit; they wrap under it when they do not. */
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
   column-gap: 16px;
-  /* Colour only — the height change is instant, so scrolling never chases a
-     transitioning bar (and there is no motion to remove for reduced motion). */
-  transition:
-    background var(--t-fast),
-    border-color var(--t-fast);
 }
 .customer-workspace-bar .customer-workspace-head {
   flex: 1 1 320px;
@@ -810,15 +813,13 @@ html[data-theme] .customer-action-bar .btn {
 .customer-workspace-bar .customer-action-bar {
   margin-bottom: 12px;
 }
-/* Scrolled: opaque so records pass behind it, and compact so the record keeps
-   the height — the name and the actions survive, the decoration does not.
-   --workspace-solid, not --bg: the workspace shows the PanelBackground canvas in
-   every non-plain background mode, and the raw page ground read there as a flat
-   slab of a colour no card on the page wears. */
+/* Scrolled: compact so the record keeps the height — the name and the actions
+   survive, the decoration does not. The fill is --workspace-solid in both
+   states, not --bg: the workspace shows the PanelBackground canvas in every
+   non-plain background mode, and the raw page ground read there as a flat slab
+   of a colour no card on the page wears. */
 .customer-workspace-bar.is-stuck {
   padding-top: 12px;
-  background: var(--workspace-solid);
-  border-bottom-color: var(--line);
 }
 .customer-workspace-bar.is-stuck :is(.customer-workspace-head, .customer-action-bar) {
   margin-bottom: 8px;

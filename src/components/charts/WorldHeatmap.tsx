@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import maplibregl, { type GeoJSONSource, LngLatBounds, Popup } from "maplibre-gl";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useHistoryLayer } from "../../hooks/useHistoryLayer";
 import type { FeatureCollection, LineString, Point } from "geojson";
 import type { ThemeMode } from "../../types/telemetry";
 import type { HeatmapSessionPoint } from "../../utils/dashboardInsights";
@@ -954,6 +955,11 @@ export function WorldHeatmap({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [fullscreen, activeKey]);
+
+  // Fullscreen replaces the screen, so it is a history layer like a dialog:
+  // Back (browser or phone) leaves fullscreen instead of leaving the page, and
+  // the minimize button / Escape step back over the entry it pushed.
+  useHistoryLayer(fullscreen, () => setFullscreen(false));
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) {

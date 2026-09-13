@@ -4,7 +4,7 @@
  * Compact command-bar page header: kicker over title on the left,
  * filters/meta on the right. One per page, above the first panel row.
  *
- * Top-level pages pass `page` and get their H1 from PAGE_META — the same name
+ * Top-level pages pass `page` and get their H1 from PAGE_META (pageHeading) — the same name
  * the sidebar, the breadcrumb and the tab title use — instead of a `title`.
  *
  * Deviation from the DS contract: an optional `sub` prop is accepted for a
@@ -15,7 +15,7 @@
  * it worth hiding have been deleted.
  */
 import type { ReactNode } from "react";
-import { PAGE_META } from "../../pageMeta";
+import { pageHeading } from "../../pageMeta";
 import type { PageKey } from "../../types/telemetry";
 
 export type PageHeaderProps = {
@@ -34,7 +34,7 @@ export type PageHeaderProps = {
   right?: ReactNode;
 } & (
   | {
-      /** Top-level page: the H1 defaults to PAGE_META[page].label. */
+      /** Top-level page: the H1 defaults to pageHeading(page). */
       page: PageKey;
       /** Override for sub-views only — omit so the page keeps its one name. */
       title?: ReactNode;
@@ -47,7 +47,7 @@ export type PageHeaderProps = {
 );
 
 export function PageHeader({ kicker, page, title, sub, right }: PageHeaderProps) {
-  const heading = title ?? (page ? PAGE_META[page].label : null);
+  const heading = title ?? (page ? pageHeading(page) : null);
   return (
     <section className="page-header">
       <div>

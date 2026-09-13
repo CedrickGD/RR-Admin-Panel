@@ -15,14 +15,23 @@ export type PageGroup =
 export interface PageMeta {
   /** Sidebar group; doubles as the breadcrumb prefix. */
   group: PageGroup;
-  /** Sentence-case page name, e.g. "Live sessions". */
+  /** Sentence-case page name, e.g. "Live sessions". The sidebar item. */
   label: string;
+  /**
+   * The page's own name where it differs from its sidebar item: the page H1, the breadcrumb and
+   * the tab title (read them through pageHeading()). Only for a page whose ds/Tabs sections outgrow
+   * the item that opens it, and whose natural name is its group's: Customers holds the directory
+   * and the restrictions, but a rail item named "Customers" would repeat the group header above it.
+   */
+  heading?: string;
 }
 
 export const PAGE_META: Record<PageKey, PageMeta> = {
-  // Not plain "Customers": that is this page's own group name, and the sidebar would
-  // then render the group header and its first child as the same word and icon.
-  customers: { group: "Customers", label: "Customer directory" },
+  // The rail item is not plain "Customers": that is this page's own group name, and the sidebar
+  // would render the group header and its first child as the same word and icon. The page itself
+  // holds two sections (Directory | Restrictions), so its H1, breadcrumb and tab title name the
+  // whole page, the way Licenses & orders and Panel access name theirs above their tabs.
+  customers: { group: "Customers", label: "Customer directory", heading: "Customers" },
   licenses: { group: "Customers", label: "Licenses & orders" },
   // No "access" entry: the App access page was folded into the directory above
   // and "#/access" is only an alias now (see src/utils/pageRouting.ts). A label
@@ -41,3 +50,8 @@ export const PAGE_META: Record<PageKey, PageMeta> = {
   system: { group: "Administration", label: "Backend status" },
   settings: { group: "Administration", label: "Settings" },
 };
+
+/** The name a page goes by on screen (H1, breadcrumb, tab title): its heading, else its label. */
+export function pageHeading(page: PageKey): string {
+  return PAGE_META[page].heading ?? PAGE_META[page].label;
+}

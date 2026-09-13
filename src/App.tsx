@@ -16,7 +16,7 @@ import {
 } from "./hooks/useWorkspaceSearch";
 import type { MapFocusTarget } from "./pages/HeatmapPage";
 import type { PageKey } from "./types/telemetry";
-import { PAGE_META } from "./pageMeta";
+import { pageHeading } from "./pageMeta";
 import {
   hashPageToken,
   isPageKey,
@@ -225,7 +225,7 @@ export default function App() {
   const signedIn = Boolean(user);
   useEffect(() => {
     document.title = signedIn
-      ? `${PAGE_META[page].label} · RazorReaper`
+      ? `${pageHeading(page)} · RazorReaper`
       : "RazorReaper — Operations Console";
   }, [page, signedIn]);
   const { stats, users } = useAdminStats(

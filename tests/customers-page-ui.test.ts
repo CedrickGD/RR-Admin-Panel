@@ -19,10 +19,13 @@ describe("Customers CRM page", () => {
     // The sidebar carries structure only; the visible name lives in PAGE_META,
     // which the rail, the breadcrumb and the page H1 all read.
     expect(nav).toMatch(/\["customers",\s*<UsersRound \/>\]/);
-    // The label must not repeat the group name, or the rail renders "Customers > Customers".
+    // The rail label must not repeat the group name, or the rail renders "Customers > Customers".
+    // The page's own name (H1, breadcrumb, tab title) covers both sections: "Customers".
     expect(pageMeta).toMatch(
-      /customers:\s*\{\s*group:\s*"Customers",\s*label:\s*"Customer directory"\s*\}/,
+      /customers:\s*\{\s*group:\s*"Customers",\s*label:\s*"Customer directory",\s*heading:\s*"Customers"\s*\}/,
     );
+    expect(pageMeta).toContain("PAGE_META[page].heading ?? PAGE_META[page].label");
+    expect(nav).toContain("meta.group === heading ? null");
     expect(app).toContain('import("./pages/CustomersPage")');
     expect(app).toContain('"workers", "customers", "heatmap"');
     expect(app).toContain('page === "customers"');

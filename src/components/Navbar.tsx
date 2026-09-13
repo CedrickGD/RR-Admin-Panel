@@ -43,7 +43,7 @@ import type {
   SummaryPayload,
 } from "../types/telemetry";
 import { canVisit } from "../../shared/panel-policy";
-import { PAGE_META, type PageGroup } from "../pageMeta";
+import { PAGE_META, pageHeading, type PageGroup } from "../pageMeta";
 import { useAppearance } from "../hooks/useAppearance";
 import { useChartColors } from "../hooks/useChartColors";
 import { useSignOut } from "../hooks/useSignOut";
@@ -274,8 +274,10 @@ export function Navbar({ page, onNavigate, user, onLogout }: NavbarProps) {
   }
 
   const meta = PAGE_META[page];
+  // The breadcrumb names the page as its H1 does, which can differ from its rail item.
+  const heading = pageHeading(page);
   const breadcrumbGroupTarget =
-    meta.group === meta.label ? null : firstVisiblePageInGroup(meta.group, user);
+    meta.group === heading ? null : firstVisiblePageInGroup(meta.group, user);
   return (
     <>
       <aside
@@ -416,7 +418,7 @@ export function Navbar({ page, onNavigate, user, onLogout }: NavbarProps) {
         <div className={`workspace-breadcrumb${topLayer ? " has-layer" : ""}`}>
           {/* A page named after its own group shows the name once, never twice. */}
           {breadcrumbGroupTarget === null ? (
-            <strong aria-current="page">{meta.label}</strong>
+            <strong aria-current="page">{heading}</strong>
           ) : (
             <>
               {/* Real link (not just a click handler) so it behaves like any other
@@ -440,7 +442,7 @@ export function Navbar({ page, onNavigate, user, onLogout }: NavbarProps) {
               </a>
               <ChevronRight size={13} className="workspace-breadcrumb-sep" aria-hidden="true" />
               <strong className="workspace-breadcrumb-page" aria-current="page">
-                {meta.label}
+                {heading}
               </strong>
             </>
           )}

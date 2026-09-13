@@ -174,33 +174,68 @@
    What gives way is the icon well, not the height and not the label: the icon
    is decoration beside a number (operations.css used to drop it at <=768px for
    the same reason), while a tile that grows to three rows breaks the one thing
-   a KPI row must do, which is line up. */
+   a KPI row must do, which is line up.
+
+   The icon well drops by container width alone, at any viewport: a fixed
+   5-up/6-up desktop row (TrafficPage, HeatmapPage) can still land a tile
+   under 200px, and the icon is the first thing to give there too. */
 @container tile (max-width: 200px) {
   .tile-side { display: none; }
-  /* Value can't share a line with the label at this width and stay
-     readable, so it drops to its own line above the label. The label may
-     wrap to a second line instead of truncating — losing the end of it is
-     worse than a taller tile. */
-  .tile-line {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 2px;
+}
+
+/* The stacked, wrapping narrow layout below is phone-only. Gating it on
+   container width alone also fired for TrafficPage's 5-up and HeatmapPage's
+   6-up desktop rows (fixed columns put those tiles under 200px at 1440px
+   too), stretching every tile there from 64px to 82px — a desktop regression
+   nobody asked for. Desktop tiles under 200px keep the one-line,
+   value-before-label, ellipsised layout from outside this block; only a
+   phone narrow enough to run the 2-up `.stat-grid` (max-width:600px, see
+   consistency.css) gets the wrap. */
+@media (max-width: 600px) {
+  @container tile (max-width: 200px) {
+    /* Value can't share a line with the label at this width and stay
+       readable, so it drops to its own line above the label. The label may
+       wrap to a second line instead of truncating — losing the end of it is
+       worse than a taller tile. */
+    .tile-line {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
+    }
+    .stat-label {
+      white-space: normal;
+      overflow: visible;
+      text-overflow: clip;
+    }
+    /* Sub line wraps instead of truncating to one word; clamped to two lines
+       so it still has a ceiling. Size is unchanged (--fs-micro, set above). */
+    .stat-sub-text {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      white-space: normal;
+      text-overflow: clip;
+    }
   }
-  .stat-label {
-    white-space: normal;
-    overflow: visible;
-    text-overflow: clip;
-  }
-  /* Sub line wraps instead of truncating to one word; clamped to two lines
-     so it still has a ceiling. Size is unchanged (--fs-micro, set above). */
-  .stat-sub-text {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-    white-space: normal;
-    text-overflow: clip;
-  }
+  /* .stat-card centers its row cross-axis (align-items:center, declared
+     above, unchanged at every other width). Once the rule above lets
+     label/sub-line wrap a different amount tile to tile, that centering
+     puts each tile's value at a different y within an equal-height row —
+     e.g. a two-line sub next to a one-line one. Top-align instead so the
+     value line of every tile in a row starts on the same rule; the chevron
+     sits in the same column flow and is carried along, not pushed.
+
+     This can't live inside the @container block above: a container query
+     cannot restyle the element that is the query container itself (spec
+     behaviour, not a bug — .stat-card is `container-name: tile`), so an
+     `align-items` override on `.stat-card` nested in `@container tile {}`
+     is silently never applied. The plain viewport check here is sufficient
+     on its own: below 600px `.stat-grid` is already the 2-up phone layout
+     (consistency.css), so every tile is narrow except the lone spanning
+     last tile on an odd count, which stays single-line and alone in its
+     grid row — flex-start and center land it identically there. */
+  .stat-card { align-items: flex-start; }
 }
 /* Equal height within a KPI row: once the rule above lets label/sub-line
    wrap, two tiles in the same row can wrap a different amount. Grid items

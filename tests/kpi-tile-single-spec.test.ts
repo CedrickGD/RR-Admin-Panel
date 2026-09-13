@@ -134,6 +134,56 @@ describe("tiles on a phone", () => {
     );
     expect(layer).toContain(".stat-card:nth-of-type(odd):last-of-type");
   });
+
+  /*
+   * Regression guard for the desktop tile-height bug introduced by bcdf846:
+   * the stacked, wrapping narrow-tile layout was gated on tile container
+   * width alone (`@container tile (max-width: 200px)`), which also fires on
+   * desktop for a fixed 5-up/6-up KPI row (TrafficPage, HeatmapPage) once
+   * those columns get narrower than 200px — stretching every tile there from
+   * 64px to 82px even at 1440px. The stacking rules (and the top-align fix
+   * for it, see below) must sit inside the same `@media (max-width: 600px)`
+   * that switches `.stat-grid` to two columns, so they can never fire above
+   * that viewport width regardless of how narrow a desktop column gets.
+   * `.tile-side` dropping (the icon well) is the one exception: it is meant
+   * to fire on container width alone, at any viewport.
+   */
+  it("gates the stacked narrow-tile layout on the phone viewport, not container width alone", () => {
+    const spec = source(SPEC_FILE);
+    const phoneBlockMatch = spec.match(
+      /@media \(max-width: 600px\) \{\s*@container tile \(max-width: 200px\) \{([\s\S]*?)\n {2}\}\n(?:[\s\S]*?)\n\}/,
+    );
+    expect(
+      phoneBlockMatch,
+      "expected a @media(<=600px) > @container(tile,<=200px) block",
+    ).not.toBeNull();
+    const [fullMatch, containerBody] = phoneBlockMatch!;
+
+    // The stacking rules live inside the nested container query, so they are
+    // reachable only when both the phone viewport and the narrow tile apply.
+    for (const selector of [".tile-line", ".stat-label", ".stat-sub-text"]) {
+      expect(containerBody, selector).toContain(selector);
+    }
+
+    // .stat-card is the query container itself (`container-name: tile`) — a
+    // container query cannot restyle the element that queries it (CSS
+    // Containment spec), so its top-align override must sit in the outer
+    // @media block, not nested inside @container, or it silently never
+    // applies. Assert it is present in the outer block but not inside the
+    // inner @container body.
+    expect(fullMatch).toMatch(/\.stat-card\s*\{\s*align-items:\s*flex-start;?\s*\}/);
+    expect(containerBody).not.toContain(".stat-card {");
+
+    // The icon well drop is the one rule meant to fire on container width
+    // alone, at any viewport — it must NOT be inside the phone-only @media.
+    const iconWellRule = spec.match(
+      /@container tile \(max-width: 200px\) \{\s*\.tile-side \{ display: none; \}\s*\}/,
+    );
+    expect(
+      iconWellRule,
+      "expected an unconditional (non-@media-gated) icon-well rule",
+    ).not.toBeNull();
+  });
 });
 
 /*

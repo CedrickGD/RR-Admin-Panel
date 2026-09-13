@@ -76,7 +76,7 @@ describe("Customer 360 workspace", () => {
 
   it("lays the workspace out as identity + figures beside the tabbed record", () => {
     expect(overlay).toContain('className="customer360-layout"');
-    expect(overlay).toContain('className="customer360-side"');
+    expect(overlay).toMatch(/className="customer360-side\s+customer-record-summary"/);
     expect(overlay).toContain("<KeyFigures customer={customer} />");
     // The complete record sits behind a button, not in an always-rendered dump.
     expect(overlay).toContain("Raw data");

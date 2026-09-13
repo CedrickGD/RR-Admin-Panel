@@ -34,6 +34,7 @@ import {
 import { Badge, type BadgeProps } from "./ds/Badge";
 import { Button } from "./ds/Button";
 import { Modal, ModalActions } from "./ds/Modal";
+import { RecordFacts, RecordSection } from "./ds/RecordSection";
 import { RelativeTime } from "./ds/RelativeTime";
 import { usePanelPermission } from "../hooks/usePanelPermission";
 import { PanelBackground } from "./PanelBackground";
@@ -297,48 +298,269 @@ function DiagnosticReport({ report }: { report: DiagnosticBundle | null }) {
   );
 }
 
-/** The Overview tab. Identity and the key figures live in the left column, on every tab. */
-function SummaryTab({ customer }: { customer: Customer360Customer }) {
+function reportedValue(value: string | null | undefined): ReactNode {
+  return value?.trim() ? value : <span className="customer-record-missing">Not reported</span>;
+}
+
+/** The Overview tab. Identity and access remain visible alongside every section. */
+function SummaryTab({
+  customer,
+  showActivity,
+  onOpenHistory,
+}: {
+  customer: Customer360Customer;
+  showActivity: boolean;
+  onOpenHistory: () => void;
+}) {
   const { summary } = customer;
   return (
-    <section className="customer360-card">
-      <SectionHeading icon={<Laptop />} title="Environment" />
-      <InfoGrid
-        items={[
-          { label: "App version", value: summary.display_version ?? summary.app_version },
-          { label: "Platform", value: summary.platform },
-          { label: "OS", value: summary.os_version },
-          { label: "Device", value: summary.device_model },
-          {
-            label: "Country",
-            value: resolveCountry(summary.country)?.label ?? summary.country,
-          },
-          {
-            label: "City / region",
-            value: [summary.city, summary.region].filter(Boolean).join(", "),
-          },
-          { label: "Timezone", value: summary.timezone },
-          {
-            label: "First seen",
-            value: summary.first_seen ? formatDate(summary.first_seen) : null,
-          },
-          {
-            label: "Last seen",
-            value: summary.last_seen
-              ? `${formatDate(summary.last_seen)} (${timeAgo(summary.last_seen)})`
-              : null,
-          },
-        ]}
-      />
-    </section>
+    <div className="customer-record-overview">
+      <div className="customer-record-environment">
+        <RecordSection
+          title="App & device"
+          description="Latest reported environment"
+          className="customer-record-app-device"
+        >
+          <RecordFacts
+            items={[
+              {
+                label: "App version",
+                value: reportedValue(summary.display_version ?? summary.app_version),
+              },
+              { label: "Platform", value: reportedValue(summary.platform) },
+              { label: "Operating system", value: reportedValue(summary.os_version) },
+              { label: "Device", value: reportedValue(summary.device_model) },
+            ]}
+          />
+        </RecordSection>
+        <RecordSection title="Location & activity" className="customer-record-location-activity">
+          <RecordFacts
+            items={[
+              {
+                label: "Country",
+                value: reportedValue(resolveCountry(summary.country)?.label ?? summary.country),
+              },
+              {
+                label: "City / region",
+                value: reportedValue([summary.city, summary.region].filter(Boolean).join(", ")),
+              },
+              { label: "Timezone", value: reportedValue(summary.timezone) },
+              {
+                label: "First seen",
+                value: reportedValue(summary.first_seen ? formatDate(summary.first_seen) : null),
+              },
+              {
+                label: "Last seen",
+                value: summary.last_seen ? (
+                  <span title={formatDate(summary.last_seen)}>{timeAgo(summary.last_seen)}</span>
+                ) : (
+                  reportedValue(null)
+                ),
+              },
+            ]}
+          />
+        </RecordSection>
+      </div>
+      {showActivity ? <RecentActivity customer={customer} onOpenHistory={onOpenHistory} /> : null}
+    </div>
   );
 }
 
-/** The four numbers a support conversation starts from, on the KPI tile's type scale. */
+function RecentActivity({
+  customer,
+  onOpenHistory,
+}: {
+  customer: Customer360Customer;
+  onOpenHistory: () => void;
+}) {
+  const activity = customer.activity;
+  const reported = (activity && !activity.legacyOnly ? activity.days : [])
+    .filter(
+      (day) =>
+        /^\d{4}-\d{2}-\d{2}$/.test(day.date) &&
+        Number.isFinite(Date.parse(`${day.date}T00:00:00Z`)) &&
+        Number.isFinite(day.seconds) &&
+        day.seconds >= 0,
+    )
+    .slice()
+    .sort((left, right) => left.date.localeCompare(right.date));
+  const lastDay = reported[reported.length - 1];
+  const byDate = new Map(reported.map((day) => [day.date, day]));
+  const days = lastDay
+    ? Array.from({ length: 14 }, (_, index) => {
+        const date = new Date(Date.parse(`${lastDay.date}T00:00:00Z`) - (13 - index) * 86_400_000)
+          .toISOString()
+          .slice(0, 10);
+        return { date, report: byDate.get(date) ?? null };
+      })
+    : [];
+  const maxSeconds = Math.max(0, ...days.map((day) => day.report?.seconds ?? 0));
+  const reportedDays = days.filter((day) => day.report !== null);
+  const seconds = reportedDays.reduce((total, day) => total + day.report!.seconds, 0);
+  const sessions = reportedDays.reduce((total, day) => total + day.report!.sessions, 0);
+
+  return (
+    <RecordSection
+      title="Recorded activity"
+      description={
+        lastDay ? "Daily use across 14 calendar days" : "Daily use from recorded sessions"
+      }
+      className="customer-record-activity"
+      action={
+        <Button size="sm" permission="support.read" onClick={onOpenHistory}>
+          Full history
+        </Button>
+      }
+    >
+      <SectionErrors customer={customer} names={["activity"]} />
+      {lastDay && activity ? (
+        <>
+          <RecordFacts
+            className="customer-record-activity-facts"
+            items={[
+              { label: "Recorded use in this window", value: formatDuration(seconds) },
+              { label: "Sessions", value: formatNumber(sessions) },
+              { label: "Days reported", value: `${reportedDays.length} of ${days.length}` },
+            ]}
+          />
+          <figure className="customer-record-activity-chart">
+            <div className="customer-record-activity-scale" aria-hidden="true">
+              <span>Daily recorded use</span>
+              <span>{formatDuration(maxSeconds)}</span>
+            </div>
+            <ol
+              className="customer-record-activity-bars"
+              aria-label="Recorded use by calendar date"
+            >
+              {days.map(({ date, report }) => {
+                const label = report
+                  ? `${date}: ${formatDuration(report.seconds)} recorded, ${formatNumber(report.sessions)} sessions`
+                  : `${date}: Not reported`;
+                return (
+                  <li key={date} title={label} aria-label={label}>
+                    <div
+                      className={`customer-record-activity-track${report ? "" : " is-missing"}`}
+                      aria-hidden="true"
+                    >
+                      {report ? (
+                        <span
+                          className="customer-record-activity-bar"
+                          style={{
+                            height: `${maxSeconds > 0 ? (report.seconds / maxSeconds) * 100 : 0}%`,
+                          }}
+                        />
+                      ) : (
+                        <span className="customer-record-activity-missing">-</span>
+                      )}
+                    </div>
+                    <span className="customer-record-activity-day" aria-hidden="true">
+                      {date.slice(8)}
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+            <figcaption className="customer-record-activity-caption">
+              <span>
+                {days[0].date} to {lastDay.date}
+              </span>
+              <span>{activity.timezone}</span>
+            </figcaption>
+          </figure>
+          {reportedDays.length < days.length ||
+          !activity.intervalsComplete ||
+          activity.legacyOnly ? (
+            <p className="customer-record-activity-note">
+              {reportedDays.length < days.length
+                ? "Days marked with a dash were not reported; they are not counted as zero use. "
+                : ""}
+              {!activity.intervalsComplete || activity.legacyOnly
+                ? "Some session history is incomplete. Totals reflect the daily records available."
+                : ""}
+            </p>
+          ) : null}
+        </>
+      ) : (
+        <p className="customer360-empty">
+          {activity?.legacyOnly
+            ? "Daily activity is unavailable for these older sessions."
+            : "No daily activity has been reported for this customer."}
+        </p>
+      )}
+    </RecordSection>
+  );
+}
+
+function AppAccessSummary({
+  customer,
+  onManageAccess,
+}: {
+  customer: Customer360Customer;
+  onManageAccess: () => void;
+}) {
+  const canReadAccess = usePanelPermission("access.read");
+  if (!canReadAccess) return null;
+  const incomplete = Boolean(customer.section_errors.access);
+  const currentRules = customer.access.filter(
+    (row) =>
+      Number(row.is_active) === 1 &&
+      (!row.banned_until || Date.parse(String(row.banned_until)) > Date.now()),
+  );
+  // Match enforcement: a permanent restriction wins, otherwise the latest expiry.
+  const rule = currentRules.sort((left, right) => {
+    if (!left.banned_until && right.banned_until) return -1;
+    if (left.banned_until && !right.banned_until) return 1;
+    if (!left.banned_until && !right.banned_until) return 0;
+    return String(left.banned_until) > String(right.banned_until) ? -1 : 1;
+  })[0];
+  const label = incomplete
+    ? "Status unavailable"
+    : rule
+      ? rule.mode === "ban"
+        ? "Banned"
+        : "Suspended"
+      : "No active restriction";
+  const tone: BadgeProps["tone"] = incomplete
+    ? "muted"
+    : rule
+      ? rule.mode === "ban"
+        ? "danger"
+        : "warning"
+      : "success";
+  return (
+    <RecordSection
+      title="App access"
+      className="customer-record-access"
+      action={
+        <Button size="sm" permission="access.read" onClick={onManageAccess}>
+          Manage
+        </Button>
+      }
+    >
+      <div
+        className="customer-record-access-state"
+        data-state={incomplete ? "unknown" : rule ? "restricted" : "clear"}
+      >
+        <Badge tone={tone}>{label}</Badge>
+      </div>
+      <SectionErrors customer={customer} names={["access"]} />
+      {!incomplete && rule?.reason ? (
+        <p className="customer-record-access-reason">{displayValue(rule.reason)}</p>
+      ) : null}
+      {!incomplete && rule ? (
+        <p className="customer360-caption">
+          {rule.banned_until ? `Until ${formatDate(String(rule.banned_until))}` : "No expiry"}
+        </p>
+      ) : null}
+    </RecordSection>
+  );
+}
+
+/** Compact context for the customer, visible across every tab. */
 function KeyFigures({ customer }: { customer: Customer360Customer }) {
   const { summary } = customer;
   return (
-    <section className="customer360-card" aria-label="Key figures">
+    <RecordSection title="Usage snapshot" className="customer-record-usage">
       <dl className="customer360-figures">
         <div>
           <dt>License</dt>
@@ -359,7 +581,7 @@ function KeyFigures({ customer }: { customer: Customer360Customer }) {
           </dd>
         </div>
       </dl>
-    </section>
+    </RecordSection>
   );
 }
 
@@ -394,7 +616,7 @@ function IdentityCard({
   ].filter((fact) => fact.value !== null && fact.value !== undefined && fact.value !== "");
   const requestedBy = String(anchor.requested_by ?? "");
   return (
-    <section className="customer360-card">
+    <section className="customer360-card customer-record-identity">
       <div className="customer360-card-head">
         <SectionHeading icon={<UserRound />} title="Identity" />
         <Button size="sm" icon={<Braces />} onClick={onRawData}>
@@ -889,16 +1111,17 @@ export function Customer360View({
   // below, left column first.
   const body = customer ? (
     <div className="customer360-layout">
-      <aside className="customer360-side" aria-label="Customer summary">
+      <aside className="customer360-side customer-record-summary" aria-label="Customer summary">
         <SectionErrors customer={customer} names={["profile", "summary"]} />
-        <KeyFigures customer={customer} />
         <IdentityCard
           customer={customer}
           linkedAccount={accountProfile ? `@${accountProfile.discordUsername}` : null}
           onRawData={() => setRawOpen(true)}
         />
+        <AppAccessSummary customer={customer} onManageAccess={() => setAccessOpen(true)} />
+        <KeyFigures customer={customer} />
       </aside>
-      <div className="customer360-main">
+      <div className="customer360-main customer-record-content">
         <div className="customer360-tabs" role="tablist" aria-label="Customer information sections">
           {visibleTabs.map((tab, index) => (
             <button
@@ -928,7 +1151,13 @@ export function Customer360View({
           aria-labelledby={`customer360-tab-${activeTab}`}
           tabIndex={0}
         >
-          {activeTab === "summary" ? <SummaryTab customer={customer} /> : null}
+          {activeTab === "summary" ? (
+            <SummaryTab
+              customer={customer}
+              showActivity={canReadSupport}
+              onOpenHistory={() => setActiveTab("activity")}
+            />
+          ) : null}
           {activeTab === "activity" ? (
             <>
               <FeedbackTab customer={customer} />
@@ -994,7 +1223,7 @@ export function Customer360View({
   }
   return (
     <section
-      className={`customer-workspace${handoff === "fade" ? " is-leaving" : ""}`}
+      className={`customer-workspace customer-record-workspace${handoff === "fade" ? " is-leaving" : ""}`}
       aria-label="Customer 360"
       aria-hidden={handoff ? true : undefined}
       inert={Boolean(handoff)}

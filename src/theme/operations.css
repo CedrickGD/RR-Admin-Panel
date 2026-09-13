@@ -393,6 +393,17 @@ html.sb-collapsed .sb-brand-img {
 .monitor-workspace .page-header {
   margin: 0;
 }
+/* index.css stacks the page header into a column at <=480px, but the
+   `align-items: center` above (meant for the row) still applied, so the title
+   block shrank to its widest line and was centred: a page with a subtitle got
+   an indented title (Traffic), one without a centred title, while the header
+   actions below sat on the gutter. Stretched, title, subtitle and actions all
+   start on the same left edge as the tiles and toolbar under them. */
+@media (max-width: 480px) {
+  .page-header {
+    align-items: stretch;
+  }
+}
 .monitor-surface {
   background: var(--surface-1);
   border: 1px solid var(--line);

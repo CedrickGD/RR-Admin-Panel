@@ -97,10 +97,22 @@ function containerState(container: SystemContainer): { tone: ServiceTone; health
   return { tone: "ok", health: container.health === "healthy" ? "Healthy" : "Running" };
 }
 
+export interface ServiceRowOptions {
+  /**
+   * The payload on screen is the last one that loaded and the refresh after it failed. What was
+   * green then is unverified now, so every "ok" row drops to the grey unknown dot; a row that was
+   * already warning or failing keeps its tone, because that reading is still the latest news.
+   */
+  stale?: boolean;
+}
+
 /** One row per NAS service, merged from the container list, the bot probe and the database. */
-export function serviceRows(payload: SystemStatusPayload): ServiceRow[] {
+export function serviceRows(
+  payload: SystemStatusPayload,
+  options: ServiceRowOptions = {},
+): ServiceRow[] {
   const generatedAt = Date.parse(payload.generatedAt);
-  return SERVICE_ORDER.map((key): ServiceRow => {
+  const rows = SERVICE_ORDER.map((key): ServiceRow => {
     if (key === "database") {
       const storage = payload.storage;
       const sizes = storage
@@ -172,12 +184,16 @@ export function serviceRows(payload: SystemStatusPayload): ServiceRow[] {
         ? (payload.backup.newestFile ?? "No backup file yet")
         : "Backup folder not mounted";
     } else if (key === "docker-proxy" && payload.containers === null) {
-      row.tone = "warning";
-      row.health = "No response";
+      const absent = payload.sources?.containers === "not-configured";
+      row.tone = absent ? "unknown" : "warning";
+      row.health = absent ? "Not on this runtime" : "No response";
       row.detail = "Container data unavailable";
     }
     return row;
   });
+
+  if (!options.stale) return rows;
+  return rows.map((row) => (row.tone === "ok" ? { ...row, tone: "unknown" as const } : row));
 }
 
 /** "HH:MM" in the viewer's time zone for a bucket start. */

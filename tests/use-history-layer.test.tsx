@@ -53,6 +53,7 @@ function fakeHistory() {
     go,
     browserBack: () => traverse(-1),
     browserForward: () => traverse(1),
+    browserGo: (delta: number) => traverse(delta),
   };
 }
 
@@ -559,5 +560,133 @@ describe("ds/Modal with unsaved changes on the history layer", () => {
     expect(fake.index()).toBe(2);
     expect(seen.at(-1)).toBe(dialogTop);
     expect(closes).toEqual([]);
+  });
+});
+
+describe("adopting an entry from the recorded chain", () => {
+  const customer = { id: 101, key: "customer" };
+  const dialog = { id: 102, key: null };
+  const customerUrl = "http://localhost:3000/?customer=a&customerBy=hwid#/customers";
+
+  /** What a reload leaves behind: the page, Customer 360, and a keyless dialog above it (current). */
+  function reloadedOverDialog() {
+    history.pushState({ rrLayer: { ...customer, depth: 1, chain: [customer] } }, "", customerUrl);
+    history.pushState(
+      { rrLayer: { ...dialog, depth: 2, chain: [customer, dialog] } },
+      "",
+      customerUrl,
+    );
+    fake.pushState.mockClear();
+    fake.replaceState.mockClear();
+  }
+
+  function CustomerLayer({
+    control,
+    closes,
+  }: {
+    control: Record<string, Control>;
+    closes: Array<[string, HistoryLayerCloseReason]>;
+  }) {
+    return (
+      <Layer
+        name="customer"
+        options={{ key: "customer", url: () => customerUrl, baseUrl: () => fake.entries[0].url }}
+        control={control}
+        closes={closes}
+      />
+    );
+  }
+
+  it("after a reload over a keyless dialog, adopts its own entry below instead of pushing a copy", async () => {
+    reloadedOverDialog();
+    const control: Record<string, Control> = {};
+    const closes: Array<[string, HistoryLayerCloseReason]> = [];
+    const seen: Array<string | null> = [];
+    await act(async () =>
+      root.render(
+        <>
+          <CustomerLayer control={control} closes={closes} />
+          <TopProbe seen={seen} />
+        </>,
+      ),
+    );
+    await flush();
+    expect(fake.pushState).not.toHaveBeenCalled();
+    expect(fake.replaceState).not.toHaveBeenCalled();
+    expect(fake.entries).toHaveLength(3);
+    expect(seen.at(-1)).toBe("customer");
+
+    // The dialog did not survive the reload: closing Customer 360 steps over its dead entry too.
+    await act(async () => control.customer.setOpen(false));
+    await flush();
+    expect(fake.go).toHaveBeenCalledWith(-2);
+    expect(fake.back).not.toHaveBeenCalled();
+    expect(fake.index()).toBe(0);
+    expect(closes).toEqual([]);
+  });
+
+  it("a Back off that dead dialog entry keeps Customer 360 open, the next Back closes it", async () => {
+    reloadedOverDialog();
+    const control: Record<string, Control> = {};
+    const closes: Array<[string, HistoryLayerCloseReason]> = [];
+    const seen: Array<string | null> = [];
+    await act(async () =>
+      root.render(
+        <>
+          <CustomerLayer control={control} closes={closes} />
+          <TopProbe seen={seen} />
+        </>,
+      ),
+    );
+    await flush();
+    await act(async () => fake.browserBack());
+    await flush();
+    expect(closes).toEqual([]);
+    expect(seen.at(-1)).toBe("customer");
+    await act(async () => fake.browserBack());
+    await flush();
+    expect(closes).toEqual([["customer", "back"]]);
+    expect(fake.pushState).not.toHaveBeenCalled();
+    expect(fake.back).not.toHaveBeenCalled();
+  });
+
+  it("a jump between entries at the same depth closes the layer the landed entry does not list", async () => {
+    const control: Record<string, Control> = {};
+    const closes: Array<[string, HistoryLayerCloseReason]> = [];
+    const seen: Array<string | null> = [];
+    await act(async () =>
+      root.render(
+        <>
+          <CustomerLayer control={control} closes={closes} />
+          <Layer name="dialog" initial={false} control={control} closes={closes} />
+          <TopProbe seen={seen} />
+        </>,
+      ),
+    );
+    await flush();
+    // Another page is pushed over Customer 360, and a dialog opens on that page.
+    await act(async () => {
+      history.pushState(null, "", fake.entries[0].url);
+      window.dispatchEvent(new PopStateEvent("popstate", { state: null }));
+    });
+    await flush();
+    expect(closes).toEqual([["customer", "back"]]);
+    await act(async () => control.dialog.setOpen(true));
+    await flush();
+    expect(depths()).toEqual([0, 1, 0, 1]);
+    const pushes = fake.pushState.mock.calls.length;
+
+    // Two steps back at once (the browser's history menu): onto Customer 360's entry.
+    await act(async () => fake.browserGo(-2));
+    await flush();
+    expect(closes).toEqual([
+      ["customer", "back"],
+      ["dialog", "back"],
+    ]);
+    await act(async () => control.customer.setOpen(true));
+    await flush();
+    expect(fake.pushState).toHaveBeenCalledTimes(pushes);
+    expect(fake.index()).toBe(1);
+    expect(seen.at(-1)).toBe("customer");
   });
 });

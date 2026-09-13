@@ -53,7 +53,8 @@ function urlWithout(): string {
  * steps back to the page underneath, and a navigation away (another page,
  * "Manage licenses") leaves the entry in place under the new page, so Back from
  * there reopens the same customer. Arriving on that entry again — Back,
- * Forward, a reload — adopts it rather than pushing a copy.
+ * Forward, a reload (also one with a dialog open above the workspace, which
+ * does not survive it) — adopts it rather than pushing a copy.
  */
 export function CustomerWorkspaceRouter({ user }: { user: AuthUser }) {
   const [anchor, setAnchor] = useState(readAnchor);

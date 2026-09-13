@@ -8,6 +8,9 @@ import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
  * pops it and closes the layer; closing the layer from inside (X, Escape,
  * Cancel) steps back over its own entry, so the entry never outlives what it
  * stands for. Layers nest: a dialog over Customer 360 sits one entry above it.
+ * Every entry records the chain of layers it sits above (itself last), so
+ * wherever history lands — a Back, a jump through the history menu, a reload —
+ * the stack is checked against that record.
  *
  * Why onClose gets a reason: the hook only calls it when something OUTSIDE the
  * component closed the layer — a Back ("back"), a navigation to another page
@@ -51,9 +54,11 @@ export interface HistoryLayerHandle {
 
 export interface HistoryLayerOptions {
   /**
-   * Names the layer's history entry. A Back/Forward that lands on an entry with
-   * this key again — or a reload, which keeps history.state — adopts that entry
-   * instead of pushing a second one. Layers without a key always push.
+   * Names the layer's history entry. Opening while history sits on that entry
+   * — Back/Forward onto it, or a reload, which keeps history.state — adopts it
+   * instead of pushing a second one, also when the current entry is a dialog
+   * that was open above it. Layers without a key always push: they were never
+   * addressable, so they do not survive a reload.
    */
   key?: string;
   /** URL of the pushed entry. Defaults to the current URL. */
@@ -72,13 +77,19 @@ export interface HistoryLayerSnapshot {
   key: string | null;
 }
 
-interface LayerEntry {
+interface LayerRecord {
   id: number;
   key: string | null;
-  depth: number;
 }
 
-interface Layer extends LayerEntry {
+interface LayerEntry extends LayerRecord {
+  depth: number;
+  /** The layers at depths 1…depth that this entry sits above, itself last. */
+  chain: LayerRecord[];
+}
+
+interface Layer extends LayerRecord {
+  depth: number;
   /** location.hash when the layer opened; another hash means the page changed under it. */
   hash: string;
   closed: boolean;
@@ -96,7 +107,9 @@ const STATE_KEY = "rrLayer";
 const stack: Layer[] = [];
 const listeners = new Set<() => void>();
 let snapshot: HistoryLayerSnapshot | null = null;
-let nextId = 1;
+// Ids are recorded in history, which outlives this page load: start from the
+// clock so a reload does not hand out ids that are already on record.
+let nextId = Date.now();
 let installed = false;
 // history.back()/go() are asynchronous; until their popstate arrives,
 // history.state still describes the entry being left.
@@ -107,13 +120,36 @@ let expectedDepth = 0;
 // steps in every browser.
 let traversalTarget: number | null = null;
 
+function recordOf(value: unknown): LayerRecord | null {
+  if (!value || typeof value !== "object") return null;
+  const { id, key } = value as Partial<LayerRecord>;
+  return { id: typeof id === "number" ? id : 0, key: typeof key === "string" ? key : null };
+}
+
 function entryOf(state: unknown): LayerEntry | null {
   if (!state || typeof state !== "object") return null;
   const entry = (state as Record<string, unknown>)[STATE_KEY];
   if (!entry || typeof entry !== "object") return null;
-  const { id, key, depth } = entry as Partial<LayerEntry>;
+  const { depth, chain } = entry as { depth?: unknown; chain?: unknown };
   if (typeof depth !== "number" || depth < 1) return null;
-  return { id: typeof id === "number" ? id : 0, key: typeof key === "string" ? key : null, depth };
+  const self = recordOf(entry)!;
+  const records = Array.isArray(chain) ? chain.map(recordOf) : [];
+  // An entry without a readable chain still knows itself; the layers beneath it
+  // are unknown (id 0) and match whichever layer holds that depth.
+  const readable = records.length === depth && records.every((record) => record !== null);
+  return {
+    ...self,
+    depth,
+    chain: readable
+      ? (records as LayerRecord[])
+      : [...Array.from({ length: depth - 1 }, () => ({ id: 0, key: null })), self],
+  };
+}
+
+/** Whether `chain` lists `layer` at its depth. */
+function listedIn(chain: LayerRecord[], layer: Layer): boolean {
+  const record = chain[layer.depth - 1];
+  return record !== undefined && (record.id === 0 || record.id === layer.id);
 }
 
 function currentDepth(): number {
@@ -169,18 +205,22 @@ function closeLayers(removed: Layer[], reason: HistoryLayerCloseReason, userBack
   emit();
 }
 
-/** Closes every layer above `depth`, top first, and tells each owner why. */
-function closeAbove(depth: number, reason: HistoryLayerCloseReason, userBack = false) {
-  const removed: Layer[] = [];
-  while (stack.length > 0 && stack[stack.length - 1].depth > depth) removed.push(stack.pop()!);
-  closeLayers(removed, reason, userBack);
-}
-
 function onPopState() {
   // The popstate of the hook's own back()/go() is not the user's Back.
   const own = pendingTraversals > 0;
   if (own) pendingTraversals -= 1;
-  closeAbove(entryOf(history.state)?.depth ?? 0, "back", !own);
+  // The entry landed on lists the layers it sits above; every open layer it
+  // does not list closes, top first. After a plain Back that is the top layer;
+  // after a jump between entries at the same depth it is the one whose id is
+  // not on record there.
+  const chain = entryOf(history.state)?.chain ?? [];
+  let kept = 0;
+  while (kept < stack.length && listedIn(chain, stack[kept])) {
+    // Forward onto a held layer's own entry gives it that entry back.
+    stack[kept].held = false;
+    kept += 1;
+  }
+  closeLayers(stack.splice(kept).reverse(), "back", !own);
 }
 
 /**
@@ -210,29 +250,47 @@ function plainState(): Record<string, unknown> {
   return rest;
 }
 
+/** State for a layer's entry at `depth`: the page's own state, the layer, and the chain beneath it. */
+function stateFor(record: LayerRecord, depth: number): Record<string, unknown> {
+  // During a traversal history.state is still a deeper entry; its chain starts
+  // with the same layers, so cutting it to the depth gives the chain beneath.
+  const below = (entryOf(history.state)?.chain ?? []).slice(0, depth - 1);
+  while (below.length < depth - 1) below.push({ id: 0, key: null });
+  return { ...plainState(), [STATE_KEY]: { ...record, depth, chain: [...below, record] } };
+}
+
+/**
+ * An entry for a keyed layer that history already holds under the current
+ * position: the current entry itself (Back/Forward onto it, a reload) or one it
+ * sits above (a reload while a dialog was open over the layer). Only depths
+ * above the open stack count, and not while a traversal is on its way.
+ */
+function adoptable(key: string): (LayerRecord & { depth: number }) | null {
+  if (pendingTraversals > 0 || traversalTarget !== null) return null;
+  const chain = entryOf(history.state)?.chain ?? [];
+  const floor = stack[stack.length - 1]?.depth ?? 0;
+  for (let depth = chain.length; depth > floor; depth -= 1) {
+    if (chain[depth - 1].key === key) return { ...chain[depth - 1], depth };
+  }
+  return null;
+}
+
 function openLayer(options: HistoryLayerOptions, onClose: Layer["onClose"]): Layer {
   install();
   const key = options.key ?? null;
-  const top = stack[stack.length - 1];
-  const current = entryOf(history.state);
-  const adopt =
-    key !== null &&
-    pendingTraversals === 0 &&
-    current !== null &&
-    current.key === key &&
-    current.depth > (top?.depth ?? 0);
-  let depth: number;
+  const found = key === null ? null : adoptable(key);
   let id = nextId++;
+  let depth: number;
   let url = location.href;
-  if (adopt) {
-    depth = current.depth;
-    id = current.id || id;
+  if (found) {
+    depth = found.depth;
+    id = found.id || id;
   } else {
     depth = currentDepth() + 1;
     url = options.url?.() ?? location.href;
     const base = options.baseUrl?.();
     if (base !== undefined && base !== location.href) history.replaceState(history.state, "", base);
-    history.pushState({ ...plainState(), [STATE_KEY]: { id, key, depth } }, "", url);
+    history.pushState(stateFor({ id, key }, depth), "", url);
   }
   const layer: Layer = {
     id,
@@ -276,11 +334,7 @@ function retainLayer(layer: Layer) {
   stack.splice(stack.indexOf(layer), 1);
   layer.depth = currentDepth() + 1;
   insert(layer);
-  history.pushState(
-    { ...plainState(), [STATE_KEY]: { id: layer.id, key: layer.key, depth: layer.depth } },
-    "",
-    layer.url,
-  );
+  history.pushState(stateFor({ id: layer.id, key: layer.key }, layer.depth), "", layer.url);
   emit();
 }
 

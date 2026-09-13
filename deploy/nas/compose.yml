@@ -53,17 +53,17 @@ services:
       context: ../..
       dockerfile: deploy/nas/rr-api/Dockerfile
       args:
-        BUILD_SHA: ${BUILD_SHA:-unknown}   # set by tools/deploy-nas.ps1 (NAS checkout HEAD)
+        # Set by tools/deploy-nas.ps1 (NAS checkout HEAD); empty = the page says "unknown".
+        BUILD_SHA: ${BUILD_SHA:-}
     restart: unless-stopped
     env_file: ${DATA_DIR}/env/rr-api.env   # copy of rr-api/.env.example, filled in
     # System health sources: backup age from the read-only backup mount, containers through
-    # docker-gateway below (the bot is reached at its default http://bot:8080).
+    # docker-gateway below (the bot is reached at its default http://bot:8080). BUILD_SHA is not
+    # repeated here: the image ENV baked from the build arg above carries it, so the value is a
+    # property of the image and cannot drift per `docker compose up` invocation.
     environment:
       - BACKUP_DIR=/backups
       - DOCKER_PROXY_URL=http://docker-gateway:2375
-      # rr-api.env (a copy of .env.example) carries an empty BUILD_SHA=, and env_file beats the
-      # image ENV, so pass the build commit here where it wins over env_file.
-      - BUILD_SHA=${BUILD_SHA:-unknown}
     volumes:
       - ${DATA_DIR}/db:/data/db
       - ${BACKUP_DIR}:/backups:ro

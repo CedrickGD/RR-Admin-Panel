@@ -147,3 +147,33 @@ describe("NAS Docker access (F8)", () => {
     expect(allowed).not.toContain("bot");
   });
 });
+
+describe("rr-api build stamp (F11)", () => {
+  it("carries BUILD_SHA in the image only, never as an env override", () => {
+    const rrApi = service("rr-api");
+
+    expect(rrApi).toContain("BUILD_SHA: ${BUILD_SHA:-}");
+    // `environment:` beats `env_file:` beats the image ENV, so a compose-level BUILD_SHA would
+    // pin the value to whatever the *deploying shell* had, not to what the image was built from.
+    expect(rrApi).not.toMatch(/^\s+- BUILD_SHA=/m);
+    expect(repoFile("deploy/nas/rr-api/Dockerfile")).toContain("ENV BUILD_SHA=${BUILD_SHA}");
+  });
+
+  it("keeps an empty BUILD_SHA out of the env file template", () => {
+    // An empty key here wins over the image ENV and blanks the commit on System health.
+    expect(repoFile("deploy/nas/rr-api/.env.example")).not.toMatch(/^BUILD_SHA=/m);
+  });
+
+  it("documents a build command that stamps the commit", () => {
+    const readme = repoFile("deploy/nas/README.md");
+    // Every documented build that rebuilds rr-api (whole stack, or `--build rr-api`) must carry
+    // the stamp; `--build admin` alone does not touch the rr-api image.
+    const builds = [...readme.matchAll(/^.*docker compose up -d --build(?: \S+)?.*$/gm)]
+      .map((match) => match[0])
+      .filter((line) => !/--build (?!rr-api)\S/.test(line));
+
+    expect(builds.length).toBeGreaterThan(2);
+    for (const line of builds)
+      expect([line, /BUILD_SHA=\$\(git rev-parse --short HEAD\)/.test(line)]).toEqual([line, true]);
+  });
+});

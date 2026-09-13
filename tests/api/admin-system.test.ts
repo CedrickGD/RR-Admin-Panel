@@ -519,7 +519,9 @@ describe("buildSystemStatus", () => {
 
   it("reports a missing database as critical and every file source as null", async () => {
     const status = await buildSystemStatus(
-      { BOT_URL: "http://bot.test", DOCKER_PROXY_URL: "http://proxy.test" },
+      // An unset build arg reaches the container as an empty BUILD_SHA; that is "unknown",
+      // not a commit called "".
+      { BUILD_SHA: "", BOT_URL: "http://bot.test", DOCKER_PROXY_URL: "http://proxy.test" },
       {
         now: () => NOW,
         fs: null,
@@ -531,6 +533,7 @@ describe("buildSystemStatus", () => {
     );
     expect(status).toMatchObject({
       overall: "critical",
+      build: { commit: "unknown" },
       database: { reachable: false, latencyMs: null },
       events: null,
       storage: null,

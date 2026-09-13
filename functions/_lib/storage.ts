@@ -1351,7 +1351,9 @@ function safeParseMetrics(raw: string | null): Record<string, unknown> {
 
 function buildInfo(env: RuntimeEnv): HealthPayload["build"] {
   return {
-    commit: env.BUILD_SHA ?? env.CF_PAGES_COMMIT_SHA ?? "unknown",
+    // `||`, not `??`: an empty BUILD_SHA (unset build arg, or a stray `BUILD_SHA=` in an env
+    // file) means "not stamped", not "the commit is the empty string".
+    commit: env.BUILD_SHA?.trim() || env.CF_PAGES_COMMIT_SHA || "unknown",
     branch: env.CF_PAGES_BRANCH ?? "unknown",
     environment: env.CF_PAGES ? "pages" : "local",
     generatedAt: nowIso(),

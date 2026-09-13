@@ -48,11 +48,19 @@ cd /volume1/docker/razorreaper/src
 git clone https://github.com/CedrickGD/RR-Admin-Panel.git
 git clone https://github.com/CedrickGD/razorreaper-bot.git
 cd RR-Admin-Panel/deploy/nas && cp .env.example .env && nano .env      # fill secrets
-docker compose up -d --build
+BUILD_SHA=$(git rev-parse --short HEAD) docker compose up -d --build
 docker compose logs -f cloudflared     # expect "Registered tunnel connection"
 ```
 
-Update: `git -C /volume1/docker/razorreaper/src/RR-Admin-Panel pull && git -C /volume1/docker/razorreaper/src/razorreaper-bot pull && docker compose up -d --build`.
+Update: `git -C /volume1/docker/razorreaper/src/RR-Admin-Panel pull && git -C /volume1/docker/razorreaper/src/razorreaper-bot pull && BUILD_SHA=$(git rev-parse --short HEAD) docker compose up -d --build`.
+
+**Always prefix `docker compose up --build` with `BUILD_SHA=$(git rev-parse --short HEAD)`** (that is
+what `tools/deploy-nas.ps1` does). The value is baked into the rr-api image as an `ENV`, so the
+System health page reports the commit the running image was built from. Without the prefix the
+image is stamped empty and the page says `unknown`; a plain `docker compose up -d` (no `--build`)
+keeps whatever the existing image was stamped with, which is correct by construction.
+`${DATA_DIR}/env/rr-api.env` must **not** contain a `BUILD_SHA=` line — `env_file` beats the image
+`ENV`, so an empty key there blanks the commit on every path.
 
 ### Admin panel emergency/redeploy path
 
@@ -217,7 +225,7 @@ container already does this nightly).
 ```bash
 cd /volume1/docker/razorreaper/src/RR-Admin-Panel/deploy/nas
 cp rr-api/.env.example rr-api/.env && nano rr-api/.env
-docker compose up -d --build rr-api
+BUILD_SHA=$(git rev-parse --short HEAD) docker compose up -d --build rr-api
 docker compose logs -f rr-api          # expect: [rr-api] listening {"port":8787,"pagesRoutes":47,...}
 docker compose exec rr-api wget -qO- http://127.0.0.1:8787/health
 ```
@@ -242,8 +250,10 @@ switch is configuration only, and every step is reversible by unsetting `ORIGIN_
    `sqlite3 /volume1/docker/razorreaper/data/db/rr.sqlite < export-T0.sql` — see *Database*
    above). `ORIGIN_KEY` (random >= 32 chars, e.g. `openssl rand -base64 48`),
    `ORIGIN_HOST=origin.<domain>` and `WORKER_HOST=backend.rr-admin-panel.workers.dev` are set in
-   `${DATA_DIR}/env/rr-api.env` (never `ORIGIN_BASE` — that is a shell-side variable);
-   `docker compose up -d --build rr-api`. `origin.<domain>` and `api.<domain>` both answer `/health`
+   `${DATA_DIR}/env/rr-api.env` (never `ORIGIN_BASE` — that is a shell-side variable, and never
+   `BUILD_SHA` — see *Deploy / update*);
+   `BUILD_SHA=$(git rev-parse --short HEAD) docker compose up -d --build rr-api`.
+   `origin.<domain>` and `api.<domain>` both answer `/health`
    (`curl -s https://origin.<domain>/health` -> `{"ok":true,"service":"rr-api"}`, and
    `curl -si https://origin.<domain>/api/health` -> `401 Unauthorized origin request.`), and the
    parity probes (ingest, register, license validate, admin data with an Access JWT) are green

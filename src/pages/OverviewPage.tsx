@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useMemo, useState, type ComponentProps } from "react";
+import { versionLabel } from "../utils/versionLabel";
 import {
   Area,
   Bar,
@@ -80,10 +81,6 @@ function sessionBarShape(props: unknown) {
 /** Floor of 2px so a 1-session hour stays visible — but a zero hour paints nothing. */
 function sessionBarMinSize(value: number | undefined | null): number {
   return value ? 2 : 0;
-}
-
-function versionLabel(version: string): string {
-  return version === "legacy" ? "Legacy (pre-1.4)" : version;
 }
 
 function utcDayString(ts: number): string {

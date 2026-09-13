@@ -11,7 +11,7 @@ interface GlassDropdownProps {
   /** Currently selected option, or null for the placeholder/all state. */
   value: string | null;
   onChange: (next: string | null) => void;
-  /** Optional display mapping, e.g. "legacy" -> "Legacy (pre-1.4)" */
+  /** Optional display mapping, e.g. a version token through utils/versionLabel. */
   renderOption?: (option: string) => string;
   /** Show the filter input when the list is longer than this. Default 8. */
   searchThreshold?: number;

@@ -20,6 +20,7 @@ import { DetailGrid, SortHeader, type SortState } from "../components/ds/DataTab
 import { EmptyState } from "../components/ds/EmptyState";
 import { PageHeader } from "../components/ds/PageHeader";
 import { PageToolbar } from "../components/ds/PageToolbar";
+import { versionLabel } from "../utils/versionLabel";
 import { RelativeTime } from "../components/ds/RelativeTime";
 import { SearchInput } from "../components/ds/SearchInput";
 import { SegmentedControl, type TabItem } from "../components/ds/SegmentedControl";
@@ -126,11 +127,6 @@ function displayName(group: ErrorUserGroup): string {
 
 function userLocation(group: ErrorUserGroup): string {
   return [group.city, group.country].filter((v): v is string => Boolean(v?.trim())).join(", ");
-}
-
-function versionLabel(version: string | null): string {
-  if (!version?.trim()) return "—";
-  return version === "legacy" ? "Legacy (pre-1.4)" : version;
 }
 
 /** Discord handles render as muted `@name` — strip a stored leading @ so we never double it. */

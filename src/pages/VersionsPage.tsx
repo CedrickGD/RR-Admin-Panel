@@ -9,6 +9,7 @@ import { EmptyState } from "../components/ds/EmptyState";
 import { KvList } from "../components/ds/KvList";
 import { PageHeader } from "../components/ds/PageHeader";
 import { PageToolbar } from "../components/ds/PageToolbar";
+import { LEGACY_VERSION_TOKEN, versionLabel } from "../utils/versionLabel";
 import { SegmentedControl, type TabItem } from "../components/ds/SegmentedControl";
 import { RadialGauge } from "../components/ds/RadialGauge";
 import { RankList } from "../components/ds/RankList";
@@ -33,7 +34,7 @@ type AdoptionView = "current" | "alltime";
 interface VersionRow {
   /** Normalized merge key, e.g. "1.4.7" or "legacy". */
   key: string;
-  /** Display label, e.g. "1.4.7" or "Legacy (pre-1.4)". */
+  /** Display label from versionLabel(), e.g. "1.4.7" or the legacy bucket's label. */
   label: string;
   currentUsers: number;
   currentActiveUsers: number;
@@ -49,8 +50,7 @@ interface ChartRow extends VersionRow {
   valueLabel: string;
 }
 
-const LEGACY_KEY = "legacy";
-const LEGACY_LABEL = "Legacy (pre-1.4)";
+const LEGACY_KEY = LEGACY_VERSION_TOKEN;
 
 /** Current adoption or everyone who ever ran a version — a view, so a radiogroup. */
 const ADOPTION_VIEWS: TabItem<AdoptionView>[] = [
@@ -169,7 +169,7 @@ export function VersionsPage({ stats, theme, accentHue = 217 }: VersionsPageProp
       if (!row) {
         row = {
           key,
-          label: key === LEGACY_KEY ? LEGACY_LABEL : key,
+          label: versionLabel(key),
           currentUsers: 0,
           currentActiveUsers: 0,
           allTimeUsers: 0,

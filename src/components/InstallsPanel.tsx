@@ -6,9 +6,7 @@ import { Badge } from "./ds/Badge";
 import { Button } from "./ds/Button";
 import { Input } from "./ds/Input";
 import { RelativeTime } from "./ds/RelativeTime";
-function versionLabel(version: string | null) {
-  return version === "legacy" ? "Legacy" : version || "—";
-}
+import { versionLabel } from "../utils/versionLabel";
 interface InstallsPanelProps {
   hwid: string | null;
 }

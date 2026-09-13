@@ -13,6 +13,7 @@ import {
   RadioTower,
 } from "lucide-react";
 import { PageToolbar } from "../components/ds/PageToolbar";
+import { versionLabel } from "../utils/versionLabel";
 import { SearchInput } from "../components/ds/SearchInput";
 import { Select } from "../components/ds/Select";
 import { KpiStatCard } from "../components/KpiStatCard";
@@ -321,7 +322,7 @@ export function LivePage({
               <option value="">All versions</option>
               {[...options.versions].sort(compareVersionsNewestFirst).map((value) => (
                 <option key={value} value={value}>
-                  {value}
+                  {versionLabel(value)}
                 </option>
               ))}
             </Select>

@@ -41,6 +41,7 @@ import { Select } from "../components/ds/Select";
 import { RelativeTime } from "../components/ds/RelativeTime";
 import { usePanelPermission } from "../hooks/usePanelPermission";
 import { useWorkspaceSearch } from "../hooks/useWorkspaceSearch";
+import { versionLabel } from "../utils/versionLabel";
 import { resolveCountry } from "../utils/geography";
 import { TablePagination } from "../components/ds/TablePagination";
 import type { SuspensionRecord, UserRollupRecord } from "../types/telemetry";
@@ -82,10 +83,9 @@ function displayName(user: UserRollupRecord): string {
   return user.userLabel?.trim() || user.identity;
 }
 
-function versionLabel(user: UserRollupRecord): string {
-  const value = user.displayVersion?.trim() || user.appVersion?.trim();
-  if (!value) return "Unknown";
-  return value === "legacy" ? "Legacy (pre-1.4)" : value;
+/** A customer's reported version, through the one shared label rule. */
+function userVersionLabel(user: UserRollupRecord): string {
+  return versionLabel(user.displayVersion?.trim() || user.appVersion, "Unknown");
 }
 
 function discordHandle(value: string | null): string {
@@ -231,7 +231,7 @@ function customerAnchor(user: UserRollupRecord): Customer360Anchor {
     selector: hwid ? "hwid" : "install_id",
     value: hwid || user.identity,
     label: displayName(user),
-    detail: `All-time customer · ${versionLabel(user)} · ${discordHandle(user.discordUser)}`,
+    detail: `All-time customer · ${userVersionLabel(user)} · ${discordHandle(user.discordUser)}`,
   };
 }
 
@@ -533,7 +533,7 @@ export function CustomersPage({ users: sourceUsers }: CustomersPageProps) {
               <option value="">All versions</option>
               {filterOptions.versions.map((value) => (
                 <option key={value} value={value}>
-                  {value}
+                  {versionLabel(value)}
                 </option>
               ))}
             </Select>
@@ -722,7 +722,7 @@ export function CustomersPage({ users: sourceUsers }: CustomersPageProps) {
                             {restrictionOnly ? (
                               "—"
                             ) : (
-                              <Badge tone="muted">{versionLabel(user)}</Badge>
+                              <Badge tone="muted">{userVersionLabel(user)}</Badge>
                             )}
                           </td>
                           <td className="muted col-lg" data-label="Device / OS">

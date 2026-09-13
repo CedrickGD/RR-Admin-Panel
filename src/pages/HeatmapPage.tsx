@@ -13,6 +13,7 @@ import { WorldHeatmap } from "../components/charts/WorldHeatmap";
 import { EmptyState } from "../components/ds/EmptyState";
 import { MetaRow, PageHeader } from "../components/ds/PageHeader";
 import { PageToolbar } from "../components/ds/PageToolbar";
+import { versionLabel } from "../utils/versionLabel";
 import { RelativeTime } from "../components/ds/RelativeTime";
 import { SegmentedControl, type TabItem } from "../components/ds/SegmentedControl";
 import { KpiStatCard } from "../components/KpiStatCard";
@@ -114,8 +115,9 @@ function formatVersionTag(raw: string | null): string | null {
   const trimmed = raw?.trim();
   if (!trimmed) return null;
   const cleaned = trimmed.replace(/^v/i, "");
-  // Non-numeric tags ("legacy", "unknown") read wrong with a v-prefix.
-  return /^\d/.test(cleaned) ? `v${cleaned}` : cleaned;
+  // Non-numeric tags read wrong with a v-prefix; the legacy bucket gets the
+  // one shared label instead of its raw token.
+  return /^\d/.test(cleaned) ? `v${cleaned}` : versionLabel(cleaned);
 }
 
 function renderCountryOption(code: string): string {

@@ -1,10 +1,15 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import type { Customer360Anchor } from "./Customer360Overlay";
 import type { AuthUser } from "../types/telemetry";
 import { canVisit } from "../../shared/panel-policy";
+import { useHistoryLayer } from "../hooks/useHistoryLayer";
 const View = lazy(() =>
   import("./Customer360Overlay").then((m) => ({ default: m.Customer360View })),
 );
+
+/** The query params that describe an open workspace. customerReturn is the Licenses page's, not ours. */
+const WORKSPACE_PARAMS = ["customer", "customerBy", "customerTab"] as const;
+
 function readAnchor(): Customer360Anchor | null {
   const query = new URLSearchParams(location.search),
     selector = query.get("customerBy"),
@@ -18,50 +23,101 @@ function readAnchor(): Customer360Anchor | null {
     return null;
   return { selector: selector as Customer360Anchor["selector"], value };
 }
+
+/** The current address describing `anchor`. A different customer drops the old tab. */
+function urlWith(anchor: Customer360Anchor): string {
+  const url = new URL(location.href);
+  if (
+    url.searchParams.get("customer") !== anchor.value ||
+    url.searchParams.get("customerBy") !== anchor.selector
+  )
+    url.searchParams.delete("customerTab");
+  url.searchParams.set("customer", anchor.value);
+  url.searchParams.set("customerBy", anchor.selector);
+  return url.toString();
+}
+
+/** The current address without the workspace: the page it opens over. */
+function urlWithout(): string {
+  const url = new URL(location.href);
+  for (const key of WORKSPACE_PARAMS) url.searchParams.delete(key);
+  return url.toString();
+}
+
+/**
+ * Mounts Customer 360 over whatever page is open, addressed by the
+ * customer/customerBy query pair.
+ *
+ * The workspace is one history layer (useHistoryLayer, key "customer"):
+ * opening it pushes the customer's address, Back or its own "Back to workspace"
+ * steps back to the page underneath, and a navigation away (another page,
+ * "Manage licenses") leaves the entry in place under the new page, so Back from
+ * there reopens the same customer. Arriving on that entry again — Back,
+ * Forward, a reload — adopts it rather than pushing a copy.
+ */
 export function CustomerWorkspaceRouter({ user }: { user: AuthUser }) {
   const [anchor, setAnchor] = useState(readAnchor);
+  const allowed = canVisit("customers", user);
+  const open = Boolean(anchor) && allowed;
+  const openRef = useRef(open);
+  openRef.current = open;
+
+  useHistoryLayer(
+    open,
+    (reason) => {
+      setAnchor(null);
+      // A navigation away pushed the new page from the workspace's address, so
+      // that entry still carries the customer params: drop them in place, or a
+      // reload of the new page would reopen the workspace over it.
+      if (reason === "navigate" && readAnchor())
+        history.replaceState(history.state, "", urlWithout());
+    },
+    {
+      key: "customer",
+      url: () => (anchor ? urlWith(anchor) : location.href),
+      baseUrl: urlWithout,
+    },
+  );
+
   useEffect(() => {
-    if (!anchor || !canVisit("customers", user)) return;
+    if (!open) return;
     const main = document.querySelector("main");
-    const previousOverflow = document.body.style.overflow;
+    // Locked on <html>, not <body>: see ds/Modal. A body overflow turned body
+    // into its own scroller and dropped the sticky navbar (and with it the
+    // phone back arrow) out of view whenever the page underneath was scrolled.
+    const previousOverflow = document.documentElement.style.overflow;
     const previousFocus = document.activeElement as HTMLElement | null;
     if (main) main.inert = true;
-    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
     return () => {
       if (main) main.inert = false;
-      document.body.style.overflow = previousOverflow;
+      document.documentElement.style.overflow = previousOverflow;
       previousFocus?.focus();
     };
-  }, [anchor, user.role, user.panelRole, JSON.stringify(user.permissions)]);
-  function close() {
-    const url = new URL(location.href);
-    url.searchParams.delete("customer");
-    url.searchParams.delete("customerBy");
-    url.searchParams.delete("customerTab");
-    url.searchParams.delete("customerReturn");
-    history.replaceState(null, "", url);
-    setAnchor(null);
-  }
+  }, [open]);
+
   useEffect(() => {
-    const open = (event: Event) => {
+    const openCustomer = (event: Event) => {
       const target = (event as CustomEvent<Customer360Anchor>).detail;
-      const url = new URL(location.href);
-      url.searchParams.set("customer", target.value);
-      url.searchParams.set("customerBy", target.selector);
-      history.pushState(null, "", url);
+      // Switching customers inside an open workspace keeps its one entry.
+      if (openRef.current) history.replaceState(history.state, "", urlWith(target));
       setAnchor(target);
     };
+    // Back/Forward onto (or off) a workspace address; the layer hook has
+    // already closed or will adopt the workspace itself.
     const pop = () => setAnchor(readAnchor());
-    window.addEventListener("rr:open-customer", open);
+    const close = () => setAnchor(null);
+    window.addEventListener("rr:open-customer", openCustomer);
     window.addEventListener("popstate", pop);
     window.addEventListener("rr:close-customer", close);
     return () => {
-      window.removeEventListener("rr:open-customer", open);
+      window.removeEventListener("rr:open-customer", openCustomer);
       window.removeEventListener("popstate", pop);
       window.removeEventListener("rr:close-customer", close);
     };
   }, []);
-  if (!anchor || !canVisit("customers", user)) return null;
+
+  if (!anchor || !open) return null;
   return (
     <Suspense fallback={<div className="customer-workspace">Loading customer…</div>}>
       <View
@@ -70,7 +126,7 @@ export function CustomerWorkspaceRouter({ user }: { user: AuthUser }) {
         session={null}
         anchor={anchor}
         embedded
-        onClose={close}
+        onClose={() => setAnchor(null)}
       />
     </Suspense>
   );

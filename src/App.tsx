@@ -177,8 +177,16 @@ export default function App() {
       // page already on screen — the sync effect above only runs on a change.
       if (!isPageKey(token)) window.history.replaceState(null, "", `#/${key}`);
     };
+    // Back/Forward between entries whose query differs too (Customer 360 and
+    // the Licenses hand-off carry ?customer=… / ?customerReturn=…) fires only
+    // popstate, never hashchange, which used to leave the old page on screen
+    // under the new address.
     window.addEventListener("hashchange", onHashChange);
-    return () => window.removeEventListener("hashchange", onHashChange);
+    window.addEventListener("popstate", onHashChange);
+    return () => {
+      window.removeEventListener("hashchange", onHashChange);
+      window.removeEventListener("popstate", onHashChange);
+    };
   }, []);
   const [focusedLiveSession, setFocusedLiveSession] = useState<FocusedSession>(null);
   // One-shot show-on-map command. The Heatmap page copies it into local state and

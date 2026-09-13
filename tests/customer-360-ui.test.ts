@@ -8,6 +8,8 @@ function source(path: string): string {
 
 const overlay = source("../src/components/Customer360Overlay.tsx");
 const modal = source("../src/components/ds/Modal.tsx");
+const router = source("../src/components/CustomerWorkspaceRouter.tsx");
+const app = source("../src/App.tsx");
 
 describe("Customer 360 workspace", () => {
   it("offers the complete support workspace as internal tabs", () => {
@@ -42,6 +44,18 @@ describe("Customer 360 workspace", () => {
     expect(modal).toContain('document.documentElement.style.overflow = "hidden"');
     expect(modal).toContain("useHistoryLayer(open && Boolean(onClose), requestClose)");
     expect(modal).toContain("target?.isConnected");
+  });
+
+  it("keeps one history entry for the workspace, so Back from Licenses returns to it", () => {
+    expect(router).toContain("useHistoryLayer(");
+    expect(router).toContain('key: "customer"');
+    // The layer hook owns the entry; the router never pushes one by hand.
+    expect(router).not.toContain("history.pushState");
+    // Licenses is pushed on top of the workspace entry, not after closing it.
+    expect(overlay).toContain("navigateCustomerUrl(customerActionUrl(here, activeTab))");
+    expect(overlay).not.toMatch(/onClose();s*navigateCustomerUrl/);
+    // Back between entries whose query differs fires popstate only.
+    expect(app).toContain('window.addEventListener("popstate", onHashChange)');
   });
 
   it("does not expose full license keys in collapsed Customer 360 rows", () => {

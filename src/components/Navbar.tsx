@@ -260,7 +260,10 @@ export function Navbar({ page, onNavigate, user, onLogout }: NavbarProps) {
   }, [page]);
 
   function navigate(key: PageKey) {
-    window.dispatchEvent(new Event("rr:close-customer"));
+    // Another page closes an open Customer 360 through its hash change, which
+    // keeps the workspace entry under the new page (Back returns to it). The
+    // page already on screen changes no hash, so it closes the workspace here.
+    if (key === page) window.dispatchEvent(new Event("rr:close-customer"));
     onNavigate(key);
     setMobile(false);
   }

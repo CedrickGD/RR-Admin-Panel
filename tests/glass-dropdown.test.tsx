@@ -36,8 +36,9 @@ beforeAll(() => {
 
 afterAll(() => {
   if (!hadPopover) {
-    delete proto.showPopover;
-    delete proto.hidePopover;
+    // lib.dom declares both as required members, so `delete` does not typecheck.
+    Reflect.deleteProperty(proto, "showPopover");
+    Reflect.deleteProperty(proto, "hidePopover");
     Element.prototype.matches = nativeMatches;
   }
 });

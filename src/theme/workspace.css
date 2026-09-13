@@ -348,6 +348,11 @@ body {
 .mobile-menu {
   display: none;
 }
+/* The phone back arrow for an open history layer (Navbar, useTopHistoryLayer).
+   Above 600px the breadcrumb stays and every layer has its own visible exit. */
+.workspace-layer-back {
+  display: none;
+}
 .page-content {
   padding: 30px var(--page-pad) 50px;
 }
@@ -1224,6 +1229,15 @@ html[data-theme="light"] .recharts-default-tooltip {
   }
   .workspace-breadcrumb-sep,
   .workspace-breadcrumb-page {
+    display: none;
+  }
+  /* While a layer is open the arrow replaces "‹ Group": Back closes the layer,
+     the group link would navigate out from under it. */
+  .workspace-bar .workspace-layer-back {
+    display: inline-flex;
+    flex-shrink: 0;
+  }
+  .workspace-breadcrumb.has-layer {
     display: none;
   }
   .page-content {

@@ -10,6 +10,7 @@ const overlay = source("../src/components/Customer360Overlay.tsx");
 const modal = source("../src/components/ds/Modal.tsx");
 const router = source("../src/components/CustomerWorkspaceRouter.tsx");
 const app = source("../src/App.tsx");
+const navbar = source("../src/components/Navbar.tsx");
 
 describe("Customer 360 workspace", () => {
   it("offers the complete support workspace as internal tabs", () => {
@@ -56,6 +57,12 @@ describe("Customer 360 workspace", () => {
     expect(overlay).not.toMatch(/onClose();s*navigateCustomerUrl/);
     // Back between entries whose query differs fires popstate only.
     expect(app).toContain('window.addEventListener("popstate", onHashChange)');
+  });
+
+  it("gives phones a back arrow in the workspace bar while a layer is open", () => {
+    expect(navbar).toContain("useTopHistoryLayer()");
+    expect(navbar).toContain('className="workspace-layer-back"');
+    expect(navbar).toContain("onClick={() => history.back()}");
   });
 
   it("does not expose full license keys in collapsed Customer 360 rows", () => {

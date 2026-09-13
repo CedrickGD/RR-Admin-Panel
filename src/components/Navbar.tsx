@@ -1,5 +1,6 @@
 import {
   Activity,
+  ArrowLeft,
   BarChart3,
   Ban,
   Bug,
@@ -46,6 +47,7 @@ import { PAGE_META, type PageGroup } from "../pageMeta";
 import { useAppearance } from "../hooks/useAppearance";
 import { useChartColors } from "../hooks/useChartColors";
 import { useSignOut } from "../hooks/useSignOut";
+import { useTopHistoryLayer } from "../hooks/useHistoryLayer";
 import { IconButton } from "./ds/Button";
 const logo = new URL("../img/logo.ico", import.meta.url).href;
 /* Sidebar structure (group order, item order, icons) only. Every visible
@@ -141,6 +143,9 @@ export function Navbar({ page, onNavigate, user, onLogout }: NavbarProps) {
   useChartColors();
   const [mobile, setMobile] = useState(false);
   const signOut = useSignOut(onLogout);
+  // The layer a Back press would close (Customer 360, a dialog, the fullscreen
+  // map). While there is one, phones get a back arrow in the bar.
+  const topLayer = useTopHistoryLayer();
   const expansionKey = `rr:navigation:${user.email}`;
   const [expanded, setExpanded] = useState<string[]>(() => {
     try {
@@ -396,7 +401,19 @@ export function Navbar({ page, onNavigate, user, onLogout }: NavbarProps) {
           aria-controls="sidebar-nav"
           onClick={() => setMobile(!mobile)}
         />
-        <div className="workspace-breadcrumb">
+        {/* Phones only (workspace.css): while a layer is open its Back takes the
+            "‹ Group" link's place next to the menu button, at the same size. */}
+        {topLayer ? (
+          <IconButton
+            className="workspace-layer-back"
+            icon={<ArrowLeft />}
+            size={18}
+            title="Back"
+            aria-label="Back"
+            onClick={() => history.back()}
+          />
+        ) : null}
+        <div className={`workspace-breadcrumb${topLayer ? " has-layer" : ""}`}>
           {/* A page named after its own group shows the name once, never twice. */}
           {breadcrumbGroupTarget === null ? (
             <strong aria-current="page">{meta.label}</strong>

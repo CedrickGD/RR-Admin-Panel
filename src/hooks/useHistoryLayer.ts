@@ -119,6 +119,9 @@ let expectedDepth = 0;
 // folded into ONE traversal: two back() calls in a row are not reliably two
 // steps in every browser.
 let traversalTarget: number | null = null;
+// Set while navigateOverLayers() tells App and the router about its own
+// pushState: those events are neither a Back nor a hash navigation to act on.
+let followingNavigation = false;
 
 function recordOf(value: unknown): LayerRecord | null {
   if (!value || typeof value !== "object") return null;
@@ -206,6 +209,7 @@ function closeLayers(removed: Layer[], reason: HistoryLayerCloseReason, userBack
 }
 
 function onPopState() {
+  if (followingNavigation) return;
   // The popstate of the hook's own back()/go() is not the user's Back.
   const own = pendingTraversals > 0;
   if (own) pendingTraversals -= 1;
@@ -230,6 +234,7 @@ function onPopState() {
  * new page, so Back from there returns to it.
  */
 function onHashChange() {
+  if (followingNavigation) return;
   const removed: Layer[] = [];
   while (stack.length > 0 && stack[stack.length - 1].hash !== location.hash)
     removed.push(stack.pop()!);
@@ -336,6 +341,30 @@ function retainLayer(layer: Layer) {
   insert(layer);
   history.pushState(stateFor({ id: layer.id, key: layer.key }, layer.depth), "", layer.url);
   emit();
+}
+
+/**
+ * Moves to another address from inside the layers — Customer 360 handing the
+ * screen to Licenses, "Back to customer", a link that opens a workspace. The
+ * new entry is a page pushed on top: it keeps the current entry's own state
+ * but no layer record. Every open layer closes with reason "navigate" and no
+ * step back, so its entry, with the chain it records, stays beneath the new
+ * page and Back from there lands on it again. App and the router then follow
+ * the new address through a popstate and a hashchange, which the hook ignores.
+ */
+export function navigateOverLayers(url: string | URL) {
+  install();
+  const removed = stack.splice(0).reverse();
+  history.pushState(plainState(), "", url);
+  // After the push, so an owner that tidies the address (the router) sees the new page's.
+  closeLayers(removed, "navigate", false);
+  followingNavigation = true;
+  try {
+    window.dispatchEvent(new PopStateEvent("popstate", { state: history.state }));
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+  } finally {
+    followingNavigation = false;
+  }
 }
 
 /**

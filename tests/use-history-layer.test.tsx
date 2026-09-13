@@ -3,6 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Modal } from "../src/components/ds/Modal";
 import {
+  navigateOverLayers,
   resetHistoryLayers,
   useHistoryLayer,
   useTopHistoryLayer,
@@ -688,5 +689,59 @@ describe("adopting an entry from the recorded chain", () => {
     expect(fake.pushState).toHaveBeenCalledTimes(pushes);
     expect(fake.index()).toBe(1);
     expect(seen.at(-1)).toBe("customer");
+  });
+});
+
+describe("navigateOverLayers", () => {
+  it("closes open layers as a navigation, keeps their entries beneath the new page and ignores its own popstate", async () => {
+    const control: Record<string, Control> = {};
+    const closes: Array<[string, HistoryLayerCloseReason]> = [];
+    const seen: Array<string | null> = [];
+    const licenses = "http://localhost:3000/?customerReturn=x#/licenses";
+    // The page's own state, which every entry above it carries along.
+    history.replaceState({ scrollY: 40 }, "", fake.entries[0].url);
+    const followed = vi.fn();
+    window.addEventListener("popstate", followed);
+    try {
+      await act(async () =>
+        root.render(
+          <>
+            <Layer
+              name="workspace"
+              options={{ key: "workspace" }}
+              control={control}
+              closes={closes}
+            />
+            <TopProbe seen={seen} />
+          </>,
+        ),
+      );
+      await flush();
+      await act(async () => navigateOverLayers(licenses));
+      await flush();
+
+      expect(closes).toEqual([["workspace", "navigate"]]);
+      expect(fake.back).not.toHaveBeenCalled();
+      expect(fake.go).not.toHaveBeenCalled();
+      expect(fake.index()).toBe(2);
+      expect(fake.entries[2]).toEqual({ state: { scrollY: 40 }, url: licenses });
+      expect(fake.entries[1].state).toMatchObject({
+        scrollY: 40,
+        rrLayer: { key: "workspace", depth: 1 },
+      });
+      // App and the router still hear about the new address.
+      expect(followed).toHaveBeenCalledTimes(1);
+      expect(seen.at(-1)).toBeNull();
+
+      // Back from the new page lands on the workspace entry, which it adopts.
+      await act(async () => fake.browserBack());
+      await act(async () => control.workspace.setOpen(true));
+      await flush();
+      expect(fake.pushState).toHaveBeenCalledTimes(2);
+      expect(fake.index()).toBe(1);
+      expect(seen.at(-1)).toBe("workspace");
+    } finally {
+      window.removeEventListener("popstate", followed);
+    }
   });
 });

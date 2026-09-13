@@ -1,3 +1,5 @@
+import { navigateOverLayers } from "../hooks/useHistoryLayer";
+
 export type CustomerSelector =
   | "session_id"
   | "hwid"
@@ -66,8 +68,12 @@ export function customerReturnUrl(current: URL): URL | null {
   }
 }
 
+/**
+ * Goes to a customer address (the Licenses hand-off, "Back to customer", a
+ * Customer 360 link) through the history layers: an open Customer 360 closes
+ * as a navigation and keeps its entry under the new one, and App and the
+ * router follow the new address.
+ */
 export function navigateCustomerUrl(target: URL) {
-  history.pushState(null, "", target);
-  window.dispatchEvent(new PopStateEvent("popstate"));
-  window.dispatchEvent(new HashChangeEvent("hashchange"));
+  navigateOverLayers(target);
 }

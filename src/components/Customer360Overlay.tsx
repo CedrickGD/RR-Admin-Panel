@@ -983,9 +983,9 @@ export function Customer360View({
     const value = customer?.anchor.hwid ?? customer?.anchor.identity ?? "";
     setWorkspaceSearch("licenses", value);
     // The workspace entry remembers the open tab, and Licenses is pushed ON TOP
-    // of it instead of replacing it: navigateCustomerUrl's popstate closes the
-    // workspace without stepping back (useHistoryLayer), and Back from Licenses
-    // lands on the workspace entry again, which reopens this customer.
+    // of it instead of replacing it: navigateCustomerUrl closes the workspace as
+    // a navigation (useHistoryLayer's "navigate", no step back), and Back from
+    // Licenses lands on the workspace entry again, which reopens this customer.
     const here = new URL(location.href);
     here.searchParams.set("customerTab", activeTab);
     history.replaceState(history.state, "", here);

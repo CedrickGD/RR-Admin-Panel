@@ -5,6 +5,7 @@ import { CustomerWorkspaceRouter } from "../src/components/CustomerWorkspaceRout
 import { resetHistoryLayers } from "../src/hooks/useHistoryLayer";
 import { PanelIdentity } from "../src/hooks/usePanelPermission";
 import type { AuthUser } from "../src/types/telemetry";
+import { openCustomerWorkspace } from "../src/utils/customerNavigation";
 import { PERMISSIONS } from "../shared/panel-policy";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -165,6 +166,50 @@ function layerOf(state: unknown) {
 }
 
 describe("Customer 360 on the session history", () => {
+  it("Manage licenses hands off as a navigation; Back returns to the same Customer 360 and tab, Back again closes it", async () => {
+    await mount();
+    await act(async () => openCustomerWorkspace({ selector: "hwid", value: "device-1" }));
+    await waitFor(workspaceShown, "Customer 360");
+    expect(location.href).toBe(CUSTOMER);
+    expect(layerOf(history.state)).toMatchObject({ key: "customer", depth: 1 });
+    // State the entry carries besides the layer record survives the hand-off.
+    history.replaceState({ ...history.state, scrollY: 40 }, "");
+    await act(async () => buttonNamed("Support & history")!.click());
+    const length = history.length;
+
+    await act(async () => buttonNamed("Manage licenses")!.click());
+    expect(history.length).toBe(length + 1);
+    const licenses = new URL(location.href);
+    expect(licenses.hash).toBe("#/licenses");
+    expect(licenses.searchParams.get("customerReturn")).toContain("customerTab=activity");
+    expect(history.state).toEqual({ scrollY: 40 });
+    // The workspace is held on top, inert, until the page underneath has content.
+    expect(document.querySelector("section.customer-workspace")?.hasAttribute("inert")).toBe(true);
+    await waitFor(
+      () => !document.querySelector("section.customer-workspace"),
+      "the hand-off to finish",
+    );
+
+    history.back();
+    await waitFor(workspaceShown, "Customer 360 after Back from Licenses");
+    expect(location.href).toBe(
+      "http://localhost:3000/?customer=device-1&customerBy=hwid&customerTab=activity#/customers",
+    );
+    expect(history.state).toMatchObject({ scrollY: 40, rrLayer: { key: "customer", depth: 1 } });
+    // Adopted, not pushed again: the Licenses entry is still the one ahead.
+    expect(history.length).toBe(length + 1);
+    expect(document.querySelector('[role="tab"][aria-selected="true"]')?.textContent).toBe(
+      "Support & history",
+    );
+
+    history.back();
+    await waitFor(
+      () => location.href === PAGE && !document.querySelector("section.customer-workspace"),
+      "the page after the second Back",
+    );
+    expect(layerOf(history.state)).toBeNull();
+  });
+
   it("after a reload with a keyless dialog open above it, adopts its own entry without pushing or rewriting", async () => {
     const customer = { id: 9001, key: "customer" };
     const dialog = { id: 9002, key: null };

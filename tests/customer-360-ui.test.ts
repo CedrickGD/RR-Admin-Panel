@@ -104,8 +104,13 @@ describe("Customer 360 workspace", () => {
     expect(bar).toContain("border-bottom: 1px solid var(--line)");
     expect(bar).toContain("top: calc(var(--workspace-pad-top) * -1)");
     expect(bar).not.toContain("transparent");
-    // The page behind "Manage licenses" is loaded before the swap.
+    // The page behind "Manage licenses" is loaded before the swap, and the workspace
+    // stays on top until that page has content instead of unmounting in the same frame.
     expect(overlay).toContain('import("../pages/LicensesPage")');
+    expect(overlay).toContain('new Event("rr:customer-handoff")');
+    expect(router).toContain('[aria-label="Loading page"]');
+    expect(router).toContain("setLeaving(anchor)");
+    expect(layer).toContain(".customer-workspace.is-leaving");
   });
 
   it("does not expose full license keys in collapsed Customer 360 rows", () => {

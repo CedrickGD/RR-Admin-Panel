@@ -560,6 +560,14 @@ html[data-theme] .table-pagination :is(.table-pagination-summary, .table-paginat
 .customer-workspace {
   isolation: isolate;
 }
+/* "Manage licenses" hand-off (CustomerWorkspaceRouter): the workspace stays on
+   top until the Licenses page has content, then fades out over it. Opacity
+   only, so it stays under reduced motion like every other fade in the app. */
+.customer-workspace.is-leaving {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s var(--ease-out);
+}
 .customer-workspace > .panel-background {
   inset: 68px 0 0 var(--sb-w);
 }

@@ -61,10 +61,20 @@ export function CustomerWorkspaceRouter({ user }: { user: AuthUser }) {
   const open = Boolean(anchor) && allowed;
   const openRef = useRef(open);
   openRef.current = open;
+  // "Manage licenses" hands the screen to the Licenses page. Unmounting the
+  // workspace in that same frame left the page's Suspense spinner (and then its
+  // fade-in from transparent) over the bare background, which read as the
+  // workspace turning see-through. The closing workspace is held on top, inert,
+  // until the page underneath has content, and only then fades out.
+  const handoffRef = useRef(false);
+  const [leaving, setLeaving] = useState<Customer360Anchor | null>(null);
+  const [fading, setFading] = useState(false);
 
   useHistoryLayer(
     open,
     (reason) => {
+      if (handoffRef.current && anchor) setLeaving(anchor);
+      handoffRef.current = false;
       setAnchor(null);
       // A navigation away pushed the new page from the workspace's address, so
       // that entry still carries the customer params: drop them in place, or a
@@ -97,6 +107,36 @@ export function CustomerWorkspaceRouter({ user }: { user: AuthUser }) {
   }, [open]);
 
   useEffect(() => {
+    if (!leaving) return;
+    let frame = 0;
+    let timer = 0;
+    const started = performance.now();
+    const settle = () => {
+      const page = document.querySelector("main .page-enter");
+      const painted =
+        page !== null &&
+        !page.querySelector('[aria-label="Loading page"]') &&
+        !page.getAnimations().some((animation) => animation.playState === "running");
+      // Never hold longer than 1.5s: a page that cannot render must not stay hidden.
+      if (!painted && performance.now() - started < 1500) {
+        frame = requestAnimationFrame(settle);
+        return;
+      }
+      setFading(true);
+      // The fade in consistency.css (.customer-workspace.is-leaving) is 200ms.
+      timer = window.setTimeout(() => {
+        setLeaving(null);
+        setFading(false);
+      }, 240);
+    };
+    frame = requestAnimationFrame(settle);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
+    };
+  }, [leaving]);
+
+  useEffect(() => {
     const openCustomer = (event: Event) => {
       const target = (event as CustomEvent<Customer360Anchor>).detail;
       // Switching customers inside an open workspace keeps its one entry.
@@ -107,24 +147,31 @@ export function CustomerWorkspaceRouter({ user }: { user: AuthUser }) {
     // already closed or will adopt the workspace itself.
     const pop = () => setAnchor(readAnchor());
     const close = () => setAnchor(null);
+    const handoff = () => {
+      handoffRef.current = true;
+    };
     window.addEventListener("rr:open-customer", openCustomer);
     window.addEventListener("popstate", pop);
     window.addEventListener("rr:close-customer", close);
+    window.addEventListener("rr:customer-handoff", handoff);
     return () => {
       window.removeEventListener("rr:open-customer", openCustomer);
       window.removeEventListener("popstate", pop);
       window.removeEventListener("rr:close-customer", close);
+      window.removeEventListener("rr:customer-handoff", handoff);
     };
   }, []);
 
-  if (!anchor || !open) return null;
+  const shown = anchor && open ? anchor : leaving;
+  if (!shown) return null;
   return (
     <Suspense fallback={<div className="customer-workspace">Loading customer…</div>}>
       <View
-        key={`${anchor.selector}:${anchor.value}:${JSON.stringify(user.permissions)}`}
+        key={`${shown.selector}:${shown.value}:${JSON.stringify(user.permissions)}`}
         open
         session={null}
-        anchor={anchor}
+        anchor={shown}
+        handoff={shown === anchor && open ? undefined : fading ? "fade" : "hold"}
         onClose={() => setAnchor(null)}
       />
     </Suspense>

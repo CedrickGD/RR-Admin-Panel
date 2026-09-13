@@ -59,6 +59,11 @@ export interface Customer360OverlayProps {
   anchor?: Customer360Anchor | null;
   open: boolean;
   onClose: () => void;
+  /**
+   * Set while the workspace hands the screen to another page (CustomerWorkspaceRouter):
+   * "hold" keeps it on top but inert, "fade" fades it out.
+   */
+  handoff?: "hold" | "fade";
 }
 
 type TabKey = "summary" | "commerce" | "sessions" | "activity";
@@ -730,6 +735,7 @@ export function Customer360View({
   anchor = null,
   open,
   onClose,
+  handoff,
 }: Customer360OverlayProps) {
   const [customer, setCustomer] = useState<Customer360Customer | null>(null);
   const canReadLicenses = usePanelPermission("licenses.read");
@@ -983,10 +989,17 @@ export function Customer360View({
     const here = new URL(location.href);
     here.searchParams.set("customerTab", activeTab);
     history.replaceState(history.state, "", here);
+    window.dispatchEvent(new Event("rr:customer-handoff"));
     navigateCustomerUrl(customerActionUrl(here, activeTab));
   }
   return (
-    <section className="customer-workspace" aria-label="Customer 360" ref={workspaceRef}>
+    <section
+      className={`customer-workspace${handoff === "fade" ? " is-leaving" : ""}`}
+      aria-label="Customer 360"
+      aria-hidden={handoff ? true : undefined}
+      inert={Boolean(handoff)}
+      ref={workspaceRef}
+    >
       <PanelBackground />
       {/* Identity and the customer's actions stay reachable while the record
             scrolls: one sticky bar that compacts once the content moves under it. */}

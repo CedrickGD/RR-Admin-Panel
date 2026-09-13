@@ -281,3 +281,56 @@ describe("chart legend keeps its swatches", () => {
     expect(spec).toMatch(/\.chart-legend-swatch-dashed\s*\{[^}]*height:\s*3px/);
   });
 });
+
+/*
+ * Regression guard, same root cause as the chart-legend one above: the
+ * 5aa972c hunk that deleted the navbar search's `.search-results*` CSS also
+ * took several unrelated rule blocks below it in the same 186-line hunk —
+ * `.chart-tip*` (TelemetryChartTooltip's hover card) and the "COMPOSITION
+ * CLASSES" utility block (`.text-tiny`, `.text-micro`, `.page-note`,
+ * `.detail-block`, `.label-sm.detail-label`, `.detail-grid*`) — none of
+ * which are about the navbar search. `.chart-legend*` was the first piece
+ * found missing and restored in 30b2e58; these are the rest, found by
+ * cross-referencing every class removed anywhere in the branch's CSS diff
+ * against className usage still in src/. (`.search-results*` itself and
+ * `.search-wrap-280` really are dead — SearchResults.tsx is gone with the
+ * navbar search — and stay removed.)
+ */
+describe("classes still used in src/ keep their CSS rule (5aa972c fallout)", () => {
+  const spec = source(SPEC_FILE);
+
+  it("restores the chart tooltip card (TelemetryChartTooltip.tsx)", () => {
+    // app-glue.css's .chart-tip-label rule is documented as extending "the
+    // .chart-tip-label base in components.css" — it silently had nothing to
+    // extend without this.
+    expect(spec).toMatch(/\.chart-tip\s*\{[^}]*background:/);
+    for (const selector of [
+      ".chart-tip-label",
+      ".chart-tip-row",
+      ".chart-tip-name",
+      ".chart-tip-dot",
+      ".chart-tip-val",
+    ]) {
+      expect(spec, selector).toMatch(new RegExp(`\\${selector}\\s*\\{`));
+    }
+  });
+
+  it("restores the .text-tiny / .text-micro utilities (ErrorsPage.tsx)", () => {
+    expect(spec).toMatch(/\.text-tiny\s*\{[^}]*font-size:\s*var\(--fs-tiny\)/);
+    expect(spec).toMatch(/\.text-micro\s*\{[^}]*font-size:\s*var\(--fs-micro\)/);
+  });
+
+  it("restores .page-note (ErrorsPage.tsx)", () => {
+    expect(spec).toMatch(/\.page-note\s*\{[^}]*font-size:/);
+  });
+
+  it("restores the detail-grid group (DataTable's DetailGrid, InstallsPanel, ErrorsPage)", () => {
+    expect(spec).toMatch(/\.detail-block\s*\{/);
+    expect(spec).toMatch(/\.label-sm\.detail-label\s*\{/);
+    // Layout only, not colour: consistency.css already clears .detail-grid's
+    // background at (0,1,1) and has no other rule for it (see the comment at
+    // the restored rule) — the class would otherwise render unstyled.
+    expect(spec).toMatch(/\.detail-grid\s*\{[^}]*display:\s*grid/);
+    expect(spec).toMatch(/\.detail-grid-val\s*\{/);
+  });
+});

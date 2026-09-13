@@ -349,8 +349,10 @@ body {
   display: none;
 }
 /* The phone back arrow for an open history layer (Navbar, useTopHistoryLayer).
-   Above 600px the breadcrumb stays and every layer has its own visible exit. */
-.workspace-layer-back {
+   Above 600px the breadcrumb stays and every layer has its own visible exit.
+   Scoped to the bar: operations.css loads later and gives every .btn-icon
+   display: inline-flex, which a bare class selector here would lose to. */
+.workspace-bar .workspace-layer-back {
   display: none;
 }
 .page-content {

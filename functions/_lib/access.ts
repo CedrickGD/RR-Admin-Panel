@@ -53,7 +53,11 @@ export interface PaidLicenseSummary {
   created_at: string;
 }
 
-const ACCESS_SCHEMA_STATEMENTS = [
+/**
+ * Two independent groups, each probed on its own (see prepareAccessSchema): a database that lacks
+ * one table must not pay the DDL of the other on every cold start.
+ */
+const SUSPENSION_SCHEMA_STATEMENTS = [
   `CREATE TABLE IF NOT EXISTS access_suspensions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     identity TEXT NOT NULL UNIQUE,
@@ -74,6 +78,9 @@ const ACCESS_SCHEMA_STATEMENTS = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_access_suspensions_active ON access_suspensions(is_active, identity)`,
   `CREATE INDEX IF NOT EXISTS idx_access_suspensions_hwid ON access_suspensions(hwid)`,
+];
+
+const DISCORD_LINK_SCHEMA_STATEMENTS = [
   `CREATE TABLE IF NOT EXISTS discord_links (
     discord_id TEXT PRIMARY KEY,
     discord_tag TEXT,
@@ -109,25 +116,40 @@ export async function ensureAccessSchema(env: RuntimeEnv): Promise<void> {
   await ready;
 }
 
-async function prepareAccessSchema(db: D1Database): Promise<void> {
-  // Cold-start fast path: probe both tables, including the newest column, and skip the DDL storm
-  // when the schema is current.
+/** True when the probe query runs, i.e. its table and column exist. */
+async function probe(db: D1Database, query: string): Promise<boolean> {
   try {
-    await db.prepare("SELECT lifted_by FROM access_suspensions LIMIT 1").first();
-    await db.prepare("SELECT discord_id FROM discord_links LIMIT 1").first();
-    return;
+    await db.prepare(query).first();
+    return true;
   } catch {
-    // Missing table or column — fall through to the idempotent DDL run.
+    return false;
   }
+}
 
-  for (const query of ACCESS_SCHEMA_STATEMENTS) {
-    await db.prepare(query).run();
-  }
-  for (const query of ACCESS_MIGRATIONS) {
-    try {
+async function prepareAccessSchema(db: D1Database): Promise<void> {
+  // Cold-start fast path, per table: each probe includes that table's newest column, and only a
+  // table that fails its probe runs its (idempotent) DDL. Probing both in one try block let a
+  // missing discord_links re-run the access_suspensions DDL and migrations as well.
+  const [suspensionsCurrent, discordLinksCurrent] = await Promise.all([
+    probe(db, "SELECT lifted_by FROM access_suspensions LIMIT 1"),
+    probe(db, "SELECT discord_id FROM discord_links LIMIT 1"),
+  ]);
+
+  if (!suspensionsCurrent) {
+    for (const query of SUSPENSION_SCHEMA_STATEMENTS) {
       await db.prepare(query).run();
-    } catch (err) {
-      if (!/duplicate column/i.test(err instanceof Error ? err.message : String(err))) throw err;
+    }
+    for (const query of ACCESS_MIGRATIONS) {
+      try {
+        await db.prepare(query).run();
+      } catch (err) {
+        if (!/duplicate column/i.test(err instanceof Error ? err.message : String(err))) throw err;
+      }
+    }
+  }
+  if (!discordLinksCurrent) {
+    for (const query of DISCORD_LINK_SCHEMA_STATEMENTS) {
+      await db.prepare(query).run();
     }
   }
 }

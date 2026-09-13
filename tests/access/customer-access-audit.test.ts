@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { applySchema } from "../../deploy/nas/rr-api/src/bootstrap";
 import {
   createD1Database,
@@ -234,5 +234,137 @@ describe("access schema migration", () => {
       lifted_by: null,
     });
     legacy.close();
+  });
+});
+
+describe("a failing history insert does not undo the access change", () => {
+  // A trigger makes every panel_audit insert fail the way a broken history store would. The
+  // restriction itself is written first, so the handler must still answer 200 with its row kept.
+  function breakAuditInserts() {
+    db.exec(`CREATE TRIGGER panel_audit_unavailable BEFORE INSERT ON panel_audit
+      BEGIN SELECT RAISE(ABORT, 'history store unavailable'); END`);
+  }
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("suspend answers 200 and keeps the restriction", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    breakAuditInserts();
+
+    const response = await post(suspend, "/api/admin/access/suspend", ownerToken, {
+      identity: "hwid-6",
+      hwid: "hwid-6",
+      mode: "ban",
+      reason: "Chargeback",
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true, suspended: true, identity: "hwid-6" });
+    expect(record("hwid-6")).toMatchObject({
+      is_active: 1,
+      mode: "ban",
+      reason: "Chargeback",
+      created_by: OWNER,
+    });
+    expect(customerAudit()).toEqual([]);
+    expect(logged).toHaveBeenCalledWith("access suspend: audit row not written", expect.anything());
+  });
+
+  it("lift answers 200 and keeps the lift", async () => {
+    await post(suspend, "/api/admin/access/suspend", ownerToken, {
+      identity: "hwid-7",
+      mode: "ban",
+    });
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    breakAuditInserts();
+
+    const response = await post(lift, "/api/admin/access/lift", ownerToken, { identity: "hwid-7" });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true, lifted: true, lifted_by: OWNER });
+    expect(record("hwid-7")).toMatchObject({ is_active: 0, lifted_by: OWNER });
+    expect(customerAudit().map((row) => row.action)).toEqual(["customer-suspend"]);
+    expect(logged).toHaveBeenCalledWith("access lift: audit row not written", expect.anything());
+  });
+});
+
+describe("access schema fast path", () => {
+  const LEGACY_SUSPENSIONS = `CREATE TABLE access_suspensions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, identity TEXT NOT NULL UNIQUE, hwid TEXT, install_id TEXT,
+    user_label TEXT, mode TEXT NOT NULL DEFAULT 'ban', reason TEXT, banned_until TEXT,
+    is_active INTEGER NOT NULL DEFAULT 1, had_paid_license INTEGER NOT NULL DEFAULT 0,
+    paid_license_keys TEXT, created_by TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+    lifted_at TEXT)`;
+  const DISCORD_LINKS = `CREATE TABLE discord_links (
+    discord_id TEXT PRIMARY KEY, discord_tag TEXT, license_key TEXT NOT NULL, hwid TEXT,
+    verified_at TEXT NOT NULL, revoked_at TEXT, is_active INTEGER NOT NULL DEFAULT 1, source TEXT)`;
+
+  /** A fresh D1 wrapper (so ensureAccessSchema has not seen it) that records every statement. */
+  function recording(handle: SqliteDatabaseHandle) {
+    const d1 = createD1Database(handle);
+    const statements: string[] = [];
+    const prepare = d1.prepare.bind(d1);
+    vi.spyOn(d1, "prepare").mockImplementation((query: string) => {
+      statements.push(query);
+      return prepare(query);
+    });
+    return { env: { DB: d1 } as RuntimeEnv, statements };
+  }
+  const ddl = (statements: string[], table: string) =>
+    statements.filter((query) => !/^s*SELECT/i.test(query) && query.includes(table));
+  const tables = (handle: SqliteDatabaseHandle) =>
+    (
+      handle.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{
+        name: string;
+      }>
+    ).map((row) => row.name);
+
+  let handle: SqliteDatabaseHandle;
+  beforeEach(() => {
+    handle = createInMemoryDatabase();
+  });
+  afterEach(() => {
+    handle.close();
+    vi.restoreAllMocks();
+  });
+
+  it("runs no DDL when both tables are current", async () => {
+    await ensureAccessSchema({ DB: createD1Database(handle) });
+    const { env: probed, statements } = recording(handle);
+
+    await ensureAccessSchema(probed);
+
+    expect(statements).toEqual([
+      "SELECT lifted_by FROM access_suspensions LIMIT 1",
+      "SELECT discord_id FROM discord_links LIMIT 1",
+    ]);
+  });
+
+  it("creates a missing discord_links without re-running the access_suspensions DDL", async () => {
+    await ensureAccessSchema({ DB: createD1Database(handle) });
+    handle.exec("DROP TABLE discord_links");
+    const { env: probed, statements } = recording(handle);
+
+    await ensureAccessSchema(probed);
+
+    expect(tables(handle)).toContain("discord_links");
+    expect(ddl(statements, "discord_links").length).toBeGreaterThan(0);
+    expect(ddl(statements, "access_suspensions")).toEqual([]);
+  });
+
+  it("migrates access_suspensions without re-running the discord_links DDL", async () => {
+    handle.exec(LEGACY_SUSPENSIONS);
+    handle.exec(DISCORD_LINKS);
+    const { env: probed, statements } = recording(handle);
+
+    await ensureAccessSchema(probed);
+
+    const columns = handle.prepare("PRAGMA table_info(access_suspensions)").all() as Array<{
+      name: string;
+    }>;
+    expect(columns.map((c) => c.name)).toContain("lifted_by");
+    expect(ddl(statements, "access_suspensions").length).toBeGreaterThan(0);
+    expect(ddl(statements, "discord_links")).toEqual([]);
   });
 });

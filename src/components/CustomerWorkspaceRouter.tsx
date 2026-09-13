@@ -125,7 +125,6 @@ export function CustomerWorkspaceRouter({ user }: { user: AuthUser }) {
         open
         session={null}
         anchor={anchor}
-        embedded
         onClose={() => setAnchor(null)}
       />
     </Suspense>

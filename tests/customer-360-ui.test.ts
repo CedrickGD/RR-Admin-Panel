@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
@@ -35,8 +36,7 @@ describe("Customer 360 workspace", () => {
     expect(overlay).toContain("selector: Customer360Selector");
   });
 
-  it("uses an accessible viewport dialog with intentional close behavior", () => {
-    expect(overlay).toContain('size="viewport"');
+  it("uses the accessible dialog with intentional close behavior", () => {
     expect(modal).toContain('role="dialog"');
     expect(modal).toContain('aria-modal="true"');
     expect(modal).toContain("event.target === event.currentTarget");
@@ -63,6 +63,20 @@ describe("Customer 360 workspace", () => {
     expect(navbar).toContain("useTopHistoryLayer()");
     expect(navbar).toContain('className="workspace-layer-back"');
     expect(navbar).toContain("onClick={() => history.back()}");
+  });
+
+  it("renders no viewport-sized dialog: Customer 360 is only the inline workspace", () => {
+    const root = fileURLToPath(new URL("../src/", import.meta.url));
+    const offenders = (readdirSync(root, { recursive: true }) as string[])
+      .filter((file) => file.endsWith(".tsx"))
+      .filter((file) => readFileSync(join(root, file), "utf8").includes('size="viewport"'));
+    expect(offenders).toEqual([]);
+    expect(modal).not.toContain('"viewport"');
+    expect(overlay).not.toContain("<Modal\n      open={open}");
+    expect(overlay).not.toContain("embedded");
+    const css = source("../src/theme/css/components.css");
+    expect(css).not.toContain(".dialog-viewport");
+    expect(css).not.toContain(".customer-360-modal");
   });
 
   it("does not expose full license keys in collapsed Customer 360 rows", () => {

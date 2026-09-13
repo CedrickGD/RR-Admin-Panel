@@ -2,7 +2,6 @@ import {
   Activity,
   ArrowLeft,
   AlertTriangle,
-  Clipboard,
   KeyRound,
   Laptop,
   MessageSquareText,
@@ -33,7 +32,6 @@ import {
 } from "../utils/format";
 import { Badge, type BadgeProps } from "./ds/Badge";
 import { Button } from "./ds/Button";
-import { Modal } from "./ds/Modal";
 import { RelativeTime } from "./ds/RelativeTime";
 import { usePanelPermission } from "../hooks/usePanelPermission";
 import { PanelBackground } from "./PanelBackground";
@@ -59,18 +57,9 @@ export interface Customer360OverlayProps {
   anchor?: Customer360Anchor | null;
   open: boolean;
   onClose: () => void;
-  embedded?: boolean;
 }
 
-type TabKey =
-  | "summary"
-  | "diagnostics"
-  | "settings"
-  | "activity"
-  | "commerce"
-  | "feedback"
-  | "sessions"
-  | "all";
+type TabKey = "summary" | "commerce" | "sessions" | "activity";
 
 const TABS: Array<{ key: TabKey; label: string; icon: ReactNode }> = [
   { key: "summary", label: "Overview", icon: <UserRound /> },
@@ -679,7 +668,6 @@ export function Customer360View({
   anchor = null,
   open,
   onClose,
-  embedded = false,
 }: Customer360OverlayProps) {
   const [customer, setCustomer] = useState<Customer360Customer | null>(null);
   const canReadLicenses = usePanelPermission("licenses.read");
@@ -705,15 +693,14 @@ export function Customer360View({
   const findProfile = useCustomerProfiles();
   const accountProfile = findProfile(customer?.anchor.install_id, customer?.anchor.hwid);
   useEffect(() => {
-    if (embedded && open)
-      (document.querySelector(".customer-workspace h1") as HTMLElement | null)?.focus();
-  }, [embedded, open, customer?.anchor.identity]);
+    if (open) (document.querySelector(".customer-workspace h1") as HTMLElement | null)?.focus();
+  }, [open, customer?.anchor.identity]);
 
   // Escape belongs to the workspace, not to whatever happens to hold focus: a
   // window listener answers it from anywhere on the page, and steps aside while
   // a dialog is open on top (which owns Escape itself — see ds/Modal).
   useEffect(() => {
-    if (!embedded || !open) return;
+    if (!open) return;
     const onKey = (event: globalThis.KeyboardEvent) => {
       if (event.key !== "Escape" || event.defaultPrevented) return;
       if (document.querySelector('[data-modal-root="true"][data-state="open"]')) return;
@@ -729,17 +716,17 @@ export function Customer360View({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [embedded, open, onClose]);
+  }, [open, onClose]);
 
   // Compact the sticky bar as soon as the workspace scrolls under it.
   useEffect(() => {
     const element = workspaceRef.current;
-    if (!embedded || !open || !element) return;
+    if (!open || !element) return;
     const update = () => setScrolled(element.scrollTop > 4);
     update();
     element.addEventListener("scroll", update, { passive: true });
     return () => element.removeEventListener("scroll", update);
-  }, [embedded, open]);
+  }, [open]);
   const requestSeq = useRef(0);
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const selector: Customer360Selector | null = session ? "session_id" : (anchor?.selector ?? null);
@@ -825,13 +812,7 @@ export function Customer360View({
       <div className="customer360-identity-bar">
         <div className="customer360-identity-main">
           {accountProfile && (
-            <>
-              {!embedded && (
-                <CustomerAvatar profile={accountProfile} label={accountProfile.displayName} />
-              )}
-              {!embedded && <strong>{accountProfile.displayName}</strong>}
-              <span title="Verified account link">@{accountProfile.discordUsername}</span>
-            </>
+            <span title="Verified account link">@{accountProfile.discordUsername}</span>
           )}
           <Badge tone={customer.summary.is_active ? "success" : "muted"}>
             {customer.summary.is_active ? "Online" : "Offline"}
@@ -878,16 +859,6 @@ export function Customer360View({
         tabIndex={0}
       >
         {activeTab === "summary" ? <SummaryTab customer={customer} /> : null}
-        {activeTab === "diagnostics" ? (
-          <div className="customer360-stack">
-            <SectionErrors customer={customer} names={["diagnostics"]} />
-            <section className="customer360-card">
-              <SectionHeading icon={<ShieldCheck />} title="Structured diagnostics" />
-              <DiagnosticReport report={customer.diagnostics} />
-            </section>
-          </div>
-        ) : null}
-        {activeTab === "settings" ? <SettingsTab customer={customer} /> : null}
         {activeTab === "activity" ? (
           <>
             <FeedbackTab customer={customer} />
@@ -899,7 +870,6 @@ export function Customer360View({
           </>
         ) : null}
         {activeTab === "commerce" ? <CommerceTab customer={customer} /> : null}
-        {activeTab === "feedback" ? <FeedbackTab customer={customer} /> : null}
         {activeTab === "sessions" ? (
           <>
             <SessionsTab customer={customer} />
@@ -908,22 +878,6 @@ export function Customer360View({
               <SettingsTab customer={customer} />
             </details>
           </>
-        ) : null}
-        {activeTab === "all" ? (
-          <section className="customer360-card">
-            <div className="customer360-card-title">
-              <div>
-                <SectionHeading icon={<Clipboard />} title="Complete API record" />
-                <p className="customer360-caption">
-                  Useful for exact values and fields not promoted in the summaries.
-                </p>
-              </div>
-              <Button size="sm" onClick={() => void copyAllFields()}>
-                {copied ? "Copied" : "Copy JSON"}
-              </Button>
-            </div>
-            <pre className="customer360-json">{JSON.stringify(customer, null, 2)}</pre>
-          </section>
         ) : null}
       </div>
       <details className="customer-advanced">
@@ -973,85 +927,67 @@ export function Customer360View({
     history.replaceState(history.state, "", here);
     navigateCustomerUrl(customerActionUrl(here, activeTab));
   }
-  if (embedded)
-    return (
-      <section className="customer-workspace" aria-label="Customer 360" ref={workspaceRef}>
-        <PanelBackground />
-        {/* Identity and the customer's actions stay reachable while the record
-            scrolls: one sticky bar that compacts once the content moves under it. */}
-        <div className={`customer-workspace-bar${scrolled ? " is-stuck" : ""}`}>
-          <header className="customer-workspace-head">
-            <Button className="customer-back" icon={<ArrowLeft />} onClick={onClose}>
-              Back to workspace
-            </Button>
-            <div className="customer-heading-identity">
-              {accountProfile && (
-                <CustomerAvatar profile={accountProfile} label={accountProfile.displayName} />
-              )}
-              <div>
-                <h1 tabIndex={-1}>
-                  {accountProfile?.displayName ?? titleFor(customer, session, anchor)}
-                </h1>
-                <p>Customer workspace · 360</p>
-              </div>
-            </div>
-          </header>
-          {customer && (
-            <div className="customer-action-bar">
-              <Button permission="licenses.read" icon={<KeyRound />} onClick={openCustomerAction}>
-                Manage licenses
-              </Button>
-              <Button
-                permission="access.read"
-                icon={<ShieldCheck />}
-                onClick={() => setAccessOpen(true)}
-              >
-                Manage app access
-              </Button>
-              <Button
-                permission="support.read"
-                icon={<MessageSquareText />}
-                onClick={() => setActiveTab("activity")}
-              >
-                Support history
-              </Button>
-            </div>
-          )}
-        </div>
-        <div className="customer360-shell">{body}</div>
-        {accessOpen && customer && (
-          <CustomerAccessDialog
-            target={{
-              identity: customer.anchor.identity,
-              hwid: customer.anchor.hwid,
-              install_id: customer.anchor.install_id,
-              label:
-                customer.profile.user_label ??
-                customer.profile.customer_name ??
-                customer.anchor.identity,
-              paid: customer.summary.license_tier === "premium",
-            }}
-            onClose={() => setAccessOpen(false)}
-          />
-        )}
-      </section>
-    );
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      size="viewport"
-      className="customer-360-modal"
-      kicker="Customer support workspace"
-      title={titleFor(customer, session, anchor)}
-      sub={
-        session
-          ? `Session ${session.id} · ${session.displayVersion ?? session.appVersion ?? "version unknown"}`
-          : (anchor?.detail ?? "Customer and device context")
-      }
-    >
+    <section className="customer-workspace" aria-label="Customer 360" ref={workspaceRef}>
+      <PanelBackground />
+      {/* Identity and the customer's actions stay reachable while the record
+            scrolls: one sticky bar that compacts once the content moves under it. */}
+      <div className={`customer-workspace-bar${scrolled ? " is-stuck" : ""}`}>
+        <header className="customer-workspace-head">
+          <Button className="customer-back" icon={<ArrowLeft />} onClick={onClose}>
+            Back to workspace
+          </Button>
+          <div className="customer-heading-identity">
+            {accountProfile && (
+              <CustomerAvatar profile={accountProfile} label={accountProfile.displayName} />
+            )}
+            <div>
+              <h1 tabIndex={-1}>
+                {accountProfile?.displayName ?? titleFor(customer, session, anchor)}
+              </h1>
+              <p>Customer workspace · 360</p>
+            </div>
+          </div>
+        </header>
+        {customer && (
+          <div className="customer-action-bar">
+            <Button permission="licenses.read" icon={<KeyRound />} onClick={openCustomerAction}>
+              Manage licenses
+            </Button>
+            <Button
+              permission="access.read"
+              icon={<ShieldCheck />}
+              onClick={() => setAccessOpen(true)}
+            >
+              Manage app access
+            </Button>
+            <Button
+              permission="support.read"
+              icon={<MessageSquareText />}
+              onClick={() => setActiveTab("activity")}
+            >
+              Support history
+            </Button>
+          </div>
+        )}
+      </div>
       <div className="customer360-shell">{body}</div>
-    </Modal>
+      {accessOpen && customer && (
+        <CustomerAccessDialog
+          target={{
+            identity: customer.anchor.identity,
+            hwid: customer.anchor.hwid,
+            install_id: customer.anchor.install_id,
+            label:
+              customer.profile.user_label ??
+              customer.profile.customer_name ??
+              customer.anchor.identity,
+            paid: customer.summary.license_tier === "premium",
+          }}
+          onClose={() => setAccessOpen(false)}
+        />
+      )}
+    </section>
   );
 }
 

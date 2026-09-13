@@ -597,10 +597,9 @@
    Two things stay outside it on purpose:
    - the theme colours in consistency.css (`html[data-theme] .dialog…`), which
      outrank everything here at (0,2,1) and belong to that layer;
-   - the scoped variants that are not the dialog itself — the full-viewport
-     Customer 360 shell below, `.team-editor` in workspace.css, and the ≤600px
-     head/body padding in consistency.css. All three override this block: two
-     from later layers, the Customer 360 one from further down this file.
+   - the scoped variants that are not the dialog itself — `.team-editor` in
+     workspace.css and the ≤600px head/body padding in consistency.css. Both
+     override this block from later layers.
    ═══════════════════════════════════════════════════════════════ */
 .dialog-overlay {
   position: fixed;
@@ -835,43 +834,8 @@
 .kpi-drilldown-note { font-size: var(--fs-small); color: var(--text-2); line-height: 1.6; margin: 0; }
 
 /* ── Customer 360 workspace ───────────────────────────────────
-   The full-viewport variant of the dialog, sitting after the `.dialog` base
-   above so it can override it. Five declarations that used to stand here are
-   gone: the overlay's `padding: 18px` and its `padding: 0` below, and the
-   dialog's `max-height: none`, `border-color` and `border: 0`. All five were
-   written against the base as it stood BEFORE the console-density values moved
-   out of operations.css into that block — from a later layer those values had
-   beaten every one of them, so none described anything that shipped. The
-   background and backdrop-filter below are in the same position, beaten by
-   consistency.css's `html[data-theme] .dialog-overlay`, but they stay: that is
-   a theme override, not the base, and it can be lifted.
-
-   Nothing in the shipped app mounts this variant at all — Customer360View's
-   only caller passes `embedded`, which renders the inline
-   `.customer-workspace` section instead. */
-.dialog-overlay-viewport {
-  background: hsl(235 48% 4% / 0.68);
-  backdrop-filter: blur(12px) saturate(125%);
-  -webkit-backdrop-filter: blur(12px) saturate(125%);
-}
-.dialog-viewport {
-  width: min(1480px, calc(100vw - 36px));
-  height: min(920px, calc(100dvh - 36px));
-  overflow: hidden;
-  padding: 0;
-  gap: 0;
-  background:
-    linear-gradient(145deg, hsl(235 34% 14% / 0.96), hsl(239 38% 8% / 0.97));
-  box-shadow: 0 34px 100px hsl(235 70% 2% / 0.72), inset 0 1px 0 hsl(220 80% 95% / 0.07);
-}
-.customer-360-modal > .dialog-head {
-  flex: none;
-  padding: 18px 22px 15px;
-  border-bottom: 1px solid var(--line);
-  background: linear-gradient(180deg, hsl(230 45% 18% / 0.5), transparent);
-}
-.customer-360-modal > .dialog-head .section-title { font-size: var(--fs-figure); }
-.customer-360-modal > .dialog-head .section-sub { margin-top: 3px; }
+   Customer360View only ever renders inline, as the `.customer-workspace`
+   section CustomerWorkspaceRouter mounts; these are its sections. */
 .customer360-shell {
   min-height: 0;
   flex: 1;
@@ -1049,8 +1013,6 @@
 }
 
 @media (max-width: 600px) {
-  .dialog-viewport { width: 100vw; height: 100dvh; border-radius: 0; }
-  .customer-360-modal > .dialog-head { padding: 14px 15px 12px; }
   .customer360-identity-bar { padding: 9px 14px; }
   .customer360-tabs { padding-inline: 8px; }
   .customer360-content { padding: 13px 12px 20px; }

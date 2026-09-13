@@ -12,8 +12,6 @@ export interface ModalProps {
   title?: ReactNode;
   sub?: ReactNode;
   children?: ReactNode;
-  /** Viewport keeps the familiar modal chrome but gives dense detail views their own full work area. */
-  size?: "default" | "viewport";
   className?: string;
   /**
    * Whether a click on the scrim may close the dialog (default true). Form
@@ -70,7 +68,6 @@ export function Modal({
   title,
   sub,
   children,
-  size = "default",
   className = "",
   dismissOnScrim = true,
   isDirty,
@@ -248,7 +245,7 @@ export function Modal({
   return createPortal(
     <div
       ref={overlayRef}
-      className={`dialog-overlay${size === "viewport" ? " dialog-overlay-viewport" : ""}`}
+      className="dialog-overlay"
       data-modal-root="true"
       data-state={open ? "open" : "closed"}
       onClick={
@@ -265,7 +262,7 @@ export function Modal({
     >
       <div
         ref={dialogRef}
-        className={`dialog${size === "viewport" ? " dialog-viewport" : ""}${className ? ` ${className}` : ""}`}
+        className={`dialog${className ? ` ${className}` : ""}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelledBy}

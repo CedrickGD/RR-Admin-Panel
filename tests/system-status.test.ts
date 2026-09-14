@@ -73,6 +73,26 @@ describe("system health page model", () => {
     expect(rows["rr-api"].detail).toBe("2 server errors in 60 min");
   });
 
+  it("shows no uptime for a container that is not running", () => {
+    const rows = Object.fromEntries(serviceRows(payload()).map((row) => [row.key, row]));
+    // Docker keeps the last StartedAt on a stopped container; rendering it would show an
+    // "uptime" climbing on every refresh for a service that is down.
+    expect(rows.backup).toMatchObject({ tone: "danger", health: "Exited", startedAt: null });
+    expect(rows["rr-api"].startedAt).toBe("2026-09-12T12:00:00.000Z");
+  });
+
+  it("drops verified-green rows to unknown while the data is stale", () => {
+    const rows = Object.fromEntries(
+      serviceRows(payload(), { stale: true }).map((row) => [row.key, row]),
+    );
+    // The last refresh failed: nothing green is current any more, but a known failure still is.
+    expect(rows["rr-api"]).toMatchObject({ tone: "unknown", health: "Healthy" });
+    expect(rows.database).toMatchObject({ tone: "unknown", health: "Connected" });
+    expect(rows.backup).toMatchObject({ tone: "danger", health: "Exited" });
+    expect(rows["docker-proxy"]).toMatchObject({ tone: "danger", health: "Unhealthy" });
+    expect(serviceRows(payload()).every((row) => row.tone !== "ok")).toBe(false);
+  });
+
   it("marks a healthy bot container as unreachable when its health check fails", () => {
     const rows = serviceRows(
       payload({
@@ -100,6 +120,15 @@ describe("system health page model", () => {
     expect(rows.caddy).toMatchObject({ tone: "unknown", health: "Unknown" });
     expect(rows["docker-proxy"]).toMatchObject({ tone: "warning", health: "No response" });
     expect(rows.database.detail).toBe("File sizes not reported");
+  });
+
+  it("does not blame docker-proxy on a runtime that has no Docker at all", () => {
+    const rows = Object.fromEntries(
+      serviceRows(payload({ containers: null, sources: { containers: "not-configured" } })).map(
+        (row) => [row.key, row],
+      ),
+    );
+    expect(rows["docker-proxy"]).toMatchObject({ tone: "unknown", health: "Not on this runtime" });
   });
 
   it("formats byte counts compactly", () => {

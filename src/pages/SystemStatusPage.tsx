@@ -86,7 +86,14 @@ function uptimeFrom(startedAt: string | null, reference: string): string {
 export function SystemStatusPage() {
   const { payload, failed } = useSystemStatus();
   const loading = !payload && !failed;
-  const rows = useMemo(() => (payload ? serviceRows(payload) : []), [payload]);
+  /*
+   * A failed poll keeps the last payload on screen. It is the best information there is, but it
+   * is no longer a live health check, so the page says "Stale" instead of repeating the green
+   * summary it happened to end on: the tiles, the dots and the incident copy all step back to
+   * "last known" rather than "current".
+   */
+  const stale = failed && payload !== null;
+  const rows = useMemo(() => (payload ? serviceRows(payload, { stale }) : []), [payload, stale]);
   const chartData = useMemo(
     () =>
       payload?.events?.buckets.map((bucket) => ({
@@ -139,13 +146,34 @@ export function SystemStatusPage() {
   const events = payload?.events ?? null;
   const backup = payload?.backup ?? null;
   const incidents = payload?.incidents ?? [];
+  const incidentLine =
+    incidents.length === 0
+      ? "No incidents"
+      : `${incidents.length} open incident${incidents.length === 1 ? "" : "s"}`;
+  const overall = !payload
+    ? null
+    : stale
+      ? { tone: "unknown" as const, label: "Stale" }
+      : { tone: OVERALL_TONE[payload.overall], label: OVERALL_LABEL[payload.overall] };
+  const servicesNote = [
+    stale ? "Last successful check; the refresh after it failed." : null,
+    payload?.containers === null
+      ? `${
+          payload.sources?.containers === "not-configured"
+            ? "Container data is not available on this runtime."
+            : "Container data is unavailable: docker-proxy did not answer."
+        } rr-api, bot and database come from their own checks.`
+      : null,
+  ]
+    .filter((line): line is string => line !== null)
+    .join(" ");
 
   return (
     <div className="page-content page-stack-lg">
       <PageHeader
         page="system"
         sub={
-          failed && payload
+          stale
             ? "The last refresh failed. Showing the previous result; retrying every 30 seconds."
             : "rr-api, database, Discord bot and NAS containers. Refreshes every 30 seconds."
         }
@@ -156,10 +184,10 @@ export function SystemStatusPage() {
           label="Overall"
           loading={loading}
           value={
-            payload ? (
+            overall ? (
               <span className="system-overall">
-                <span className={statusDotClass(OVERALL_TONE[payload.overall])} aria-hidden="true" />
-                {OVERALL_LABEL[payload.overall]}
+                <span className={statusDotClass(overall.tone)} aria-hidden="true" />
+                {overall.label}
               </span>
             ) : (
               "Unknown"
@@ -168,9 +196,9 @@ export function SystemStatusPage() {
           sub={
             !payload
               ? "Backend did not answer"
-              : incidents.length === 0
-                ? "No incidents"
-                : `${incidents.length} open incident${incidents.length === 1 ? "" : "s"}`
+              : stale
+                ? `${incidentLine} at the last check`
+                : incidentLine
           }
           icon={<HeartPulse size={14} />}
         />
@@ -217,11 +245,7 @@ export function SystemStatusPage() {
         <>
           <CollapsiblePanel
             title="Services"
-            sub={
-              payload.containers === null
-                ? "Container data is unavailable: docker-proxy did not answer. rr-api, bot and database come from their own checks."
-                : undefined
-            }
+            sub={servicesNote || undefined}
             padding="flush"
           >
             <DataTable
@@ -319,7 +343,11 @@ export function SystemStatusPage() {
             </CollapsiblePanel>
 
             <CollapsiblePanel title="Incidents" padding="body">
-              {incidents.length === 0 ? (
+              {incidents.length === 0 && stale ? (
+                <EmptyState icon={<Clock />} title="No incidents at the last check">
+                  The refresh after it failed, so nothing here was verified just now.
+                </EmptyState>
+              ) : incidents.length === 0 ? (
                 <EmptyState allClear title="No incidents">
                   Every check passed on the last refresh.
                 </EmptyState>

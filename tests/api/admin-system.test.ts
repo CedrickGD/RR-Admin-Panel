@@ -406,13 +406,31 @@ describe("incident rules", () => {
     expect(overallFrom(incidents.slice(2))).toBe("degraded");
   });
 
-  it("stays silent for sources that reported nothing", () => {
+  it("stays silent for sources this runtime simply does not have", () => {
     expect(
       computeIncidents(
-        { ...healthy, events: null, backup: null, bot: null, containers: null },
+        {
+          ...healthy,
+          events: null,
+          backup: null,
+          bot: null,
+          containers: null,
+          sources: { containers: "not-configured" },
+        },
         NOW,
       ),
     ).toEqual([]);
+  });
+
+  it("warns when a configured source failed, so nothing reads as every check passed", () => {
+    const incidents = computeIncidents(
+      { ...healthy, containers: null, sources: { containers: "unavailable" } },
+      NOW,
+    );
+    expect(incidents.map((incident) => [incident.id, incident.severity])).toEqual([
+      ["containers-unavailable", "warning"],
+    ]);
+    expect(overallFrom(incidents)).toBe("degraded");
   });
 });
 
@@ -434,7 +452,7 @@ describe("buildSystemStatus", () => {
   beforeEach(() => resetContainerCache());
   afterEach(() => handle?.close());
 
-  it("assembles every source and nulls only the one that failed", async () => {
+  it("assembles every source and warns about the one that failed", async () => {
     const setup = sqliteEnv();
     handle = setup.handle;
     await insertEvent(setup.env, "update_check", iso(-MINUTE), 1);
@@ -468,7 +486,7 @@ describe("buildSystemStatus", () => {
     expect(status).toMatchObject({
       ok: true,
       generatedAt: iso(0),
-      overall: "ok",
+      overall: "degraded",
       build: { commit: "abc1234" },
       database: { reachable: true },
       events: { last5Minutes: 1, last60Minutes: 1 },
@@ -476,9 +494,11 @@ describe("buildSystemStatus", () => {
       backup: { ageSeconds: 3600 },
       bot: { reachable: true, uptimeSeconds: 60 },
       containers: null,
+      sources: { containers: "unavailable" },
       serverErrors: null,
-      incidents: [],
     });
+    // A dead docker-proxy is an incident, not silence: null alone would summarise as "ok".
+    expect(status.incidents.map((incident) => incident.id)).toEqual(["containers-unavailable"]);
     expect(typeof status.runtime.node).toBe("string");
   });
 
@@ -501,6 +521,7 @@ describe("buildSystemStatus", () => {
       storage: null,
       backup: null,
       containers: [],
+      sources: { containers: "ok" },
     });
     expect(status.incidents.map((incident) => incident.id)).toEqual(["database-unreachable"]);
   });

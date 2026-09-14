@@ -4,6 +4,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 
 import { SystemStatusPage } from "../src/pages/SystemStatusPage";
 import { fetchApi } from "../src/utils/api";
+import { SERVICE_ORDER } from "../src/utils/systemStatus";
 import type { SystemStatusPayload } from "../shared/system-status";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -42,8 +43,7 @@ function payload(patch: Partial<SystemStatusPayload> = {}): SystemStatusPayload 
         name: "razorreaper-rr-api-1",
         state: "running",
         health: "healthy",
-        startedAt: "2026-09-12T12:00:00.000Z",
-        restartCount: 0,
+        uptimeSeconds: 24 * 3600,
         cpuPercent: 1.5,
         memoryBytes: 64 * 1024 * 1024,
         memoryLimitBytes: null,
@@ -149,6 +149,31 @@ describe("SystemStatusPage: what it knows right now", () => {
     // Nothing is presented as verified any more, but the last reading is still listed.
     expect(greenDots()).toBe(0);
     expect(container.textContent).toContain("rr-api");
+  });
+
+  it("prints a calm dash for restarts and takes uptime from the container list", async () => {
+    answerOnce(payload());
+    await render();
+
+    const cells = (label: string) => [
+      ...container.querySelectorAll<HTMLElement>(`td[data-label="${label}"]`),
+    ];
+    const restarts = cells("Restarts");
+    expect(restarts).toHaveLength(SERVICE_ORDER.length);
+    for (const cell of restarts) {
+      // Not collected: the gateway refuses inspect, and RestartCount lives only there. It reads
+      // as the same "—" every other unreported figure uses — no error styling, no red wording.
+      expect(cell.textContent).toBe("—");
+      expect(cell.className).toBe("numeric");
+      expect(cell.querySelector(".status-dot, .warn, .err")).toBeNull();
+    }
+    // 24 h, straight out of the list entry's "Up 24 hours" — no synthetic start timestamp.
+    expect(cells("Uptime")[0].textContent).toBe("24 h 0 min");
+    // The page says why the column is empty instead of leaving it mysteriously blank.
+    expect(container.textContent).toContain("Restart counts need Docker inspect");
+    // And a figure nobody can read is not an incident: the summary stays green.
+    expect(tile("Overall").textContent).toContain("Healthy");
+    expect(greenDots()).toBeGreaterThan(0);
   });
 
   it("goes back to a live summary on the next successful poll", async () => {

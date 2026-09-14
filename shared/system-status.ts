@@ -54,10 +54,14 @@ export interface SystemContainer {
   /** Docker state: running, restarting, exited, paused, created, dead. */
   state: string;
   health: ContainerHealth;
-  /** Null when Docker inspect is not readable for this container (docker-gateway allowlist). */
-  startedAt: string | null;
-  /** Null for the same reason — "not reported", never a stand-in 0. */
-  restartCount: number | null;
+  /**
+   * Length of the current run, from Docker's own `Status` line ("Up 3 minutes"), so it is
+   * rounded the way Docker rounds it. Null when the container is not running, or when the status
+   * line carries no duration. There is no exact start time: that lives in inspect, which the NAS
+   * gateway refuses (deploy/nas/docker-gateway/Caddyfile). Restart counts come from inspect too
+   * and are therefore not part of this payload at all — the page shows "—" for them.
+   */
+  uptimeSeconds: number | null;
   cpuPercent: number | null;
   memoryBytes: number | null;
   memoryLimitBytes: number | null;

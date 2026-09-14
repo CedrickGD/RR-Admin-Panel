@@ -5,6 +5,7 @@ import {
   Clock,
   ArrowUpRight,
   ChevronDown,
+  Download,
   History,
   Minus,
   Plus,
@@ -27,6 +28,7 @@ import {
   YAxis,
 } from "recharts";
 import { ChartLegend } from "../components/charts/ChartLegend";
+import { DistributionChart } from "../components/charts/DistributionChart";
 import { CHART_MARGIN } from "../components/charts/chartMargin";
 import { TelemetryChartTooltip } from "../components/charts/TelemetryChartTooltip";
 import { CollapsiblePanel } from "../components/CollapsiblePanel";
@@ -402,6 +404,16 @@ export function OverviewPage({ summary, stats }: OverviewPageProps) {
               Monitoring
             </h2>
           </div>
+          <div className="overview-downloads" aria-labelledby="overview-downloads-title">
+            <Download size={20} aria-hidden="true" />
+            <div>
+              <h3 id="overview-downloads-title">Free downloads</h3>
+              <p title="Successful installer handoffs; not completed downloads or installations. Repeat requests count again.">
+                Download requests · all time
+              </p>
+            </div>
+            <strong>{stats ? formatNumber(stats.totals.freeDownloads) : "Not available"}</strong>
+          </div>
           {canMonitor ? (
             <nav className="overview-routes" aria-label="Monitoring shortcuts">
               <a className="overview-route" href="#/live">
@@ -430,10 +442,6 @@ export function OverviewPage({ summary, stats }: OverviewPageProps) {
             </summary>
             <dl>
               <div>
-                <dt>Free downloads</dt>
-                <dd>{stats ? formatNumber(stats.totals.freeDownloads) : "Not available"}</dd>
-              </div>
-              <div>
                 <dt>Leading region</dt>
                 <dd>{canMonitor ? topRegion : "Restricted"}</dd>
               </div>
@@ -457,6 +465,34 @@ export function OverviewPage({ summary, stats }: OverviewPageProps) {
           </details>
         </section>
       </div>
+
+      {canMonitor && (
+        <div className="distribution-grid overview-distributions">
+          <DistributionChart
+            title="Sessions by platform"
+            description="All-time sessions, not limited to the last 24 hours."
+            variant="donut"
+            unavailable={!stats}
+            data={
+              stats?.breakdowns.platforms.map((platform) => ({
+                label: platform.key || "Unknown",
+                value: platform.sessions,
+              })) ?? []
+            }
+          />
+          <DistributionChart
+            title="Current version mix"
+            description="Latest observed app version per customer, including offline customers."
+            unavailable={!stats}
+            data={
+              stats?.breakdowns.versionsCurrent.map((version) => ({
+                label: versionLabel(version.version),
+                value: version.users,
+              })) ?? []
+            }
+          />
+        </div>
+      )}
 
       {canMonitor ? (
         <CollapsiblePanel

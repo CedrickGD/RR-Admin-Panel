@@ -25,6 +25,7 @@ import { SearchInput } from "../components/ds/SearchInput";
 import { Select } from "../components/ds/Select";
 import { InstallsPanel } from "../components/InstallsPanel";
 import { KpiStatCard } from "../components/KpiStatCard";
+import { DistributionChart } from "../components/charts/DistributionChart";
 import { Button, IconButton } from "../components/ds/Button";
 import { SortHeader, type SortState } from "../components/ds/DataTable";
 import { EmptyState } from "../components/ds/EmptyState";
@@ -165,6 +166,33 @@ export function WorkersPage({
       );
     return filtered;
   }, [directory, search, scope, version, country, sort, direction]);
+  const sessionDepth = useMemo(() => {
+    const buckets = [
+      { label: "No recorded sessions", value: 0 },
+      { label: "1 session", value: 0 },
+      { label: "2-9 sessions", value: 0 },
+      { label: "10+ sessions", value: 0 },
+      { label: "Unknown", value: 0 },
+    ];
+    for (const user of rows) {
+      const count = user.sessions;
+      const index =
+        typeof count !== "number" ||
+        !Number.isFinite(count) ||
+        !Number.isInteger(count) ||
+        count < 0
+          ? 4
+          : count === 0
+            ? 0
+            : count === 1
+              ? 1
+              : count < 10
+                ? 2
+                : 3;
+      buckets[index].value += 1;
+    }
+    return buckets;
+  }, [rows]);
   const visible = paginate(rows, page, 50);
   const totals = rows.reduce(
     (t, u) => ({
@@ -260,6 +288,13 @@ export function WorkersPage({
           loading={users === null}
         />
       </div>
+      <DistributionChart
+        title="Customer activity depth"
+        description="Current filters: all loaded customers before pagination. Lifetime sessions per customer."
+        data={sessionDepth}
+        unavailable={users === null}
+        emptyMessage="No customers match this view."
+      />
       <section
         className="monitor-surface session-history-surface"
         aria-label="Customers and session history"

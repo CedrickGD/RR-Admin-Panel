@@ -1,5 +1,6 @@
 import { TableFrame, RecordCell, RecordLink } from "../components/ds/TableFrame";
 import "../theme/license-workspace.css";
+import { DistributionChart, type DistributionDatum } from "../components/charts/DistributionChart";
 import { Select } from "../components/ds/Select";
 import { usePanelPermission } from "../hooks/usePanelPermission";
 import {
@@ -538,6 +539,73 @@ export function LicenseInventoryRow({
   );
 }
 
+/** Stored key state and device binding are separate axes, not access or sales history. */
+export function LicenseInventoryCharts({
+  licenses,
+  unavailable,
+  filtered,
+}: {
+  licenses: readonly LicenseRecord[];
+  unavailable: boolean;
+  filtered: boolean;
+}) {
+  const states = useMemo<DistributionDatum[]>(() => {
+    if (unavailable) return [];
+    const counts = new Map<string, number>();
+    for (const license of licenses) {
+      const status = license.status?.trim().toLowerCase() || "unknown";
+      counts.set(status, (counts.get(status) ?? 0) + 1);
+    }
+    const colors: Record<string, string> = {
+      active: "var(--success-text)",
+      expired: "var(--warning-text)",
+      revoked: "var(--danger-text)",
+      unknown: "var(--text-3)",
+    };
+    return [...counts].map(([status, value]) => ({
+      label: status[0].toUpperCase() + status.slice(1),
+      value,
+      color: colors[status],
+    }));
+  }, [licenses, unavailable]);
+  const bindings = useMemo<DistributionDatum[]>(() => {
+    if (unavailable) return [];
+    const bound = licenses.filter((license) => Boolean(license.hwid)).length;
+    return [
+      { label: "Bound", value: bound },
+      { label: "Unbound", value: licenses.length - bound },
+    ];
+  }, [licenses, unavailable]);
+  const scope = unavailable
+    ? "Loaded inventory selection."
+    : `${licenses.length} ${filtered ? "matching loaded" : "loaded"} licenses.`;
+  const emptyMessage = filtered
+    ? "No licenses match the current filters."
+    : "No loaded licenses to chart.";
+
+  return (
+    <div className="distribution-grid">
+      <DistributionChart
+        title="License states"
+        description={`${scope} Recorded status, not effective access.`}
+        data={states}
+        variant="donut"
+        maxItems={Math.max(6, states.length)}
+        unavailable={unavailable}
+        emptyMessage={emptyMessage}
+      />
+      <DistributionChart
+        title="Device binding"
+        description={`${scope} A stored hardware binding, not online presence or seat usage.`}
+        data={bindings}
+        variant="bars"
+        unavailable={unavailable}
+        emptyMessage={emptyMessage}
+      />
+    </div>
+  );
+}
+
 interface LicensesPageProps {
   summary?: SummaryPayload | null;
   onOpenSession?: (sessionId: string) => void;
@@ -547,6 +615,7 @@ interface LicensesPageProps {
 export function LicensesPage({ summary, onOpenSession, onOpenWorker }: LicensesPageProps) {
   const canWrite = usePanelPermission("licenses.write");
   const [licenses, setLicenses] = useState<LicenseRecord[]>([]);
+  const [licensesLoaded, setLicensesLoaded] = useState(false);
   const [createdKeys, setCreatedKeys] = useState<string[]>([]);
   const [createdOnly, setCreatedOnly] = useState(false);
   const [highlightCreated, setHighlightCreated] = useState(false);
@@ -659,6 +728,7 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker }: LicensesP
       const data = await res.json();
       if (data.ok && seq === licenseRequest.current) {
         setLicenses(data.licenses);
+        setLicensesLoaded(true);
       }
     } catch (e) {
       console.error(e);
@@ -1251,6 +1321,13 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker }: LicensesP
         value={workspaceTab}
         onChange={setWorkspaceTab}
       />
+      {workspaceTab === "inventory" && (
+        <LicenseInventoryCharts
+          licenses={sortedLicenses}
+          unavailable={!licensesLoaded}
+          filtered={hasLicenseFilters}
+        />
+      )}
       {workspaceTab === "inventory" && inventoryToolbar}
       {workspaceTab === "inventory" && renderTable(sortedLicenses, "All licenses")}
       {workspaceTab === "lookup" && (

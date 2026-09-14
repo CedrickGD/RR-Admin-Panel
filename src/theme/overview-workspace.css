@@ -141,6 +141,35 @@ html[data-theme] .overview-workspace .panel {
 .overview-workspace a {
   text-decoration: none;
 }
+.overview-downloads {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  margin: 0 22px;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--line-row);
+}
+.overview-downloads > svg {
+  color: var(--accent);
+}
+.overview-downloads h3 {
+  margin: 0;
+  font-size: var(--fs-body);
+  font-weight: 600;
+  color: var(--text-1);
+}
+.overview-downloads p {
+  margin: 5px 0 0;
+  font-size: var(--fs-small);
+  color: var(--text-3);
+}
+.overview-downloads > strong {
+  color: var(--accent);
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
 .overview-routes {
   display: grid;
   padding: 0 22px;
@@ -221,6 +250,13 @@ html[data-theme] .overview-workspace .panel {
   }
   .overview-snapshot {
     margin-inline: 16px;
+  }
+  .overview-downloads {
+    margin-inline: 16px;
+    grid-template-columns: 20px minmax(0, 1fr);
+  }
+  .overview-downloads > strong {
+    grid-column: 2;
   }
   .overview-workspace .gdrop-trigger,
   .overview-workspace .btn,

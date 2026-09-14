@@ -18,7 +18,6 @@ import { versionLabel } from "../utils/versionLabel";
 import { SearchInput } from "../components/ds/SearchInput";
 import { Select } from "../components/ds/Select";
 import { KpiStatCard } from "../components/KpiStatCard";
-import { DistributionChart } from "../components/charts/DistributionChart";
 import {
   isSessionLive,
   latestSessions,
@@ -298,24 +297,6 @@ export function LivePage({
   }, [highlightedId]);
   const rpcCount = rows.filter((s) => s.rpcEnabled).length;
   const errorCount = rows.filter((s) => s.errorCount > 0).length;
-  const liveVersions = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const session of rows) {
-      const label = session.displayVersion?.trim() || session.appVersion?.trim() || "Unknown";
-      counts.set(label, (counts.get(label) ?? 0) + 1);
-    }
-    return [...counts].map(([label, value]) => ({ label, value }));
-  }, [rows]);
-  const liveRpc = useMemo(() => {
-    const buckets = [
-      { label: "Enabled", value: 0 },
-      { label: "Disabled", value: 0 },
-      { label: "Unknown", value: 0 },
-    ];
-    for (const session of rows)
-      buckets[session.rpcEnabled === true ? 0 : session.rpcEnabled === false ? 1 : 2].value += 1;
-    return buckets;
-  }, [rows]);
   return (
     <div className="page-content monitor-workspace live-workspace">
       <PageHeader
@@ -355,22 +336,6 @@ export function LivePage({
           value={formatNumber(new Set(rows.map((s) => s.clientCountry).filter(Boolean)).size)}
           sub="Distinct countries online"
           icon={<Globe2 />}
-        />
-      </div>
-      <div className="distribution-grid">
-        <DistributionChart
-          title="Live version mix"
-          description="Current filters: loaded customers active within the last 6 minutes."
-          data={liveVersions}
-          maxItems={5}
-          emptyMessage="No live customers match this view."
-        />
-        <DistributionChart
-          title="Live RPC reporting"
-          description="Current filters: loaded live customers. Reported RPC setting, not Discord availability."
-          data={liveRpc}
-          variant="donut"
-          emptyMessage="No live customers match this view."
         />
       </div>
       {/* The one filter place on this page (handoff §2.3), directly above the

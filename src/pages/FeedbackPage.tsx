@@ -29,7 +29,6 @@ import { useRefreshSignal } from "../utils/refreshBus";
 import { navigateCustomerUrl } from "../utils/customerNavigation";
 import { usePanelPermission } from "../hooks/usePanelPermission";
 import { FeedbackReplies } from "../components/FeedbackReplies";
-import { DistributionChart } from "../components/charts/DistributionChart";
 
 type FeedbackStatus = "new" | "read" | "archived";
 
@@ -232,53 +231,9 @@ export function FeedbackPage({ summary }: FeedbackPageProps) {
       );
   }, [feedback, tab, searchQuery]);
 
-  const reportAges = useMemo(() => {
-    const now = Date.now();
-    const day = 24 * 60 * 60 * 1000;
-    const buckets = [
-      { label: "Under 24 hours", value: 0 },
-      { label: "1-7 days", value: 0 },
-      { label: "7-30 days", value: 0 },
-      { label: "30+ days", value: 0 },
-      { label: "Unknown date", value: 0 },
-    ];
-    for (const report of filtered) {
-      const raw = typeof report.created_at === "string" ? report.created_at.trim() : "";
-      // SQLite CURRENT_TIMESTAMP is UTC even though its text has no zone suffix.
-      const timestamp = Date.parse(
-        /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(raw)
-          ? `${raw.replace(" ", "T")}Z`
-          : raw,
-      );
-      const age = now - timestamp;
-      const index =
-        !Number.isFinite(timestamp) || age < 0
-          ? 4
-          : age < day
-            ? 0
-            : age < 7 * day
-              ? 1
-              : age < 30 * day
-                ? 2
-                : 3;
-      buckets[index].value += 1;
-    }
-    return buckets;
-  }, [filtered]);
-
   return (
     <div className="page-content page-stack-lg support-workspace">
       <PageHeader kicker="Customer support" page="feedback" />
-      {(!loading || hasLoaded) && (
-        <DistributionChart
-          title="Report age"
-          description="Current view: last loaded reports only. Time since submission, not response or resolution time."
-          data={reportAges}
-          variant="donut"
-          unavailable={!hasLoaded}
-          emptyMessage="No reports in this view."
-        />
-      )}
       <PageToolbar
         aria-label="Feedback filters"
         canReset={feedbackFiltersActive}

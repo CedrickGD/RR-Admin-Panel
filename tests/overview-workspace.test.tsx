@@ -3,12 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OverviewPage } from "../src/pages/OverviewPage";
 import { PanelIdentity } from "../src/hooks/usePanelPermission";
-import type {
-  AuthUser,
-  StatsPayload,
-  SummaryPayload,
-  TelemetryEvent,
-} from "../src/types/telemetry";
+import type { AuthUser, SummaryPayload, TelemetryEvent } from "../src/types/telemetry";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -77,11 +72,11 @@ afterEach(async () => {
   host.remove();
   vi.restoreAllMocks();
 });
-async function mount(data: SummaryPayload, identity = OWNER, stats: StatsPayload | null = null) {
+async function mount(data: SummaryPayload, identity = OWNER) {
   await act(async () =>
     root.render(
       <PanelIdentity.Provider value={identity}>
-        <OverviewPage summary={data} stats={stats} theme="dark" />
+        <OverviewPage summary={data} stats={null} theme="dark" />
       </PanelIdentity.Provider>,
     ),
   );
@@ -163,7 +158,7 @@ describe("monitoring overview workspace", () => {
     await mount(summary([event("one")]));
     expect(host.querySelector(".overview-snapshot")?.hasAttribute("open")).toBe(false);
     expect(host.querySelector(".overview-error-context")?.hasAttribute("open")).toBe(false);
-    expect(host.querySelector(".overview-downloads")?.textContent).toContain("Not available");
+    expect(host.querySelector(".overview-snapshot")?.textContent).toContain("Not available");
     expect(host.querySelector(".overview-snapshot")?.textContent).toContain("Not recorded");
   });
   it("does not expose support routes or details to monitoring-only identities", async () => {
@@ -184,7 +179,6 @@ describe("monitoring overview workspace", () => {
     expect(host.querySelector('a[href="#/live"]')).toBeNull();
     expect(host.querySelector('a[href="#/workers"]')).toBeNull();
     expect(host.querySelector(".overview-activity")).toBeNull();
-    expect(host.querySelector(".overview-distributions")).toBeNull();
     expect(host.querySelector(".overview-errors")).not.toBeNull();
   });
   it("retains real keyboard-accessible zoom and reset controls", async () => {
@@ -197,75 +191,5 @@ describe("monitoring overview workspace", () => {
     const plot = host.querySelector('[aria-label="Activity chart"]');
     expect(plot?.getAttribute("tabindex")).toBe("0");
     expect(plot?.getAttribute("aria-describedby")).toBeTruthy();
-  });
-  it("makes free downloads visible without opening technical details", async () => {
-    await mount(summary());
-    const counter = host.querySelector(".overview-downloads");
-    expect(counter?.textContent).toContain("Free downloads");
-    expect(counter?.textContent).toContain("Download requests");
-    expect(counter?.closest("details")).toBeNull();
-    expect(host.querySelector(".overview-snapshot")?.textContent).not.toContain("Free downloads");
-    expect(counter?.querySelector("svg.distribution-donut")).toBeNull();
-  });
-  it("does not turn missing server breakdowns into zero-valued charts", async () => {
-    await mount(summary());
-    expect(host.querySelectorAll(".overview-distributions .distribution-empty")).toHaveLength(2);
-    expect(host.querySelector(".overview-distributions")?.textContent).toContain(
-      "Chart data unavailable",
-    );
-    expect(host.querySelector(".overview-distributions .distribution-total")).toBeNull();
-  });
-  it("uses session counts and latest observed identities with their real scopes", async () => {
-    const stats: StatsPayload = {
-      generatedAt: new Date(NOW).toISOString(),
-      filters: { rangeDays: 1, version: null, platform: null, country: null },
-      totals: {
-        lifetimeUsers: 12,
-        lifetimeSessions: 30,
-        lifetimeEvents: 40,
-        freeDownloads: 1860,
-        usersInRange: 4,
-        sessionsInRange: 6,
-        newUsersInRange: 1,
-        activeNow: 2,
-        rpcLiveNow: 1,
-        rpcEnabledUsers: 3,
-        rpcKnownUsers: 8,
-        averageSessionDurationSeconds: 300,
-        errorsInRange: 0,
-      },
-      series: { sessionsPerDay: [], newUsersPerDay: [], errorsPerDay: [] },
-      breakdowns: {
-        versionsAllTime: [],
-        versionsCurrent: [
-          { version: "1.5.2", users: 9, activeUsers: 2 },
-          { version: "1.4.2", users: 3, activeUsers: 0 },
-        ],
-        platforms: [
-          { key: "Windows", sessions: 24, users: 9 },
-          { key: "Linux", sessions: 6, users: 8 },
-        ],
-        countries: [],
-        features: [],
-        eventsLifetime: [],
-      },
-    };
-    await mount(summary(), OWNER, stats);
-    const cards = host.querySelectorAll(".overview-distributions .distribution-card");
-    expect(
-      [...cards[0].querySelectorAll(".distribution-row")].map((row) =>
-        row.getAttribute("data-value"),
-      ),
-    ).toEqual(["24", "6"]);
-    expect(
-      [...cards[1].querySelectorAll(".distribution-row")].map((row) =>
-        row.getAttribute("data-value"),
-      ),
-    ).toEqual(["9", "3"]);
-    expect(cards[0].textContent).toContain("All-time sessions");
-    expect(cards[1].textContent).toContain("including offline customers");
-    expect(host.querySelector(".overview-downloads strong")?.textContent?.replace(/\D/g, "")).toBe(
-      "1860",
-    );
   });
 });

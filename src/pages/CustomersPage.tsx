@@ -1,5 +1,4 @@
 import "../theme/customer-directory.css";
-import { DistributionChart, type DistributionDatum } from "../components/charts/DistributionChart";
 import { TableFrame, RecordCell, RecordLink } from "../components/ds/TableFrame";
 import {
   CustomerAvatar,
@@ -39,7 +38,7 @@ import { Tabs, type TabItem } from "../components/ds/Tabs";
 import { RelativeTime } from "../components/ds/RelativeTime";
 import { usePanelPermission } from "../hooks/usePanelPermission";
 import { useWorkspaceSearch } from "../hooks/useWorkspaceSearch";
-import { LEGACY_VERSION_TOKEN, versionLabel } from "../utils/versionLabel";
+import { versionLabel } from "../utils/versionLabel";
 import { resolveCountry } from "../utils/geography";
 import { TablePagination } from "../components/ds/TablePagination";
 import type { SuspensionRecord, UserRollupRecord } from "../types/telemetry";
@@ -245,57 +244,6 @@ const DIRECTORY_SKELETON_COLUMNS: SkeletonColumn[] = [
   {}, // Last seen
   {}, // Customer actions
 ];
-
-/** Chart the filtered directory before pagination; unknown/legacy remain explicit buckets. */
-export function CustomerVersionChart({
-  users,
-  filtered,
-}: {
-  users: readonly UserRollupRecord[] | null;
-  filtered: boolean;
-}) {
-  const data = useMemo<DistributionDatum[]>(() => {
-    const counts = new Map<string, number>();
-    for (const user of users ?? []) {
-      const reported = userVersionLabel(user);
-      const label = reported.toLowerCase() === "unknown" ? "Unknown" : reported;
-      counts.set(label, (counts.get(label) ?? 0) + 1);
-    }
-    const all = [...counts]
-      .map(([label, value]) => ({ label, value }))
-      .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label));
-    if (all.length <= 6) return all;
-    const retained = new Set(["Unknown", versionLabel(LEGACY_VERSION_TOKEN)]);
-    const special = all.filter((item) => retained.has(item.label));
-    const named = all.filter((item) => !retained.has(item.label));
-    const visibleCount = 5 - special.length;
-    return [
-      ...named.slice(0, visibleCount),
-      ...special,
-      {
-        label: "Other reported versions",
-        value: named.slice(visibleCount).reduce((sum, item) => sum + item.value, 0),
-      },
-    ];
-  }, [users]);
-
-  return (
-    <DistributionChart
-      title="App version mix"
-      description={
-        users
-          ? `${formatNumber(users.length)} ${filtered ? "matching loaded" : "loaded"} customers, before pagination. Current directory filters apply.`
-          : "Loaded customer versions, before pagination. Current directory filters apply."
-      }
-      data={data}
-      variant="bars"
-      unavailable={users === null}
-      emptyMessage={
-        filtered ? "No customers match the current filters." : "No loaded customers to chart."
-      }
-    />
-  );
-}
 
 export function CustomersPage({ users: sourceUsers }: CustomersPageProps) {
   const users = useCustomerDirectory(sourceUsers);
@@ -531,8 +479,6 @@ export function CustomersPage({ users: sourceUsers }: CustomersPageProps) {
               loading={!users}
             />
           </div>
-
-          <CustomerVersionChart users={directoryUsers} filtered={hasFilters} />
 
           {/* The one filter place on this page (handoff §2.3), directly above the
               directory it filters. The search is this page's stored query

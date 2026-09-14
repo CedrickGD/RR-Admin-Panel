@@ -136,9 +136,12 @@ rather than filtered.
 The cost is visible and intended. `State.StartedAt` and `RestartCount` exist only in inspect, so
 on the System health page:
 
-- **Restarts** is `—` for every row, and the note under the table says why.
-- **Uptime** comes from the container list's `Status` string ("Up 3 minutes (healthy)"), rounded
-  the way `docker ps` rounds it, and is blank for a container that is not running.
+- **Restarts** is `—` for every row. The table caption and the note under it say the figure is
+  not available; the reason is this file, because the page keeps its own lines short.
+- **Uptime** is the duration out of the container list's `Status` string ("Up 3 minutes
+  (healthy)"), printed in Docker's own words — "3 minutes", "12 days", "About an hour" — so the
+  column never reads more precisely than `docker ps` does. Blank for a container that is not
+  running.
 - **Health** comes from the same string — Docker writes the healthcheck verdict into it — so a
   failing healthcheck is still visible, and a container that is down still reads as down.
 

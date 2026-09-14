@@ -1,43 +1,77 @@
 // Type surface of recompute-session-error-counts.mjs for the vitest suite
-// (tests/recompute-session-error-counts.test.ts).
+// (tests/recompute-session-error-counts.test.ts) and for restore-session-error-counts.mjs,
+// which imports the proof helpers so the two scripts agree on what "proven" means.
 import type { Database } from "better-sqlite3";
 
 export const RETENTION_DAYS: number;
 export const DEFAULT_BATCH_SIZE: number;
 export const LEGACY_SESSION_ID_PREFIX: string;
+export const SESSION_START_SERVICE: string;
 
 /** reason -> how many sessions were left untouched, and the error_count still standing on them. */
 export type RefusalBreakdown = Record<string, { sessions: number; errors: number }>;
 
+/** One retained telemetry event, reduced to what the status proof reads off it. */
+export interface RetainedEvent {
+  service: string;
+  status: string;
+  background: boolean;
+}
+
+/** What telemetry_events still holds, read once and shared by both scripts. */
+export interface EvidenceIndex {
+  now: Date;
+  oldestRetainedEventAt: string | null;
+  retentionFloor: string;
+  /** session_id -> retained real (non-background) app_error rows. */
+  realErrors: Map<string, number>;
+  /** session ids whose own session_start is retained: their whole history is provably intact. */
+  covered: Set<string>;
+  /** session ids with at least one retained event. */
+  seen: Set<string>;
+  /** session ids whose oldest retained event predates their oldest retained session_start. */
+  startedBeforeRetainedHistory: Set<string>;
+  newestEvent: Map<string, RetainedEvent>;
+  newestNonBackgroundEvent: Map<string, RetainedEvent>;
+  hasStatusEvidence: boolean;
+}
+
+export function buildEvidenceIndex(
+  db: Database,
+  options?: { now?: Date; statusEvidence?: boolean },
+): EvidenceIndex;
+
+/** null when the session's whole history is provably retained; otherwise why it is not. */
+export function coverageGap(index: EvidenceIndex, sessionId: string): string | null;
+
+export function countTargetFor(index: EvidenceIndex, sessionId: string): number;
+
+export function statusRepairFor(
+  index: EvidenceIndex,
+  sessionId: string,
+): { ok: true; lastStatus: string; lastEvent: string } | { ok: false; reason: string };
+
 export interface RecomputeResult {
   dryRun: boolean;
-  repairLegacyCounts: boolean;
   repairStatus: boolean;
   runStartedAt: string;
   retentionFloor: string;
-  premise: {
-    retainedAppErrors: number;
-    retainedRealErrors: number;
-    proven: boolean;
-    provenVersions: number;
-  };
+  oldestRetainedEventAt: string | null;
   sessionsTotal: number;
   sessionsScanned: number;
-  sessionsOutsideRetention: number;
+  sessionsProven: number;
+  sessionsUnknownHistory: number;
   counts: {
     changed: number;
-    changedFromRetainedHistory: number;
-    changedFromVersionPremise: number;
-    changedFromDeploymentPremise: number;
     refused: RefusalBreakdown;
     sumBefore: number;
     sumAfter: number;
+    errorsOnUnknownHistory: number;
+    sessionsWithErrorsOnUnknownHistory: number;
   };
   status: {
     candidates: number;
     changed: number;
-    changedFromRetainedEvent: number;
-    changedFromPremise: number;
     refused: RefusalBreakdown;
   };
 }
@@ -46,7 +80,6 @@ export function recomputeSessionErrorCounts(
   db: Database,
   options?: {
     apply?: boolean;
-    repairLegacyCounts?: boolean;
     repairStatus?: boolean;
     batchSize?: number;
     now?: Date;
@@ -57,7 +90,6 @@ export function formatReport(result: RecomputeResult, dbPath: string): string[];
 
 export function parseArgs(argv: readonly string[]): {
   apply: boolean;
-  repairLegacyCounts: boolean;
   repairStatus: boolean;
   dbPath: string | null;
   batchSize: number;

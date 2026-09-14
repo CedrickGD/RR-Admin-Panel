@@ -154,13 +154,18 @@ export function computeIncidents(input: IncidentInput, now: number): SystemIncid
       detail: "A test read against the database failed.",
     });
 
+  // Name the hop rr-api actually called, and nothing beyond it. The container list is fetched
+  // from docker-gateway (compose: DOCKER_PROXY_URL=http://docker-gateway:2375); whether the
+  // gateway, docker-proxy behind it or the socket itself failed is not something a failed call
+  // can tell apart, so the incident reports the call and leaves the cause to the operator.
   if (input.sources?.containers === "unavailable")
     incidents.push({
       id: "containers-unavailable",
       severity: "warning",
-      service: "docker-proxy",
+      service: "docker-gateway",
       title: "Container data unavailable",
-      detail: "docker-proxy did not answer, so no container could be checked on this refresh.",
+      detail:
+        "The call to docker-gateway did not answer, so no container could be checked on this refresh.",
     });
 
   for (const container of input.containers ?? []) {

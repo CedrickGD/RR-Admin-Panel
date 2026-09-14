@@ -123,7 +123,9 @@ export function SystemStatusPage() {
     {
       key: "uptime",
       header: "Uptime",
-      render: (row) => formatUptime(row.uptimeSeconds),
+      // Docker's own rounded phrase ("12 days"), printed as it arrives: splitting it into units
+      // would add a "0 h" the container list never measured.
+      render: (row) => row.uptime ?? "—",
     },
     {
       key: "restarts",
@@ -157,17 +159,22 @@ export function SystemStatusPage() {
     : stale
       ? { tone: "unknown" as const, label: "Stale" }
       : { tone: OVERALL_TONE[payload.overall], label: OVERALL_LABEL[payload.overall] };
+  /*
+   * At most two short lines. The container line names docker-gateway because that is the call
+   * rr-api made: whether the gateway, docker-proxy behind it or the socket failed is not
+   * something a failed call can tell apart, so the note stops at what was observed.
+   */
   const servicesNote = [
-    stale ? "Last successful check; the refresh after it failed." : null,
+    stale ? "Last successful check." : null,
     payload?.containers === null
       ? `${
           payload.sources?.containers === "not-configured"
-            ? "Container data is not available on this runtime."
-            : "Container data is unavailable: docker-proxy did not answer."
+            ? "No container data on this runtime."
+            : "The call to docker-gateway did not answer, so there is no container data."
         } rr-api, bot and database come from their own checks.`
       : null,
     payload?.containers
-      ? "Uptime is Docker's own rounded figure. Restart counts need Docker inspect, which the gateway does not allow, so they stay blank."
+      ? "Uptime is Docker's rounded figure; restart counts are not available."
       : null,
   ]
     .filter((line): line is string => line !== null)
@@ -256,7 +263,7 @@ export function SystemStatusPage() {
             <DataTable
               flush
               mobileLayout="stack"
-              caption="NAS services with health, uptime, restarts, CPU and memory"
+              caption="NAS services with health, uptime, CPU and memory. Restart counts are not available."
               columns={columns}
               rows={rows}
               rowKey={(row) => row.key}

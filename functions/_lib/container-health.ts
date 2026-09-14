@@ -80,36 +80,27 @@ export function healthFromStatus(status: string | undefined): ContainerHealth {
   return "none";
 }
 
-/** Docker's `Status` units in seconds; go-units counts a month as 30 d and a year as 365 d. */
-const UPTIME_UNIT_SECONDS: Record<string, number> = {
-  second: 1,
-  minute: 60,
-  hour: 3_600,
-  day: 86_400,
-  week: 604_800,
-  month: 2_592_000,
-  year: 31_536_000,
-};
+/** The durations go-units writes into `Status`: "3 minutes", "12 days", "About an hour". */
+const UPTIME_PHRASE = /^\d+ (second|minute|hour|day|week|month|year)s?$/;
+const UPTIME_APPROXIMATE = ["Less than a second", "About a minute", "About an hour"];
 
 /**
- * Seconds of the current run, out of the same `Status` string — "Up 3 minutes (healthy)".
- * Without inspect there is no `State.StartedAt`, and this is what Docker offers instead: a
- * rounded human duration (go-units), so the figure is approximate by construction — "Up About an
- * hour" is anywhere from 45 to 90 minutes. That is enough for a column that prints "5 h 12 min",
- * and it is a real reading rather than an invented timestamp. Null for anything that is not
- * "Up …" ("Exited (0) 5 minutes ago", "Created", "Restarting (1) 2 seconds ago"): those have no
- * current run to time.
+ * The length of the current run in Docker's own words, out of the same `Status` string — "Up 3
+ * minutes (healthy)" gives "3 minutes". Without inspect there is no `State.StartedAt`, and this
+ * rounded human duration (go-units) is what Docker offers instead: "About an hour" is anywhere
+ * from 45 to 90 minutes. The phrase is passed on as written rather than converted to seconds,
+ * because a seconds figure re-formatted for the column prints "1 h 0 min" and claims a precision
+ * the source never had. Null for anything that is not "Up …" ("Exited (0) 5 minutes ago",
+ * "Created", "Restarting (1) 2 seconds ago"): those have no current run to time. Null too for
+ * wording this does not recognise, so an unexpected string shows as "—" and not as itself.
  */
-export function uptimeSecondsFromStatus(status: string | undefined): number | null {
+export function uptimeFromStatus(status: string | undefined): string | null {
   // Drop the trailing "(healthy)" / "(health: starting)" / "(Paused)" note.
   const text = (status ?? "").trim().replace(/\s*\([^)]*\)\s*$/, "");
   if (!text.startsWith("Up ")) return null;
   const rest = text.slice(3).trim();
-  if (rest === "Less than a second") return 0;
-  if (rest === "About a minute") return 60;
-  if (rest === "About an hour") return 3_600;
-  const parts = /^(\d+) (second|minute|hour|day|week|month|year)s?$/.exec(rest);
-  return parts ? Number(parts[1]) * UPTIME_UNIT_SECONDS[parts[2]] : null;
+  if (UPTIME_APPROXIMATE.includes(rest)) return rest;
+  return UPTIME_PHRASE.test(rest) ? rest : null;
 }
 
 /** `docker stats` CPU%: container CPU delta over host CPU delta, times online CPUs. */
@@ -152,7 +143,7 @@ async function describeContainer(
     name,
     state: item.State ?? "unknown",
     health: healthFromStatus(item.Status),
-    uptimeSeconds: running ? uptimeSecondsFromStatus(item.Status) : null,
+    uptime: running ? uptimeFromStatus(item.Status) : null,
     cpuPercent: stats ? cpuPercent(stats) : null,
     memoryBytes: stats ? memoryBytes(stats) : null,
     memoryLimitBytes: stats?.memory_stats?.limit ?? null,

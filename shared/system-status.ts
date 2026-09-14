@@ -55,13 +55,15 @@ export interface SystemContainer {
   state: string;
   health: ContainerHealth;
   /**
-   * Length of the current run, from Docker's own `Status` line ("Up 3 minutes"), so it is
-   * rounded the way Docker rounds it. Null when the container is not running, or when the status
-   * line carries no duration. There is no exact start time: that lives in inspect, which the NAS
-   * gateway refuses (deploy/nas/docker-gateway/Caddyfile). Restart counts come from inspect too
-   * and are therefore not part of this payload at all — the page shows "—" for them.
+   * Length of the current run as Docker words it in its own `Status` line: "3 minutes",
+   * "12 days", "About an hour". It is rounded the way Docker rounds it, and it travels as that
+   * phrase so the page can print it unchanged instead of turning a rounded figure into "1 h
+   * 0 min". Null when the container is not running, or when the status line carries no duration.
+   * There is no exact start time: that lives in inspect, which the NAS gateway refuses
+   * (deploy/nas/docker-gateway/Caddyfile). Restart counts come from inspect too and are
+   * therefore not part of this payload at all — the page shows "—" for them.
    */
-  uptimeSeconds: number | null;
+  uptime: string | null;
   cpuPercent: number | null;
   memoryBytes: number | null;
   memoryLimitBytes: number | null;
@@ -71,8 +73,10 @@ export interface SystemContainer {
  * Whether a source could be read on this request. `null` alone cannot say why a section is
  * missing, so a section that can both be absent and fail carries its state here:
  * - "ok": the source answered.
- * - "unavailable": the source is configured for this runtime but failed (docker-proxy stopped,
- *   internal network broken), so a missing section must not read as "nothing is wrong".
+ * - "unavailable": the source is configured for this runtime and the call to it failed (the
+ *   container list is fetched from docker-gateway, so a failure there could be the gateway,
+ *   docker-proxy behind it, the socket or the network — the caller cannot tell, and says so).
+ *   A missing section must not read as "nothing is wrong".
  * - "not-configured": this runtime has no such source at all (Cloudflare Pages has no Docker).
  */
 export type SystemSourceState = "ok" | "unavailable" | "not-configured";

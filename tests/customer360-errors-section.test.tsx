@@ -238,14 +238,18 @@ describe("Customer 360 Errors section", () => {
     expect(badges.filter((label) => label === "unhandled")).toHaveLength(1);
   });
 
-  it("says why the listed faults are not counted", async () => {
+  it("says why the listed faults are not counted, before it lists them", async () => {
     await openErrorsSection();
+    const card = errorsCard();
+    const caption = card.querySelector(".customer360-caption");
+    const list = card.querySelector(".customer360-record-list");
 
-    expect(errorsCard().querySelector(".customer360-caption")?.textContent).toContain(
-      "40 background faults are listed above",
-    );
-    expect(errorsCard().querySelector(".customer360-caption")?.textContent).toContain(
-      "never counted as an error",
+    expect(caption?.textContent).toContain("40 background faults are listed below");
+    expect(caption?.textContent).toContain("never counted as an error");
+    // Read before the rows, not after 40 of them: the explanation is what keeps a list of
+    // background noise under a heading that counts 1 from reading as 41 crashes.
+    expect(caption && list && caption.compareDocumentPosition(list)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
     );
   });
 });

@@ -53,23 +53,23 @@ services:
       context: ../..
       dockerfile: deploy/nas/rr-api/Dockerfile
       args:
-        BUILD_SHA: ${BUILD_SHA:-unknown}   # set by tools/deploy-nas.ps1 (NAS checkout HEAD)
+        # Set by tools/deploy-nas.ps1 (NAS checkout HEAD); empty = the page says "unknown".
+        BUILD_SHA: ${BUILD_SHA:-}
     restart: unless-stopped
     env_file: ${DATA_DIR}/env/rr-api.env   # copy of rr-api/.env.example, filled in
-    # System health sources: backup age from the read-only backup mount, containers through the
-    # read-only socket proxy below (the bot is reached at its default http://bot:8080).
+    # System health sources: backup age from the read-only backup mount, containers through
+    # docker-gateway below (the bot is reached at its default http://bot:8080). BUILD_SHA is not
+    # repeated here: the image ENV baked from the build arg above carries it, so the value is a
+    # property of the image and cannot drift per `docker compose up` invocation.
     environment:
       - BACKUP_DIR=/backups
-      - DOCKER_PROXY_URL=http://docker-proxy:2375
-      # rr-api.env (a copy of .env.example) carries an empty BUILD_SHA=, and env_file beats the
-      # image ENV, so pass the build commit here where it wins over env_file.
-      - BUILD_SHA=${BUILD_SHA:-unknown}
+      - DOCKER_PROXY_URL=http://docker-gateway:2375
     volumes:
       - ${DATA_DIR}/db:/data/db
       - ${BACKUP_DIR}:/backups:ro
     networks:
       - default
-      - docker-proxy
+      - docker-gateway
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8787/health"]
       interval: 30s
@@ -106,11 +106,25 @@ services:
       - ./backup/backup.sh:/backup.sh:ro
     command: sh -c "apk add --no-cache sqlite >/dev/null && echo '15 3 * * * sh /backup.sh' > /etc/crontabs/root && crond -f -l 2"
 
-  # Read-only Docker API for the System health page (handoff 2026-09-12 §2.11). rr-api reads the
-  # container list, inspect and one-shot stats through it. The socket's :ro does not stop API
-  # writes on its own; POST=0 and every other section set to 0 do, so a compromised rr-api still
-  # cannot start, stop, exec or pull anything. No ports; its only network is internal and shared
-  # with rr-api alone.
+  # Path allowlist in front of docker-proxy (see docker-gateway/Caddyfile). rr-api talks only to
+  # this service; it is the only member of the docker-proxy network besides the proxy itself.
+  # A separate caddy:2-alpine container — the `caddy` media origin above is untouched.
+  docker-gateway:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    volumes:
+      - ./docker-gateway/Caddyfile:/etc/caddy/Caddyfile:ro
+    networks:
+      - docker-gateway
+      - docker-proxy
+
+  # Docker API for the System health page (handoff 2026-09-12 §2.11), reachable only through
+  # docker-gateway. What rr-api may READ is the container list of this compose project, inspect
+  # for the services named in the gateway's allowlist (not the bot), and one-shot stats; the
+  # gateway answers 403 to everything else, including /archive, /logs, /top and /changes.
+  # POST=0 and every other section at 0 block writes: no start, stop, exec or pull. CONTAINERS=1
+  # is section-level, so the proxy alone would allow every non-POST /containers call on the host
+  # — that is what the gateway narrows. No ports; its only network is internal.
   docker-proxy:
     image: tecnativa/docker-socket-proxy:v0.5.0
     restart: unless-stopped
@@ -148,6 +162,10 @@ services:
       - docker-proxy
 
 networks:
-  # internal: no route off the host, and only rr-api joins it next to the proxy.
+  # internal: no route off the host. rr-api reaches docker-gateway here and nothing else.
+  docker-gateway:
+    internal: true
+  # internal, and docker-gateway is the only service besides docker-proxy on it: there is no
+  # network path from rr-api to the socket proxy that skips the gateway's allowlist.
   docker-proxy:
     internal: true

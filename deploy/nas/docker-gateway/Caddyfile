@@ -1,0 +1,66 @@
+# Path allowlist between rr-api and the Docker socket proxy (compose service `docker-proxy`).
+#
+# tecnativa/docker-socket-proxy gates whole API *sections*, not paths: CONTAINERS=1 allows every
+# non-POST call under /containers, for every container on the host. That includes
+# /containers/<any>/json (Config.Env — the Discord bot's TOKEN and NOTIFIER_*/VERIFY_*),
+# /containers/<any>/archive?path=... (any file in any container, e.g. the tunnel credentials),
+# /logs, /top, /changes, and the NAS's unrelated containers. rr-api is the internet-facing service
+# behind the tunnel, so it must not be able to ask for any of that. This gateway is the path-level
+# allowlist the socket proxy cannot be; it is the only service left on the docker-proxy network.
+#
+# ALLOWED — exactly three GET shapes:
+#   GET /containers/json                            -> /containers/json?all=1&filters=<project>
+#   GET /containers/razorreaper-<listed>-<n>/json   -> unchanged (inspect takes only `size`)
+#   GET /containers/razorreaper-<service>-<n>/stats -> same path, ?stream=false forced
+# REJECTED with 403 before the socket proxy is touched — everything else, including
+#   /containers/razorreaper-bot-1/json      (the one project container whose env holds secrets)
+#   /containers/<any>/archive|logs|export|top|changes|wait|attach
+#   /containers/homeassistant-app-1/json    (any container outside this compose project)
+#   /images/*, /info, /version, /_ping, /networks/*, /volumes/*
+#   every non-GET method, on every path.
+{
+	admin off
+}
+
+:2375 {
+	# The container list, forced to this compose project, so rr-api never learns which unrelated
+	# containers the NAS runs. `filters` is percent-encoded because a Caddyfile reads { } as
+	# placeholders; decoded it is {"label":["com.docker.compose.project=razorreaper"]}.
+	@list {
+		method GET
+		path /containers/json
+	}
+	handle @list {
+		rewrite * /containers/json?all=1&filters=%7B%22label%22%3A%5B%22com.docker.compose.project%3Drazorreaper%22%5D%7D
+		reverse_proxy docker-proxy:2375
+	}
+
+	# Inspect, for the Uptime and Restarts columns. A positive allowlist of compose services, not
+	# a project-wide prefix: a service added to compose.yml is rejected until it is named here, so
+	# a new secret cannot leak by default. `bot` is deliberately absent — its Config.Env holds the
+	# Discord TOKEN and the NOTIFIER_*/VERIFY_* values, which is the escalation this file prevents.
+	@inspect {
+		method GET
+		path_regexp inspect ^/containers/razorreaper-(admin|backup|caddy|cloudflared|docker-gateway|docker-proxy|rr-api)-[0-9]+/json$
+	}
+	handle @inspect {
+		reverse_proxy docker-proxy:2375
+	}
+
+	# One-shot CPU/memory. The stats payload carries no configuration, so every container of this
+	# project is allowed; stream=false is forced so a caller cannot hold the socket open.
+	@stats {
+		method GET
+		path_regexp stats ^/containers/razorreaper-[a-z0-9][a-z0-9-]*-[0-9]+/stats$
+	}
+	handle @stats {
+		rewrite * {http.request.uri.path}?stream=false
+		reverse_proxy docker-proxy:2375
+	}
+
+	handle {
+		respond "docker-gateway: endpoint not allowed" 403
+	}
+
+	header -Server
+}

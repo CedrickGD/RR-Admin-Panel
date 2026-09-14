@@ -17,7 +17,7 @@ import {
   isProjectContainer,
   loadContainers,
   resetContainerCache,
-  uptimeSecondsFromStatus,
+  uptimeFromStatus,
 } from "../../functions/_lib/container-health";
 import {
   enableServerErrorRing,
@@ -278,27 +278,28 @@ describe("containers via docker-gateway", () => {
     expect(healthFromStatus(undefined)).toBe("none");
   });
 
-  it("reads an approximate uptime out of the same status line, and nothing else", () => {
-    // Docker's own rounding (go-units), health suffix included.
-    expect(uptimeSecondsFromStatus("Up 45 seconds")).toBe(45);
-    expect(uptimeSecondsFromStatus("Up 10 minutes (unhealthy)")).toBe(600);
-    expect(uptimeSecondsFromStatus("Up 30 hours (healthy)")).toBe(108_000);
-    expect(uptimeSecondsFromStatus("Up 6 days")).toBe(518_400);
-    expect(uptimeSecondsFromStatus("Up 3 weeks")).toBe(1_814_400);
+  it("reads the rounded uptime phrase out of the same status line, and nothing else", () => {
+    // Docker's own rounding (go-units), health suffix dropped, wording kept: the page prints
+    // this phrase as it stands, because turning "About an hour" into seconds and formatting it
+    // back would print "1 h 0 min" for anything between 45 and 90 minutes.
+    expect(uptimeFromStatus("Up 45 seconds")).toBe("45 seconds");
+    expect(uptimeFromStatus("Up 10 minutes (unhealthy)")).toBe("10 minutes");
+    expect(uptimeFromStatus("Up 30 hours (healthy)")).toBe("30 hours");
+    expect(uptimeFromStatus("Up 6 days")).toBe("6 days");
+    expect(uptimeFromStatus("Up 3 weeks")).toBe("3 weeks");
     // Shapes taken verbatim from `docker ps` on the NAS, 2026-09-14.
-    expect(uptimeSecondsFromStatus("Up 12 days")).toBe(1_036_800);
-    expect(uptimeSecondsFromStatus("Up Less than a second")).toBe(0);
-    expect(uptimeSecondsFromStatus("Exited (0) 13 days ago")).toBeNull();
-    expect(uptimeSecondsFromStatus("Up About a minute")).toBe(60);
-    expect(uptimeSecondsFromStatus("Up About an hour")).toBe(3_600);
-    expect(uptimeSecondsFromStatus("Up Less than a second")).toBe(0);
-    // No current run, or nothing parseable: null, never 0 as a stand-in.
-    expect(uptimeSecondsFromStatus("Exited (0) 2 minutes ago")).toBeNull();
-    expect(uptimeSecondsFromStatus("Restarting (1) 3 seconds ago")).toBeNull();
-    expect(uptimeSecondsFromStatus("Created")).toBeNull();
-    expect(uptimeSecondsFromStatus("Up")).toBeNull();
-    expect(uptimeSecondsFromStatus("Up a while")).toBeNull();
-    expect(uptimeSecondsFromStatus(undefined)).toBeNull();
+    expect(uptimeFromStatus("Up 12 days")).toBe("12 days");
+    expect(uptimeFromStatus("Up Less than a second")).toBe("Less than a second");
+    expect(uptimeFromStatus("Exited (0) 13 days ago")).toBeNull();
+    expect(uptimeFromStatus("Up About a minute")).toBe("About a minute");
+    expect(uptimeFromStatus("Up About an hour")).toBe("About an hour");
+    // No current run, or nothing recognisable: null, never a made-up figure as a stand-in.
+    expect(uptimeFromStatus("Exited (0) 2 minutes ago")).toBeNull();
+    expect(uptimeFromStatus("Restarting (1) 3 seconds ago")).toBeNull();
+    expect(uptimeFromStatus("Created")).toBeNull();
+    expect(uptimeFromStatus("Up")).toBeNull();
+    expect(uptimeFromStatus("Up a while")).toBeNull();
+    expect(uptimeFromStatus(undefined)).toBeNull();
   });
 
   it("lists and samples project containers by name, and never asks for inspect", async () => {
@@ -311,7 +312,7 @@ describe("containers via docker-gateway", () => {
         name: "razorreaper-backup-1",
         state: "exited",
         health: "none",
-        uptimeSeconds: null,
+        uptime: null,
         cpuPercent: null,
         memoryBytes: null,
         memoryLimitBytes: null,
@@ -323,7 +324,7 @@ describe("containers via docker-gateway", () => {
         name: "razorreaper-bot-1",
         state: "running",
         health: "unhealthy",
-        uptimeSeconds: 600,
+        uptime: "10 minutes",
         cpuPercent: null,
         memoryBytes: 56 * MB,
         memoryLimitBytes: null,
@@ -333,7 +334,7 @@ describe("containers via docker-gateway", () => {
         name: "razorreaper-rr-api-1",
         state: "running",
         health: "healthy",
-        uptimeSeconds: 108_000,
+        uptime: "30 hours",
         cpuPercent: 8,
         memoryBytes: 105 * MB,
         memoryLimitBytes: 1024 * MB,
@@ -390,7 +391,7 @@ describe("incident rules", () => {
         name: "razorreaper-rr-api-1",
         state: "running",
         health: "healthy",
-        uptimeSeconds: 24 * 3600,
+        uptime: "24 hours",
         cpuPercent: 1,
         memoryBytes: 1,
         memoryLimitBytes: null,
@@ -450,7 +451,7 @@ describe("incident rules", () => {
     const base = healthy.containers![0];
     expect(
       computeIncidents(
-        { ...healthy, containers: [{ ...base, service: "admin", uptimeSeconds: 5 * 60 }] },
+        { ...healthy, containers: [{ ...base, service: "admin", uptime: "5 minutes" }] },
         NOW,
       ),
     ).toEqual([]);
@@ -481,6 +482,21 @@ describe("incident rules", () => {
       ["containers-unavailable", "warning"],
     ]);
     expect(overallFrom(incidents)).toBe("degraded");
+  });
+
+  it("blames only the hop rr-api called for an unreadable container list", () => {
+    // rr-api fetches the list from docker-gateway (DOCKER_PROXY_URL=http://docker-gateway:2375)
+    // and sees one thing: that call did not answer. Whether the gateway, docker-proxy behind it
+    // or the socket failed is not in evidence, so the incident says the call and stops there.
+    const [incident] = computeIncidents(
+      { ...healthy, containers: null, sources: { containers: "unavailable" } },
+      NOW,
+    );
+    expect(incident.service).toBe("docker-gateway");
+    expect(incident.detail).toBe(
+      "The call to docker-gateway did not answer, so no container could be checked on this refresh.",
+    );
+    expect(`${incident.title} ${incident.detail}`).not.toContain("docker-proxy");
   });
 });
 

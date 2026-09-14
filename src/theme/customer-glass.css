@@ -346,7 +346,8 @@ html[data-theme] .customer-glass .customer360-contact-details .customer360-info-
   padding-top: 12px;
   border-top: 1px solid var(--line-row);
 }
-.customer360-report-note {
+/* A caption that explains the list under it, so it is read before the rows. */
+.customer360-caption-lead {
   margin-bottom: 16px;
 }
 .customer360-support-archive {

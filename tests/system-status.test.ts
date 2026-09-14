@@ -11,7 +11,7 @@ function container(service: string, patch: Partial<SystemContainer> = {}): Syste
     name: `razorreaper-${service}-1`,
     state: "running",
     health: "healthy",
-    uptimeSeconds: 24 * 3600,
+    uptime: "24 hours",
     cpuPercent: 1.5,
     memoryBytes: 64 * 1024 * 1024,
     memoryLimitBytes: null,
@@ -76,8 +76,9 @@ describe("system health page model", () => {
     const rows = Object.fromEntries(serviceRows(payload()).map((row) => [row.key, row]));
     // A stopped container still carries the length of its last run in Docker's status line;
     // rendering it would show an "uptime" for a service that is down.
-    expect(rows.backup).toMatchObject({ tone: "danger", health: "Exited", uptimeSeconds: null });
-    expect(rows["rr-api"].uptimeSeconds).toBe(24 * 3600);
+    expect(rows.backup).toMatchObject({ tone: "danger", health: "Exited", uptime: null });
+    // Docker's own phrase, carried through: no "24 h 0 min" invented on top of a rounded figure.
+    expect(rows["rr-api"].uptime).toBe("24 hours");
   });
 
   it("drops verified-green rows to unknown while the data is stale", () => {
@@ -85,11 +86,26 @@ describe("system health page model", () => {
       serviceRows(payload(), { stale: true }).map((row) => [row.key, row]),
     );
     // The last refresh failed: nothing green is current any more, but a known failure still is.
-    expect(rows["rr-api"]).toMatchObject({ tone: "unknown", health: "Healthy" });
-    expect(rows.database).toMatchObject({ tone: "unknown", health: "Connected" });
+    // The word has to move with the dot — a grey dot beside a bare "Healthy" claims a check that
+    // did not happen — so an unverified reading is labelled as the last one, not the current one.
+    expect(rows["rr-api"]).toMatchObject({ tone: "unknown", health: "Last: Healthy" });
+    expect(rows.caddy).toMatchObject({ tone: "unknown", health: "Last: Running" });
+    expect(rows.database).toMatchObject({ tone: "unknown", health: "Last: Connected" });
     expect(rows.backup).toMatchObject({ tone: "danger", health: "Exited" });
     expect(rows["docker-proxy"]).toMatchObject({ tone: "danger", health: "Unhealthy" });
     expect(serviceRows(payload()).every((row) => row.tone !== "ok")).toBe(false);
+  });
+
+  it("never leaves a stale row reading as a current verdict", () => {
+    // Every row in the stale table: an "unknown" dot and a health word that still reads as a
+    // live check ("Healthy", "Running", "Connected", "Responding") is the pairing to catch.
+    const current = ["Healthy", "Running", "Connected", "Responding"];
+    for (const source of [payload(), payload({ containers: null, bot: null })]) {
+      for (const row of serviceRows(source, { stale: true })) {
+        if (row.tone !== "unknown") continue;
+        expect(current).not.toContain(row.health);
+      }
+    }
   });
 
   it("marks a healthy bot container as unreachable when its health check fails", () => {
@@ -115,20 +131,28 @@ describe("system health page model", () => {
       serviceRows(payload({ containers: null, storage: null })).map((row) => [row.key, row]),
     );
     expect(rows["rr-api"]).toMatchObject({ tone: "ok", health: "Responding" });
-    // No container row at all: the process's own uptime is the only reading left.
-    expect(rows["rr-api"].uptimeSeconds).toBe(3600);
+    // No container row at all: the process's own uptime is the only reading left, and it is a
+    // measured second count, so this row may show minutes where a Docker row never can.
+    expect(rows["rr-api"].uptime).toBe("1 h 0 min");
     expect(rows.caddy).toMatchObject({ tone: "unknown", health: "Unknown" });
-    expect(rows["docker-proxy"]).toMatchObject({ tone: "warning", health: "No response" });
+    // rr-api called docker-gateway, so that is the row that reports the silence. docker-proxy is
+    // a hop further on: rr-api never spoke to it and must not name it as the one that failed.
+    expect(rows["docker-gateway"]).toMatchObject({ tone: "warning", health: "No response" });
+    expect(rows["docker-proxy"]).toMatchObject({ tone: "unknown", health: "Unknown" });
     expect(rows.database.detail).toBe("File sizes not reported");
   });
 
-  it("does not blame docker-proxy on a runtime that has no Docker at all", () => {
+  it("does not blame either Docker service on a runtime that has no Docker at all", () => {
     const rows = Object.fromEntries(
       serviceRows(payload({ containers: null, sources: { containers: "not-configured" } })).map(
         (row) => [row.key, row],
       ),
     );
-    expect(rows["docker-proxy"]).toMatchObject({ tone: "unknown", health: "Not on this runtime" });
+    expect(rows["docker-gateway"]).toMatchObject({
+      tone: "unknown",
+      health: "Not on this runtime",
+    });
+    expect(rows["docker-proxy"]).toMatchObject({ tone: "unknown", health: "Unknown" });
   });
 
   it("formats byte counts compactly", () => {
@@ -138,7 +162,8 @@ describe("system health page model", () => {
     expect(formatBytes(105 * 1024 * 1024)).toBe("105 MB");
   });
 
-  it("formats uptime in the largest units that still read at a glance", () => {
+  // Only the rr-api process row and the Uptime tile reach this: both count real seconds.
+  it("formats a measured uptime in the largest units that still read at a glance", () => {
     expect(formatUptime(null)).toBe("—");
     expect(formatUptime(40 * 60)).toBe("40 min");
     expect(formatUptime(5 * 3600 + 12 * 60)).toBe("5 h 12 min");

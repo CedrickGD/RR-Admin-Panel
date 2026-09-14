@@ -43,7 +43,7 @@ function payload(patch: Partial<SystemStatusPayload> = {}): SystemStatusPayload 
         name: "razorreaper-rr-api-1",
         state: "running",
         health: "healthy",
-        uptimeSeconds: 24 * 3600,
+        uptime: "24 hours",
         cpuPercent: 1.5,
         memoryBytes: 64 * 1024 * 1024,
         memoryLimitBytes: null,
@@ -145,10 +145,17 @@ describe("SystemStatusPage: what it knows right now", () => {
     expect(tile("Overall").textContent).toContain("No incidents at the last check");
     expect(container.textContent).toContain("The last refresh failed.");
     expect(container.textContent).not.toContain("Every check passed on the last refresh.");
-    expect(container.textContent).toContain("Last successful check; the refresh after it failed.");
+    expect(container.textContent).toContain("Last successful check.");
     // Nothing is presented as verified any more, but the last reading is still listed.
     expect(greenDots()).toBe(0);
     expect(container.textContent).toContain("rr-api");
+    // The row word moves with the row dot: no grey dot next to a bare "Healthy".
+    const health = [...container.querySelectorAll<HTMLElement>('td[data-label="Health"]')].map(
+      (cell) => cell.textContent,
+    );
+    expect(health).toContain("Last: Healthy");
+    expect(health).not.toContain("Healthy");
+    expect(health).not.toContain("Connected");
   });
 
   it("prints a calm dash for restarts and takes uptime from the container list", async () => {
@@ -167,13 +174,42 @@ describe("SystemStatusPage: what it knows right now", () => {
       expect(cell.className).toBe("numeric");
       expect(cell.querySelector(".status-dot, .warn, .err")).toBeNull();
     }
-    // 24 h, straight out of the list entry's "Up 24 hours" — no synthetic start timestamp.
-    expect(cells("Uptime")[0].textContent).toBe("24 h 0 min");
-    // The page says why the column is empty instead of leaving it mysteriously blank.
-    expect(container.textContent).toContain("Restart counts need Docker inspect");
+    // Docker's own phrase out of the list entry's "Up 24 hours", printed as it arrived: no
+    // synthetic start timestamp, and no "24 h 0 min" claiming a minute the source never gave.
+    expect(cells("Uptime")[0].textContent).toBe("24 hours");
+    // The page says the figures are missing instead of leaving the column mysteriously blank,
+    // and says it in one short line rather than three sentences.
+    expect(container.textContent).toContain(
+      "Uptime is Docker's rounded figure; restart counts are not available.",
+    );
+    // The table's accessible caption must not promise a column that never has data either.
+    const caption = container.querySelector("caption")?.textContent ?? "";
+    expect(caption).toContain("Restart counts are not available.");
+    expect(caption).not.toContain("uptime, restarts");
     // And a figure nobody can read is not an incident: the summary stays green.
     expect(tile("Overall").textContent).toContain("Healthy");
     expect(greenDots()).toBeGreaterThan(0);
+  });
+
+  it("names only the hop it called when the container list cannot be read", async () => {
+    // rr-api fetches the list from docker-gateway and cannot see past it: whether the gateway,
+    // docker-proxy behind it or the socket failed is not something a failed call can tell apart.
+    answerOnce(payload({ containers: null, sources: { containers: "unavailable" } }));
+    await render();
+
+    expect(container.textContent).toContain("The call to docker-gateway did not answer");
+    expect(container.textContent).not.toContain("docker-proxy did not answer");
+    const row = (service: string) =>
+      [...container.querySelectorAll<HTMLElement>("tbody tr")].find((tr) =>
+        tr.querySelector(".system-service-name")?.textContent?.includes(service),
+      );
+    expect(row("docker-gateway")?.querySelector('td[data-label="Health"]')?.textContent).toBe(
+      "No response",
+    );
+    // The hop rr-api never spoke to says the only true thing left: it does not know.
+    expect(row("docker-proxy")?.querySelector('td[data-label="Health"]')?.textContent).toBe(
+      "Unknown",
+    );
   });
 
   it("goes back to a live summary on the next successful poll", async () => {

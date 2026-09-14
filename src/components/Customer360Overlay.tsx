@@ -257,7 +257,9 @@ function RecordList({
 /**
  * Errors for one customer. The heading counts what Key figures counts — real
  * errors — while background faults stay listed and labelled below it, because
- * support needs to see the noise without it being called a crash.
+ * support needs to see the noise without it being called a crash. The caption
+ * explaining the noise sits above the rows: below them it was read only after
+ * scrolling past every alarming-looking line it was there to explain.
  */
 function ErrorsSection({ errors }: { errors: ErrorEventDetail[] }) {
   const realErrors = errors.filter(isRealErrorRow).length;
@@ -265,6 +267,14 @@ function ErrorsSection({ errors }: { errors: ErrorEventDetail[] }) {
   return (
     <section className="customer360-card">
       <SectionHeading icon={<AlertTriangle />} title="Errors" count={realErrors} />
+      {backgroundFaults > 0 ? (
+        <p className="customer360-caption customer360-caption-lead">
+          {backgroundFaults === 1
+            ? "1 background fault is listed below"
+            : `${formatNumber(backgroundFaults)} background faults are listed below`}
+          {" — a known client bug that does not crash the app, so it is never counted as an error."}
+        </p>
+      ) : null}
       <RecordList
         rows={errors}
         empty="No errors are linked to this customer."
@@ -274,14 +284,6 @@ function ErrorsSection({ errors }: { errors: ErrorEventDetail[] }) {
         }
         badge={(row) => String(row.kind ?? "error")}
       />
-      {backgroundFaults > 0 ? (
-        <p className="customer360-caption">
-          {backgroundFaults === 1
-            ? "1 background fault is listed above"
-            : `${formatNumber(backgroundFaults)} background faults are listed above`}
-          {" — a known client bug that does not crash the app, so it is never counted as an error."}
-        </p>
-      ) : null}
     </section>
   );
 }
@@ -906,7 +908,7 @@ function FeedbackTab({ customer }: { customer: Customer360Customer }) {
           title="Open in-app reports"
           count={reportsUnavailable ? undefined : openReports.length}
         />
-        <p className="customer360-caption customer360-report-note">
+        <p className="customer360-caption customer360-caption-lead">
           New and read reports stay open until archived. Reading a report does not resolve it.
         </p>
         {openReports.length ? (

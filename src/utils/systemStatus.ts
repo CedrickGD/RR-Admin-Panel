@@ -13,11 +13,13 @@ export interface ServiceRow {
   /** One quiet line under the name: live figures where a source reports them, else the role. */
   detail: string;
   /**
-   * Length of the CURRENT run, as Docker rounds it; null while the container is not running, so
-   * uptime stays blank instead of counting up for a service that is down. There is no Restarts
-   * figure on the row at all: see RESTARTS_UNAVAILABLE in SystemStatusPage.
+   * Length of the CURRENT run, ready to print: Docker's own rounded phrase for a container row
+   * ("12 days"), the measured process uptime for the rr-api row that has no container data.
+   * Null while the container is not running, so uptime stays blank instead of counting up for a
+   * service that is down. There is no Restarts figure on the row at all: see
+   * RESTARTS_UNAVAILABLE in SystemStatusPage.
    */
-  uptimeSeconds: number | null;
+  uptime: string | null;
   cpuPercent: number | null;
   memoryBytes: number | null;
 }
@@ -79,7 +81,11 @@ export function formatBytes(bytes: number | null | undefined): string {
   return `${value < 10 && unit > 0 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`;
 }
 
-/** Container and process uptime: "40 min", "5 h 12 min", "3 d 4 h". */
+/**
+ * Process uptime, from a real second count: "40 min", "5 h 12 min", "3 d 4 h". Container rows do
+ * not come through here — Docker reports those only as a rounded phrase, which the page prints as
+ * it arrives (SystemContainer.uptime).
+ */
 export function formatUptime(seconds: number | null | undefined): string {
   if (seconds === null || seconds === undefined || !Number.isFinite(seconds) || seconds < 0)
     return "—";
@@ -105,8 +111,9 @@ function containerState(container: SystemContainer): { tone: ServiceTone; health
 export interface ServiceRowOptions {
   /**
    * The payload on screen is the last one that loaded and the refresh after it failed. What was
-   * green then is unverified now, so every "ok" row drops to the grey unknown dot; a row that was
-   * already warning or failing keeps its tone, because that reading is still the latest news.
+   * green then is unverified now, so every "ok" row drops to the grey unknown dot and its health
+   * word says "Last: …" instead; a row that was already warning or failing keeps both, because
+   * that reading is still the latest news.
    */
   stale?: boolean;
 }
@@ -131,7 +138,7 @@ export function serviceRows(
         tone: payload.database.reachable ? "ok" : "danger",
         health: payload.database.reachable ? "Connected" : "Unreachable",
         detail: sizes.length > 0 ? sizes.join(" · ") : "File sizes not reported",
-        uptimeSeconds: null,
+        uptime: null,
         cpuPercent: null,
         memoryBytes: null,
       };
@@ -148,8 +155,8 @@ export function serviceRows(
           }),
       detail: SERVICE_ROLE[key],
       // Uptime belongs to a run that is happening: a container that is not running gets none,
-      // however recently it was up.
-      uptimeSeconds: container?.state === "running" ? container.uptimeSeconds : null,
+      // however recently it was up. Docker's own phrase, printed as Docker rounded it.
+      uptime: container?.state === "running" ? container.uptime : null,
       cpuPercent: container?.cpuPercent ?? null,
       memoryBytes: container?.memoryBytes ?? null,
     };
@@ -160,8 +167,12 @@ export function serviceRows(
         row.tone = "ok";
         row.health = "Responding";
         // The process reports its own uptime, which is the closest thing to a container uptime
-        // when the container list could not be read at all.
-        row.uptimeSeconds = payload.runtime.uptimeSeconds;
+        // when the container list could not be read at all — and it is a measured second count,
+        // so this is the one row whose uptime may carry a minutes figure.
+        row.uptime =
+          payload.runtime.uptimeSeconds === null
+            ? null
+            : formatUptime(payload.runtime.uptimeSeconds);
       }
       if (payload.serverErrors)
         row.detail = `${payload.serverErrors.last60Minutes} server errors in 60 min`;
@@ -186,7 +197,10 @@ export function serviceRows(
       row.detail = payload.backup
         ? (payload.backup.newestFile ?? "No backup file yet")
         : "Backup folder not mounted";
-    } else if (key === "docker-proxy" && payload.containers === null) {
+    } else if (key === "docker-gateway" && payload.containers === null) {
+      // The gateway is the hop rr-api calls, so its silence is the only thing rr-api observed.
+      // docker-proxy sits behind it and keeps the grey "Unknown" every unreadable row gets: a
+      // failed call cannot tell which of the two was at fault.
       const absent = payload.sources?.containers === "not-configured";
       row.tone = absent ? "unknown" : "warning";
       row.health = absent ? "Not on this runtime" : "No response";
@@ -196,7 +210,11 @@ export function serviceRows(
   });
 
   if (!options.stale) return rows;
-  return rows.map((row) => (row.tone === "ok" ? { ...row, tone: "unknown" as const } : row));
+  // The dot and the word have to agree: a grey dot beside "Healthy" still reads as a verdict from
+  // just now. "Last: Healthy" keeps the reading and drops the claim that it is current.
+  return rows.map((row) =>
+    row.tone === "ok" ? { ...row, tone: "unknown" as const, health: `Last: ${row.health}` } : row,
+  );
 }
 
 /** "HH:MM" in the viewer's time zone for a bucket start. */

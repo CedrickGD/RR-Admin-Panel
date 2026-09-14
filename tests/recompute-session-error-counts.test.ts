@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   main,
+  parseArgs,
   recomputeSessionErrorCounts,
 } from "../deploy/nas/rr-api/scripts/recompute-session-error-counts.mjs";
 import {
@@ -17,6 +18,10 @@ const NOW = new Date("2026-09-13T12:00:00.000Z");
 const ago = (ms: number) => new Date(NOW.getTime() - ms).toISOString();
 
 let db: TelemetryTestDb;
+
+afterEach(() => {
+  db.close();
+});
 
 interface SessionRow {
   startedAt: string;
@@ -67,6 +72,14 @@ function sessionState(sessionId: string): { lastStatus: string; lastEvent: strin
   return { lastStatus: row.last_status, lastEvent: row.last_event };
 }
 
+/** The session's own start event — the only coverage proof the script accepts. */
+const startEvent = (sessionId: string, msAgo: number) => ({
+  service: "session_start",
+  status: "ok" as const,
+  ts: ago(msAgo),
+  metrics: { session_id: sessionId },
+});
+
 const loop = (sessionId: string, count: number, startMsAgo: number) =>
   Array.from({ length: count }, (_, index) =>
     backgroundFault(ago(startMsAgo - index * 1000), {
@@ -75,53 +88,96 @@ const loop = (sessionId: string, count: number, startMsAgo: number) =>
     }),
   );
 
-afterEach(() => {
-  db.close();
-});
+/**
+ * The coverage test the FIRST production run used, reproduced here so the tests can show which
+ * rows it would have written. It is not a proof: pruned history is not in the table to be found.
+ */
+function passesTheOldWeakerRule(sessionId: string, startedAt: string, floor: string): boolean {
+  if (sessionId.startsWith("install:")) return false;
+  if (startedAt < floor) return false;
+  const oldest = db.handle
+    .prepare(
+      `SELECT MIN(ts) AS ts FROM telemetry_events
+       WHERE TRIM(CAST(json_extract(metrics_json, '$.session_id') AS TEXT)) = ?`,
+    )
+    .get(sessionId) as { ts: string | null };
+  return oldest.ts === null || oldest.ts >= startedAt;
+}
 
-describe("recompute-session-error-counts, a history that still holds real errors", () => {
+describe("recompute-session-error-counts, the strict coverage rule", () => {
   beforeEach(() => {
     db = createTelemetryTestDb();
-    // Retained history starts 3 days ago: that is the retention floor.
+    // An unattributed event three days back: it sets the retention floor and nothing else.
     db.insertEvents([{ service: "session_start", status: "ok", ts: ago(3 * DAY), metrics: {} }]);
 
-    // Only background faults, counted by the old ingest.
-    insertSession("s-bg", { startedAt: ago(2 * DAY), errorCount: 267, updatedAt: ago(1 * DAY) });
-    db.insertEvents(loop("s-bg", 267, 2 * DAY - MINUTE));
-    // Two real errors plus three background faults.
-    insertSession("s-mixed", { startedAt: ago(2 * DAY), errorCount: 5, updatedAt: ago(1 * DAY) });
+    // --- PROVEN: their own session_start is still retained ------------------------------------
+    // Background noise only.
+    insertSession("s-proven-bg", {
+      startedAt: ago(2 * DAY),
+      errorCount: 267,
+      updatedAt: ago(1 * DAY),
+    });
     db.insertEvents([
-      realError(ago(2 * DAY - 10 * MINUTE), { session_id: "s-mixed" }),
-      realError(ago(2 * DAY - 20 * MINUTE), { session_id: " s-mixed " }),
-      ...loop("s-mixed", 3, 2 * DAY - 30 * MINUTE),
+      startEvent("s-proven-bg", 2 * DAY),
+      ...loop("s-proven-bg", 267, 2 * DAY - MINUTE),
+    ]);
+    // Two real errors plus three background faults; the second id carries stray whitespace.
+    insertSession("s-proven-mixed", {
+      startedAt: ago(2 * DAY),
+      errorCount: 5,
+      updatedAt: ago(1 * DAY),
+    });
+    db.insertEvents([
+      startEvent("s-proven-mixed", 2 * DAY),
+      realError(ago(2 * DAY - 10 * MINUTE), { session_id: "s-proven-mixed" }),
+      realError(ago(2 * DAY - 20 * MINUTE), { session_id: " s-proven-mixed " }),
+      ...loop("s-proven-mixed", 3, 2 * DAY - 30 * MINUTE),
     ]);
     // Already right.
-    insertSession("s-ok", { startedAt: ago(1 * DAY), errorCount: 1 });
-    db.insertEvents([realError(ago(1 * DAY - MINUTE), { session_id: "s-ok" })]);
-    // Started before the retained history: its events are gone, the stored count stays.
-    insertSession("s-old", { startedAt: ago(200 * DAY), errorCount: 40 });
-    // Pre-floor, and real errors of its own are retained: the stored count is the larger record.
-    insertSession("s-old-real", { startedAt: ago(100 * DAY), errorCount: 9 });
+    insertSession("s-proven-ok", { startedAt: ago(1 * DAY), errorCount: 1 });
     db.insertEvents([
-      realError(ago(2 * DAY), { session_id: "s-old-real" }),
-      realError(ago(2 * DAY - MINUTE), { session_id: "s-old-real" }),
+      startEvent("s-proven-ok", 1 * DAY),
+      realError(ago(1 * DAY - MINUTE), { session_id: "s-proven-ok" }),
     ]);
-    // Updated after the run started (a new event arrived): skipped, not overwritten.
+    // No errors at all.
+    insertSession("s-none", { startedAt: ago(60 * MINUTE) });
+    db.insertEvents([startEvent("s-none", 60 * MINUTE)]);
+    // Proven, but a new event landed while the run was going: skipped, not overwritten.
     insertSession("s-busy", {
       startedAt: ago(1 * DAY),
       errorCount: 10,
       updatedAt: new Date(NOW.getTime() + MINUTE).toISOString(),
     });
-    db.insertEvents(loop("s-busy", 10, 1 * DAY - MINUTE));
-    // No errors at all.
-    insertSession("s-none", { startedAt: ago(60 * MINUTE) });
-    // Legacy pseudo-session: one row for the whole life of an install, so started_at says nothing
-    // about when its counted errors happened, even though it sits inside the retention window.
+    db.insertEvents([startEvent("s-busy", 1 * DAY), ...loop("s-busy", 10, 1 * DAY - MINUTE)]);
+
+    // --- UNKNOWN HISTORY: the regression the strict rule exists to prevent ---------------------
+    // started_at was rewritten forward by a session_start that has since been pruned, together
+    // with the real errors that produced the stored 300. Everything still retained for it is
+    // background noise, and every retained event is NEWER than started_at — so the old rule saw
+    // a young, fully covered session and would have zeroed a count that recorded real crashes.
+    insertSession("s-forward-start", {
+      startedAt: ago(2 * DAY),
+      errorCount: 300,
+      updatedAt: ago(1 * DAY),
+    });
+    db.insertEvents(loop("s-forward-start", 4, 1 * DAY));
+    // Retained events predate its oldest retained session_start: it was already running before
+    // that start, so an earlier start and its errors may be gone.
+    insertSession("s-events-precede-start", { startedAt: ago(1 * DAY), errorCount: 7 });
+    db.insertEvents([
+      ...loop("s-events-precede-start", 2, 2 * DAY),
+      startEvent("s-events-precede-start", 1 * DAY),
+    ]);
+    // Would be covered but for its id: one row for the whole life of an install.
     insertSession("install:abc", { startedAt: ago(1 * DAY), errorCount: 12 });
-    db.insertEvents(loop("install:abc", 4, 1 * DAY - MINUTE));
-    // started_at was rewritten forward by a later session_start: retained evidence predates it.
-    insertSession("s-rewritten", { startedAt: ago(1 * DAY), errorCount: 7 });
-    db.insertEvents(loop("s-rewritten", 2, 2 * DAY));
+    db.insertEvents([
+      startEvent("install:abc", 1 * DAY),
+      ...loop("install:abc", 4, 1 * DAY - MINUTE),
+    ]);
+    // Nothing of it survives.
+    insertSession("s-no-events", { startedAt: ago(200 * DAY), errorCount: 40 });
+
+    // --- status-repair subjects ---------------------------------------------------------------
     // Ended on a real error: "down" is genuine.
     insertSession("a-down-real", {
       startedAt: ago(1 * DAY),
@@ -130,236 +186,142 @@ describe("recompute-session-error-counts, a history that still holds real errors
       lastEvent: "app_error",
       lastStatus: "down",
     });
-    db.insertEvents([realError(ago(1 * DAY - MINUTE), { session_id: "a-down-real" })]);
-    // Ended "down", nothing of it retained: unprovable while real errors exist in the window.
-    insertSession("a-down-pruned", {
-      startedAt: ago(100 * DAY),
-      endedAt: ago(100 * DAY - MINUTE),
-      lastEvent: "app_error",
-      lastStatus: "down",
-    });
-  });
-
-  it("defaults to a dry run: reports the changes and sums without writing", () => {
-    const before = errorCounts();
-
-    const result = recomputeSessionErrorCounts(db.handle, { now: NOW });
-
-    expect(result.dryRun).toBe(true);
-    expect(result.retentionFloor).toBe(ago(3 * DAY));
-    expect(result.sessionsTotal).toBe(11);
-    expect(result.sessionsScanned).toBe(11);
-    expect(result.sessionsOutsideRetention).toBe(3);
-    expect(result.premise).toEqual({
-      retainedAppErrors: 292,
-      retainedRealErrors: 6,
-      proven: false,
-      provenVersions: 0,
-    });
-    expect(result.counts.changed).toBe(2);
-    expect(result.counts.changedFromRetainedHistory).toBe(2);
-    expect(result.counts.sumBefore).toBe(352);
-    expect(result.counts.sumAfter).toBe(82);
-    expect(errorCounts()).toEqual(before);
-  });
-
-  it("recomputes only what the retained history proves, and is idempotent", () => {
-    const first = recomputeSessionErrorCounts(db.handle, { apply: true, now: NOW, batchSize: 2 });
-
-    expect(first.counts.changed).toBe(2);
-    expect(first.counts.refused).toEqual({
-      "started-before-retention-floor": { sessions: 2, errors: 49 },
-      "legacy-install-id": { sessions: 1, errors: 12 },
-      "started-at-rewritten-forward": { sessions: 1, errors: 7 },
-      "updated-during-the-run": { sessions: 1, errors: 10 },
-    });
-    expect(errorCounts()).toEqual({
-      "a-down-pruned": 0,
-      "a-down-real": 1,
-      "install:abc": 12,
-      "s-bg": 0,
-      "s-busy": 10,
-      "s-mixed": 2,
-      "s-none": 0,
-      "s-ok": 1,
-      "s-old": 40,
-      "s-old-real": 9,
-      "s-rewritten": 7,
-    });
-
-    const second = recomputeSessionErrorCounts(db.handle, { apply: true, now: NOW, batchSize: 1 });
-    expect(second.counts.changed).toBe(0);
-    expect(second.counts.sumBefore).toBe(second.counts.sumAfter);
-    expect(errorCounts()["s-mixed"]).toBe(2);
-  });
-
-  it("refuses every legacy repair while the retained window holds a real error", () => {
-    const result = recomputeSessionErrorCounts(db.handle, {
-      apply: true,
-      repairLegacyCounts: true,
-      repairStatus: true,
-      now: NOW,
-    });
-
-    expect(result.premise.proven).toBe(false);
-    expect(result.counts.changedFromVersionPremise).toBe(0);
-    expect(result.counts.changedFromDeploymentPremise).toBe(0);
-    expect(result.counts.refused).toEqual({
-      // s-old-real keeps its larger count: only part of its errors is still retained.
-      "retained-real-errors": { sessions: 1, errors: 9 },
-      "retained-history-has-real-errors": { sessions: 3, errors: 59 },
-      "updated-during-the-run": { sessions: 1, errors: 10 },
-    });
-    expect(result.status.changed).toBe(0);
-    expect(result.status.refused).toEqual({
-      "newest-retained-event-is-not-a-background-fault": { sessions: 1, errors: 0 },
-      "retained-history-has-real-errors": { sessions: 1, errors: 0 },
-    });
-    expect(sessionState("a-down-real")).toEqual({ lastStatus: "down", lastEvent: "app_error" });
-    expect(sessionState("a-down-pruned")).toEqual({ lastStatus: "down", lastEvent: "app_error" });
-    expect(errorCounts()["s-old"]).toBe(40);
-    expect(errorCounts()["install:abc"]).toBe(12);
-  });
-
-  it("counts the stale statuses it would repair when --repair-status is off", () => {
-    const result = recomputeSessionErrorCounts(db.handle, { now: NOW });
-
-    expect(result.status.candidates).toBe(2);
-    expect(result.status.refused).toEqual({
-      "repair-status-not-enabled": { sessions: 2, errors: 0 },
-    });
-  });
-});
-
-describe("recompute-session-error-counts, a background-only history", () => {
-  beforeEach(() => {
-    db = createTelemetryTestDb();
-    db.insertEvents([{ service: "session_start", status: "ok", ts: ago(3 * DAY), metrics: {} }]);
-
-    // Pre-floor, on a version without retained app_error evidence of its own.
-    insertSession("b-pre-1", {
-      startedAt: ago(200 * DAY),
-      errorCount: 8,
-      appVersion: "1.4.1.4",
-    });
-    // Pre-floor, on a version whose own retained history is background-only.
-    insertSession("b-pre-2", { startedAt: ago(150 * DAY), errorCount: 300 });
-    // Legacy pseudo-session inside the window.
-    insertSession("install:xyz", { startedAt: ago(1 * DAY), errorCount: 12 });
-    db.insertEvents(loop("install:xyz", 3, 1 * DAY - MINUTE));
-    // Fully retained.
-    insertSession("b-live", { startedAt: ago(1 * DAY), errorCount: 40 });
-    db.insertEvents(loop("b-live", 40, 1 * DAY - MINUTE));
+    db.insertEvents([
+      startEvent("a-down-real", 1 * DAY),
+      realError(ago(1 * DAY - MINUTE), { session_id: "a-down-real" }),
+    ]);
     // Ended on a background fault, with its earlier events still retained.
-    insertSession("b-down", {
+    insertSession("a-down-bg", {
       startedAt: ago(2 * DAY),
       errorCount: 2,
       endedAt: ago(1 * DAY),
       lastEvent: "app_error",
       lastStatus: "down",
     });
-    db.insertEvents([
-      {
-        service: "session_start",
-        status: "ok",
-        ts: ago(2 * DAY),
-        metrics: { session_id: "b-down" },
-      },
-      ...loop("b-down", 2, 1 * DAY),
-    ]);
+    db.insertEvents([startEvent("a-down-bg", 2 * DAY), ...loop("a-down-bg", 2, 1 * DAY)]);
     // Ended on a background fault whose evidence is long gone.
-    insertSession("b-down-pruned", {
+    insertSession("a-down-pruned", {
       startedAt: ago(150 * DAY),
-      errorCount: 5,
       endedAt: ago(149 * DAY),
-      appVersion: "1.4.1.4",
       lastEvent: "app_error",
       lastStatus: "down",
     });
-    // Still running: ingest itself will set its next status.
-    insertSession("b-down-active", {
-      startedAt: ago(30 * MINUTE),
-      isActive: true,
-      lastEvent: "app_error",
-      lastStatus: "down",
-    });
-    db.insertEvents(loop("b-down-active", 1, 20 * MINUTE));
   });
 
-  it("clears legacy counts and stale statuses under the proofs it prints", () => {
+  it("refuses the rewritten-started_at session the old rule would have zeroed", () => {
+    const floor = ago(3 * DAY);
+    // The old rule's three conditions all hold for this row — that is exactly the bug.
+    expect(passesTheOldWeakerRule("s-forward-start", ago(2 * DAY), floor)).toBe(true);
+
+    const result = recomputeSessionErrorCounts(db.handle, { apply: true, now: NOW });
+
+    expect(result.counts.refused["no-retained-session-start"]).toEqual({
+      sessions: 1,
+      errors: 300,
+    });
+    // The count that recorded real crashes is still there.
+    expect(errorCounts()["s-forward-start"]).toBe(300);
+  });
+
+  it("only writes sessions whose own session_start is retained, and is idempotent", () => {
+    const first = recomputeSessionErrorCounts(db.handle, { apply: true, now: NOW, batchSize: 2 });
+
+    expect(first.retentionFloor).toBe(ago(3 * DAY));
+    expect(first.sessionsTotal).toBe(12);
+    expect(first.sessionsScanned).toBe(12);
+    expect(first.sessionsProven).toBe(7);
+    expect(first.sessionsUnknownHistory).toBe(5);
+    expect(first.counts.changed).toBe(3);
+    expect(first.counts.refused).toEqual({
+      "no-retained-session-start": { sessions: 1, errors: 300 },
+      "events-precede-the-retained-start": { sessions: 1, errors: 7 },
+      "legacy-install-id": { sessions: 1, errors: 12 },
+      "no-retained-events": { sessions: 2, errors: 40 },
+      "updated-during-the-run": { sessions: 1, errors: 10 },
+    });
+    expect(first.counts.errorsOnUnknownHistory).toBe(359);
+    expect(first.counts.sessionsWithErrorsOnUnknownHistory).toBe(4);
+    expect(first.counts.sumBefore).toBe(645);
+    expect(first.counts.sumAfter).toBe(373);
+    expect(errorCounts()).toEqual({
+      "a-down-bg": 0,
+      "a-down-pruned": 0,
+      "a-down-real": 1,
+      "install:abc": 12,
+      "s-busy": 10,
+      "s-events-precede-start": 7,
+      "s-forward-start": 300,
+      "s-no-events": 40,
+      "s-none": 0,
+      "s-proven-bg": 0,
+      "s-proven-mixed": 2,
+      "s-proven-ok": 1,
+    });
+
+    const second = recomputeSessionErrorCounts(db.handle, { apply: true, now: NOW, batchSize: 1 });
+    expect(second.counts.changed).toBe(0);
+    expect(second.counts.sumBefore).toBe(second.counts.sumAfter);
+    expect(errorCounts()["s-proven-mixed"]).toBe(2);
+  });
+
+  it("defaults to a dry run: reports the same changes without writing", () => {
+    const before = errorCounts();
+
+    const result = recomputeSessionErrorCounts(db.handle, { now: NOW });
+
+    expect(result.dryRun).toBe(true);
+    expect(result.counts.changed).toBe(3);
+    expect(result.counts.sumAfter).toBe(373);
+    expect(errorCounts()).toEqual(before);
+  });
+
+  it("repairs a status only from a retained non-background event", () => {
     const result = recomputeSessionErrorCounts(db.handle, {
       apply: true,
-      repairLegacyCounts: true,
       repairStatus: true,
       now: NOW,
       batchSize: 3,
     });
 
-    expect(result.premise).toEqual({
-      retainedAppErrors: 46,
-      retainedRealErrors: 0,
-      proven: true,
-      provenVersions: 1,
-    });
-    expect(result.counts.changed).toBe(6);
-    expect(result.counts.changedFromRetainedHistory).toBe(2);
-    expect(result.counts.changedFromVersionPremise).toBe(2);
-    expect(result.counts.changedFromDeploymentPremise).toBe(2);
-    expect(result.counts.refused).toEqual({});
-    expect(result.counts.sumBefore).toBe(367);
-    expect(result.counts.sumAfter).toBe(0);
-    expect(errorCounts()).toEqual({
-      "b-down": 0,
-      "b-down-active": 0,
-      "b-down-pruned": 0,
-      "b-live": 0,
-      "b-pre-1": 0,
-      "b-pre-2": 0,
-      "install:xyz": 0,
-    });
-
     expect(result.status.candidates).toBe(3);
-    expect(result.status.changed).toBe(2);
-    expect(result.status.changedFromRetainedEvent).toBe(1);
-    expect(result.status.changedFromPremise).toBe(1);
+    expect(result.status.changed).toBe(1);
     expect(result.status.refused).toEqual({
-      "session-still-active": { sessions: 1, errors: 0 },
+      "newest-retained-event-is-not-a-background-fault": { sessions: 1, errors: 0 },
+      "no-retained-events": { sessions: 1, errors: 0 },
     });
-    expect(sessionState("b-down")).toEqual({ lastStatus: "ok", lastEvent: "session_start" });
-    expect(sessionState("b-down-pruned")).toEqual({ lastStatus: "ok", lastEvent: "session_end" });
-    expect(sessionState("b-down-active")).toEqual({ lastStatus: "down", lastEvent: "app_error" });
+    // Repaired from its own retained session_start.
+    expect(sessionState("a-down-bg")).toEqual({ lastStatus: "ok", lastEvent: "session_start" });
+    // A genuine crash, and a row with nothing left to read: both keep their stored state.
+    expect(sessionState("a-down-real")).toEqual({ lastStatus: "down", lastEvent: "app_error" });
+    expect(sessionState("a-down-pruned")).toEqual({ lastStatus: "down", lastEvent: "app_error" });
   });
 
-  it("writes nothing without apply, and nothing more on a second run", () => {
-    const before = errorCounts();
-    const dry = recomputeSessionErrorCounts(db.handle, {
-      repairLegacyCounts: true,
-      repairStatus: true,
-      now: NOW,
+  it("counts the stale statuses it would repair when --repair-status is off", () => {
+    const result = recomputeSessionErrorCounts(db.handle, { now: NOW });
+
+    expect(result.status.candidates).toBe(3);
+    expect(result.status.refused).toEqual({
+      "repair-status-not-enabled": { sessions: 3, errors: 0 },
     });
+  });
 
-    expect(dry.counts.changed).toBe(6);
-    expect(dry.status.changed).toBe(2);
-    expect(errorCounts()).toEqual(before);
-    expect(sessionState("b-down")).toEqual({ lastStatus: "down", lastEvent: "app_error" });
+  it("never touches a session that is still active", () => {
+    insertSession("a-live", {
+      startedAt: ago(30 * MINUTE),
+      isActive: true,
+      lastEvent: "app_error",
+      lastStatus: "down",
+    });
+    db.insertEvents([startEvent("a-live", 30 * MINUTE), ...loop("a-live", 1, 20 * MINUTE)]);
 
-    recomputeSessionErrorCounts(db.handle, {
+    const result = recomputeSessionErrorCounts(db.handle, {
       apply: true,
-      repairLegacyCounts: true,
-      repairStatus: true,
-      now: NOW,
-    });
-    const second = recomputeSessionErrorCounts(db.handle, {
-      apply: true,
-      repairLegacyCounts: true,
       repairStatus: true,
       now: NOW,
     });
 
-    expect(second.counts.changed).toBe(0);
-    expect(second.status.changed).toBe(0);
-    expect(second.status.candidates).toBe(1);
-    expect(second.counts.sumAfter).toBe(0);
+    expect(result.status.refused["session-still-active"]).toEqual({ sessions: 1, errors: 0 });
+    expect(sessionState("a-live")).toEqual({ lastStatus: "down", lastEvent: "app_error" });
   });
 
   it("never lowers the floor below the 90-day retention cutoff", () => {
@@ -368,42 +330,77 @@ describe("recompute-session-error-counts, a background-only history", () => {
     const result = recomputeSessionErrorCounts(db.handle, { now: NOW });
 
     expect(result.retentionFloor).toBe(ago(90 * DAY));
-    expect(result.sessionsOutsideRetention).toBe(3);
+    // The floor is reporting only: coverage is decided by the retained session_start, so the
+    // classification does not move with it.
+    expect(result.sessionsProven).toBe(7);
+    expect(result.counts.changed).toBe(3);
   });
 });
 
-describe("recompute-session-error-counts, a window without any app_error evidence", () => {
+describe("recompute-session-error-counts, a background-only retained window", () => {
   beforeEach(() => {
     db = createTelemetryTestDb();
     db.insertEvents([{ service: "session_start", status: "ok", ts: ago(3 * DAY), metrics: {} }]);
-    insertSession("c-pre", { startedAt: ago(120 * DAY), errorCount: 6 });
-    insertSession("c-down", {
-      startedAt: ago(120 * DAY),
-      endedAt: ago(119 * DAY),
+
+    // Every retained app_error in this database is a background fault and there is plenty of it:
+    // that was the "premise" the previous revision used to clear rows whose own history is gone.
+    insertSession("b-pruned-1", {
+      startedAt: ago(200 * DAY),
+      errorCount: 8,
+      appVersion: "1.4.1.4",
+    });
+    insertSession("b-pruned-2", { startedAt: ago(150 * DAY), errorCount: 300 });
+    insertSession("b-pruned-status", {
+      startedAt: ago(150 * DAY),
+      errorCount: 5,
+      endedAt: ago(149 * DAY),
       lastEvent: "app_error",
       lastStatus: "down",
     });
+    insertSession("b-live", { startedAt: ago(1 * DAY), errorCount: 40 });
+    db.insertEvents([startEvent("b-live", 1 * DAY), ...loop("b-live", 40, 1 * DAY - MINUTE)]);
   });
 
-  it("refuses to repair anything it cannot prove, and says so", () => {
+  it("clears nothing on a deployment-wide or version-wide premise", () => {
     const result = recomputeSessionErrorCounts(db.handle, {
       apply: true,
-      repairLegacyCounts: true,
       repairStatus: true,
       now: NOW,
     });
 
-    expect(result.premise.proven).toBe(false);
-    expect(result.counts.changed).toBe(0);
+    // Only the row whose own start is retained is written; the premise buys nothing.
+    expect(result.counts.changed).toBe(1);
     expect(result.counts.refused).toEqual({
-      "no-retained-evidence": { sessions: 1, errors: 6 },
+      "no-retained-events": { sessions: 3, errors: 313 },
+    });
+    expect(result.counts.sumBefore).toBe(353);
+    expect(result.counts.sumAfter).toBe(313);
+    expect(errorCounts()).toEqual({
+      "b-live": 0,
+      "b-pruned-1": 8,
+      "b-pruned-2": 300,
+      "b-pruned-status": 5,
     });
     expect(result.status.changed).toBe(0);
     expect(result.status.refused).toEqual({
-      "no-retained-evidence": { sessions: 1, errors: 0 },
+      "no-retained-events": { sessions: 1, errors: 0 },
     });
-    expect(errorCounts()["c-pre"]).toBe(6);
-    expect(sessionState("c-down")).toEqual({ lastStatus: "down", lastEvent: "app_error" });
+    expect(sessionState("b-pruned-status")).toEqual({
+      lastStatus: "down",
+      lastEvent: "app_error",
+    });
+  });
+
+  it("has no flag that re-enables a premise-based write", () => {
+    expect(() => parseArgs(["--repair-legacy-counts"])).toThrow(/unknown argument/);
+    expect(() => parseArgs(["--force"])).toThrow(/unknown argument/);
+    expect(parseArgs(["--repair-status", "--apply"])).toEqual({
+      apply: true,
+      repairStatus: true,
+      dbPath: null,
+      batchSize: 200,
+      help: false,
+    });
   });
 });
 
@@ -411,15 +408,24 @@ describe("recompute-session-error-counts CLI", () => {
   beforeEach(() => {
     db = createTelemetryTestDb();
     db.insertEvents([{ service: "session_start", status: "ok", ts: ago(3 * DAY), metrics: {} }]);
-    insertSession("s-bg", { startedAt: ago(2 * DAY), errorCount: 267, updatedAt: ago(1 * DAY) });
-    db.insertEvents(loop("s-bg", 267, 2 * DAY - MINUTE));
-    insertSession("s-old", { startedAt: ago(200 * DAY), errorCount: 40 });
+    insertSession("s-proven-bg", {
+      startedAt: ago(2 * DAY),
+      errorCount: 267,
+      updatedAt: ago(1 * DAY),
+    });
+    db.insertEvents([
+      startEvent("s-proven-bg", 2 * DAY),
+      ...loop("s-proven-bg", 267, 2 * DAY - MINUTE),
+    ]);
+    insertSession("s-forward-start", { startedAt: ago(2 * DAY), errorCount: 40 });
+    db.insertEvents(loop("s-forward-start", 2, 1 * DAY));
     insertSession("s-down", {
       startedAt: ago(2 * DAY),
       endedAt: ago(1 * DAY),
       lastEvent: "app_error",
       lastStatus: "down",
     });
+    db.insertEvents([startEvent("s-down", 2 * DAY), ...loop("s-down", 1, 1 * DAY)]);
   });
 
   it("opens the database read-only and prints the dry-run report", () => {
@@ -438,48 +444,46 @@ describe("recompute-session-error-counts CLI", () => {
     expect(lines[0]).toBe("recompute-session-error-counts (dry run, nothing written)");
     expect(lines).toContain("  database:            /data/db/rr.sqlite");
     expect(lines).toContain(
-      "  repairs enabled:     none (error_count from retained evidence only)",
+      "  coverage proof:      the session's own session_start event must still be retained",
     );
+    expect(lines).toContain("  PROVEN  — history fully retained, safe to rewrite: 2 sessions");
+    expect(lines).toContain("  UNKNOWN HISTORY — evidence pruned, NOTHING written: 1 session");
     expect(lines).toContain(
-      "    refused, started-before-retention-floor: 1 session, 40 error_count still standing",
+      "      no-retained-session-start: 1 session, 40 error_count left standing",
     );
-    expect(lines).toContain("  error_count sum, all sessions:        307 -> 40");
+    expect(lines).toContain("  error_count sum, all sessions:    307 -> 40");
     // Written for the report: the exact output on this test database.
     console.log(lines.join("\n"));
   });
 
-  it("opens the database writable for --apply and reports both repairs", () => {
+  it("opens the database writable for --apply and repairs the status it can prove", () => {
     const lines: string[] = [];
 
-    const result = main(
-      ["--apply", "--repair-legacy-counts", "--repair-status", "--db", "/data/db/rr.sqlite"],
-      {
-        log: (line) => lines.push(line),
-        now: NOW,
-        openDatabase: (_path, options) => {
-          expect(options.readonly).toBe(false);
-          return db.handle;
-        },
+    const result = main(["--apply", "--repair-status", "--db", "/data/db/rr.sqlite"], {
+      log: (line) => lines.push(line),
+      now: NOW,
+      openDatabase: (_path, options) => {
+        expect(options.readonly).toBe(false);
+        return db.handle;
       },
-    );
+    });
 
     expect(result?.dryRun).toBe(false);
-    expect(result?.counts.sumAfter).toBe(0);
+    expect(result?.counts.sumAfter).toBe(40);
     expect(result?.status.changed).toBe(1);
     expect(lines[0]).toBe("recompute-session-error-counts");
-    expect(lines).toContain("  repairs enabled:     legacy counts, last_status");
-    expect(
-      lines.some((line) => line.startsWith("  background-only premise: proven: 267 retained")),
-    ).toBe(true);
-    expect(sessionState("s-down")).toEqual({ lastStatus: "ok", lastEvent: "session_end" });
+    expect(lines).toContain("  status repair:       on (from retained non-background events only)");
+    expect(sessionState("s-down")).toEqual({ lastStatus: "ok", lastEvent: "session_start" });
+    expect(errorCounts()["s-forward-start"]).toBe(40);
     console.log(lines.join("\n"));
   });
 
   it("prints usage for --help and rejects an unknown argument and a missing database", () => {
     const lines: string[] = [];
     expect(main(["--help"], { log: (line) => lines.push(line) })).toBeNull();
-    expect(lines[0]).toContain("--apply");
-    expect(() => main(["--write"], { log: () => {} })).toThrow("unknown argument: --write");
-    expect(() => main([], { log: () => {}, env: {} })).toThrow("no database");
+    expect(lines[0]).toContain("usage: node recompute-session-error-counts.mjs");
+    expect(lines.join("\n")).toContain("session_start event is still retained");
+    expect(() => main(["--nope"], { log: () => {} })).toThrow(/unknown argument: --nope/);
+    expect(() => main([], { log: () => {}, env: {} })).toThrow(/no database/);
   });
 });

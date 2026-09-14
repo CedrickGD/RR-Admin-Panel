@@ -18,18 +18,35 @@ export interface RestoreResult {
     /** Rows the strict rule proves: they keep the recomputed error_count. */
     provenKept: number;
     errorsProvenDropped: number;
+    /** Unprovable rows held back because ingest wrote them after the backup was taken. */
+    notRestoredIngestWrote: number;
+    errorsNotRestoredIngestWrote: number;
     refused: RefusalBreakdown;
     sumBefore: number;
+    /** Projected from what this run restored. */
     sumAfter: number;
+    /** Re-read from the database after a successful --apply; null on a dry run. */
+    sumAfterObserved: number | null;
   };
   status: {
     /** Rows that were last_event='app_error' AND last_status<>'ok' in the backup. */
     subjects: number;
     restored: number;
     provenKept: number;
+    /** Unprovable subjects held back because ingest wrote them after the backup was taken. */
+    notRestoredIngestWrote: number;
     refused: RefusalBreakdown;
   };
 }
+
+/**
+ * null when the live row has not been written since the backup (so any difference between the two
+ * is the recompute run's doing), otherwise the reason it may not be rolled back.
+ */
+export function ingestWriteSince(
+  liveUpdatedAt: unknown,
+  backupUpdatedAt: string | null,
+): string | null;
 
 export function restoreSessionErrorCounts(
   db: Database,

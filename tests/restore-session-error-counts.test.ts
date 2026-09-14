@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
+  ingestWriteSince,
   main,
   restoreSessionErrorCounts,
 } from "../deploy/nas/rr-api/scripts/restore-session-error-counts.mjs";
@@ -12,7 +13,8 @@ import {
 } from "./helpers/telemetry-db";
 
 const MINUTE = 60_000;
-const DAY = 24 * 60 * MINUTE;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
 const NOW = new Date("2026-09-14T12:00:00.000Z");
 const ago = (ms: number) => new Date(NOW.getTime() - ms).toISOString();
 
@@ -27,7 +29,7 @@ afterEach(() => {
 
 interface SessionRow {
   errorCount?: number;
-  lastEvent?: string;
+  lastEvent?: string | null;
   lastStatus?: "ok" | "degraded" | "down";
   startedAt?: string;
   updatedAt?: string;
@@ -51,7 +53,7 @@ function insertSession(target: TelemetryTestDb, sessionId: string, row: SessionR
       startedAt,
       row.isActive ? null : ago(1 * DAY),
       row.isActive ? 1 : 0,
-      row.lastEvent ?? "session_end",
+      row.lastEvent === undefined ? "session_end" : row.lastEvent,
       row.lastStatus ?? "ok",
       row.errorCount ?? 0,
       row.updatedAt ?? startedAt,
@@ -71,10 +73,10 @@ function errorCounts(): Record<string, number> {
   return Object.fromEntries(rows.map((row) => [row.session_id, row.error_count]));
 }
 
-function sessionState(sessionId: string): { lastStatus: string; lastEvent: string } {
+function sessionState(sessionId: string): { lastStatus: string; lastEvent: string | null } {
   const row = live.handle
     .prepare(`SELECT last_status, last_event FROM app_sessions WHERE session_id = ?`)
-    .get(sessionId) as { last_status: string; last_event: string };
+    .get(sessionId) as { last_status: string; last_event: string | null };
   return { lastStatus: row.last_status, lastEvent: row.last_event };
 }
 
@@ -130,6 +132,13 @@ beforeEach(() => {
   ]);
 
   // --- rows the restore must not touch ------------------------------------------------------
+  // Unprovable like u-pruned — but INGEST wrote this row after the backup (updated_at moved),
+  // so the pre-run 77 is not the value to put back and the script must leave the row alone.
+  insertPair(
+    "u-ingest",
+    { errorCount: 77, startedAt: ago(150 * DAY) },
+    { errorCount: 0, startedAt: ago(150 * DAY), updatedAt: ago(1 * HOUR) },
+  );
   // Ingest added errors since the backup: the recompute run only ever lowered.
   insertPair("n-grew", { errorCount: 4 }, { errorCount: 9 });
   // Never changed.
@@ -158,7 +167,7 @@ beforeEach(() => {
   insertPair(
     "st-churn",
     { lastEvent: "session_active", lastStatus: "ok" },
-    { lastEvent: "session_end", lastStatus: "ok" },
+    { lastEvent: "session_end", lastStatus: "ok", updatedAt: ago(1 * HOUR) },
   );
   // A repair subject the earlier run left alone.
   insertPair(
@@ -166,28 +175,55 @@ beforeEach(() => {
     { lastEvent: "app_error", lastStatus: "down", startedAt: ago(150 * DAY) },
     { lastEvent: "app_error", lastStatus: "down", startedAt: ago(150 * DAY) },
   );
+  // THE HAZARD. Identical to st-unproven — a backup repair subject whose live state nothing
+  // retained proves — EXCEPT that its updated_at has moved. The recompute never bumps updated_at,
+  // so this (session_end, ok) was written by ingest after the backup: it is current, legitimate
+  // state, and rolling 'app_error'/'down' back over it would re-flag the session for good.
+  insertPair(
+    "st-ingest",
+    { lastEvent: "app_error", lastStatus: "down", startedAt: ago(150 * DAY) },
+    {
+      lastEvent: "session_end",
+      lastStatus: "ok",
+      startedAt: ago(150 * DAY),
+      updatedAt: ago(1 * HOUR),
+    },
+  );
+  // A backup repair subject whose live last_event is NULL. No recompute writes NULL, and a
+  // `last_event = NULL` compare-and-set matches no row — so this must be named for what it is,
+  // not reported as a lost race.
+  insertPair(
+    "st-null",
+    { lastEvent: "app_error", lastStatus: "down", startedAt: ago(150 * DAY) },
+    { lastEvent: null, lastStatus: "ok", startedAt: ago(150 * DAY) },
+  );
 });
 
 describe("restore-session-error-counts", () => {
   it("restores only what the strict rule cannot prove, and says which is which", () => {
     const result = run({ apply: true, batchSize: 3 });
 
-    expect(result.sessionsLive).toBe(13);
-    expect(result.sessionsInBackup).toBe(12);
-    expect(result.sessionsScanned).toBe(13);
+    expect(result.sessionsLive).toBe(16);
+    expect(result.sessionsInBackup).toBe(15);
+    expect(result.sessionsScanned).toBe(16);
 
     expect(result.counts.restored).toBe(3);
     expect(result.counts.errorsRestored).toBe(352);
     expect(result.counts.provenKept).toBe(2);
     expect(result.counts.errorsProvenDropped).toBe(507);
+    expect(result.counts.notRestoredIngestWrote).toBe(1);
+    expect(result.counts.errorsNotRestoredIngestWrote).toBe(77);
     expect(result.counts.refused).toEqual({
       "count-grew-since-the-backup": { sessions: 1, errors: 9 },
-      "count-unchanged-since-the-backup": { sessions: 5, errors: 3 },
+      "count-unchanged-since-the-backup": { sessions: 7, errors: 3 },
       "count-not-attributable-to-the-recompute-run": { sessions: 1, errors: 2 },
       "not-in-the-backup": { sessions: 1, errors: 5 },
+      "row-written-by-ingest-since-the-backup": { sessions: 1, errors: 0 },
     });
     expect(result.counts.sumBefore).toBe(21);
     expect(result.counts.sumAfter).toBe(373);
+    // Projected, then measured: the report never claims a sum it did not read back.
+    expect(result.counts.sumAfterObserved).toBe(373);
 
     expect(errorCounts()).toEqual({
       "install:abc": 12,
@@ -198,10 +234,13 @@ describe("restore-session-error-counts", () => {
       "p-proven": 0,
       "p-proven-real": 2,
       "st-churn": 0,
+      "st-ingest": 0,
+      "st-null": 0,
       "st-proven": 0,
       "st-untouched": 0,
       "st-unproven": 0,
       "u-forward": 300,
+      "u-ingest": 0,
       "u-pruned": 40,
     });
   });
@@ -209,18 +248,64 @@ describe("restore-session-error-counts", () => {
   it("restores a status only where no retained event proves the new one", () => {
     const result = run({ apply: true });
 
-    expect(result.status.subjects).toBe(3);
+    expect(result.status.subjects).toBe(5);
     expect(result.status.restored).toBe(1);
     expect(result.status.provenKept).toBe(1);
     expect(result.status.refused).toEqual({
       "status-unchanged-since-the-backup": { sessions: 1, errors: 0 },
       "status-not-a-recompute-subject-in-the-backup": { sessions: 1, errors: 0 },
+      "row-written-by-ingest-since-the-backup": { sessions: 1, errors: 0 },
+      "live-last-event-is-null-no-recompute-wrote-it": { sessions: 1, errors: 0 },
     });
     expect(sessionState("st-unproven")).toEqual({ lastStatus: "down", lastEvent: "app_error" });
     expect(sessionState("st-proven")).toEqual({ lastStatus: "ok", lastEvent: "session_start" });
     // Ingest moved this one on after the backup: a stale 'session_active' must not come back.
     expect(sessionState("st-churn")).toEqual({ lastStatus: "ok", lastEvent: "session_end" });
     expect(sessionState("st-untouched")).toEqual({ lastStatus: "down", lastEvent: "app_error" });
+  });
+
+  it("never rolls a status back over a value ingest wrote after the backup", () => {
+    // st-unproven and st-ingest are the same row in every respect the old rule looked at: both
+    // were (app_error, down) repair subjects in the backup, both now read (session_end, ok), and
+    // neither has a retained event that proves the new state. The ONLY difference is updated_at.
+    const result = run({ apply: true });
+
+    expect(sessionState("st-ingest")).toEqual({ lastStatus: "ok", lastEvent: "session_end" });
+    expect(sessionState("st-unproven")).toEqual({ lastStatus: "down", lastEvent: "app_error" });
+    expect(result.status.restored).toBe(1);
+    expect(result.status.notRestoredIngestWrote).toBe(1);
+    expect(result.status.refused["row-written-by-ingest-since-the-backup"]).toEqual({
+      sessions: 1,
+      errors: 0,
+    });
+    // And it is NOT reported as a concurrency event, which is the reason it used to collapse into.
+    expect(result.status.refused["updated-during-the-run"]).toBeUndefined();
+    expect(result.status.refused["row-changed-between-the-read-and-the-write"]).toBeUndefined();
+  });
+
+  it("never rolls a count back over a value ingest wrote after the backup", () => {
+    // u-pruned and u-ingest are both unprovable rows the run lowered to 0; only updated_at differs.
+    const result = run({ apply: true });
+
+    expect(errorCounts()["u-pruned"]).toBe(40);
+    expect(errorCounts()["u-ingest"]).toBe(0);
+    expect(result.counts.notRestoredIngestWrote).toBe(1);
+    expect(result.counts.errorsNotRestoredIngestWrote).toBe(77);
+    expect(result.counts.refused["row-written-by-ingest-since-the-backup"]).toEqual({
+      sessions: 1,
+      errors: 0,
+    });
+  });
+
+  it("names a NULL live last_event instead of reporting it as a lost race", () => {
+    const result = run({ apply: true });
+
+    expect(sessionState("st-null")).toEqual({ lastStatus: "ok", lastEvent: null });
+    expect(result.status.refused["live-last-event-is-null-no-recompute-wrote-it"]).toEqual({
+      sessions: 1,
+      errors: 0,
+    });
+    expect(result.status.refused["row-changed-between-the-read-and-the-write"]).toBeUndefined();
   });
 
   it("writes nothing without apply", () => {
@@ -231,6 +316,8 @@ describe("restore-session-error-counts", () => {
     expect(result.dryRun).toBe(true);
     expect(result.counts.restored).toBe(3);
     expect(result.counts.sumAfter).toBe(373);
+    // Nothing was written, so there is no measured sum to report.
+    expect(result.counts.sumAfterObserved).toBeNull();
     expect(result.status.restored).toBe(1);
     expect(errorCounts()).toEqual(before);
     expect(sessionState("st-unproven")).toEqual({ lastStatus: "ok", lastEvent: "session_end" });
@@ -245,31 +332,78 @@ describe("restore-session-error-counts", () => {
     expect(second.status.restored).toBe(0);
     expect(second.counts.sumBefore).toBe(373);
     expect(second.counts.sumAfter).toBe(373);
+    expect(second.counts.sumAfterObserved).toBe(373);
     expect(second.counts.refused["count-unchanged-since-the-backup"]).toEqual({
-      sessions: 8,
+      sessions: 10,
       errors: 355,
     });
     expect(second.status.refused["status-unchanged-since-the-backup"]).toEqual({
       sessions: 2,
       errors: 0,
     });
+    // The ingest-written rows are still held back, for the same named reason.
+    expect(second.counts.refused["row-written-by-ingest-since-the-backup"]).toEqual({
+      sessions: 1,
+      errors: 0,
+    });
   });
 
-  it("leaves a row alone when ingest writes it while the run is going", () => {
-    live.handle
-      .prepare(`UPDATE app_sessions SET updated_at = ? WHERE session_id = 'u-forward'`)
-      .run(new Date(NOW.getTime() + MINUTE).toISOString());
+  it("stops at the compare-and-set when a row moves between the read and the write", () => {
+    // A batch reads its whole page, then settles the rows one at a time. 'u-forward' sorts before
+    // 'u-pruned', so this trigger plays the part of an ingest write landing mid-batch: by the time
+    // u-pruned is written its updated_at no longer matches what the page read.
+    live.handle.exec(
+      `CREATE TRIGGER ingest_lands AFTER UPDATE OF error_count ON app_sessions
+       WHEN NEW.session_id = 'u-forward'
+       BEGIN
+         UPDATE app_sessions SET updated_at = '2026-09-14T12:30:00.000Z'
+         WHERE session_id = 'u-pruned';
+       END`,
+    );
 
     const result = run({ apply: true });
 
     expect(result.counts.restored).toBe(2);
-    expect(result.counts.refused["updated-during-the-run"]).toEqual({ sessions: 1, errors: 0 });
-    expect(errorCounts()["u-forward"]).toBe(0);
+    expect(result.counts.refused["row-changed-between-the-read-and-the-write"]).toEqual({
+      sessions: 1,
+      errors: 0,
+    });
+    // Not restored, and not silently reported as an ingest write either.
+    expect(errorCounts()["u-pruned"]).toBe(0);
+    expect(errorCounts()["u-forward"]).toBe(300);
+    expect(result.counts.sumAfter).toBe(333);
+    expect(result.counts.sumAfterObserved).toBe(333);
   });
 
   it("rejects a batch size that is not a positive integer", () => {
     expect(() => run({ batchSize: 0 })).toThrow(/positive integer/);
     expect(() => run({ batchSize: 1.5 })).toThrow(/positive integer/);
+  });
+});
+
+describe("the ingest discriminator", () => {
+  // recompute-session-error-counts.mjs never bumps updated_at; every ingest write sets it.
+  it("passes a row whose updated_at has not moved since the backup", () => {
+    expect(ingestWriteSince("2026-09-13T15:52:55.167Z", "2026-09-13T15:52:55.167Z")).toBeNull();
+  });
+
+  it("refuses a row whose updated_at has moved, in either direction", () => {
+    expect(ingestWriteSince("2026-09-14T09:00:00.000Z", "2026-09-13T15:52:55.167Z")).toBe(
+      "row-written-by-ingest-since-the-backup",
+    );
+    expect(ingestWriteSince("2026-09-12T09:00:00.000Z", "2026-09-13T15:52:55.167Z")).toBe(
+      "row-written-by-ingest-since-the-backup",
+    );
+  });
+
+  it("refuses rather than treating two missing values as equal", () => {
+    expect(ingestWriteSince(null, null)).toBe("row-has-no-updated-at-to-compare");
+    expect(ingestWriteSince(null, "2026-09-13T15:52:55.167Z")).toBe(
+      "row-has-no-updated-at-to-compare",
+    );
+    expect(ingestWriteSince("2026-09-13T15:52:55.167Z", null)).toBe(
+      "row-has-no-updated-at-to-compare",
+    );
   });
 });
 
@@ -306,7 +440,15 @@ describe("restore-session-error-counts CLI", () => {
     expect(lines).toContain(
       "    error_count would keep:            2 sessions, 507 error_count stays dropped",
     );
-    expect(lines).toContain("  error_count sum, all sessions:    21 -> 373");
+    expect(lines).toContain(
+      "  HELD BACK — the strict rule cannot prove these either, but INGEST wrote them since the backup",
+    );
+    expect(lines).toContain(
+      "    error_count left as it stands:  1 session, 77 error_count NOT handed back",
+    );
+    expect(lines).toContain("    last_status/last_event left:    1 session");
+    expect(lines).toContain("  error_count sum, all sessions:    21 -> 373 (projected)");
+    expect(lines.some((line) => line.includes("re-read after the write"))).toBe(false);
     expect(errorCounts()["u-forward"]).toBe(0);
     // Written for the report: the exact output on this test database.
     console.log(lines.join("\n"));
@@ -324,6 +466,9 @@ describe("restore-session-error-counts CLI", () => {
     expect(lines[0]).toBe("restore-session-error-counts");
     expect(errorCounts()["u-forward"]).toBe(300);
     expect(errorCounts()["p-proven"]).toBe(0);
+    // The value it wrote, read back out of the database rather than projected.
+    expect(lines).toContain("  error_count sum, all sessions:    21 -> 373");
+    expect(lines).toContain("  error_count sum, re-read after the write: 373");
     console.log(lines.join("\n"));
   });
 

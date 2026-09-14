@@ -48,6 +48,7 @@ import {
   formatNumber,
 } from "../utils/format";
 import { openCustomerWorkspace } from "../utils/customerNavigation";
+import { isRealErrorEvent } from "../utils/errorEvents";
 import { resolveCountry } from "../utils/geography";
 import { prefersReducedMotion } from "../utils/motion";
 
@@ -66,7 +67,6 @@ const LIVE_SCOPES: TabItem<"all" | "errors">[] = [
 ];
 
 const LIVE_SESSION_MAX_AGE_MS = 6 * 60 * 1000;
-const APP_ERROR = "app_error";
 const MAX_LIVE_TIMELINE_MARKERS = 4;
 
 interface LiveSessionTimelineMarker {
@@ -148,9 +148,7 @@ function buildLiveSessionTimeline(
     })
     .sort((a, b) => parseTimestamp(a.timestamp) - parseTimestamp(b.timestamp));
   // Real errors only, like session.errorCount below — background faults are not errors.
-  const errorEvents = relevantEvents.filter(
-    (e) => e.service === APP_ERROR && e.metrics["error_kind"] !== "background",
-  );
+  const errorEvents = relevantEvents.filter(isRealErrorEvent);
   const visibleErrors = errorEvents.slice(-MAX_LIVE_TIMELINE_MARKERS);
   const duration = hasRange ? Math.max(1, rangeEnd - rangeStart) : 1;
   const markers = visibleErrors.map((event, index) => {

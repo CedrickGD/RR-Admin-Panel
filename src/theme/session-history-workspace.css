@@ -1,0 +1,308 @@
+/* Session history follows the transparent customer and support workspaces.
+   Preserve shared KPI geometry, table pinning, and the selected background. */
+.page-content.session-history-workspace {
+  min-width: 0;
+  gap: 20px;
+}
+
+.session-history-workspace .page-header {
+  margin-bottom: 0;
+}
+
+html[data-theme] .session-history-workspace .session-history-surface.monitor-surface,
+html[data-background]:not([data-background="plain"])
+  .session-history-workspace
+  .session-history-surface.monitor-surface {
+  min-width: 0;
+  background: transparent;
+  border-color: var(--line-row);
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+.session-history-workspace .session-history-surface > .page-toolbar {
+  gap: 12px;
+  margin: 0;
+  padding: 20px 20px 14px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.session-history-workspace .page-toolbar-search {
+  flex: 1 1 220px;
+  max-width: none;
+}
+
+.session-history-workspace .page-toolbar-filters {
+  gap: 8px;
+}
+
+.session-history-workspace .session-history-list-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px 16px;
+  padding: 0 20px 14px;
+  color: var(--text-3);
+  font-size: var(--fs-tiny);
+  font-variant-numeric: tabular-nums;
+}
+
+.session-history-workspace .session-history-table > thead > tr > th {
+  padding-inline: 14px;
+  white-space: nowrap;
+}
+
+.session-history-workspace .session-history-record > td {
+  padding: 12px 14px;
+  vertical-align: middle;
+}
+
+.session-history-workspace .session-history-customer {
+  min-width: 205px;
+}
+
+.session-history-workspace .record-link.session-history-identity {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  min-width: 0;
+  min-height: 44px;
+  width: 100%;
+  padding: 0;
+  border-radius: var(--r-sm);
+  color: var(--text-1);
+  text-align: left;
+  text-decoration: none;
+  white-space: normal;
+}
+
+.session-history-workspace .session-history-identity:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+
+.session-history-workspace .session-history-identity .person-avatar {
+  flex: none;
+  width: 36px;
+  height: 36px;
+}
+
+.session-history-workspace .session-history-identity-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.session-history-workspace .session-history-identity-copy strong {
+  color: var(--text-1);
+  font-size: var(--fs-small);
+  font-weight: 600;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.session-history-workspace .session-history-identity:hover strong {
+  color: var(--accent-text);
+}
+
+.session-history-workspace .session-history-identity-copy small,
+.session-history-workspace .session-history-location small {
+  color: var(--text-3);
+  font-size: var(--fs-tiny);
+  font-weight: 400;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.session-history-workspace .session-history-status,
+.session-history-workspace .session-history-location {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.session-history-workspace .session-history-status .presence {
+  width: fit-content;
+  white-space: nowrap;
+}
+
+.session-history-workspace .session-history-status .row-error {
+  margin: 0;
+  font-size: var(--fs-tiny);
+  line-height: 1.4;
+}
+
+.session-history-workspace .session-history-location {
+  max-width: 160px;
+  color: var(--text-2);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.session-history-workspace .session-history-table .history-expanded > td {
+  padding: 0;
+}
+
+.session-history-workspace .session-history-timeline {
+  min-width: 0;
+  padding: 20px;
+  border-top: 1px solid var(--line-row);
+  border-bottom: 1px solid var(--line-row);
+}
+
+.session-history-workspace .history-detail-head {
+  align-items: center;
+  gap: 12px 20px;
+  margin-bottom: 20px;
+}
+
+.session-history-workspace .history-detail-head > div:first-child {
+  min-width: 0;
+  color: var(--text-2);
+}
+
+.session-history-workspace .history-detail-head strong {
+  font-size: var(--fs-small);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.session-history-workspace .history-device-details {
+  margin-top: 20px;
+  border-top: 1px solid var(--line-row);
+}
+
+.session-history-workspace .history-device-details > summary {
+  min-height: 44px;
+  padding-block: 14px;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  cursor: pointer;
+}
+
+.session-history-workspace .history-device-details .detail-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px 24px;
+  margin-block: 6px 20px;
+}
+
+.session-history-workspace .detail-facts > div {
+  min-width: 0;
+}
+
+.session-history-workspace .detail-facts :is(strong, code) {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  .session-history-workspace .session-history-surface > .page-toolbar {
+    padding: 16px;
+  }
+
+  .session-history-workspace .session-history-list-meta {
+    padding-inline: 16px;
+  }
+
+  .session-history-workspace .session-history-record {
+    position: relative;
+  }
+
+  .session-history-workspace .session-history-table .session-history-customer {
+    grid-column: 1 / -1;
+    min-width: 0;
+    padding-right: 66px;
+  }
+
+  .session-history-workspace .session-history-table .session-history-row-actions {
+    position: absolute;
+    inset: 10px 12px auto auto;
+    width: 44px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .session-history-workspace .session-history-table .history-expanded > td {
+    display: block;
+    grid-column: 1 / -1;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .session-history-workspace .history-expanded > td::before,
+  .session-history-workspace .session-history-row-actions::before {
+    display: none;
+  }
+
+  .session-history-workspace :is(.btn, .btn-icon, [role="radio"], .glass-input) {
+    min-height: 44px;
+  }
+
+  .session-history-workspace .btn-icon {
+    min-width: 44px;
+  }
+
+  .session-history-workspace .gdrop-trigger {
+    min-height: 44px;
+  }
+
+  .session-history-workspace .session-history-timeline {
+    padding: 16px;
+  }
+
+  .session-history-workspace .history-detail-head {
+    flex-wrap: wrap;
+  }
+
+  .session-history-workspace .history-detail-head .row-actions {
+    flex-wrap: wrap;
+  }
+
+  .session-history-workspace .history-device-details .detail-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
+}
+
+@media (max-width: 600px) {
+  .page-content.session-history-workspace {
+    gap: 16px;
+  }
+
+  .session-history-workspace .page-toolbar-left,
+  .session-history-workspace .page-toolbar-search,
+  .session-history-workspace .page-toolbar-filters {
+    width: 100%;
+    flex-basis: auto;
+  }
+
+  .session-history-workspace .page-toolbar-left [role="radiogroup"] {
+    display: flex;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .session-history-workspace .page-toolbar-left .ds-seg {
+    height: auto;
+    min-height: 44px;
+  }
+
+  .session-history-workspace .page-toolbar-left [role="radio"] {
+    flex: 1 1 auto;
+  }
+
+  .session-history-workspace .page-toolbar-filters {
+    flex-wrap: wrap;
+  }
+
+  .session-history-workspace .page-toolbar-filters > :not(.btn) {
+    flex: 1 1 120px;
+    min-width: 0;
+  }
+}

@@ -1,4 +1,5 @@
-import { TableFrame, RecordCell } from "../components/ds/TableFrame";
+import { TableFrame, RecordLink } from "../components/ds/TableFrame";
+import "../theme/live-workspace.css";
 import { LiveStatusDot } from "../components/LiveStatusDot";
 import { useWorkspaceSearch } from "../hooks/useWorkspaceSearch";
 import { CustomerAvatar, useCustomerProfiles } from "../components/CustomerProfiles";
@@ -29,13 +30,10 @@ import {
   type SessionDirectorySortKey,
 } from "../utils/sessionDirectory";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { CollapsiblePanel } from "../components/CollapsiblePanel";
-import { StatusBadge } from "../components/StatusBadge";
-import { Badge, LiveBadge } from "../components/ds/Badge";
-import { Button, IconButton } from "../components/ds/Button";
+import { Button } from "../components/ds/Button";
 import { DetailGrid, SortHeader, type SortState } from "../components/ds/DataTable";
 import { EmptyState } from "../components/ds/EmptyState";
-import { MetaRow, PageHeader } from "../components/ds/PageHeader";
+import { PageHeader } from "../components/ds/PageHeader";
 import { RelativeTime } from "../components/ds/RelativeTime";
 import { SegmentedControl, type TabItem } from "../components/ds/SegmentedControl";
 import type { AppSessionRecord, SummaryPayload, TelemetryEvent } from "../types/telemetry";
@@ -171,6 +169,55 @@ function buildLiveSessionTimeline(
   };
 }
 
+/** Presence, errors and RPC are independent signals, never substitutes for each other. */
+export function LiveSessionSignals({
+  errorCount,
+  rpcEnabled,
+}: Pick<AppSessionRecord, "errorCount" | "rpcEnabled">) {
+  return (
+    <div className="live-session-status">
+      <div className="live-session-presence">
+        <LiveStatusDot />
+        <span>Online</span>
+        <span className="live-session-rpc">
+          {rpcEnabled === true ? "RPC on" : rpcEnabled === false ? "RPC off" : "RPC not reported"}
+        </span>
+      </div>
+      <span className="live-session-errors" data-has-errors={errorCount > 0}>
+        {errorCount > 0 ? <AlertTriangle size={12} aria-hidden="true" /> : null}
+        {errorCount > 0
+          ? `${errorCount} ${errorCount === 1 ? "error" : "errors"}`
+          : "No errors reported"}
+      </span>
+    </div>
+  );
+}
+
+export function LiveSessionConnectionDetails({ session }: { session: AppSessionRecord }) {
+  return (
+    <details className="history-device-details live-connection-details">
+      <summary>Connection &amp; device details</summary>
+      <DetailGrid
+        items={[
+          { k: "App version", v: session.displayVersion || session.appVersion || "Unknown" },
+          { k: "Device", v: session.deviceModel || "Not reported" },
+          { k: "Operating system", v: session.osVersion || session.platform || "Not reported" },
+          { k: "Install ID", v: session.installId },
+          { k: "Session ID", v: session.id },
+          { k: "Hardware ID", v: session.hwid || "Not reported" },
+          { k: "Client IP", v: session.clientIp || "Unknown" },
+          { k: "Timezone", v: session.clientTimezone || "Unknown" },
+          {
+            k: "Geo source",
+            v: formatGeoSource(session.clientGeoSource, session.clientGeoSignalSource),
+          },
+          { k: "Accuracy", v: formatAccuracy(session.clientAccuracyMeters) },
+        ]}
+      />
+    </details>
+  );
+}
+
 export function LivePage({
   summary,
   focusedSessionId = null,
@@ -251,7 +298,7 @@ export function LivePage({
   const rpcCount = rows.filter((s) => s.rpcEnabled).length;
   const errorCount = rows.filter((s) => s.errorCount > 0).length;
   return (
-    <div className="page-content monitor-workspace">
+    <div className="page-content monitor-workspace live-workspace">
       <PageHeader
         page="live"
         right={
@@ -345,17 +392,21 @@ export function LivePage({
         }
       />
       <section className="monitor-surface" aria-label="Live activity">
-        <TableFrame stickyActions mobileLayout="stack">
+        <div className="live-workspace-head">
+          <div>
+            <h2>Live sessions</h2>
+            <p>Recent activity, reported errors and device context.</p>
+          </div>
+          <span className="live-workspace-count" role="status">
+            {rows.length} shown / {active.length} live
+          </span>
+        </div>
+        <TableFrame className="live-session-table" stickyActions mobileLayout="stack">
           <caption className="table-caption">Live sessions, sortable by column</caption>
           <thead>
             <tr>
               <SortHeader sortKey="user" label="Customer" sort={sort} onSortChange={changeSort} />
-              <SortHeader
-                sortKey="version"
-                label="Version"
-                sort={sort}
-                onSortChange={changeSort}
-              />
+              <SortHeader sortKey="version" label="Version" sort={sort} onSortChange={changeSort} />
               <SortHeader
                 sortKey="duration"
                 label="Session time"
@@ -369,7 +420,7 @@ export function LivePage({
                 sort={sort}
                 onSortChange={changeSort}
               />
-              <th scope="col">Status</th>
+              <th scope="col">Presence &amp; health</th>
               <th scope="col" aria-label="Session actions" />
             </tr>
           </thead>
@@ -386,11 +437,15 @@ export function LivePage({
                       else rowRefs.current.delete(session.id);
                     }}
                     tabIndex={-1}
-                    className={highlightedId === session.id ? "row-focused" : undefined}
+                    className={
+                      highlightedId === session.id
+                        ? "live-session-row row-focused"
+                        : "live-session-row"
+                    }
                   >
-                    <td>
-                      <button
-                        className="person-cell"
+                    <td className="live-session-customer">
+                      <RecordLink
+                        className="person-cell live-session-identity"
                         onClick={() => setExpanded(open ? null : session.id)}
                         aria-expanded={open}
                         aria-label={`${open ? "Hide" : "Show"} session details for ${label}`}
@@ -404,54 +459,66 @@ export function LivePage({
                           <small>
                             {session.discordUser
                               ? `@${session.discordUser.replace(/^@/, "")}`
-                              : displayLocation(session)}
+                              : session.deviceModel || session.platform || "Device not reported"}
                           </small>
                         </span>
-                      </button>
+                      </RecordLink>
                     </td>
-                    <td data-label="Version">
+                    <td className="live-session-version" data-label="Version">
                       {session.displayVersion || session.appVersion || "Unknown"}
                     </td>
-                    <td className="numeric" data-label="Session time">
+                    <td className="numeric live-session-duration" data-label="Session time">
                       {resolveSessionDuration(session)}
                     </td>
-                    <td data-label="Location">{displayLocation(session)}</td>
-                    <td data-label="Status">
-                      <div className="live-session-status">
-                        <LiveStatusDot />
-                        <RecordCell
-                          primary="Online"
-                          secondary={
-                            session.errorCount
-                              ? session.errorCount + " errors"
-                              : session.rpcEnabled
-                                ? "Discord RPC on"
-                                : "No errors"
-                          }
-                        />
-                      </div>
+                    <td className="live-session-location" data-label="Location">
+                      {displayLocation(session)}
                     </td>
-                    <td>
-                      <div className="row-actions">
+                    <td className="live-session-health" data-label="Presence & health">
+                      <LiveSessionSignals
+                        errorCount={session.errorCount}
+                        rpcEnabled={session.rpcEnabled}
+                      />
+                    </td>
+                    <td className="live-session-actions">
+                      <div className="row-actions live-row-actions">
+                        <Button
+                          permission="customers.read"
+                          size="xs"
+                          icon={<ArrowUpRight />}
+                          title="Open customer workspace"
+                          aria-label={`Open customer workspace for ${label}`}
+                          onClick={() =>
+                            openCustomerWorkspace({ selector: "session_id", value: session.id })
+                          }
+                        >
+                          <span className="live-action-label">Customer</span>
+                        </Button>
                         {resolveCountry(session.clientCountry) && (
-                          <IconButton
+                          <Button
+                            size="xs"
                             icon={<Globe2 />}
                             title="View on map"
                             aria-label={`View ${label} on map`}
                             onClick={() => onOpenMapSession(session.id)}
-                          />
+                          >
+                            <span className="live-action-label">Map</span>
+                          </Button>
                         )}
-                        <IconButton
+                        <Button
+                          size="xs"
                           icon={open ? <ChevronUp /> : <ChevronDown />}
+                          title={open ? "Hide session details" : "Show session details"}
                           aria-expanded={open}
                           aria-label={`${open ? "Hide" : "Show"} session details for ${label}`}
                           onClick={() => setExpanded(open ? null : session.id)}
-                        />
+                        >
+                          <span className="live-action-label">{open ? "Close" : "Details"}</span>
+                        </Button>
                       </div>
                     </td>
                   </tr>
                   {open && (
-                    <tr>
+                    <tr className="live-session-expanded">
                       <td colSpan={6} className="live-detail-cell">
                         <div className="live-record-detail">
                           <div className="history-detail-head">
@@ -520,26 +587,7 @@ export function LivePage({
                                 : "Now"}
                             </span>
                           </div>
-                          <details className="history-device-details">
-                            <summary>Connection & device details</summary>
-                            <DetailGrid
-                              items={[
-                                { k: "Install ID", v: session.installId },
-                                { k: "Session ID", v: session.id },
-                                { k: "Hardware ID", v: session.hwid || "Not reported" },
-                                { k: "Client IP", v: session.clientIp || "Unknown" },
-                                { k: "Timezone", v: session.clientTimezone || "Unknown" },
-                                {
-                                  k: "Geo source",
-                                  v: formatGeoSource(
-                                    session.clientGeoSource,
-                                    session.clientGeoSignalSource,
-                                  ),
-                                },
-                                { k: "Accuracy", v: formatAccuracy(session.clientAccuracyMeters) },
-                              ]}
-                            />
-                          </details>
+                          <LiveSessionConnectionDetails session={session} />
                         </div>
                       </td>
                     </tr>

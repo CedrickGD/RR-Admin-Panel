@@ -1,0 +1,251 @@
+/* Monitoring overview shares the existing transparent workspace and KPI specification. */
+.overview-workspace {
+  min-width: 0;
+}
+html[data-theme] .overview-workspace .panel {
+  min-width: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.overview-priority-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(280px, 1fr);
+  align-items: start;
+  gap: 20px;
+}
+.overview-priority-grid > :only-child {
+  grid-column: 1 / -1;
+}
+.overview-workspace .panel-head {
+  gap: 16px;
+}
+.overview-error-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.overview-error {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) 32px;
+  align-items: start;
+  gap: 12px;
+  padding: 16px 22px;
+}
+.overview-error + .overview-error {
+  border-top: 1px solid var(--line-row);
+}
+.overview-error-icon {
+  margin-top: 3px;
+  color: var(--chart-errors);
+}
+.overview-error-content {
+  min-width: 0;
+}
+.overview-error-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 16px;
+}
+.overview-error-heading h3 {
+  margin: 0;
+  color: var(--text-1);
+  font-size: var(--fs-body);
+  font-weight: 600;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.overview-error-heading time {
+  color: var(--text-3);
+  font-size: var(--fs-small);
+  white-space: nowrap;
+}
+.overview-error-message {
+  margin: 5px 0 0;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  max-height: 8rem;
+  overflow-y: auto;
+}
+.overview-error-context {
+  margin-top: 4px;
+}
+.overview-error-context > summary,
+.overview-snapshot > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 36px;
+  font-size: var(--fs-small);
+  color: var(--text-3);
+  cursor: pointer;
+  list-style: none;
+}
+.overview-workspace summary::-webkit-details-marker {
+  display: none;
+}
+.overview-workspace summary svg {
+  flex: none;
+}
+.overview-workspace details[open] > summary svg {
+  transform: rotate(180deg);
+}
+.overview-workspace dl {
+  display: grid;
+  gap: 12px;
+  margin: 10px 0;
+}
+.overview-workspace dl > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 16px;
+  font-size: var(--fs-small);
+}
+.overview-workspace dt {
+  color: var(--text-3);
+}
+.overview-workspace dd {
+  margin: 0;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.overview-workspace dd code {
+  font-family: var(--font-mono);
+  font-size: inherit;
+}
+.overview-error-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  border-top: 1px solid var(--line-row);
+  padding: 12px 22px;
+}
+.overview-error-footer > span {
+  color: var(--text-3);
+  font-size: var(--fs-small);
+}
+.overview-footer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.overview-workspace a {
+  text-decoration: none;
+}
+.overview-routes {
+  display: grid;
+  padding: 0 22px;
+}
+.overview-route {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) 16px;
+  gap: 14px;
+  align-items: center;
+  padding: 20px 0;
+  color: var(--text-2);
+}
+.overview-route + .overview-route {
+  border-top: 1px solid var(--line-row);
+}
+.overview-route > svg:first-child {
+  color: var(--accent);
+}
+.overview-route span {
+  min-width: 0;
+}
+.overview-route strong {
+  display: block;
+  font-size: var(--fs-body);
+  color: var(--text-1);
+  font-weight: 600;
+}
+.overview-route small {
+  display: block;
+  margin-top: 5px;
+  color: var(--text-3);
+  font-size: var(--fs-small);
+  line-height: 1.6;
+}
+.overview-route:hover strong {
+  color: var(--accent);
+}
+.overview-snapshot {
+  margin: 0 22px;
+  padding: 8px 0 14px;
+  border-top: 1px solid var(--line-row);
+}
+.overview-access-note {
+  margin: 0;
+  padding: 16px 22px;
+  color: var(--text-3);
+  font-size: var(--fs-small);
+}
+.overview-chart-context {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px 24px;
+  padding: 0 6px 20px;
+}
+.overview-workspace :is(a, summary):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+@media (max-width: 1000px) {
+  .overview-priority-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 700px) {
+  .overview-error {
+    grid-template-columns: 16px minmax(0, 1fr) 44px;
+    gap: 8px;
+    padding: 16px;
+  }
+  .overview-error-footer {
+    padding: 12px 16px;
+  }
+  .overview-routes {
+    padding-inline: 16px;
+  }
+  .overview-snapshot {
+    margin-inline: 16px;
+  }
+  .overview-workspace .gdrop-trigger,
+  .overview-workspace .btn,
+  .overview-workspace .btn-icon,
+  .overview-workspace summary {
+    min-height: 44px;
+  }
+  .overview-workspace .btn-icon {
+    min-width: 44px;
+  }
+  .overview-footer-actions {
+    width: 100%;
+  }
+  .overview-footer-actions > .btn {
+    flex: 1 1 auto;
+  }
+  .overview-workspace .chart-zoom-controls {
+    flex-wrap: wrap;
+  }
+  .overview-chart-context {
+    align-items: flex-start;
+    gap: 14px;
+  }
+  .overview-chart-context .meta-row {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+}

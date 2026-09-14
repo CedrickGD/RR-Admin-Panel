@@ -22,17 +22,40 @@ function service(name: string): string {
   return match[1];
 }
 
-/** Every `path_regexp [name] <re>` in the gateway config, as written. */
-function allowlistPatterns(): string[] {
-  return [...gateway.matchAll(/^\s*path_regexp\s+\w+\s+(\S+)$/gm)].map((match) => match[1]);
+interface Matcher {
+  name: string;
+  methods: string[];
+  /** Exact `path` values (Caddy matches these case-insensitively, without regex). */
+  paths: string[];
+  /** `path_regexp` sources. */
+  patterns: string[];
 }
 
-/** What the gateway does with a GET path: the matching handle, or "403". */
-function verdict(path: string): "list" | "inspect" | "stats" | "403" {
-  if (path === "/containers/json") return "list";
-  const names = [...gateway.matchAll(/^\s*path_regexp\s+(\w+)\s+(\S+)$/gm)];
-  for (const [, name, source] of names)
-    if (new RegExp(source).test(path)) return name as "inspect" | "stats";
+/**
+ * Every named matcher in the Caddyfile, as written. This is an intent pin: it says which shapes
+ * the config is *meant* to let through, so a later edit that widens it fails here. It is not a
+ * proof that Caddy behaves this way — that was run against caddy:2-alpine itself, in an isolated
+ * throwaway compose project on the NAS with a stub upstream (see the branch report); every
+ * inspect path answered 403 there, list and stats 200.
+ */
+function matchers(): Matcher[] {
+  // Anchored at the start of a line so `handle @list {` is not read as a second definition.
+  return [...gateway.matchAll(/^[ \t]*@(\w+)\s*\{([^}]*)\}/gm)].map(([, name, body]) => ({
+    name,
+    methods: [...body.matchAll(/^\s*method\s+(.+)$/gm)].flatMap(([, value]) => value.split(/\s+/)),
+    paths: [...body.matchAll(/^\s*path\s+(\S+)\s*$/gm)].map(([, value]) => value),
+    patterns: [...body.matchAll(/^\s*path_regexp\s+\w+\s+(\S+)\s*$/gm)].map(([, value]) => value),
+  }));
+}
+
+/** What the config says it does with a request: the matcher that claims it, or "403". */
+function verdict(method: string, path: string): string {
+  for (const matcher of matchers()) {
+    if (!matcher.methods.includes(method)) continue;
+    if (matcher.paths.some((value) => value.toLowerCase() === path.toLowerCase()))
+      return matcher.name;
+    if (matcher.patterns.some((source) => new RegExp(source).test(path))) return matcher.name;
+  }
   return "403";
 }
 
@@ -75,12 +98,10 @@ describe("NAS Docker access (F8)", () => {
     expect(compose).toMatch(/\n {2}docker-proxy:\n {4}internal: true\n/);
   });
 
-  it("allows exactly the three requests the System health page makes", () => {
-    expect(verdict("/containers/json")).toBe("list");
-    expect(verdict("/containers/razorreaper-rr-api-1/json")).toBe("inspect");
-    expect(verdict("/containers/razorreaper-admin-1/json")).toBe("inspect");
-    expect(verdict("/containers/razorreaper-bot-1/stats")).toBe("stats");
-    expect(verdict("/containers/razorreaper-docker-gateway-1/stats")).toBe("stats");
+  it("allows exactly the two requests the System health page makes", () => {
+    expect(verdict("GET", "/containers/json")).toBe("list");
+    expect(verdict("GET", "/containers/razorreaper-bot-1/stats")).toBe("stats");
+    expect(verdict("GET", "/containers/razorreaper-docker-gateway-1/stats")).toBe("stats");
 
     expect(gateway).toContain(
       "rewrite * /containers/json?all=1&filters=%7B%22label%22%3A%5B%22com.docker.compose.project%3Drazorreaper%22%5D%7D",
@@ -88,17 +109,43 @@ describe("NAS Docker access (F8)", () => {
     expect(gateway).toContain("rewrite * {http.request.uri.path}?stream=false");
     // Anything not matched by a handle falls through to the catch-all.
     expect(gateway).toMatch(/handle \{\n\s+respond "[^"]*" 403\n\s+\}/);
-    expect([...gateway.matchAll(/reverse_proxy \S+/g)].map((m) => m[0])).toEqual([
-      "reverse_proxy docker-proxy:2375",
+    expect([...gateway.matchAll(/reverse_proxy \S+/g)].map((match) => match[0])).toEqual([
       "reverse_proxy docker-proxy:2375",
       "reverse_proxy docker-proxy:2375",
     ]);
   });
 
-  it("rejects every escalation the socket proxy would otherwise permit", () => {
+  it("refuses inspect for every container, this project's own included", () => {
+    // The escalation: /containers/<name>/json returns Config.Env, and admin.env holds ORIGIN_KEY
+    // while rr-api.env holds the ingest tokens, the app keys and JWT_SECRET — so there is no
+    // "safe" container to inspect, not even the caller's own. Caddy cannot filter fields out of a
+    // proxied JSON body, so the path is blocked rather than trimmed.
+    for (const name of [
+      "admin",
+      "backup",
+      "bot",
+      "caddy",
+      "cloudflared",
+      "docker-gateway",
+      "docker-proxy",
+      "rr-api",
+    ])
+      expect([name, verdict("GET", `/containers/razorreaper-${name}-1/json`)]).toEqual([
+        name,
+        "403",
+      ]);
+
+    // No allowlist of service names survives anywhere in the config.
+    expect(gateway).not.toMatch(/path(?:_regexp)?[^\n]*\([a-z0-9|-]*\|[a-z0-9|-]*\)/);
+    // The only `/json` the config names is the project-wide container list.
+    const jsonPaths = [...gateway.matchAll(/^\s*path(?:_regexp \w+)? (\S*json\S*)$/gm)].map(
+      (match) => match[1],
+    );
+    expect(jsonPaths).toEqual(["/containers/json"]);
+  });
+
+  it("rejects every other escalation the socket proxy would otherwise permit", () => {
     for (const path of [
-      // Config.Env of the bot: Discord TOKEN, NOTIFIER_*, VERIFY_*.
-      "/containers/razorreaper-bot-1/json",
       // Arbitrary files out of any container, e.g. the tunnel credentials.
       "/containers/razorreaper-cloudflared-1/archive",
       "/containers/razorreaper-rr-api-1/archive",
@@ -117,34 +164,47 @@ describe("NAS Docker access (F8)", () => {
       "/_ping",
       "/networks",
       "/volumes",
-      "/containers/razorreaper-rr-api-1/json/../../../images/json",
+      // Suffix smuggling onto an allowed prefix.
+      "/containers/razorreaper-rr-api-1/stats/../json",
+      "/containers/json/../razorreaper-bot-1/json",
     ])
-      expect([path, verdict(path)]).toEqual([path, "403"]);
+      expect([path, verdict("GET", path)]).toEqual([path, "403"]);
+
+    // Every matcher is GET-only, so no method that could change the host gets through even on an
+    // allowed path; docker-proxy's POST=0 is the second lock, not the first.
+    for (const method of ["POST", "PUT", "PATCH", "DELETE", "HEAD"]) {
+      expect([method, verdict(method, "/containers/json")]).toEqual([method, "403"]);
+      expect([method, verdict(method, "/containers/razorreaper-bot-1/stats")]).toEqual([
+        method,
+        "403",
+      ]);
+    }
+    for (const matcher of matchers())
+      expect([matcher.name, matcher.methods]).toEqual([matcher.name, ["GET"]]);
   });
 
   it("never widens the allowlist past this compose project", () => {
-    const patterns = allowlistPatterns();
+    const patterns = matchers().flatMap((matcher) => matcher.patterns);
 
-    expect(patterns).toHaveLength(2);
+    expect(patterns).toHaveLength(1);
     for (const pattern of patterns) {
       // Anchored at both ends and scoped to this project's containers: no prefix match, no
-      // suffix smuggling (".../json/../archive"), no other host's containers.
+      // suffix smuggling (".../stats/../json"), no other host's containers.
       expect([pattern, pattern.startsWith("^/containers/razorreaper-")]).toEqual([pattern, true]);
       expect([pattern, pattern.endsWith("$")]).toEqual([pattern, true]);
     }
   });
 
-  it("names only real compose services in the inspect allowlist, and never the bot", () => {
-    const allowed = /razorreaper-\(([a-z0-9|-]+)\)-\[0-9\]\+\/json/.exec(gateway)?.[1].split("|");
-    expect(allowed).toBeDefined();
-    const services = [
-      ...compose.matchAll(/\n {2}([a-z][a-z0-9-]*):\n {4}(?:image|build|restart):/g),
-    ].map((match) => match[1]);
-    expect(services).toContain("bot");
-    // Inspect is a positive list: no typos, no stale names, and the bot is left out on purpose
-    // because its Config.Env holds secrets rr-api does not already have.
-    for (const name of allowed!) expect(services).toContain(name);
-    expect(allowed).not.toContain("bot");
+  it("documents the real reason inspect is closed, not the old bot-only story", () => {
+    const readme = repoFile("deploy/nas/README.md");
+    // admin.env holds ORIGIN_KEY and rr-api.env holds the ingest tokens and JWT_SECRET, so the
+    // comment that used to call the bot the only container with secrets was simply wrong.
+    for (const text of [gateway, readme]) {
+      expect(text).not.toMatch(/secrets rr-api does not already have/i);
+      expect(text).toContain("ORIGIN_KEY");
+      expect(text).toContain("JWT_SECRET");
+    }
+    expect(compose).not.toMatch(/secrets rr-api does not already have/i);
   });
 });
 

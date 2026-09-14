@@ -112,32 +112,45 @@ on two `internal` networks; rr-api has no route to the socket proxy itself.
 call under `/containers`, for **every** container on the host, which includes reading another
 container's `Config.Env` and pulling arbitrary files out of it via `/archive`.
 `docker-gateway` (`caddy:2-alpine`, config in `docker-gateway/Caddyfile`) is the path allowlist
-that the socket proxy cannot be. It permits exactly three `GET` shapes:
+that the socket proxy cannot be. It permits exactly two `GET` shapes:
 
 | Request rr-api may make | Forwarded as |
 | --- | --- |
 | `GET /containers/json` | `/containers/json?all=1&filters={"label":["com.docker.compose.project=razorreaper"]}` |
-| `GET /containers/razorreaper-{admin,backup,caddy,cloudflared,docker-gateway,docker-proxy,rr-api}-<n>/json` | unchanged |
 | `GET /containers/razorreaper-<service>-<n>/stats` | same path, `?stream=false` |
 
 Everything else gets `403` from the gateway without the socket proxy being touched: `/archive`,
 `/logs`, `/export`, `/top`, `/changes`, any container outside this compose project, any non-GET
-method, and `/containers/razorreaper-bot-1/json` — the bot is the one project container whose
-`Config.Env` holds secrets rr-api does not already have (Discord `TOKEN`, `NOTIFIER_*`,
-`VERIFY_*`), so it is left out of the inspect allowlist on purpose. The cost is visible and
-intended: the bot row on the System health page shows `—` for **Uptime** and **Restarts**, because
-only inspect reports `State.StartedAt` and `RestartCount`. Its state and healthcheck verdict still
-come from the container list, and its own `/health` probe still drives the row.
+method — and **inspect, `/containers/<name>/json`, for every container without exception**.
 
-Adding a service to `compose.yml` does not open inspect for it — the allowlist is a positive list,
-so a new service reports `—` in those two columns until it is added to the Caddyfile deliberately.
+Inspect is not health data. It returns `Config.Env` verbatim, and every service here keeps
+secrets there: `admin.env` holds `ORIGIN_KEY`, `rr-api.env` holds 35 values including the ingest
+tokens, the app keys and `JWT_SECRET`, `bot.env` holds the Discord `TOKEN` and the
+`NOTIFIER_*`/`VERIFY_*` values. The same response also carries `HostConfig` and `Mounts`, i.e. the
+host's directory layout and every bind mount. rr-api is the internet-facing service behind the
+tunnel, so one rr-api bug that can reach the gateway would otherwise read all of that back out of
+Docker — including from rr-api's own container, which is why there is no "own container"
+exception. Caddy cannot reliably strip fields out of a proxied JSON body, so the route is refused
+rather than filtered.
+
+The cost is visible and intended. `State.StartedAt` and `RestartCount` exist only in inspect, so
+on the System health page:
+
+- **Restarts** is `—` for every row, and the note under the table says why.
+- **Uptime** comes from the container list's `Status` string ("Up 3 minutes (healthy)"), rounded
+  the way `docker ps` rounds it, and is blank for a container that is not running.
+- **Health** comes from the same string — Docker writes the healthcheck verdict into it — so a
+  failing healthcheck is still visible, and a container that is down still reads as down.
+
+Adding a service to `compose.yml` needs no gateway change: the list is filtered by compose project
+and stats is matched by pattern, so a new service appears with the same columns as the rest.
 
 Verify after a deploy (from inside rr-api, which is the only container that can reach the gateway):
 
 ```bash
 docker compose exec rr-api sh -lc '
-  for p in /containers/json /containers/razorreaper-rr-api-1/json \
-           /containers/razorreaper-bot-1/stats /containers/razorreaper-bot-1/json \
+  for p in /containers/json /containers/razorreaper-bot-1/stats \
+           /containers/razorreaper-rr-api-1/json /containers/razorreaper-bot-1/json \
            /containers/razorreaper-cloudflared-1/archive?path=/etc/cloudflared/creds \
            /containers/razorreaper-bot-1/logs /containers/homeassistant-app-1/json /images/json; do
     printf "%s -> " "$p"
@@ -145,7 +158,8 @@ docker compose exec rr-api sh -lc '
   done'
 ```
 
-Expected: `200` for the first three, `403` for the rest.
+Expected: `200` for the first two, `403` for the rest — `/containers/razorreaper-rr-api-1/json`
+included.
 
 ## rr-api (W3.5)
 

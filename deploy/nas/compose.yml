@@ -119,9 +119,10 @@ services:
       - docker-proxy
 
   # Docker API for the System health page (handoff 2026-09-12 §2.11), reachable only through
-  # docker-gateway. What rr-api may READ is the container list of this compose project, inspect
-  # for the services named in the gateway's allowlist (not the bot), and one-shot stats; the
-  # gateway answers 403 to everything else, including /archive, /logs, /top and /changes.
+  # docker-gateway. What rr-api may READ is the container list of this compose project and
+  # one-shot stats. The gateway answers 403 to everything else, including inspect
+  # (/containers/<name>/json returns Config.Env, and every env file here holds secrets),
+  # /archive, /logs, /top and /changes.
   # POST=0 and every other section at 0 block writes: no start, stop, exec or pull. CONTAINERS=1
   # is section-level, so the proxy alone would allow every non-POST /containers call on the host
   # — that is what the gateway narrows. No ports; its only network is internal.

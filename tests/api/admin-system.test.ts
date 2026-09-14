@@ -17,6 +17,7 @@ import {
   isProjectContainer,
   loadContainers,
   resetContainerCache,
+  uptimeSecondsFromStatus,
 } from "../../functions/_lib/container-health";
 import {
   enableServerErrorRing,
@@ -237,16 +238,16 @@ describe("containers via docker-gateway", () => {
         Status: "Exited (0) 2 minutes ago",
         Labels: { "com.docker.compose.service": "backup" },
       },
-      { Id: "h4", Names: ["/homeassistant-app"], State: "running", Labels: {} },
-    ],
-    [`${base}/containers/razorreaper-rr-api-1/json`]: {
-      RestartCount: 0,
-      State: {
-        Status: "running",
-        StartedAt: "2026-09-12T08:00:00Z",
-        Health: { Status: "healthy" },
+      {
+        Id: "h4",
+        Names: ["/homeassistant-app"],
+        State: "running",
+        Status: "Up 6 days",
+        Labels: {},
       },
-    },
+    ],
+    // No inspect route for any container: the gateway answers 403 to every /json path, exactly
+    // like the NAS does, so a request for one here would fail the test by 404-ing.
     [`${base}/containers/razorreaper-rr-api-1/stats?stream=false`]: {
       cpu_stats: {
         cpu_usage: { total_usage: 2_000_000 },
@@ -256,13 +257,8 @@ describe("containers via docker-gateway", () => {
       precpu_stats: { cpu_usage: { total_usage: 1_000_000 }, system_cpu_usage: 50_000_000 },
       memory_stats: { usage: 120 * MB, limit: 1024 * MB, stats: { inactive_file: 15 * MB } },
     },
-    // No inspect route for the bot: the gateway refuses it, exactly like the NAS does.
     [`${base}/containers/razorreaper-bot-1/stats?stream=false`]: {
       memory_stats: { usage: 56 * MB },
-    },
-    [`${base}/containers/razorreaper-backup-1/json`]: {
-      RestartCount: 0,
-      State: { Status: "exited", StartedAt: "0001-01-01T00:00:00Z" },
     },
   };
 
@@ -282,30 +278,52 @@ describe("containers via docker-gateway", () => {
     expect(healthFromStatus(undefined)).toBe("none");
   });
 
-  it("lists, inspects and samples project containers by name, in parallel", async () => {
+  it("reads an approximate uptime out of the same status line, and nothing else", () => {
+    // Docker's own rounding (go-units), health suffix included.
+    expect(uptimeSecondsFromStatus("Up 45 seconds")).toBe(45);
+    expect(uptimeSecondsFromStatus("Up 10 minutes (unhealthy)")).toBe(600);
+    expect(uptimeSecondsFromStatus("Up 30 hours (healthy)")).toBe(108_000);
+    expect(uptimeSecondsFromStatus("Up 6 days")).toBe(518_400);
+    expect(uptimeSecondsFromStatus("Up 3 weeks")).toBe(1_814_400);
+    // Shapes taken verbatim from `docker ps` on the NAS, 2026-09-14.
+    expect(uptimeSecondsFromStatus("Up 12 days")).toBe(1_036_800);
+    expect(uptimeSecondsFromStatus("Up Less than a second")).toBe(0);
+    expect(uptimeSecondsFromStatus("Exited (0) 13 days ago")).toBeNull();
+    expect(uptimeSecondsFromStatus("Up About a minute")).toBe(60);
+    expect(uptimeSecondsFromStatus("Up About an hour")).toBe(3_600);
+    expect(uptimeSecondsFromStatus("Up Less than a second")).toBe(0);
+    // No current run, or nothing parseable: null, never 0 as a stand-in.
+    expect(uptimeSecondsFromStatus("Exited (0) 2 minutes ago")).toBeNull();
+    expect(uptimeSecondsFromStatus("Restarting (1) 3 seconds ago")).toBeNull();
+    expect(uptimeSecondsFromStatus("Created")).toBeNull();
+    expect(uptimeSecondsFromStatus("Up")).toBeNull();
+    expect(uptimeSecondsFromStatus("Up a while")).toBeNull();
+    expect(uptimeSecondsFromStatus(undefined)).toBeNull();
+  });
+
+  it("lists and samples project containers by name, and never asks for inspect", async () => {
     const fetchFn = fakeFetch(routes);
     const containers = await loadContainers({}, fetchFn, () => NOW);
     expect(containers).toEqual([
       {
+        // Not running: no uptime, and no stats call worth making.
         service: "backup",
         name: "razorreaper-backup-1",
         state: "exited",
         health: "none",
-        startedAt: null,
-        restartCount: 0,
+        uptimeSeconds: null,
         cpuPercent: null,
         memoryBytes: null,
         memoryLimitBytes: null,
       },
       {
-        // Inspect is refused for the bot, so uptime and restarts are "not reported" (null),
-        // never a stand-in 0; state and health still come from the list entry.
+        // State, health and uptime all come out of the list entry; no row carries a restart
+        // count any more, because reading one would need inspect.
         service: "bot",
         name: "razorreaper-bot-1",
         state: "running",
         health: "unhealthy",
-        startedAt: null,
-        restartCount: null,
+        uptimeSeconds: 600,
         cpuPercent: null,
         memoryBytes: 56 * MB,
         memoryLimitBytes: null,
@@ -315,14 +333,16 @@ describe("containers via docker-gateway", () => {
         name: "razorreaper-rr-api-1",
         state: "running",
         health: "healthy",
-        startedAt: "2026-09-12T08:00:00Z",
-        restartCount: 0,
+        uptimeSeconds: 108_000,
         cpuPercent: 8,
         memoryBytes: 105 * MB,
         memoryLimitBytes: 1024 * MB,
       },
     ]);
     const urls = fetchFn.mock.calls.map((call) => call[0]);
+    // The escalation this whole change is about: no inspect request leaves rr-api, for any
+    // container, its own included.
+    expect(urls.filter((url) => /\/containers\/[^/]+\/json/.test(url))).toEqual([]);
     // Addressed by container name, never by id: the gateway allowlist matches on the name.
     expect(urls.some((url) => /\/containers\/(a1|b2|c3|h4)\//.test(url))).toBe(false);
     expect(urls.some((url) => url.includes("homeassistant"))).toBe(false);
@@ -370,8 +390,7 @@ describe("incident rules", () => {
         name: "razorreaper-rr-api-1",
         state: "running",
         health: "healthy",
-        startedAt: iso(-24 * 60 * MINUTE),
-        restartCount: 1,
+        uptimeSeconds: 24 * 3600,
         cpuPercent: 1,
         memoryBytes: 1,
         memoryLimitBytes: null,
@@ -405,7 +424,7 @@ describe("incident rules", () => {
     ).toEqual([]);
   });
 
-  it("flags unhealthy, stopped and recently restarted containers", () => {
+  it("flags unhealthy and stopped containers", () => {
     const base = healthy.containers![0];
     const incidents = computeIncidents(
       {
@@ -413,7 +432,6 @@ describe("incident rules", () => {
         containers: [
           { ...base, service: "bot", health: "unhealthy" },
           { ...base, service: "caddy", state: "exited" },
-          { ...base, service: "admin", restartCount: 3, startedAt: iso(-5 * MINUTE) },
         ],
       },
       NOW,
@@ -421,21 +439,18 @@ describe("incident rules", () => {
     expect(incidents.map((incident) => incident.id)).toEqual([
       "container-unhealthy-bot",
       "container-down-caddy",
-      "container-restarted-admin",
     ]);
-    expect(overallFrom(incidents.slice(2))).toBe("degraded");
+    expect(overallFrom(incidents)).toBe("critical");
   });
 
-  it("raises no restart warning when the restart count was not readable", () => {
+  it("raises nothing for a container that merely started recently", () => {
+    // A restart warning would need RestartCount, which only inspect reports and the gateway
+    // refuses. A short uptime alone is not a restart — a deploy looks exactly the same — so the
+    // rule is gone rather than guessed at.
     const base = healthy.containers![0];
     expect(
       computeIncidents(
-        {
-          ...healthy,
-          containers: [
-            { ...base, service: "bot", restartCount: null, startedAt: iso(-5 * MINUTE) },
-          ],
-        },
+        { ...healthy, containers: [{ ...base, service: "admin", uptimeSeconds: 5 * 60 }] },
         NOW,
       ),
     ).toEqual([]);

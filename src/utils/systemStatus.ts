@@ -12,9 +12,12 @@ export interface ServiceRow {
   health: string;
   /** One quiet line under the name: live figures where a source reports them, else the role. */
   detail: string;
-  /** Start of the CURRENT run; null while the container is not running, so uptime stays blank. */
-  startedAt: string | null;
-  restarts: number | null;
+  /**
+   * Length of the CURRENT run, as Docker rounds it; null while the container is not running, so
+   * uptime stays blank instead of counting up for a service that is down. There is no Restarts
+   * figure on the row at all: see RESTARTS_UNAVAILABLE in SystemStatusPage.
+   */
+  uptimeSeconds: number | null;
   cpuPercent: number | null;
   memoryBytes: number | null;
 }
@@ -113,7 +116,6 @@ export function serviceRows(
   payload: SystemStatusPayload,
   options: ServiceRowOptions = {},
 ): ServiceRow[] {
-  const generatedAt = Date.parse(payload.generatedAt);
   const rows = SERVICE_ORDER.map((key): ServiceRow => {
     if (key === "database") {
       const storage = payload.storage;
@@ -129,8 +131,7 @@ export function serviceRows(
         tone: payload.database.reachable ? "ok" : "danger",
         health: payload.database.reachable ? "Connected" : "Unreachable",
         detail: sizes.length > 0 ? sizes.join(" · ") : "File sizes not reported",
-        startedAt: null,
-        restarts: null,
+        uptimeSeconds: null,
         cpuPercent: null,
         memoryBytes: null,
       };
@@ -146,10 +147,9 @@ export function serviceRows(
             health: payload.containers === null ? "Unknown" : "Not found",
           }),
       detail: SERVICE_ROLE[key],
-      // A stopped container keeps Docker's last StartedAt, and rendering it would show an
-      // "uptime" that grows on every refresh for a service that is down.
-      startedAt: container?.state === "running" ? container.startedAt : null,
-      restarts: container?.restartCount ?? null,
+      // Uptime belongs to a run that is happening: a container that is not running gets none,
+      // however recently it was up.
+      uptimeSeconds: container?.state === "running" ? container.uptimeSeconds : null,
       cpuPercent: container?.cpuPercent ?? null,
       memoryBytes: container?.memoryBytes ?? null,
     };
@@ -159,8 +159,9 @@ export function serviceRows(
       if (!container) {
         row.tone = "ok";
         row.health = "Responding";
-        if (payload.runtime.uptimeSeconds !== null && Number.isFinite(generatedAt))
-          row.startedAt = new Date(generatedAt - payload.runtime.uptimeSeconds * 1000).toISOString();
+        // The process reports its own uptime, which is the closest thing to a container uptime
+        // when the container list could not be read at all.
+        row.uptimeSeconds = payload.runtime.uptimeSeconds;
       }
       if (payload.serverErrors)
         row.detail = `${payload.serverErrors.last60Minutes} server errors in 60 min`;

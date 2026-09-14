@@ -23,7 +23,6 @@ const BUCKET_COUNT = 12;
 /** Incident thresholds (handoff 2026-09-12 §2.11). */
 export const BACKUP_MAX_AGE_SECONDS = 26 * 60 * 60;
 export const INGEST_STALL_MS = 15 * MINUTE_MS;
-export const RECENT_RESTART_MS = 60 * MINUTE_MS;
 
 export interface SystemStatusDeps {
   now?: () => number;
@@ -183,23 +182,11 @@ export function computeIncidents(input: IncidentInput, now: number): SystemIncid
         title: `${container.service} is unhealthy`,
         detail: "The container healthcheck is failing.",
       });
-    const started = Date.parse(container.startedAt ?? "");
-    // restartCount is null when docker-gateway does not allow inspect for this container; an
-    // unknown restart count raises nothing, like every other source that reported null.
-    const restarts = container.restartCount;
-    if (
-      restarts !== null &&
-      restarts > 0 &&
-      Number.isFinite(started) &&
-      now - started < RECENT_RESTART_MS
-    )
-      incidents.push({
-        id: `container-restarted-${container.service}`,
-        severity: "warning",
-        service: container.service,
-        title: `${container.service} restarted recently`,
-        detail: `Restarted ${restarts} time${restarts === 1 ? "" : "s"}; the current run started ${Math.max(1, Math.round((now - started) / MINUTE_MS))} min ago.`,
-      });
+    // There used to be a "restarted recently" warning here. It needed RestartCount and
+    // State.StartedAt, both of which only Docker inspect reports, and the gateway refuses inspect
+    // for every container (deploy/nas/docker-gateway/Caddyfile). A short uptime on its own does
+    // not mean a restart — a deploy looks identical — so nothing is raised in its place rather
+    // than raising a guess. A container that is down or unhealthy right now still raises above.
   }
 
   if (input.bot && !input.bot.reachable)

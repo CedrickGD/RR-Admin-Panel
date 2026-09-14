@@ -11,8 +11,7 @@ function container(service: string, patch: Partial<SystemContainer> = {}): Syste
     name: `razorreaper-${service}-1`,
     state: "running",
     health: "healthy",
-    startedAt: "2026-09-12T12:00:00.000Z",
-    restartCount: 0,
+    uptimeSeconds: 24 * 3600,
     cpuPercent: 1.5,
     memoryBytes: 64 * 1024 * 1024,
     memoryLimitBytes: null,
@@ -75,10 +74,10 @@ describe("system health page model", () => {
 
   it("shows no uptime for a container that is not running", () => {
     const rows = Object.fromEntries(serviceRows(payload()).map((row) => [row.key, row]));
-    // Docker keeps the last StartedAt on a stopped container; rendering it would show an
-    // "uptime" climbing on every refresh for a service that is down.
-    expect(rows.backup).toMatchObject({ tone: "danger", health: "Exited", startedAt: null });
-    expect(rows["rr-api"].startedAt).toBe("2026-09-12T12:00:00.000Z");
+    // A stopped container still carries the length of its last run in Docker's status line;
+    // rendering it would show an "uptime" for a service that is down.
+    expect(rows.backup).toMatchObject({ tone: "danger", health: "Exited", uptimeSeconds: null });
+    expect(rows["rr-api"].uptimeSeconds).toBe(24 * 3600);
   });
 
   it("drops verified-green rows to unknown while the data is stale", () => {
@@ -116,7 +115,8 @@ describe("system health page model", () => {
       serviceRows(payload({ containers: null, storage: null })).map((row) => [row.key, row]),
     );
     expect(rows["rr-api"]).toMatchObject({ tone: "ok", health: "Responding" });
-    expect(rows["rr-api"].startedAt).toBe("2026-09-13T11:00:00.000Z");
+    // No container row at all: the process's own uptime is the only reading left.
+    expect(rows["rr-api"].uptimeSeconds).toBe(3600);
     expect(rows.caddy).toMatchObject({ tone: "unknown", health: "Unknown" });
     expect(rows["docker-proxy"]).toMatchObject({ tone: "warning", health: "No response" });
     expect(rows.database.detail).toBe("File sizes not reported");

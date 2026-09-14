@@ -2,22 +2,35 @@
 #
 # tecnativa/docker-socket-proxy gates whole API *sections*, not paths: CONTAINERS=1 allows every
 # non-POST call under /containers, for every container on the host. That includes
-# /containers/<any>/json (Config.Env — the Discord bot's TOKEN and NOTIFIER_*/VERIFY_*),
-# /containers/<any>/archive?path=... (any file in any container, e.g. the tunnel credentials),
-# /logs, /top, /changes, and the NAS's unrelated containers. rr-api is the internet-facing service
-# behind the tunnel, so it must not be able to ask for any of that. This gateway is the path-level
-# allowlist the socket proxy cannot be; it is the only service left on the docker-proxy network.
+# /containers/<any>/json (inspect), /containers/<any>/archive?path=... (any file in any
+# container, e.g. the tunnel credentials), /logs, /top, /changes, and the NAS's unrelated
+# containers. rr-api is the internet-facing service behind the tunnel, so it must not be able to
+# ask for any of that. This gateway is the path-level allowlist the socket proxy cannot be; it is
+# the only service left on the docker-proxy network.
 #
-# ALLOWED — exactly three GET shapes:
+# Inspect is blocked for EVERY container, this project's included. `GET /containers/<name>/json`
+# returns Config.Env verbatim, and every service here has secrets in its env file: admin.env
+# holds ORIGIN_KEY, rr-api.env holds 35 values (the ingest tokens, the app keys, JWT_SECRET),
+# bot.env holds the Discord TOKEN and the NOTIFIER_*/VERIFY_* values. The same payload also
+# carries HostConfig and Mounts — the host's directory layout and every bind mount. None of that
+# is health data, and letting the internet-facing service read it is a privilege escalation even
+# for its own container. Caddy cannot reliably strip fields out of a proxied JSON body, so the
+# route is refused rather than filtered.
+#
+# ALLOWED — exactly two GET shapes:
 #   GET /containers/json                            -> /containers/json?all=1&filters=<project>
-#   GET /containers/razorreaper-<listed>-<n>/json   -> unchanged (inspect takes only `size`)
 #   GET /containers/razorreaper-<service>-<n>/stats -> same path, ?stream=false forced
 # REJECTED with 403 before the socket proxy is touched — everything else, including
-#   /containers/razorreaper-bot-1/json      (the one project container whose env holds secrets)
+#   /containers/<any>/json                   (inspect, for every container without exception)
 #   /containers/<any>/archive|logs|export|top|changes|wait|attach
-#   /containers/homeassistant-app-1/json    (any container outside this compose project)
+#   /containers/homeassistant-app-1/stats    (any container outside this compose project)
 #   /images/*, /info, /version, /_ping, /networks/*, /volumes/*
 #   every non-GET method, on every path.
+#
+# What the System health page gives up for this: State.StartedAt and RestartCount, which only
+# inspect reports. State, the healthcheck verdict and an approximate uptime all come out of the
+# list entry's `Status` string ("Up 3 minutes (healthy)"); restart counts are not collected at
+# all and the page prints "—" for them. See functions/_lib/container-health.ts.
 {
 	admin off
 }
@@ -35,20 +48,9 @@
 		reverse_proxy docker-proxy:2375
 	}
 
-	# Inspect, for the Uptime and Restarts columns. A positive allowlist of compose services, not
-	# a project-wide prefix: a service added to compose.yml is rejected until it is named here, so
-	# a new secret cannot leak by default. `bot` is deliberately absent — its Config.Env holds the
-	# Discord TOKEN and the NOTIFIER_*/VERIFY_* values, which is the escalation this file prevents.
-	@inspect {
-		method GET
-		path_regexp inspect ^/containers/razorreaper-(admin|backup|caddy|cloudflared|docker-gateway|docker-proxy|rr-api)-[0-9]+/json$
-	}
-	handle @inspect {
-		reverse_proxy docker-proxy:2375
-	}
-
-	# One-shot CPU/memory. The stats payload carries no configuration, so every container of this
-	# project is allowed; stream=false is forced so a caller cannot hold the socket open.
+	# One-shot CPU/memory. The stats payload carries no configuration and no environment, so every
+	# container of this project is allowed; stream=false is forced so a caller cannot hold the
+	# socket open. Anchored at both ends: nothing may follow `stats`.
 	@stats {
 		method GET
 		path_regexp stats ^/containers/razorreaper-[a-z0-9][a-z0-9-]*-[0-9]+/stats$
@@ -58,6 +60,7 @@
 		reverse_proxy docker-proxy:2375
 	}
 
+	# Everything else, including every inspect path and every non-GET method.
 	handle {
 		respond "docker-gateway: endpoint not allowed" 403
 	}

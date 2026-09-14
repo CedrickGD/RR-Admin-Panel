@@ -5,8 +5,12 @@ import type { RuntimeEnv } from "./types";
 
 /**
  * Container state through the docker-gateway sidecar (compose service `docker-gateway`, a Caddy
- * path allowlist in front of docker-socket-proxy): the project container list, inspect for the
- * services its allowlist names, and one-shot stats — never a write, never /archive or /logs.
+ * path allowlist in front of docker-socket-proxy). The gateway allows two GET shapes and nothing
+ * else: the project container list, and one-shot stats. Inspect is refused for every container,
+ * because `GET /containers/<name>/json` returns Config.Env — and admin.env holds ORIGIN_KEY,
+ * rr-api.env holds the ingest tokens and JWT_SECRET, bot.env holds the Discord token — plus
+ * HostConfig and Mounts. So this module never asks for it: state, the healthcheck verdict and an
+ * approximate uptime all come out of the list entry, and RestartCount is not collected at all.
  * Containers are addressed by name, not id, because the allowlist matches on the name.
  * Results are cached per module for CACHE_TTL_MS so a page polling every 30 s from several tabs
  * costs one Docker round per window; `stats?stream=false` alone takes about a second.
@@ -43,11 +47,6 @@ interface DockerListItem {
   Labels?: Record<string, string>;
 }
 
-interface DockerInspect {
-  RestartCount?: number;
-  State?: { Status?: string; StartedAt?: string; Health?: { Status?: string } };
-}
-
 interface DockerStats {
   cpu_stats?: {
     cpu_usage?: { total_usage?: number; percpu_usage?: number[] };
@@ -68,13 +67,9 @@ async function getJson<T>(fetchFn: FetchLike, url: string): Promise<T> {
   return (await response.json()) as T;
 }
 
-function toHealth(value: string | undefined): ContainerHealth {
-  return value === "healthy" || value === "unhealthy" || value === "starting" ? value : "none";
-}
-
 /**
- * Healthcheck verdict out of the list entry's `Status` string. The list is the only source for
- * containers the gateway refuses to inspect (the bot), and Docker writes the verdict there in a
+ * Healthcheck verdict out of the list entry's `Status` string. The gateway refuses inspect for
+ * every container, so the list is the only source, and Docker writes the verdict there in a
  * fixed form: "Up 3 minutes (healthy)" / "(unhealthy)" / "(health: starting)".
  */
 export function healthFromStatus(status: string | undefined): ContainerHealth {
@@ -83,6 +78,38 @@ export function healthFromStatus(status: string | undefined): ContainerHealth {
   if (status.includes("(unhealthy)")) return "unhealthy";
   if (status.includes("(health: starting)")) return "starting";
   return "none";
+}
+
+/** Docker's `Status` units in seconds; go-units counts a month as 30 d and a year as 365 d. */
+const UPTIME_UNIT_SECONDS: Record<string, number> = {
+  second: 1,
+  minute: 60,
+  hour: 3_600,
+  day: 86_400,
+  week: 604_800,
+  month: 2_592_000,
+  year: 31_536_000,
+};
+
+/**
+ * Seconds of the current run, out of the same `Status` string — "Up 3 minutes (healthy)".
+ * Without inspect there is no `State.StartedAt`, and this is what Docker offers instead: a
+ * rounded human duration (go-units), so the figure is approximate by construction — "Up About an
+ * hour" is anywhere from 45 to 90 minutes. That is enough for a column that prints "5 h 12 min",
+ * and it is a real reading rather than an invented timestamp. Null for anything that is not
+ * "Up …" ("Exited (0) 5 minutes ago", "Created", "Restarting (1) 2 seconds ago"): those have no
+ * current run to time.
+ */
+export function uptimeSecondsFromStatus(status: string | undefined): number | null {
+  // Drop the trailing "(healthy)" / "(health: starting)" / "(Paused)" note.
+  const text = (status ?? "").trim().replace(/\s*\([^)]*\)\s*$/, "");
+  if (!text.startsWith("Up ")) return null;
+  const rest = text.slice(3).trim();
+  if (rest === "Less than a second") return 0;
+  if (rest === "About a minute") return 60;
+  if (rest === "About an hour") return 3_600;
+  const parts = /^(\d+) (second|minute|hour|day|week|month|year)s?$/.exec(rest);
+  return parts ? Number(parts[1]) * UPTIME_UNIT_SECONDS[parts[2]] : null;
 }
 
 /** `docker stats` CPU%: container CPU delta over host CPU delta, times online CPUs. */
@@ -112,25 +139,20 @@ async function describeContainer(
 ): Promise<SystemContainer> {
   const name = (item.Names?.[0] ?? item.Id).replace(/^\//, "");
   const running = item.State === "running";
-  // Both calls may come back 403 from the gateway (inspect is allowlisted per service); the page
-  // then shows "—" for what only inspect can answer rather than inventing a value.
-  const [inspect, stats] = await Promise.all([
-    getJson<DockerInspect>(fetchFn, `${base}/containers/${name}/json`).catch(() => null),
-    running
-      ? getJson<DockerStats>(fetchFn, `${base}/containers/${name}/stats?stream=false`).catch(
-          () => null,
-        )
-      : Promise.resolve(null),
-  ]);
-  const startedAt = inspect?.State?.StartedAt;
+  // Stats is the only per-container call the gateway still allows, and it is worth making only
+  // for a running container: a stopped one has no CPU or memory to sample. A 403, a timeout or a
+  // malformed body leaves the figures null, which the page prints as "—" rather than as zero.
+  const stats = running
+    ? await getJson<DockerStats>(fetchFn, `${base}/containers/${name}/stats?stream=false`).catch(
+        () => null,
+      )
+    : null;
   return {
     service: item.Labels?.["com.docker.compose.service"] ?? serviceFromName(name),
     name,
-    state: inspect?.State?.Status ?? item.State ?? "unknown",
-    health: inspect ? toHealth(inspect.State?.Health?.Status) : healthFromStatus(item.Status),
-    // Docker reports "0001-01-01T00:00:00Z" for a container that never started.
-    startedAt: startedAt && !startedAt.startsWith("0001-") ? startedAt : null,
-    restartCount: inspect ? (inspect.RestartCount ?? 0) : null,
+    state: item.State ?? "unknown",
+    health: healthFromStatus(item.Status),
+    uptimeSeconds: running ? uptimeSecondsFromStatus(item.Status) : null,
     cpuPercent: stats ? cpuPercent(stats) : null,
     memoryBytes: stats ? memoryBytes(stats) : null,
     memoryLimitBytes: stats?.memory_stats?.limit ?? null,

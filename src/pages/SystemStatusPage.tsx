@@ -76,12 +76,14 @@ function useSystemStatus() {
   return { payload, failed };
 }
 
-function uptimeFrom(startedAt: string | null, reference: string): string {
-  const started = Date.parse(startedAt ?? "");
-  const now = Date.parse(reference);
-  if (!Number.isFinite(started) || !Number.isFinite(now)) return "—";
-  return formatUptime(Math.max(0, Math.round((now - started) / 1000)));
-}
+/**
+ * The Restarts column, for every row. Docker reports RestartCount only through inspect, and the
+ * NAS gateway refuses inspect for every container because the same response carries Config.Env
+ * (deploy/nas/docker-gateway/Caddyfile). The column stays, because losing it silently would be
+ * the dishonest version; a dash is the page saying it does not know, the same dash every other
+ * unreported figure uses.
+ */
+const RESTARTS_UNAVAILABLE = "—";
 
 export function SystemStatusPage() {
   const { payload, failed } = useSystemStatus();
@@ -121,13 +123,13 @@ export function SystemStatusPage() {
     {
       key: "uptime",
       header: "Uptime",
-      render: (row) => (payload ? uptimeFrom(row.startedAt, payload.generatedAt) : "—"),
+      render: (row) => formatUptime(row.uptimeSeconds),
     },
     {
       key: "restarts",
       header: "Restarts",
       numeric: true,
-      render: (row) => (row.restarts === null ? "—" : formatNumber(row.restarts)),
+      render: () => RESTARTS_UNAVAILABLE,
     },
     {
       key: "cpu",
@@ -163,6 +165,9 @@ export function SystemStatusPage() {
             ? "Container data is not available on this runtime."
             : "Container data is unavailable: docker-proxy did not answer."
         } rr-api, bot and database come from their own checks.`
+      : null,
+    payload?.containers
+      ? "Uptime is Docker's own rounded figure. Restart counts need Docker inspect, which the gateway does not allow, so they stay blank."
       : null,
   ]
     .filter((line): line is string => line !== null)

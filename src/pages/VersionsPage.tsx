@@ -3,7 +3,8 @@ import { useCallback, useMemo, useState } from "react";
 import { CollapsiblePanel } from "../components/CollapsiblePanel";
 import { KpiStatCard, type KpiDrilldown } from "../components/KpiStatCard";
 import { Badge } from "../components/ds/Badge";
-import { IconButton } from "../components/ds/Button";
+import { Button } from "../components/ds/Button";
+import "../theme/version-workspace.css";
 import { DataTable, type DataTableColumn } from "../components/ds/DataTable";
 import { EmptyState } from "../components/ds/EmptyState";
 import { KvList } from "../components/ds/KvList";
@@ -95,10 +96,14 @@ function maxIso(a: string | null, b: string | null): string | null {
   return Date.parse(a) >= Date.parse(b) ? a : b;
 }
 
-function statusBadge(row: VersionRow) {
+export function VersionReleaseStatus({
+  row,
+}: {
+  row: Pick<VersionRow, "isLatest" | "currentUsers" | "allTimeUsers">;
+}) {
   if (row.isLatest) return <Badge tone="accent">Latest</Badge>;
-  if (row.currentUsers > 0) return <Badge tone="success">Active</Badge>;
-  if (row.allTimeUsers > 0) return <Badge tone="muted">Retired</Badge>;
+  if (row.currentUsers > 0) return <Badge tone="success">In use</Badge>;
+  if (row.allTimeUsers > 0) return <Badge tone="muted">Previously seen</Badge>;
   return <Badge tone="muted">No telemetry</Badge>;
 }
 
@@ -134,11 +139,32 @@ const RELEASE_COLUMNS: Array<DataTableColumn<VersionRow>> = [
     render: (row) => formatDay(row.firstSeen),
   },
   { key: "lastSeen", header: "Last seen", muted: true, render: (row) => formatDay(row.lastSeen) },
-  { key: "status", header: "Status", render: (row) => statusBadge(row) },
+  {
+    key: "status",
+    header: "Status",
+    render: (row) => (
+      <>
+        <VersionReleaseStatus row={row} />
+        <details className="version-observation-details">
+          <summary>Observation dates</summary>
+          <dl>
+            <div>
+              <dt>First seen</dt>
+              <dd>{formatDay(row.firstSeen)}</dd>
+            </div>
+            <div>
+              <dt>Last seen</dt>
+              <dd>{formatDay(row.lastSeen)}</dd>
+            </div>
+          </dl>
+        </details>
+      </>
+    ),
+  },
 ];
 
 /** The four adoption tiles, so the loading state reserves their exact labels. */
-const VERSION_KPI_LABELS = ["On latest", "Outdated", "Versions tracked", "Top version"];
+const VERSION_KPI_LABELS = ["On latest", "Not on latest", "Versions tracked", "Top version"];
 
 export function VersionsPage({ stats, theme, accentHue = 217 }: VersionsPageProps) {
   const latestVersion = useLatestVersion();
@@ -213,18 +239,18 @@ export function VersionsPage({ stats, theme, accentHue = 217 }: VersionsPageProp
     [versionRows, view],
   );
 
-  const totalCurrentKnown = useMemo(
+  const totalCurrentTracked = useMemo(
     () => versionRows.reduce((sum, row) => sum + row.currentUsers, 0),
     [versionRows],
   );
   const latestRow = useMemo(() => versionRows.find((row) => row.isLatest) ?? null, [versionRows]);
   const onLatestUsers = latestRow?.currentUsers ?? 0;
   const onLatestSharePct =
-    totalCurrentKnown > 0 ? Math.round((onLatestUsers / totalCurrentKnown) * 100) : 0;
-  // Version-specific: known current users whose latest session is NOT on the latest release.
-  const outdatedUsers = Math.max(0, totalCurrentKnown - onLatestUsers);
+    totalCurrentTracked > 0 ? Math.round((onLatestUsers / totalCurrentTracked) * 100) : 0;
+  // All tracked current version buckets participate, including legacy and unknown.
+  const outdatedUsers = Math.max(0, totalCurrentTracked - onLatestUsers);
   const outdatedSharePct =
-    totalCurrentKnown > 0 ? Math.round((outdatedUsers / totalCurrentKnown) * 100) : 0;
+    totalCurrentTracked > 0 ? Math.round((outdatedUsers / totalCurrentTracked) * 100) : 0;
   const topVersion = useMemo(() => {
     let best: ChartRow | null = null;
     for (const row of chartRows) {
@@ -242,9 +268,9 @@ export function VersionsPage({ stats, theme, accentHue = 217 }: VersionsPageProp
         .map((row) => ({
           label: row.isLatest ? `${row.label} · latest` : row.label,
           value: formatNumber(row.currentUsers),
-          share: totalCurrentKnown > 0 ? row.currentUsers / totalCurrentKnown : 0,
+          share: totalCurrentTracked > 0 ? row.currentUsers / totalCurrentTracked : 0,
         })),
-    [versionRows, totalCurrentKnown],
+    [versionRows, totalCurrentTracked],
   );
 
   const outdatedDrilldown = useMemo<KpiDrilldown | null>(() => {
@@ -258,8 +284,8 @@ export function VersionsPage({ stats, theme, accentHue = 217 }: VersionsPageProp
         value: formatNumber(row.currentUsers),
         share: outdatedUsers > 0 ? row.currentUsers / outdatedUsers : 0,
       })),
-      breakdownTitle: "Outdated customers by version",
-      note: `Known current customers whose latest session is not on v${latestVersion}.`,
+      breakdownTitle: "Customers not on the reference version",
+      note: `Tracked current customers not recorded on v${latestVersion}, including legacy or unknown versions where reported.`,
     };
   }, [versionRows, outdatedUsers, latestVersion]);
 
@@ -268,9 +294,9 @@ export function VersionsPage({ stats, theme, accentHue = 217 }: VersionsPageProp
     return {
       breakdown: currentBreakdown,
       breakdownTitle: "Current version distribution",
-      note: `Share is computed over the ${formatNumber(totalCurrentKnown)} customers with a known current version.`,
+      note: `Share uses all ${formatNumber(totalCurrentTracked)} tracked current customers, including legacy or unknown version buckets.`,
     };
-  }, [stats, currentBreakdown, totalCurrentKnown]);
+  }, [stats, currentBreakdown, totalCurrentTracked]);
 
   const trackedDrilldown = useMemo<KpiDrilldown | null>(() => {
     if (versionRows.length === 0) return null;
@@ -282,15 +308,20 @@ export function VersionsPage({ stats, theme, accentHue = 217 }: VersionsPageProp
       (row) => !row.isLatest && row.currentUsers === 0 && row.allTimeUsers === 0,
     ).length;
     const total = versionRows.length;
+    const latest = versionRows.filter((row) => row.isLatest).length;
     return {
       breakdown: [
-        { label: "Latest release", value: "1", share: 1 / total },
-        { label: "Active (current customers)", value: String(active), share: active / total },
-        { label: "Retired (all-time only)", value: String(retired), share: retired / total },
+        { label: "Latest release", value: String(latest), share: latest / total },
+        { label: "In use (current customers)", value: String(active), share: active / total },
+        {
+          label: "Previously seen (all-time only)",
+          value: String(retired),
+          share: retired / total,
+        },
         { label: "No telemetry", value: String(silent), share: silent / total },
       ],
-      breakdownTitle: "Release status",
-      note: "Merged from server telemetry and GitHub releases — releases with zero customers stay visible.",
+      breakdownTitle: "Tracked version groups",
+      note: "Merged from telemetry and available release metadata. Version buckets with no customers remain visible; these labels do not define a release lifecycle.",
     };
   }, [versionRows]);
 
@@ -317,11 +348,14 @@ export function VersionsPage({ stats, theme, accentHue = 217 }: VersionsPageProp
   );
   const rankItems = useMemo(
     () =>
-      chartRows.map((row) => ({
-        label: row.label,
-        value: row.valueLabel,
-        share: maxChartValue > 0 ? row.value / maxChartValue : 0,
-      })),
+      chartRows
+        .filter((row) => row.value > 0)
+        .sort((a, b) => b.value - a.value)
+        .map((row) => ({
+          label: row.label,
+          value: row.valueLabel,
+          share: maxChartValue > 0 ? row.value / maxChartValue : 0,
+        })),
     [chartRows, maxChartValue],
   );
 
@@ -351,8 +385,8 @@ export function VersionsPage({ stats, theme, accentHue = 217 }: VersionsPageProp
   // ── Loading skeleton while server stats are in flight ──
   if (!stats) {
     return (
-      <div className="page-content page-stack-lg">
-        <PageHeader kicker="Distribution" page="versions" />
+      <div className="page-content page-stack-lg version-workspace">
+        <PageHeader page="versions" />
 
         <div className="stat-grid stat-grid-4">
           {VERSION_KPI_LABELS.map((label) => (
@@ -377,24 +411,24 @@ export function VersionsPage({ stats, theme, accentHue = 217 }: VersionsPageProp
   }
 
   return (
-    <div className="page-content page-stack-lg">
-      <PageHeader kicker="Distribution" page="versions" />
+    <div className="page-content page-stack-lg version-workspace">
+      <PageHeader page="versions" />
 
       {/* Adoption KPIs — version-specific only (lifetime totals live on Overview) */}
       <div className="stat-grid stat-grid-4">
         <KpiStatCard
           label="On latest"
           value={formatNumber(onLatestUsers)}
-          sub={`${onLatestSharePct}% of known · v${latestVersion}`}
+          sub={`${onLatestSharePct}% of tracked · v${latestVersion}`}
           icon={<CircleCheck size={14} />}
           tone="success"
           drilldown={onLatestDrilldown}
           chartColor={chartPalette.sessionsLine}
         />
         <KpiStatCard
-          label="Outdated"
+          label="Not on latest"
           value={formatNumber(outdatedUsers)}
-          sub={`${outdatedSharePct}% of known · not on v${latestVersion}`}
+          sub={`${outdatedSharePct}% of tracked · incl. unknown`}
           icon={<History size={14} />}
           tone={outdatedUsers > 0 ? "warning" : "primary"}
           drilldown={outdatedDrilldown}
@@ -403,7 +437,7 @@ export function VersionsPage({ stats, theme, accentHue = 217 }: VersionsPageProp
         <KpiStatCard
           label="Versions tracked"
           value={String(versionRows.length)}
-          sub="Incl. releases with no customers"
+          sub="Releases and reported version buckets"
           icon={<Layers size={14} />}
           tone="primary"
           drilldown={trackedDrilldown}
@@ -439,49 +473,36 @@ export function VersionsPage({ stats, theme, accentHue = 217 }: VersionsPageProp
         }
       />
 
-      {/* Adoption funnel: rank bars left, coverage gauges + latest release right */}
-      <div className="main-side">
-        <CollapsiblePanel
-          kicker="Distribution"
-          title="Customers by version"
-          sub={
-            view === "current"
-              ? "Customers whose latest session ran each version — adoption right now."
-              : "Distinct customers who ever ran each version — all-time."
-          }
-          padding="body"
-        >
-          {rankItems.length > 0 ? (
-            <RankList items={rankItems} />
-          ) : (
-            <EmptyState icon={<Layers />} title="No version data">
-              Adoption populates here with the first session ingest.
-            </EmptyState>
-          )}
-        </CollapsiblePanel>
-
-        <div className="side-stack">
-          <CollapsiblePanel kicker="Health" title="Coverage" padding="body">
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <RadialGauge
-                ratio={totalCurrentKnown > 0 ? onLatestUsers / totalCurrentKnown : 0}
-                title="On latest"
-                sub={`${formatNumber(onLatestUsers)} of ${formatNumber(totalCurrentKnown)} known current`}
-              />
-              <RadialGauge
-                ratio={
-                  stats.totals.rpcKnownUsers > 0
-                    ? stats.totals.rpcEnabledUsers / stats.totals.rpcKnownUsers
-                    : 0
-                }
-                title="Discord RPC on"
-                sub={`${formatNumber(stats.totals.rpcEnabledUsers)} of ${formatNumber(stats.totals.rpcKnownUsers)} reporting`}
-              />
-            </div>
+      <div className="main-side version-adoption-layout">
+        <div className="version-adoption-main">
+          <CollapsiblePanel
+            title="Customers by version"
+            sub={
+              view === "current"
+                ? "Each customer's latest observed version. Current adoption is not online presence."
+                : "Distinct customers per version. A customer can appear in more than one version."
+            }
+            padding="body"
+          >
+            {rankItems.length > 0 ? (
+              <>
+                <RankList items={rankItems} />
+                <p className="version-chart-note">
+                  Bars are relative to the largest version group. Versions with no customers remain
+                  in release history.
+                </p>
+              </>
+            ) : (
+              <EmptyState icon={<Layers />} title="No version data">
+                Adoption populates here with the first session ingest.
+              </EmptyState>
+            )}
           </CollapsiblePanel>
+        </div>
 
+        <div className="side-stack version-adoption-side">
           {latestRow ? (
-            <CollapsiblePanel kicker="Release" title="Latest release" padding="tight">
+            <CollapsiblePanel title="Latest release" padding="tight">
               <KvList
                 items={[
                   { k: "Version", v: latestRow.label, tag: "accent" },
@@ -494,33 +515,71 @@ export function VersionsPage({ stats, theme, accentHue = 217 }: VersionsPageProp
               />
             </CollapsiblePanel>
           ) : null}
+          <details className="version-reporting-details">
+            <summary>Reporting &amp; data sources</summary>
+            <div className="version-reporting-body">
+              <h3>Discord RPC reporting</h3>
+              <p>
+                Reported rich-presence preference, not a measure of version adoption or online
+                activity.
+              </p>
+              <RadialGauge
+                ratio={
+                  stats.totals.rpcKnownUsers > 0
+                    ? stats.totals.rpcEnabledUsers / stats.totals.rpcKnownUsers
+                    : 0
+                }
+                title="Discord RPC on"
+                sub={`${formatNumber(stats.totals.rpcEnabledUsers)} of ${formatNumber(stats.totals.rpcKnownUsers)} reporting`}
+              />
+              <p>
+                Current counts use each customer's latest observed version, including legacy and
+                unknown buckets. All-time customer counts are distinct within each version and
+                cannot be added across versions.
+              </p>
+              <p>
+                Release metadata may be cached or unavailable; the reference version can fall back
+                to the configured default.
+              </p>
+            </div>
+          </details>
         </div>
       </div>
 
-      {/* Release table */}
-      <CollapsiblePanel
-        kicker="Releases"
-        title="Release history"
-        sub="Every known release · current vs. all-time adoption."
-        defaultOpen={false}
-        padding="flush"
-        right={<IconButton icon={<Download />} title="Download CSV" onClick={downloadCsv} />}
-      >
-        {versionRows.length > 0 ? (
-          <DataTable<VersionRow>
-            flush
-            mobileLayout="stack"
-            caption="Every known release with its current and all-time adoption"
-            columns={RELEASE_COLUMNS}
-            rows={versionRows}
-            rowKey={(row) => row.key}
-          />
-        ) : (
-          <EmptyState icon={<Package />} title="No releases">
-            GitHub releases and telemetry versions merge here once available.
-          </EmptyState>
-        )}
-      </CollapsiblePanel>
+      <div className="version-release-history">
+        <CollapsiblePanel
+          title="Release history"
+          sub="Available release metadata and telemetry buckets. In use describes the latest observed version, not online presence."
+          defaultOpen={true}
+          padding="flush"
+          right={
+            <Button
+              size="sm"
+              icon={<Download />}
+              permission="exports.read"
+              title="Download CSV"
+              onClick={downloadCsv}
+            >
+              Download CSV
+            </Button>
+          }
+        >
+          {versionRows.length > 0 ? (
+            <DataTable<VersionRow>
+              flush
+              mobileLayout="stack"
+              caption="Tracked versions with current and all-time adoption"
+              columns={RELEASE_COLUMNS}
+              rows={versionRows}
+              rowKey={(row) => row.key}
+            />
+          ) : (
+            <EmptyState icon={<Package />} title="No releases">
+              GitHub releases and telemetry versions merge here once available.
+            </EmptyState>
+          )}
+        </CollapsiblePanel>
+      </div>
     </div>
   );
 }

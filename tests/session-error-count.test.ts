@@ -27,6 +27,41 @@ const UNHANDLED = {
   error_code: "RR-E2001",
   exception_type: "System.InvalidOperationException",
 };
+/**
+ * The three report kinds a client from 1.5.3 sends (shared/telemetry-contract.ts). error_kind
+ * is "background" on all of them, which is what the ingest rule keys on — a rollup standing
+ * for 412 faults must count exactly like the one-row-per-fault shape did: not at all.
+ */
+const REPORT_KEYS = {
+  ...BACKGROUND,
+  top_frame: "RazorReaper.Components.Pages.Home.UpdateResources (Home.razor:1394)",
+  top_frames: "Home.UpdateResources (Home.razor:1394)",
+  leaf_exception_count: 1,
+  suppressed_aborted_io: 0,
+  fault_source: "unobserved_task",
+};
+const FIRST_SIGHTING = { ...REPORT_KEYS, report_kind: "first", occurrences: 3 };
+const ROLLUP = { ...REPORT_KEYS, report_kind: "rollup", occurrences: 412 };
+const RENDER_STOPPED = {
+  ...REPORT_KEYS,
+  report_kind: "rollup",
+  occurrences: 9,
+  fault_source: "render_dispatch",
+  exception_type: "System.NullReferenceException",
+  render_owner: "Server",
+  render_origin: "RefreshVisibleServers",
+  render_stopped: true,
+};
+const SUPPRESSED = {
+  ...REPORT_KEYS,
+  base_exception_type: null,
+  top_frame: null,
+  top_frames: null,
+  leaf_exception_count: 0,
+  report_kind: "suppressed",
+  occurrences: 17,
+  suppressed_aborted_io: 17,
+};
 
 let db: TelemetryTestDb;
 let api: RrApiApp;
@@ -144,6 +179,47 @@ describe("session error_count ignores background faults", () => {
 
     await storeTelemetry(db.env, event("e-3", "app_error", UNHANDLED));
     expect(sessionRow("s-fn")).toEqual({
+      error_count: 1,
+      last_status: "down",
+      last_event: "app_error",
+    });
+  });
+
+  it("counts no background report of any kind, and still counts the real error beside them", async () => {
+    await ingest(payload("session_start", "s-153", INSTALL_BG, HWID_BG, { app_version: "1.5.3" }));
+    for (const report of [FIRST_SIGHTING, ROLLUP, RENDER_STOPPED, SUPPRESSED, BACKGROUND]) {
+      await ingest(payload("app_error", "s-153", INSTALL_BG, HWID_BG, report));
+    }
+
+    expect(sessionRow("s-153")).toEqual({
+      error_count: 0,
+      last_status: "ok",
+      last_event: "session_start",
+    });
+    // Both shapes are stored as sent: the new keys, and a JSON null inside metrics, survive
+    // ingest — the Errors page sums `occurrences` from exactly these rows.
+    expect(
+      db.handle
+        .prepare(
+          `SELECT json_extract(metrics_json, '$.report_kind') AS kind,
+                  json_extract(metrics_json, '$.occurrences') AS occurrences,
+                  json_type(metrics_json, '$.top_frame') AS top_frame_type,
+                  json_type(metrics_json, '$.render_owner') AS render_owner_type
+           FROM telemetry_events
+           WHERE service = 'app_error' AND json_extract(metrics_json, '$.session_id') = 's-153'
+           ORDER BY id`,
+        )
+        .all(),
+    ).toEqual([
+      { kind: "first", occurrences: 3, top_frame_type: "text", render_owner_type: null },
+      { kind: "rollup", occurrences: 412, top_frame_type: "text", render_owner_type: null },
+      { kind: "rollup", occurrences: 9, top_frame_type: "text", render_owner_type: "text" },
+      { kind: "suppressed", occurrences: 17, top_frame_type: "null", render_owner_type: null },
+      { kind: null, occurrences: null, top_frame_type: null, render_owner_type: null },
+    ]);
+
+    await ingest(payload("app_error", "s-153", INSTALL_BG, HWID_BG, UNHANDLED));
+    expect(sessionRow("s-153")).toEqual({
       error_count: 1,
       last_status: "down",
       last_event: "app_error",

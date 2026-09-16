@@ -1,12 +1,19 @@
+import {
+  BACKGROUND_REPORT_KINDS,
+  SUPPRESSED_REPORT_KIND,
+  type BackgroundReportKind,
+} from "../../shared/telemetry-contract";
 import type { TelemetryEvent } from "../types/telemetry";
+import { formatNumber } from "./format";
 
 /** The telemetry service every client-side error arrives under. */
 export const APP_ERROR_SERVICE = "app_error";
 
 /**
- * `error_kind = 'background'` is the desktop client reporting an unobserved
- * background-task fault. It is noise from a known client bug, so the panel
- * lists it apart and never counts it as an error.
+ * `error_kind = 'background'` is the desktop client reporting a fault in a
+ * background task or a render update. It is noise from a known client bug, so
+ * the panel lists it apart and never counts it as an error. The kind is the same
+ * for every report_kind a client from 1.5.3 sends (first, rollup, suppressed).
  *
  * Every surface that decides "is this an error?" goes through this module. The
  * rule used to live in a copy per page and drifted, which is how the Overview
@@ -38,4 +45,66 @@ export function isOverviewErrorInWindow(
   cutoffMs: number,
 ): boolean {
   return Date.parse(event.timestamp) >= cutoffMs && !isBackgroundErrorKind(event.metrics.error_kind);
+}
+
+/* ── what a listed background row stands for ──────────────────
+   From client 1.5.3 one background row can stand for many faults (a first sighting, then
+   5-minute rollups) or for suppressed Discord-pipe I/O that is not an app fault at all
+   (shared/telemetry-contract.ts). The API attaches that as ErrorEventDetail.report; a row
+   from an older client, or from an older API build, has none and is one fault. */
+
+interface ListedReport {
+  kind: BackgroundReportKind | null;
+  occurrences: number;
+  suppressedAbortedIo: number;
+}
+
+function readListedReport(value: unknown): ListedReport | null {
+  if (typeof value !== "object" || value === null) return null;
+  const report = value as Record<string, unknown>;
+  const kind = typeof report.kind === "string" ? report.kind : null;
+  const count = (raw: unknown, floor: number) =>
+    typeof raw === "number" && Number.isFinite(raw) && raw >= floor ? raw : floor;
+  return {
+    kind:
+      kind !== null && BACKGROUND_REPORT_KINDS.has(kind) ? (kind as BackgroundReportKind) : null,
+    occurrences: count(report.occurrences, 1),
+    suppressedAbortedIo: count(report.suppressedAbortedIo, 0),
+  };
+}
+
+function faultCount(value: number): string {
+  return `${formatNumber(value)} ${value === 1 ? "fault" : "faults"}`;
+}
+
+/**
+ * One calm phrase for the line under a listed background row, saying what it stands for.
+ * null when it stands for one fault, which needs no explanation.
+ */
+export function describeBackgroundReport(report: unknown): string | null {
+  const listed = readListedReport(report);
+  if (!listed || listed.kind === null) return null;
+  if (listed.kind === SUPPRESSED_REPORT_KIND) {
+    return `${faultCount(listed.suppressedAbortedIo)} of aborted Discord-pipe I/O, suppressed by the client`;
+  }
+  return `${listed.kind === "first" ? "first sighting" : "5-minute rollup"}, ${faultCount(listed.occurrences)}`;
+}
+
+/**
+ * The background rows in a customer's error list: how many rows, and how many faults they
+ * stand for. A row without a report is one fault; a suppressed-I/O row is none.
+ */
+export function summarizeBackgroundRows(
+  rows: ReadonlyArray<{ kind?: string | null; report?: unknown }>,
+): { reports: number; faults: number } {
+  let reports = 0;
+  let faults = 0;
+  for (const row of rows) {
+    if (isRealErrorRow(row)) continue;
+    reports += 1;
+    const listed = readListedReport(row.report);
+    if (!listed) faults += 1;
+    else if (listed.kind !== SUPPRESSED_REPORT_KIND) faults += listed.occurrences;
+  }
+  return { reports, faults };
 }

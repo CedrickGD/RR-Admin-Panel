@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  BACKGROUND_REPORT_METRIC_KEYS,
   MAX_BODY_BYTES,
+  MAX_FAULTS_PER_REPORT,
   MAX_MESSAGE_LENGTH,
   MAX_METRICS_BYTES,
   MAX_METRICS_KEYS,
@@ -9,6 +11,7 @@ import {
   attachRequestContext,
   clampTimestamp,
   normalizePayload,
+  readBackgroundFaultReport,
   readBodyTextLimited,
   readRequestContext,
   sanitizeIdentifier,
@@ -16,6 +19,7 @@ import {
   type CanonicalPayload,
   type RequestContext,
 } from "../../shared/telemetry-contract";
+import backgroundFixture from "./fixtures/app-error-background-1.5.3.json";
 import canonicalFixture from "./fixtures/canonical-v2.json";
 import legacyFixture from "./fixtures/legacy-heartbeat.json";
 
@@ -518,5 +522,144 @@ describe("sanitizeIdentifier", () => {
 
   it("returns the fallback for an empty result", () => {
     expect(sanitizeIdentifier("   ", "fallback")).toBe("fallback");
+  });
+});
+
+/*
+ * app_error background faults, both row shapes (the contract section at the end of
+ * shared/telemetry-contract.ts). The fixture is a render_dispatch rollup with every key the
+ * client from 1.5.3 sends; the suppressed and pre-1.5.3 shapes are derived from it here.
+ */
+describe("background fault rows", () => {
+  const renderRollup = () => structuredClone(backgroundFixture) as CanonicalPayload;
+
+  /** A suppressed-I/O row: the frame keys arrive as JSON null, the render keys not at all. */
+  const suppressed = (): CanonicalPayload => {
+    const row = renderRollup();
+    const metrics = { ...row.metrics };
+    delete metrics.render_owner;
+    delete metrics.render_origin;
+    delete metrics.render_stopped;
+    return {
+      ...row,
+      message: undefined,
+      metrics: {
+        ...metrics,
+        exception_type: "System.AggregateException",
+        base_exception_type: null,
+        top_frame: null,
+        top_frames: null,
+        leaf_exception_count: 0,
+        occurrences: 17,
+        report_kind: "suppressed",
+        suppressed_aborted_io: 17,
+        fault_source: "unobserved_task",
+      },
+    };
+  };
+
+  /** A row from a client before 1.5.3: none of the report keys. */
+  const legacyBackground = (): CanonicalPayload => {
+    const row = renderRollup();
+    const metrics: Record<string, unknown> = {
+      ...row.metrics,
+      exception_type: "System.AggregateException",
+    };
+    for (const key of BACKGROUND_REPORT_METRIC_KEYS) delete metrics[key];
+    metrics.base_exception_type = "System.NullReferenceException";
+    metrics.app_version = "1.5.2.0";
+    metrics.display_version = "1.5.2";
+    return { ...row, metrics };
+  };
+
+  it.each([
+    ["a render_dispatch rollup", renderRollup],
+    ["a suppressed-I/O row with JSON nulls", suppressed],
+    ["a pre-1.5.3 row", legacyBackground],
+  ])("accepts %s and keeps its metrics exactly as sent", (_label, build) => {
+    const row = build();
+    const result = normalizePayload(JSON.parse(JSON.stringify(row)));
+
+    expect(result.valid).toBe(true);
+    if (!result.valid) return;
+    expect(validatePayload(result.payload)).toEqual({ valid: true });
+    // Same keys, same values, nulls included; an absent key stays absent.
+    expect(result.payload.metrics).toEqual(row.metrics);
+    expect(Object.keys(result.payload.metrics)).toEqual(Object.keys(row.metrics));
+  });
+
+  it("stays inside the ingest limits with every key a render row can carry", () => {
+    const row = renderRollup();
+    expect(Object.keys(row.metrics).length).toBeLessThan(MAX_METRICS_KEYS);
+    expect(validatePayload(row)).toEqual({ valid: true });
+  });
+
+  it("reads a render_dispatch rollup", () => {
+    expect(readBackgroundFaultReport(renderRollup().metrics)).toEqual({
+      kind: "rollup",
+      occurrences: 412,
+      faultSource: "render_dispatch",
+      topFrame: "RazorReaper.Components.Pages.Home.UpdateResources (Home.razor:1394)",
+      topFrames:
+        "Home.UpdateResources (Home.razor:1394) > Home.OnInitializedAsync (Home.razor:889)",
+      baseExceptionType: "System.NullReferenceException",
+      leafExceptionCount: 1,
+      suppressedAbortedIo: 17,
+      renderOwner: "Home",
+      renderOrigin: "UpdateResources",
+      renderStopped: true,
+    });
+  });
+
+  it("reads a suppressed-I/O row: its occurrences are the suppressed count, its frames null", () => {
+    expect(readBackgroundFaultReport(suppressed().metrics)).toEqual({
+      kind: "suppressed",
+      occurrences: 17,
+      faultSource: "unobserved_task",
+      topFrame: null,
+      topFrames: null,
+      baseExceptionType: null,
+      leafExceptionCount: 0,
+      suppressedAbortedIo: 17,
+      renderOwner: null,
+      renderOrigin: null,
+      renderStopped: false,
+    });
+  });
+
+  it("reads a pre-1.5.3 row as one unobserved-task fault", () => {
+    expect(readBackgroundFaultReport(legacyBackground().metrics)).toEqual({
+      kind: null,
+      occurrences: 1,
+      faultSource: "unobserved_task",
+      topFrame: null,
+      topFrames: null,
+      baseExceptionType: "System.NullReferenceException",
+      leafExceptionCount: null,
+      suppressedAbortedIo: 0,
+      renderOwner: null,
+      renderOrigin: null,
+      renderStopped: false,
+    });
+  });
+
+  it("holds the counters within their bounds and ignores a report kind it does not know", () => {
+    const report = readBackgroundFaultReport({
+      report_kind: "shutdown",
+      occurrences: MAX_FAULTS_PER_REPORT * 3,
+      suppressed_aborted_io: -4,
+      leaf_exception_count: "2",
+      render_stopped: "true",
+    });
+
+    expect(report.kind).toBeNull();
+    expect(report.occurrences).toBe(MAX_FAULTS_PER_REPORT);
+    expect(report.suppressedAbortedIo).toBe(0);
+    expect(report.leafExceptionCount).toBe(2);
+    // Only a JSON boolean counts as the breaker having tripped.
+    expect(report.renderStopped).toBe(false);
+    expect(readBackgroundFaultReport({ occurrences: 0 }).occurrences).toBe(1);
+    expect(readBackgroundFaultReport({ occurrences: "412" }).occurrences).toBe(412);
+    expect(readBackgroundFaultReport({ occurrences: 2.9 }).occurrences).toBe(2);
   });
 });

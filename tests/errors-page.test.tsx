@@ -32,9 +32,15 @@ const FAULTS: BackgroundFaultGroup[] = [
   {
     code: "RR-E1003",
     exceptionType: "System.NullReferenceException",
+    faultSource: "unobserved_task",
+    topFrame: "RazorReaper.Components.Pages.Home.UpdateResources (Home.razor:1394)",
+    topFrames: "Home.UpdateResources (Home.razor:1394) > Home.OnInitializedAsync (Home.razor:889)",
+    // 1,702 faults behind 23 client reports: first sightings plus 5-minute rollups.
     events: 1702,
+    reports: 23,
     installs: 9,
     sessions: 11,
+    stoppedSessions: 0,
     versions: ["1.5.2", "1.4.9", "1.4.8.11"],
     firstSeen: new Date(Date.now() - 23 * 3600e3).toISOString(),
     lastSeen: new Date(Date.now() - 60e3).toISOString(),
@@ -42,9 +48,14 @@ const FAULTS: BackgroundFaultGroup[] = [
   {
     code: "RR-E1003",
     exceptionType: "System.Net.Sockets.SocketException",
+    faultSource: "render_dispatch",
+    topFrame: "RazorReaper.Components.Pages.Server.RefreshVisibleServersAsync (Server.razor:496)",
+    topFrames: "RazorReaper.Components.Pages.Server.RefreshVisibleServersAsync (Server.razor:496)",
     events: 595,
+    reports: 595,
     installs: 5,
     sessions: 6,
+    stoppedSessions: 2,
     versions: ["1.5.2"],
     firstSeen: new Date(Date.now() - 22 * 3600e3).toISOString(),
     lastSeen: new Date(Date.now() - 600e3).toISOString(),
@@ -203,15 +214,19 @@ describe("ErrorsPage: Errors | Background faults", () => {
 
     expect(radio("Background faults").getAttribute("aria-checked")).toBe("true");
     expect(container.textContent).toContain(
-      "An unobserved background task in the desktop app throws repeatedly; it does not crash the app and is not counted as an error anywhere.",
+      "Faults in the desktop app's background tasks and render updates, reported once per distinct fault and rolled up every 5 minutes. They do not crash the app and are not counted as errors anywhere.",
     );
+    // The badge counts faults (SUM of occurrences), never rows.
+    expect(container.textContent).toContain("2,297 faults");
     const rows = container.querySelectorAll("tbody tr");
     expect(rows).toHaveLength(2);
     const firstRow = [...rows[0].querySelectorAll("td")];
     expect(firstRow.map((cell) => cell.getAttribute("data-label"))).toEqual([
       "Code",
       "Exception",
-      "Events",
+      "Top frame",
+      "Source",
+      "Faults",
       "Installs",
       "Sessions",
       "Versions",
@@ -220,8 +235,24 @@ describe("ErrorsPage: Errors | Background faults", () => {
     ]);
     expect(firstRow[0].textContent).toBe("RR-E1003");
     expect(firstRow[1].textContent).toBe("NullReferenceException");
-    expect(firstRow[2].textContent).toBe("1,702");
-    expect(firstRow[5].textContent).toBe("1.5.2, 1.4.9, 1.4.8.11");
+    // The frame without its namespace; the full chain stays in the title.
+    expect(firstRow[2].textContent).toBe("Home.UpdateResources (Home.razor:1394)");
+    expect(firstRow[2].querySelector("span")?.getAttribute("title")).toBe(
+      "Home.UpdateResources (Home.razor:1394) > Home.OnInitializedAsync (Home.razor:889)",
+    );
+    expect(firstRow[3].textContent).toBe("Task");
+    expect(firstRow[4].textContent).toBe("1,702");
+    expect(firstRow[4].querySelector("span")?.getAttribute("title")).toBe(
+      "23 reports from the client",
+    );
+    expect(firstRow[7].textContent).toBe("1.5.2, 1.4.9, 1.4.8.11");
+    // A render fault names its source, and says when the breaker stopped a component.
+    const secondRow = [...rows[1].querySelectorAll("td")];
+    expect(secondRow[2].textContent).toBe(
+      "Server.RefreshVisibleServersAsync (Server.razor:496)",
+    );
+    expect(secondRow[3].textContent).toBe("Render · stopped in 2 sessions");
+    expect(secondRow[4].querySelector("span")?.getAttribute("title")).toBeNull();
     // A segment is plain state: no navigation, no history entry, tiles unchanged.
     expect(location.href).toBe(href);
     expect(history.length).toBe(historyLength);
@@ -229,6 +260,37 @@ describe("ErrorsPage: Errors | Background faults", () => {
 
     await act(async () => radio("Errors").click());
     expect(container.textContent).toContain("No crashes reported in the last 24 hours");
+  });
+
+  it("mentions suppressed Discord-pipe I/O once, only on the fault segment, only when there is some", async () => {
+    await render(
+      payload({
+        totals: {
+          errors: 0,
+          backgroundErrors: 2297,
+          backgroundSuppressed: 1204,
+          affectedUsers: 0,
+          lastErrorAt: null,
+        },
+      }),
+    );
+    const note = () =>
+      [...container.querySelectorAll(".page-note")].find((el) =>
+        el.textContent?.includes("suppressed"),
+      );
+
+    expect(note()).toBeUndefined();
+    await act(async () => radio("Background faults").click());
+    expect(note()?.textContent).toBe(
+      "The client also suppressed 1,204 aborted-I/O faults on the Discord pipe before reporting; they are not faults in the app and are not listed.",
+    );
+    // Nothing of it reaches the tiles: it is not an error, and not a fault either.
+    expect(errorsTileText()).toMatch(/^0\s*Errors in range/);
+    expect(container.textContent).toContain("2,297 faults");
+
+    await render(payload());
+    await act(async () => radio("Background faults").click());
+    expect(note()).toBeUndefined();
   });
 
   it("says plainly when the API build does not report background faults yet", async () => {

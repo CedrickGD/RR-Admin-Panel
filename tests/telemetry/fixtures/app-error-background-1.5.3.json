@@ -1,0 +1,32 @@
+{
+  "source": "razorreaper-app",
+  "service": "app_error",
+  "timestamp": "2026-09-16T12:00:00.000Z",
+  "status": "down",
+  "metrics": {
+    "install_id": "6f1d2c9a-9b2e-4a5d-8d77-2f4e1c0a9b13",
+    "session_id": "0b7c4e1a-3d2f-4c8e-9a1b-5e6f7a8b9c0d",
+    "hwid": "A1B2C3D4E5F60718293A4B5C6D7E8F90A1B2C3D4E5F60718293A4B5C6D7E8F90",
+    "app_version": "1.5.3.0",
+    "display_version": "1.5.3",
+    "platform": "windows",
+    "os_version": "10.0.26200",
+    "device_model": "Desktop",
+    "telemetry_schema": 2,
+    "error_code": "RR-E1003",
+    "error_kind": "background",
+    "exception_type": "System.NullReferenceException",
+    "base_exception_type": "System.NullReferenceException",
+    "top_frame": "RazorReaper.Components.Pages.Home.UpdateResources (Home.razor:1394)",
+    "top_frames": "Home.UpdateResources (Home.razor:1394) > Home.OnInitializedAsync (Home.razor:889)",
+    "leaf_exception_count": 1,
+    "occurrences": 412,
+    "report_kind": "rollup",
+    "suppressed_aborted_io": 17,
+    "fault_source": "render_dispatch",
+    "render_owner": "Home",
+    "render_origin": "UpdateResources",
+    "render_stopped": true
+  },
+  "message": "Object reference not set to an instance of an object."
+}

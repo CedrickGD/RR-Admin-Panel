@@ -153,12 +153,15 @@ export function SystemStatusPage() {
   const backup = payload?.backup ?? null;
   // Without the success marker the backup figures come from the newest file alone: it was
   // written, whether it is intact is not known (shared/system-status.ts), and the line says so.
+  // The state leads and the archive's stamp follows without its constant ".sqlite.gz": the tile
+  // has one line, and at 1440px it held the file name but cut the state, which is the part that
+  // matters. The Services backup row prints the full file name either way.
   const backupLine = !backup
     ? "Backup folder not mounted"
     : backup.newestFile === null
       ? "No backup file yet"
       : backup.verified === false
-        ? `${backup.newestFile} · not verified`
+        ? `Not verified · ${backup.newestFile.replace(/\.sqlite\.gz$/, "")}`
         : backup.newestFile;
   const incidents = payload?.incidents ?? [];
   const incidentLine =

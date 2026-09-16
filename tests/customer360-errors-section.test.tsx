@@ -238,6 +238,25 @@ describe("Customer 360 Errors section", () => {
     expect(badges.filter((label) => label === "unhandled")).toHaveLength(1);
   });
 
+  it("gives the real error the error tone and background faults the muted one", async () => {
+    await openErrorsSection();
+    const badges = [...errorsCard().querySelectorAll("details.customer360-record summary .badge")];
+    const tone = (badge: Element) =>
+      badge.classList.contains("badge-danger")
+        ? "danger"
+        : badge.classList.contains("badge-muted")
+          ? "muted"
+          : [...badge.classList].join(" ");
+    const byLabel = (label: string) =>
+      badges.filter((badge) => badge.textContent?.trim() === label).map(tone);
+
+    // "unhandled" is what the client sends for a crash — a kind, not the word "error" — and it
+    // must read as one; the noise stays muted, like the caption above it says.
+    expect(byLabel("unhandled")).toEqual(["danger"]);
+    expect(byLabel("background")).toEqual(Array.from({ length: BACKGROUND_ROWS }, () => "muted"));
+    expect(badges).toHaveLength(BACKGROUND_ROWS + 1);
+  });
+
   it("says why the listed faults are not counted, before it lists them", async () => {
     await openErrorsSection();
     const card = errorsCard();

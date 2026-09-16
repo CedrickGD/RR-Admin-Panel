@@ -26,7 +26,7 @@ import type {
 import type { AppSessionRecord, ErrorEventDetail } from "../types/telemetry";
 import { fetchCustomer360 } from "../utils/api";
 import { getCustomer360Overview } from "../utils/customer360Overview";
-import { isRealErrorRow } from "../utils/errorEvents";
+import { isBackgroundErrorKind, isRealErrorRow } from "../utils/errorEvents";
 import { useRefreshSignal } from "../utils/refreshBus";
 import {
   formatDate,
@@ -105,6 +105,15 @@ function statusTone(value: unknown): BadgeProps["tone"] {
   if (["warning", "new", "open", "suspended", "unavailable", "degraded"].includes(status))
     return "warning";
   return "muted";
+}
+
+/**
+ * A real error stands out; a background fault stays as calm as the caption above the list.
+ * The shared predicate decides, so every kind the Errors page counts as real ("unhandled",
+ * "crash", ...) gets the error tone, not only the literal "error" statusTone knows.
+ */
+function errorKindTone(row: Customer360DatabaseRow): BadgeProps["tone"] {
+  return isBackgroundErrorKind(row.kind) ? "muted" : "danger";
 }
 
 function displayValue(value: unknown): string {
@@ -224,12 +233,15 @@ function RecordList({
   label,
   meta,
   badge,
+  badgeTone = statusTone,
 }: {
   rows: object[];
   empty: string;
   label: (row: Customer360DatabaseRow, index: number) => string;
   meta?: (row: Customer360DatabaseRow) => ReactNode;
   badge?: (row: Customer360DatabaseRow) => string | null;
+  /** Tone for the badge; defaults to reading the badge text as a status. */
+  badgeTone?: (row: Customer360DatabaseRow, badgeValue: string) => BadgeProps["tone"];
 }) {
   if (rows.length === 0) return <p className="customer360-empty">{empty}</p>;
   return (
@@ -244,7 +256,7 @@ function RecordList({
                 <strong>{label(row, index)}</strong>
                 {meta ? <small>{meta(row)}</small> : null}
               </span>
-              {badgeValue ? <Badge tone={statusTone(badgeValue)}>{badgeValue}</Badge> : null}
+              {badgeValue ? <Badge tone={badgeTone(row, badgeValue)}>{badgeValue}</Badge> : null}
             </summary>
             <RecordDetails record={raw} />
           </details>
@@ -283,6 +295,7 @@ function ErrorsSection({ errors }: { errors: ErrorEventDetail[] }) {
           `${displayValue(row.type ?? row.kind)} · ${row.timestamp ? formatDate(String(row.timestamp)) : "time unknown"}`
         }
         badge={(row) => String(row.kind ?? "error")}
+        badgeTone={errorKindTone}
       />
     </section>
   );

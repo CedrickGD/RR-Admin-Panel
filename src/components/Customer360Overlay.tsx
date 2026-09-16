@@ -1368,7 +1368,8 @@ export function Customer360View({
                 {accountProfile?.displayName ?? titleFor(customer, session, anchor)}
               </h1>
               <div className="customer360-heading-meta">
-                <span>Customer record</span>
+                {/* The one name the directory's card head and row action open it under. */}
+                <span>Customer 360</span>
                 {customer ? (
                   <Badge tone={customer.summary.is_active ? "success" : "muted"}>
                     {customer.summary.is_active ? "Online" : "Offline"}

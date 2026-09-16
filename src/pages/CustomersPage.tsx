@@ -661,7 +661,7 @@ export function CustomersPage({ users: sourceUsers }: CustomersPageProps) {
                                   .record-link as a span: same paint, no control inside a control. */}
                               <RecordOpen
                                 className="person-cell customer-directory-open"
-                                title="Open customer workspace"
+                                title="Open Customer 360"
                                 aria-label={`Open Customer 360 for ${displayName(user)}`}
                                 onClick={(event) => {
                                   // Safari does not focus a tapped button; the workspace hands
@@ -812,7 +812,7 @@ export function CustomersPage({ users: sourceUsers }: CustomersPageProps) {
                                   </span>
                                 </Button>
                                 <Button
-                                  title="Open customer workspace"
+                                  title="Open Customer 360"
                                   className="customer-directory-action"
                                   icon={<ScanSearch />}
                                   aria-label={`Open Customer 360 for ${displayName(user)}`}

@@ -400,6 +400,12 @@ describe("Traffic workspace", () => {
     expect(button("Trend estimate")).toBeUndefined();
     expect(container.textContent).toContain("Loaded events");
     expect(container.textContent).toContain("last 24 hours");
+    // A coverage note, not a warning: the neutral tone the other coverage notes use.
+    const coverageBadge = [...container.querySelectorAll(".badge")].find((badge) =>
+      badge.textContent?.includes("Loaded events"),
+    );
+    expect(coverageBadge?.classList.contains("badge-muted")).toBe(true);
+    expect(coverageBadge?.classList.contains("badge-warning")).toBe(false);
     expect(container.textContent).toMatch(/same (loaded )?events/i);
     expect(container.textContent).toMatch(
       /do not represent separate country audiences|not customer location/i,

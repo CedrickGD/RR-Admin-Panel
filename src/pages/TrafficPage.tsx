@@ -299,7 +299,8 @@ export function TrafficPage({ summary, stats, theme }: TrafficPageProps) {
                 : "The same recorded events, shown on four local clocks."}
             </p>
           </div>
-          <Badge tone={insightView === "daily" && stats ? "muted" : "warning"}>
+          {/* Coverage notes are muted; only the daily view's degraded fallback warns. */}
+          <Badge tone={insightView === "daily" && !stats ? "warning" : "muted"}>
             {insightView === "daily"
               ? stats
                 ? "Server aggregates"

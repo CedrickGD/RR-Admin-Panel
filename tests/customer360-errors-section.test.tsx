@@ -180,7 +180,12 @@ afterEach(async () => {
   resetHistoryLayers();
 });
 
-async function waitFor(check: () => boolean, what: string, timeout = 3000) {
+/*
+ * The first test in this file pays the cold start of the whole Customer 360 workspace (~0.8 s
+ * alone); under a full parallel run that stretches several-fold, so the budget is generous.
+ * It only bounds the wait — a card that never appears still fails on its assertion.
+ */
+async function waitFor(check: () => boolean, what: string, timeout = 10_000) {
   const end = Date.now() + timeout;
   while (!check()) {
     if (Date.now() > end) throw new Error(`timed out waiting for ${what}`);

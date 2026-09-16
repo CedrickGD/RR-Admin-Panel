@@ -1,4 +1,5 @@
-import { TableFrame } from "../components/ds/TableFrame";
+import "../theme/session-history-workspace.css";
+import { RecordLink, TableFrame } from "../components/ds/TableFrame";
 import { useWorkspaceSearch } from "../hooks/useWorkspaceSearch";
 import {
   CustomerAvatar,
@@ -17,15 +18,7 @@ import {
   Search,
   UsersRound,
 } from "lucide-react";
-import {
-  Fragment,
-  lazy,
-  Suspense,
-  useDeferredValue,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { Fragment, lazy, Suspense, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { PageToolbar } from "../components/ds/PageToolbar";
 import { versionLabel } from "../utils/versionLabel";
 import { SearchInput } from "../components/ds/SearchInput";
@@ -222,7 +215,7 @@ export function WorkersPage({
     }
   }
   return (
-    <div className="page-content monitor-workspace">
+    <div className="page-content monitor-workspace session-history-workspace">
       <PageHeader
         page="workers"
         right={
@@ -267,73 +260,85 @@ export function WorkersPage({
           loading={users === null}
         />
       </div>
-      {/* The one filter place on this page (handoff §2.3), directly above the
-          history it filters. Replaces the old scope row plus the separate
-          filter row and its "Clear filters" button. */}
-      <PageToolbar
-        aria-label="Session history filters"
-        canReset={filtered}
-        onReset={clear}
-        left={
-          <SegmentedControl
-            aria-label="Activity filter"
-            items={SCOPES}
-            value={scope}
-            onChange={setScope}
-          />
-        }
-        search={
-          <SearchInput
-            aria-label="Search session history"
-            value={query}
-            onChange={setQuery}
-            placeholder="Search session history by customer or PC…"
-          />
-        }
-        filters={
-          <>
-            <Select
-              aria-label="App version"
-              value={version ?? ""}
-              onValueChange={(value) => setVersion(value || null)}
-            >
-              <option value="">All versions</option>
-              {[...options.versions].sort(compareVersionsNewestFirst).map((value) => (
-                <option key={value} value={value}>
-                  {versionLabel(value)}
-                </option>
-              ))}
-            </Select>
-            <Select
-              aria-label="Country"
-              value={country ?? ""}
-              onValueChange={(value) => setCountry(value || null)}
-            >
-              <option value="">All countries</option>
-              {options.countries.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
-          </>
-        }
-      />
-      <section className="monitor-surface" aria-label="Customers and session history">
+      <section
+        className="monitor-surface session-history-surface"
+        aria-label="Customers and session history"
+      >
+        <PageToolbar
+          aria-label="Session history filters"
+          canReset={filtered}
+          onReset={clear}
+          left={
+            <SegmentedControl
+              aria-label="Activity filter"
+              items={SCOPES}
+              value={scope}
+              onChange={setScope}
+            />
+          }
+          search={
+            <SearchInput
+              aria-label="Search session history"
+              value={query}
+              onChange={setQuery}
+              placeholder="Search session history by customer or PC…"
+            />
+          }
+          filters={
+            <>
+              <Select
+                aria-label="App version"
+                value={version ?? ""}
+                onValueChange={(value) => setVersion(value || null)}
+              >
+                <option value="">All versions</option>
+                {[...options.versions].sort(compareVersionsNewestFirst).map((value) => (
+                  <option key={value} value={value}>
+                    {versionLabel(value)}
+                  </option>
+                ))}
+              </Select>
+              <Select
+                aria-label="Country"
+                value={country ?? ""}
+                onValueChange={(value) => setCountry(value || null)}
+              >
+                <option value="">All countries</option>
+                {options.countries.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            </>
+          }
+        />
+        <div className="session-history-list-meta">
+          <span aria-live="polite" aria-atomic="true">
+            {users === null
+              ? "Loading session history..."
+              : `${formatNumber(rows.length)} ${rows.length === 1 ? "customer" : "customers"}${filtered ? " matching filters" : " recorded"}`}
+          </span>
+          <span>Lifetime activity per customer</span>
+        </div>
         {error && (
           <p className="inline-notice danger" role="alert">
             {error}
           </p>
         )}
         {users !== null && rows.length === 0 ? (
-          <EmptyState
-            icon={<Search />}
-            title="No customers match"
-          >
-            Nothing matches the current search and filters.
+          <EmptyState icon={<Search />} title="No customers match">
+            {filtered
+              ? "Nothing matches the current search and filters."
+              : "No customer session history has been recorded yet."}
           </EmptyState>
         ) : (
-          <TableFrame stickyActions mobileLayout="stack" aria-busy={users === null || undefined}>
+          <TableFrame
+            className="session-history-table"
+            stickyActions
+            mobileLayout="stack"
+            aria-busy={users === null || undefined}
+          >
             <caption className="table-caption">
               Customers and their session history, sortable by column
             </caption>
@@ -356,21 +361,27 @@ export function WorkersPage({
                 const isExpanded = expanded === user.identity;
                 const session = latest.get((user.hwid?.trim() || user.identity).toLowerCase());
                 const label = nameOf(user);
+                const countryLabel = resolveCountry(user.country)?.label ?? user.country;
+                const timelineId = `session-history-${encodeURIComponent(user.identity)}`;
                 return (
                   <Fragment key={user.identity}>
-                    <tr className={isExpanded ? "is-expanded" : ""}>
-                      <td>
-                        <button
-                          className="person-cell"
+                    <tr
+                      className={`session-history-record${isExpanded ? " is-expanded" : ""}`}
+                      aria-label={`Session history for ${label}`}
+                    >
+                      <td className="session-history-customer">
+                        <RecordLink
+                          className="person-cell session-history-identity"
                           onClick={() => setExpanded(isExpanded ? null : user.identity)}
                           aria-expanded={isExpanded}
+                          aria-controls={isExpanded ? timelineId : undefined}
                           aria-label={`${isExpanded ? "Hide" : "Show"} session history for ${label}`}
                         >
                           <CustomerAvatar
                             profile={findProfile(session?.installId, user.hwid ?? user.identity)}
                             label={label}
                           />
-                          <span>
+                          <span className="session-history-identity-copy">
                             <strong title={label}>{label}</strong>
                             <small>
                               {user.discordUser
@@ -378,19 +389,24 @@ export function WorkersPage({
                                 : "No Discord linked"}
                             </small>
                           </span>
-                        </button>
+                        </RecordLink>
                       </td>
                       <td data-label="Status">
-                        <span className={`presence ${user.isActive ? "online" : "offline"}`}>
-                          <i />
-                          {user.isActive ? "Online" : "Offline"}
-                        </span>
+                        <div className="session-history-status">
+                          <span className={`presence ${user.isActive ? "online" : "offline"}`}>
+                            <i aria-hidden="true" />
+                            {user.isActive ? "Online" : "Offline"}
+                          </span>
+                          {user.errors > 0 && (
+                            <small className="row-error">
+                              {formatNumber(user.errors)} {user.errors === 1 ? "error" : "errors"}{" "}
+                              recorded
+                            </small>
+                          )}
+                        </div>
                       </td>
                       <td data-label="Version">
                         <span className="version-text">{versionOf(user)}</span>
-                        {user.rpcEnabled && (
-                          <Radio className="rpc-icon" size={13} aria-label="Discord RPC enabled" />
-                        )}
                       </td>
                       <td className="numeric" data-label="Sessions">
                         <strong className="table-number">{formatNumber(user.sessions)}</strong>
@@ -400,28 +416,21 @@ export function WorkersPage({
                       </td>
                       <td data-label="Last active">
                         <RelativeTime iso={user.lastSeen} />
-                        {user.errors > 0 && (
-                          <small className="row-error">
-                            {formatNumber(user.errors)} errors recorded
-                          </small>
-                        )}
                       </td>
                       <td data-label="Location">
                         <span
-                          className="cell-location"
-                          title={[user.city, resolveCountry(user.country)?.label ?? user.country]
-                            .filter(Boolean)
-                            .join(", ")}
+                          className="cell-location session-history-location"
+                          title={[user.city, countryLabel].filter(Boolean).join(", ")}
                         >
-                          {[user.city, resolveCountry(user.country)?.label ?? user.country]
-                            .filter(Boolean)
-                            .join(", ") || "Unknown"}
+                          <span>{countryLabel || user.city || "Unknown"}</span>
+                          {countryLabel && user.city && <small>{user.city}</small>}
                         </span>
                       </td>
-                      <td>
+                      <td className="session-history-row-actions">
                         <IconButton
                           icon={isExpanded ? <ChevronUp /> : <ChevronDown />}
                           aria-expanded={isExpanded}
+                          aria-controls={isExpanded ? timelineId : undefined}
                           aria-label={`${isExpanded ? "Hide" : "Show"} session history for ${label}`}
                           onClick={() => setExpanded(isExpanded ? null : user.identity)}
                         />
@@ -429,67 +438,91 @@ export function WorkersPage({
                     </tr>
                     {isExpanded && (
                       <tr className="history-expanded">
-                        <td colSpan={8}>
-                          <div className="history-detail-head">
-                            <div>
-                              <History />
-                              <strong>{label} · session timeline</strong>
-                            </div>
-                            <div className="row-actions">
-                              {resolveCountry(user.country) && (
+                        <td colSpan={HISTORY_COLUMNS}>
+                          <section
+                            className="session-history-timeline"
+                            id={timelineId}
+                            aria-label={`Session timeline for ${label}`}
+                          >
+                            <div className="history-detail-head">
+                              <div>
+                                <History />
+                                <strong>{label} · session timeline</strong>
+                              </div>
+                              <div className="row-actions">
+                                {resolveCountry(user.country) && (
+                                  <Button
+                                    size="sm"
+                                    icon={<Globe2 />}
+                                    onClick={() =>
+                                      session
+                                        ? onOpenMapSession(session.id)
+                                        : onOpenMapUser(user.identity)
+                                    }
+                                  >
+                                    Map
+                                  </Button>
+                                )}
                                 <Button
+                                  permission="customers.read"
                                   size="sm"
-                                  icon={<Globe2 />}
+                                  variant="accent"
+                                  icon={<ArrowUpRight />}
                                   onClick={() =>
-                                    session
-                                      ? onOpenMapSession(session.id)
-                                      : onOpenMapUser(user.identity)
+                                    openCustomerWorkspace({
+                                      selector: user.hwid ? "hwid" : "install_id",
+                                      value: user.hwid || session?.installId || user.identity,
+                                    })
                                   }
                                 >
-                                  Map
+                                  Customer workspace
                                 </Button>
-                              )}
-                              <Button
-                                permission="customers.read"
-                                size="sm"
-                                variant="accent"
-                                icon={<ArrowUpRight />}
-                                onClick={() =>
-                                  openCustomerWorkspace({
-                                    selector: user.hwid ? "hwid" : "install_id",
-                                    value: user.hwid || session?.installId || user.identity,
-                                  })
-                                }
-                              >
-                                Customer workspace
-                              </Button>
-                            </div>
-                          </div>
-                          <Suspense
-                            fallback={
-                              <div className="monitor-loading">Loading session timeline…</div>
-                            }
-                          >
-                            <UserActivityPanel identity={user.identity} />
-                          </Suspense>
-                          <details className="history-device-details">
-                            <summary>Device & installation details</summary>
-                            <div className="detail-facts">
-                              <div>
-                                <span>Device</span>
-                                <strong>{user.deviceModel || user.platform || "Unknown"}</strong>
-                              </div>
-                              <div>
-                                <span>First seen</span>
-                                <strong>{formatDate(user.firstSeen)}</strong>
-                              </div>
-                              <div>
-                                <span>Hardware ID</span>
-                                <code>{user.hwid || "Not reported"}</code>
                               </div>
                             </div>
-                            <InstallsPanel hwid={user.hwid} />
-                          </details>
+                            <Suspense
+                              fallback={
+                                <div className="monitor-loading">Loading session timeline…</div>
+                              }
+                            >
+                              <UserActivityPanel identity={user.identity} />
+                            </Suspense>
+                            <details className="history-device-details">
+                              <summary>Device & installation details</summary>
+                              <div className="detail-facts">
+                                <div>
+                                  <span>Device</span>
+                                  <strong>{user.deviceModel || user.platform || "Unknown"}</strong>
+                                </div>
+                                <div>
+                                  <span>First seen</span>
+                                  <strong>{formatDate(user.firstSeen)}</strong>
+                                </div>
+                                <div>
+                                  <span>Hardware ID</span>
+                                  <code>{user.hwid || "Not reported"}</code>
+                                </div>
+                                <div>
+                                  <span>Version</span>
+                                  <strong>{versionOf(user)}</strong>
+                                </div>
+                                <div>
+                                  <span>Discord RPC</span>
+                                  <strong>
+                                    {user.rpcEnabled === true
+                                      ? "Enabled"
+                                      : user.rpcEnabled === false
+                                        ? "Disabled"
+                                        : "Not reported"}
+                                  </strong>
+                                </div>
+                                <div>
+                                  <span>Identity</span>
+                                  <code>{user.identity}</code>
+                                </div>
+                              </div>
+                              <InstallsPanel hwid={user.hwid} />
+                            </details>
+                          </section>
                         </td>
                       </tr>
                     )}

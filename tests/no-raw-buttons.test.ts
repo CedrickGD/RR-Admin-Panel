@@ -22,24 +22,9 @@ const ALLOWED: Array<{ file: string; count: number; why: string }> = [
     why: "two whole-row disclosures (.person-cell, .error-group-row) plus one hand-written .btn-ghost",
   },
   {
-    file: "src/pages/LivePage.tsx",
-    count: 1,
-    why: "the .person-cell row disclosure: avatar, name and state in one control",
-  },
-  {
-    file: "src/pages/OverviewPage.tsx",
-    count: 1,
-    why: ".feed-dismiss on a feed item — an IconButton once the feed styles allow it",
-  },
-  {
     file: "src/pages/SettingsPage.tsx",
     count: 3,
     why: "appearance swatches (theme, accent hue, background) — pickers, not buttons",
-  },
-  {
-    file: "src/pages/WorkersPage.tsx",
-    count: 1,
-    why: "the .person-cell row disclosure: avatar, name and state in one control",
   },
   {
     file: "src/components/Customer360Overlay.tsx",

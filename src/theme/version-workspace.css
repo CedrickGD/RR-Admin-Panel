@@ -1,0 +1,277 @@
+/* Versions uses the existing transparent workspace and semantic status tokens. */
+html[data-theme] .version-workspace {
+  min-width: 0;
+}
+html[data-theme] .version-workspace :is(.panel, .page-toolbar),
+html[data-theme] .version-workspace .version-reporting-details {
+  background: var(--workspace-surface);
+  border-color: var(--line);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+html[data-theme] .version-workspace .panel-head {
+  align-items: flex-start;
+  gap: 12px;
+}
+html[data-theme] .version-workspace .section-title {
+  font-size: 15px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+html[data-theme] .version-workspace .section-sub {
+  max-width: 72ch;
+  color: var(--text-3);
+  font-size: var(--fs-small);
+  line-height: 1.5;
+}
+html[data-theme] .version-workspace .version-adoption-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 330px);
+  align-items: start;
+  gap: 18px;
+}
+.version-adoption-main,
+.version-adoption-side {
+  min-width: 0;
+}
+.version-adoption-side {
+  gap: 16px;
+}
+html[data-theme] .version-workspace .rank-row {
+  display: grid;
+  grid-template-columns: minmax(110px, 170px) minmax(70px, 1fr) 58px;
+  align-items: center;
+  gap: 12px;
+  min-height: 40px;
+  padding: 8px 0;
+}
+html[data-theme] .version-workspace .rank-label {
+  max-width: none;
+  color: var(--text-1);
+  font-size: var(--fs-small);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+html[data-theme] .version-workspace .rank-value {
+  color: var(--text-1);
+  font-size: var(--fs-small);
+  font-variant-numeric: tabular-nums;
+}
+html[data-theme] .version-workspace .rank-track {
+  height: 5px;
+  background: var(--line-row);
+}
+.version-chart-note {
+  margin: 16px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-row);
+  color: var(--text-3);
+  font-size: var(--fs-small);
+  line-height: 1.5;
+}
+.version-reporting-details {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.version-reporting-details > summary {
+  padding: 13px 16px;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  line-height: 1.5;
+  cursor: pointer;
+}
+.version-reporting-body {
+  display: grid;
+  gap: 12px;
+  padding: 0 16px 16px;
+}
+.version-reporting-body h3 {
+  margin: 0;
+  color: var(--text-1);
+  font-size: var(--fs-body);
+  font-weight: 600;
+}
+.version-reporting-body p {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--fs-small);
+  line-height: 1.6;
+}
+html[data-theme] .version-workspace .version-reporting-body .gauge-sub {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-size: var(--fs-small);
+}
+html[data-theme] .version-workspace summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -3px;
+  border-radius: 8px;
+}
+html[data-theme] .version-workspace .version-release-history .record-table > tbody > tr > td {
+  padding: 12px;
+  font-size: var(--fs-small);
+  line-height: 1.5;
+}
+.version-observation-details {
+  display: none;
+}
+@media (max-width: 1100px) {
+  html[data-theme] .version-workspace .version-adoption-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  html[data-theme] .version-workspace .version-adoption-side {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 16px;
+  }
+}
+@media (max-width: 900px) {
+  html[data-theme] .version-workspace .ds-seg {
+    height: auto;
+    min-height: 44px;
+  }
+  html[data-theme]
+    .version-workspace
+    :is(.ds-seg-btn, .gdrop-trigger, .btn, .btn-icon, button[aria-expanded]) {
+    min-height: 44px;
+  }
+  html[data-theme] .version-workspace .ds-seg-btn {
+    height: auto;
+    font-size: var(--fs-small);
+  }
+  html[data-theme] .version-workspace .btn-icon {
+    min-width: 44px;
+  }
+  .version-workspace :is(.version-reporting-details, .version-observation-details) > summary {
+    min-height: 44px;
+  }
+  html[data-theme] .version-workspace .version-release-history .record-table > tbody {
+    display: grid;
+    gap: 12px;
+    padding: 12px;
+  }
+  html[data-theme] .version-workspace .version-release-history .record-table > tbody > tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 14px;
+    margin: 0;
+    padding: 14px;
+    background: transparent;
+    border-color: var(--line);
+    border-radius: 12px;
+  }
+  html[data-theme] .version-workspace .version-release-history .record-table > tbody > tr > td {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+    min-width: 0;
+    width: auto;
+    padding: 0;
+    order: 2;
+    text-align: left;
+    background: transparent;
+    border: 0;
+  }
+  html[data-theme]
+    .version-workspace
+    .version-release-history
+    .record-table
+    > tbody
+    > tr
+    > td:first-child {
+    grid-column: 1 / -1;
+    order: 0;
+    margin: 0;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--line-row);
+  }
+  html[data-theme]
+    .version-workspace
+    .version-release-history
+    .record-table
+    > tbody
+    > tr
+    > :is([data-label="First seen"], [data-label="Last seen"]) {
+    display: none;
+  }
+  html[data-theme]
+    .version-workspace
+    .version-release-history
+    .data-table-wrap
+    .record-table
+    > tbody
+    > tr
+    > td:last-child {
+    grid-column: 1 / -1;
+    order: 1;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-width: 0;
+    width: auto;
+    margin: 0;
+    padding: 0;
+    position: static;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  html[data-theme]
+    .version-workspace
+    .version-release-history
+    .record-table
+    > tbody
+    > tr
+    > td:last-child::before {
+    content: none;
+  }
+  .version-workspace .version-observation-details {
+    display: block;
+    min-width: 0;
+  }
+  .version-observation-details[open] {
+    flex-basis: 100%;
+  }
+  .version-observation-details > summary {
+    padding: 11px 0;
+    color: var(--text-2);
+    font-size: var(--fs-small);
+    cursor: pointer;
+  }
+  .version-observation-details dl {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin: 0;
+    padding: 8px 0;
+  }
+  .version-observation-details dt {
+    color: var(--text-3);
+    font-size: var(--fs-small);
+  }
+  .version-observation-details dd {
+    margin: 3px 0 0;
+    color: var(--text-1);
+    font-size: var(--fs-small);
+    overflow-wrap: anywhere;
+  }
+}
+@media (max-width: 600px) {
+  html[data-theme] .version-workspace .version-adoption-side {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  html[data-theme] .version-workspace .rank-row {
+    grid-template-columns: minmax(84px, 125px) minmax(30px, 1fr) max-content;
+    gap: 9px;
+  }
+  html[data-theme] .version-workspace .panel-head {
+    flex-wrap: wrap;
+  }
+}

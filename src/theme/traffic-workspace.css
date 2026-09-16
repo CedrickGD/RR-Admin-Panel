@@ -1,0 +1,195 @@
+/* Traffic keeps the shared transparent monitoring surfaces and existing KPI spec. */
+.traffic-workspace {
+  min-width: 0;
+}
+html[data-theme] .traffic-workspace .panel,
+html[data-theme] .traffic-workspace .timezone-card {
+  background: transparent;
+  box-shadow: none;
+  min-width: 0;
+}
+.traffic-insights > .panel-head {
+  align-items: center;
+  gap: 16px;
+}
+.traffic-insights > .panel-head > .badge {
+  flex: none;
+}
+.traffic-insights > .page-toolbar {
+  margin: 0;
+  border-inline: 0;
+  border-radius: 0;
+  padding: 16px 22px;
+}
+.traffic-chart-context {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px 24px;
+  padding: 4px 22px 16px;
+}
+.traffic-chart-context .meta-row {
+  flex-wrap: wrap;
+  gap: 12px 24px;
+}
+.traffic-coverage-note {
+  margin: 0;
+  padding: 0 22px 16px;
+  color: var(--text-3);
+  font-size: var(--fs-small);
+  line-height: 1.6;
+}
+.traffic-plot-body {
+  min-width: 0;
+  padding: 0 22px 20px;
+}
+.traffic-data-details {
+  min-width: 0;
+  border-top: 1px solid var(--line-row);
+}
+.traffic-data-details > summary,
+.traffic-method > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 52px;
+  padding: 12px 22px;
+  font-size: var(--fs-small);
+  color: var(--text-2);
+  cursor: pointer;
+  list-style: none;
+}
+.traffic-workspace summary::-webkit-details-marker {
+  display: none;
+}
+.traffic-workspace summary svg {
+  flex: none;
+}
+.traffic-workspace details[open] > summary svg {
+  transform: rotate(180deg);
+}
+.traffic-workspace summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -4px;
+  border-radius: var(--r-sm);
+}
+.traffic-detail-note {
+  margin: 0;
+  padding: 0 22px 16px;
+  color: var(--text-3);
+  font-size: var(--fs-small);
+  line-height: 1.6;
+}
+.traffic-data-details .table-scroll {
+  max-height: 380px;
+}
+.traffic-method-body {
+  padding: 0 22px 20px;
+}
+.traffic-method-body dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px 32px;
+  margin: 0;
+}
+.traffic-method-body dl > div {
+  min-width: 0;
+}
+.traffic-method-body dt {
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  font-weight: 600;
+}
+.traffic-method-body dd {
+  margin: 6px 0 0;
+  color: var(--text-3);
+  font-size: var(--fs-small);
+  line-height: 1.7;
+}
+.traffic-timezones {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  padding: 0 22px 22px;
+}
+.traffic-timezones .timezone-card {
+  min-width: 0;
+  border: 1px solid var(--line-row);
+  border-radius: var(--r-sm);
+}
+.traffic-timezones .timezone-card-top {
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.traffic-timezones .timezone-card-shell {
+  min-width: 0;
+}
+@media (max-width: 800px) {
+  .traffic-insights > .panel-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .traffic-insights > .page-toolbar {
+    padding: 12px 16px;
+    gap: 12px;
+  }
+  .traffic-workspace .page-toolbar-left {
+    min-width: 0;
+    width: 100%;
+  }
+  html[data-theme] .traffic-workspace .ds-seg {
+    display: flex;
+    flex-wrap: wrap;
+    height: auto;
+    min-height: 44px;
+    width: 100%;
+  }
+  .traffic-workspace .ds-seg-btn {
+    min-height: 44px;
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+  .traffic-workspace .btn,
+  .traffic-workspace .btn-icon,
+  .traffic-workspace .gdrop-trigger {
+    min-height: 44px;
+  }
+  .traffic-workspace .page-toolbar-filters {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  .traffic-workspace .page-toolbar-filters > .gdrop {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .traffic-chart-context {
+    align-items: flex-start;
+    padding: 8px 16px 16px;
+  }
+  .traffic-chart-context .meta-row {
+    justify-content: flex-start;
+  }
+  .traffic-coverage-note,
+  .traffic-detail-note {
+    padding-inline: 16px;
+  }
+  .traffic-plot-body {
+    padding: 0 8px 16px;
+  }
+  .traffic-timezones {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 0 16px 16px;
+  }
+  .traffic-data-details > summary,
+  .traffic-method > summary {
+    padding-inline: 16px;
+  }
+  .traffic-method-body {
+    padding-inline: 16px;
+  }
+  .traffic-method-body dl {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

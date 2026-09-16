@@ -1,3 +1,8 @@
+import {
+  MAX_FAULTS_PER_REPORT,
+  SUPPRESSED_REPORT_KIND,
+  UNOBSERVED_TASK_SOURCE,
+} from "../../shared/telemetry-contract";
 import { nowIso } from "./http";
 import { ensureTelemetrySchema } from "./storage";
 import type {
@@ -31,6 +36,8 @@ const MAX_REAL_EVENTS_PER_USER = 100;
 const MAX_BACKGROUND_FAULT_GROUPS = 50;
 const MAX_VERSIONS_PER_FAULT = 12;
 const MAX_FAULT_TEXT_LENGTH = 160;
+// A frame chain is up to three "Type.Member (File.razor:line)" frames joined with " > ".
+const MAX_FRAME_TEXT_LENGTH = 300;
 const MAX_EXTRA_KEYS = 16;
 const MAX_EXTRA_VALUE_LENGTH = 300;
 const UNATTRIBUTED_IDENTITY = "unattributed";
@@ -111,14 +118,23 @@ interface ErrorEventRow {
 interface BackgroundFaultRow {
   code: string | null;
   exception_type: string | null;
-  events: number | string;
+  fault_source: string;
+  top_frame: string | null;
+  top_frames: string | null;
+  faults: number | string;
+  reports: number | string;
   installs: number | string;
   sessions: number | string;
+  stopped_sessions: number | string;
   versions: string | null;
   first_seen: string;
   last_seen: string;
-  total_events: number | string;
+  total_faults: number | string;
   total_groups: number | string;
+}
+
+interface BackgroundSuppressedRow {
+  suppressed: number | string | null;
 }
 
 interface EnrichSessionRow {
@@ -160,67 +176,125 @@ interface WorkingGroup {
 const metricTextSql = (key: string) =>
   `NULLIF(TRIM(CAST(json_extract(metrics_json, '$.${key}') AS TEXT)), '')`;
 
+// A client-supplied counter, bounded like the reader in shared/telemetry-contract.ts: missing
+// or unreadable → floor, otherwise held within [floor, MAX_FAULTS_PER_REPORT].
+const metricCountSql = (key: string, floor: number) =>
+  `MIN(MAX(COALESCE(CAST(json_extract(metrics_json, '$.${key}') AS INTEGER), ${floor}), ${floor}), ${MAX_FAULTS_PER_REPORT})`;
+
 /**
- * Background faults in range, one row per error code + base exception type.
+ * Background faults in range, one row per error code + base exception type + fault source +
+ * top frame.
  *
- * error_kind = 'background' is the desktop client reporting an unobserved task
- * exception (production: RR-E1003, an AggregateException wrapping the real
- * exception in `base_exception_type`). It loops hundreds of times per session,
- * so rows would be noise: the panel gets the aggregate — events, distinct
- * installs (hwid, else install_id — the session rollup's identity), distinct
- * sessions, versions, first/last seen. The cutoff is computed in JS and bound
- * (ts is ISO text with T and Z; SQLite's own clock functions format differently).
- * The window totals are taken before LIMIT, so they cover every group.
+ * error_kind = 'background' is the desktop client reporting a fault in a background task or a
+ * render update (production: RR-E1003). Before client 1.5.3 every fault was one row, looping
+ * hundreds of times per session. From 1.5.3 one row stands for many: `occurrences` is the
+ * count (shared/telemetry-contract.ts), `report_kind` says whether the row is a first sighting,
+ * a 5-minute rollup, or suppressed Discord-pipe I/O — which is not an app fault and is summed
+ * apart, never into a group. Rows without `occurrences` count as one, so the series is
+ * continuous across the client change; `fault_source` missing reads as unobserved_task for the
+ * same reason. The panel gets the aggregate — faults, rows behind them, distinct installs (hwid,
+ * else install_id — the session rollup's identity), distinct sessions, sessions whose component
+ * stopped rendering, versions, first/last seen, and the newest row's frame chain. The cutoff is
+ * computed in JS and bound (ts is ISO text with T and Z; SQLite's own clock functions format
+ * differently). The window totals are taken before LIMIT, so they cover every group.
  */
 async function loadBackgroundFaults(
   db: NonNullable<RuntimeEnv["DB"]>,
   cutoffIso: string | null,
   futureBoundIso: string,
-): Promise<{ groups: BackgroundFaultGroup[]; totalEvents: number; totalGroups: number }> {
-  const rows = await db
-    .prepare(
-      `WITH faults AS (
-         SELECT ts,
-           ${metricTextSql("error_code")} AS code,
-           COALESCE(${metricTextSql("base_exception_type")}, ${metricTextSql("exception_type")}) AS exception_type,
-           COALESCE(${metricTextSql("hwid")}, ${metricTextSql("install_id")}) AS install_key,
-           ${metricTextSql("session_id")} AS session_id,
-           ${metricTextSql("app_version")} AS app_version
+): Promise<{
+  groups: BackgroundFaultGroup[];
+  totalFaults: number;
+  totalGroups: number;
+  suppressed: number;
+}> {
+  const inRange = `service = ? AND ts >= ? AND ts <= ?
+           AND json_extract(metrics_json, '$.error_kind') = ?`;
+  const inRangeBindings = [APP_ERROR, cutoffIso ?? "", futureBoundIso, BACKGROUND_KIND];
+
+  const [rows, suppressedRow] = await Promise.all([
+    db
+      .prepare(
+        `WITH faults AS (
+           SELECT id, ts,
+             ${metricTextSql("error_code")} AS code,
+             COALESCE(${metricTextSql("base_exception_type")}, ${metricTextSql("exception_type")}) AS exception_type,
+             COALESCE(${metricTextSql("fault_source")}, ?) AS fault_source,
+             ${metricTextSql("top_frame")} AS top_frame,
+             ${metricTextSql("top_frames")} AS top_frames,
+             ${metricTextSql("report_kind")} AS report_kind,
+             ${metricCountSql("occurrences", 1)} AS occurrences,
+             CASE WHEN json_extract(metrics_json, '$.render_stopped') = 1 THEN 1 ELSE 0 END AS render_stopped,
+             COALESCE(${metricTextSql("hwid")}, ${metricTextSql("install_id")}) AS install_key,
+             ${metricTextSql("session_id")} AS session_id,
+             ${metricTextSql("app_version")} AS app_version
+           FROM telemetry_events
+           WHERE ${inRange}
+         ),
+         reports AS (
+           SELECT *,
+             ROW_NUMBER() OVER (
+               PARTITION BY code, exception_type, fault_source, top_frame ORDER BY ts DESC, id DESC
+             ) AS recency
+           FROM faults
+           WHERE COALESCE(report_kind, '') != ?
+         )
+         SELECT code, exception_type, fault_source, top_frame,
+           MAX(CASE WHEN recency = 1 THEN top_frames END) AS top_frames,
+           SUM(occurrences) AS faults,
+           COUNT(*) AS reports,
+           COUNT(DISTINCT install_key) AS installs,
+           COUNT(DISTINCT session_id) AS sessions,
+           COUNT(DISTINCT CASE WHEN render_stopped = 1 THEN session_id END) AS stopped_sessions,
+           GROUP_CONCAT(DISTINCT app_version) AS versions,
+           MIN(ts) AS first_seen,
+           MAX(ts) AS last_seen,
+           SUM(SUM(occurrences)) OVER () AS total_faults,
+           COUNT(*) OVER () AS total_groups
+         FROM reports
+         GROUP BY code, exception_type, fault_source, top_frame
+         ORDER BY faults DESC, last_seen DESC
+         LIMIT ?`,
+      )
+      .bind(
+        UNOBSERVED_TASK_SOURCE,
+        ...inRangeBindings,
+        SUPPRESSED_REPORT_KIND,
+        MAX_BACKGROUND_FAULT_GROUPS,
+      )
+      .all<BackgroundFaultRow>(),
+    // The suppressed count rides on one row per client flush — a first/rollup row when there is
+    // one, else a row of its own — so it is summed over every row, groups or not.
+    db
+      .prepare(
+        `SELECT SUM(${metricCountSql("suppressed_aborted_io", 0)}) AS suppressed
          FROM telemetry_events
-         WHERE service = ? AND ts >= ? AND ts <= ?
-           AND json_extract(metrics_json, '$.error_kind') = ?
-       )
-       SELECT code, exception_type,
-         COUNT(*) AS events,
-         COUNT(DISTINCT install_key) AS installs,
-         COUNT(DISTINCT session_id) AS sessions,
-         GROUP_CONCAT(DISTINCT app_version) AS versions,
-         MIN(ts) AS first_seen,
-         MAX(ts) AS last_seen,
-         SUM(COUNT(*)) OVER () AS total_events,
-         COUNT(*) OVER () AS total_groups
-       FROM faults
-       GROUP BY code, exception_type
-       ORDER BY events DESC, last_seen DESC
-       LIMIT ?`,
-    )
-    .bind(APP_ERROR, cutoffIso ?? "", futureBoundIso, BACKGROUND_KIND, MAX_BACKGROUND_FAULT_GROUPS)
-    .all<BackgroundFaultRow>();
+         WHERE ${inRange}`,
+      )
+      .bind(...inRangeBindings)
+      .first<BackgroundSuppressedRow>(),
+  ]);
 
   const first = rows.results[0];
   return {
     groups: rows.results.map((row) => ({
       code: clampText(row.code),
       exceptionType: clampText(row.exception_type),
-      events: toNumber(row.events),
+      faultSource: clampText(row.fault_source) ?? UNOBSERVED_TASK_SOURCE,
+      topFrame: clampText(row.top_frame, MAX_FRAME_TEXT_LENGTH),
+      topFrames: clampText(row.top_frames, MAX_FRAME_TEXT_LENGTH),
+      events: toNumber(row.faults),
+      reports: toNumber(row.reports),
       installs: toNumber(row.installs),
       sessions: toNumber(row.sessions),
+      stoppedSessions: toNumber(row.stopped_sessions),
       versions: splitVersions(row.versions),
       firstSeen: row.first_seen,
       lastSeen: row.last_seen,
     })),
-    totalEvents: first ? toNumber(first.total_events) : 0,
+    totalFaults: first ? toNumber(first.total_faults) : 0,
     totalGroups: first ? toNumber(first.total_groups) : 0,
+    suppressed: toNumber(suppressedRow?.suppressed ?? 0),
   };
 }
 
@@ -429,7 +503,8 @@ export async function loadErrorsByUser(
     usersTruncated,
     totals: {
       errors: totalErrors,
-      backgroundErrors: background.totalEvents,
+      backgroundErrors: background.totalFaults,
+      backgroundSuppressed: background.suppressed,
       affectedUsers: allUsers.length,
       lastErrorAt,
     },
@@ -439,7 +514,7 @@ export async function loadErrorsByUser(
   };
 }
 
-function clampText(value: string | null): string | null {
+function clampText(value: string | null, maxLength = MAX_FAULT_TEXT_LENGTH): string | null {
   if (value === null || value === undefined) {
     return null;
   }
@@ -447,7 +522,7 @@ function clampText(value: string | null): string | null {
   if (!text) {
     return null;
   }
-  return text.length > MAX_FAULT_TEXT_LENGTH ? `${text.slice(0, MAX_FAULT_TEXT_LENGTH)}…` : text;
+  return text.length > maxLength ? `${text.slice(0, maxLength)}…` : text;
 }
 
 /** GROUP_CONCAT(DISTINCT …) list → unique versions, newest first, capped. */

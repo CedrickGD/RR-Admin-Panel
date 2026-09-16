@@ -49,8 +49,10 @@ type SortDir = "asc" | "desc";
 type PageState = "loading" | "error" | "empty" | "data";
 /**
  * The page's one scope switch: real errors, or the background faults kept apart from them.
- * Background faults are the desktop client reporting an unobserved task exception in a loop
- * (RR-E1003); they never crash the app and are not counted as errors anywhere in the panel.
+ * Background faults are the desktop client reporting a fault in a background task or a render
+ * update (RR-E1003); they never crash the app and are not counted as errors anywhere in the
+ * panel. From client 1.5.3 one row can stand for many faults, so the table counts faults
+ * (SUM of occurrences), not rows.
  */
 type Segment = "errors" | "background";
 type FaultsState = "loading" | "error" | "unavailable" | "data";
@@ -205,7 +207,38 @@ function shortTypeName(type: string | null): string {
 }
 
 function faultKey(fault: BackgroundFaultGroup): string {
-  return `${fault.code ?? ""}::${fault.exceptionType ?? ""}`;
+  return `${fault.code ?? ""}::${fault.exceptionType ?? ""}::${fault.faultSource ?? ""}::${fault.topFrame ?? ""}`;
+}
+
+/**
+ * "RazorReaper.Components.Pages.Home.UpdateResources (Home.razor:1394)" →
+ * "Home.UpdateResources (Home.razor:1394)"; the full frame stays in the title. Sentinels such as
+ * "(no RazorReaper frame)" have no namespace and stay as they are.
+ */
+function shortFrame(frame: string | null): string {
+  const trimmed = frame?.trim();
+  if (!trimmed) return "—";
+  const at = trimmed.indexOf(" (");
+  const member = at === -1 ? trimmed : trimmed.slice(0, at);
+  const location = at === -1 ? "" : trimmed.slice(at);
+  const parts = member.split(".");
+  return parts.length > 2 ? `${parts.slice(-2).join(".")}${location}` : trimmed;
+}
+
+/** metrics.fault_source, as a word: which client path reported the fault. */
+const SOURCE_LABELS: Record<string, string> = {
+  unobserved_task: "Task",
+  render_dispatch: "Render",
+};
+const RENDER_STOPPED_TITLE =
+  "The component stopped rendering for the rest of the session after 10 consecutive faults.";
+
+function sourceLabel(fault: BackgroundFaultGroup): string {
+  const label = SOURCE_LABELS[fault.faultSource] ?? fault.faultSource ?? "—";
+  if (!(fault.stoppedSessions > 0)) return label;
+  return `${label} · stopped in ${formatNumber(fault.stoppedSessions)} ${
+    fault.stoppedSessions === 1 ? "session" : "sessions"
+  }`;
 }
 
 const FAULT_COLUMNS: Array<DataTableColumn<BackgroundFaultGroup>> = [
@@ -218,7 +251,43 @@ const FAULT_COLUMNS: Array<DataTableColumn<BackgroundFaultGroup>> = [
       <span title={fault.exceptionType ?? undefined}>{shortTypeName(fault.exceptionType)}</span>
     ),
   },
-  { key: "events", header: "Events", numeric: true, render: (fault) => formatNumber(fault.events) },
+  {
+    key: "frame",
+    header: "Top frame",
+    mono: true,
+    muted: true,
+    render: (fault) => (
+      <span title={fault.topFrames ?? fault.topFrame ?? undefined}>
+        {shortFrame(fault.topFrame)}
+      </span>
+    ),
+  },
+  {
+    key: "source",
+    header: "Source",
+    muted: true,
+    render: (fault) => (
+      <span title={fault.stoppedSessions > 0 ? RENDER_STOPPED_TITLE : undefined}>
+        {sourceLabel(fault)}
+      </span>
+    ),
+  },
+  {
+    key: "faults",
+    header: "Faults",
+    numeric: true,
+    render: (fault) => (
+      <span
+        title={
+          fault.reports > 0 && fault.reports < fault.events
+            ? `${formatNumber(fault.reports)} ${fault.reports === 1 ? "report" : "reports"} from the client`
+            : undefined
+        }
+      >
+        {formatNumber(fault.events)}
+      </span>
+    ),
+  },
   {
     key: "installs",
     header: "Installs",
@@ -253,9 +322,9 @@ const FAULT_COLUMNS: Array<DataTableColumn<BackgroundFaultGroup>> = [
 ];
 
 /**
- * The Background faults segment: one row per error code + base exception type, aggregated on
- * the server (events, distinct installs and sessions, versions, first/last seen). Deliberately
- * quiet — muted count, no status colour: nothing here is an error.
+ * The Background faults segment: one row per error code + base exception type + fault source +
+ * top frame, aggregated on the server (faults, distinct installs and sessions, versions,
+ * first/last seen). Deliberately quiet — muted count, no status colour: nothing here is an error.
  */
 function BackgroundFaultsPanel({
   state,
@@ -274,11 +343,11 @@ function BackgroundFaultsPanel({
     <CollapsiblePanel
       kicker="Known client bug"
       title="Background faults"
-      sub="An unobserved background task in the desktop app throws repeatedly; it does not crash the app and is not counted as an error anywhere."
+      sub="Faults in the desktop app's background tasks and render updates, reported once per distinct fault and rolled up every 5 minutes. They do not crash the app and are not counted as errors anywhere."
       right={
         state === "data" && total > 0 ? (
           <Badge tone="muted">
-            {formatNumber(total)} {total === 1 ? "event" : "events"}
+            {formatNumber(total)} {total === 1 ? "fault" : "faults"}
           </Badge>
         ) : undefined
       }
@@ -523,6 +592,7 @@ export function ErrorsPage() {
   const rangeTitle = rangeEntry?.title ?? "Selected range";
   const rangePhrase = rangeEntry?.phrase ?? "the selected range";
   const backgroundTotal = current?.totals.backgroundErrors ?? 0;
+  const backgroundSuppressed = current?.totals.backgroundSuppressed ?? 0;
   const faultsState: FaultsState = !current
     ? error
       ? "error"
@@ -687,7 +757,14 @@ export function ErrorsPage() {
       ) : null}
       {segment === "background" && current?.backgroundFaultsTruncated ? (
         <p className="page-note">
-          Showing the most frequent fault groups — the event count covers all of them.
+          Showing the most frequent fault groups — the fault count covers all of them.
+        </p>
+      ) : null}
+      {segment === "background" && backgroundSuppressed > 0 ? (
+        <p className="page-note">
+          The client also suppressed {formatNumber(backgroundSuppressed)} aborted-I/O{" "}
+          {backgroundSuppressed === 1 ? "fault" : "faults"} on the Discord pipe before reporting;
+          they are not faults in the app and are not listed.
         </p>
       ) : null}
 

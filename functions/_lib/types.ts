@@ -1,3 +1,5 @@
+import type { BackgroundFaultReport } from "../../shared/telemetry-contract";
+
 export type TelemetryStatus = "ok" | "degraded" | "down";
 export type StorageBackend = "d1" | "kv";
 export type AppUserRole = "admin" | "viewer";
@@ -285,6 +287,11 @@ export interface ErrorEventDetail {
   source: string;
   /** Leftover metrics after the surfaced/identity/geo keys are stripped. */
   extras: Record<string, string>;
+  /**
+   * What a listed background fault row stands for (one fault, a first sighting, a 5-minute
+   * rollup, or suppressed I/O — shared/telemetry-contract.ts). null on a real error.
+   */
+  report?: BackgroundFaultReport | null;
 }
 
 export interface ErrorUserGroup {
@@ -323,10 +330,25 @@ export interface BackgroundFaultGroup {
   code: string | null;
   /** metrics.base_exception_type (the wrapped exception), else metrics.exception_type. */
   exceptionType: string | null;
+  /** metrics.fault_source: "unobserved_task" (also every pre-1.5.3 row) or "render_dispatch". */
+  faultSource: string;
+  /** metrics.top_frame — the top RazorReaper frame; null for rows from clients before 1.5.3. */
+  topFrame: string | null;
+  /** metrics.top_frames of the group's newest row: up to three frames joined with " > ". */
+  topFrames: string | null;
+  /**
+   * Faults in the group: SUM(occurrences) over its rows, one per row from a client before
+   * 1.5.3. Suppressed-I/O rows (report_kind "suppressed") are not in it — they are not faults.
+   * Kept under its historic wire name.
+   */
   events: number;
+  /** Rows (client reports) behind `events`. Equal to it until a client rolls repeats up. */
+  reports: number;
   /** Distinct hwid, else install_id — the identity the customer rollup uses. */
   installs: number;
   sessions: number;
+  /** Sessions in which the component stopped rendering (render_stopped); 0 for task faults. */
+  stoppedSessions: number;
   /** Distinct app versions, newest first (capped). */
   versions: string[];
   firstSeen: string;
@@ -346,8 +368,13 @@ export interface ErrorsPayload {
   usersTruncated: boolean;
   totals: {
     errors: number;
-    /** Background fault events in range, over every group (not only the shipped ones). */
+    /** Background faults in range (SUM of occurrences), over every group, suppressed I/O excluded. */
     backgroundErrors: number;
+    /**
+     * Aborted Discord-pipe I/O faults the client dropped before reporting, in range
+     * (SUM of suppressed_aborted_io). Not app faults: never listed, never counted.
+     */
+    backgroundSuppressed: number;
     affectedUsers: number;
     lastErrorAt: string | null;
   };

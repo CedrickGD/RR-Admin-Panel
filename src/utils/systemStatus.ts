@@ -104,7 +104,8 @@ function containerState(container: SystemContainer): { tone: ServiceTone; health
   if (container.state !== "running") return { tone: "danger", health: capitalize(container.state) };
   if (container.health === "unhealthy") return { tone: "danger", health: "Unhealthy" };
   if (container.health === "starting") return { tone: "warning", health: "Starting" };
-  // No healthcheck defined (caddy, cloudflared, backup): running is all Docker can say.
+  // No healthcheck defined (caddy, cloudflared): running is all Docker can say. backup has one on
+  // its success marker (deploy/nas/compose.yml), so it reports Healthy or Unhealthy like rr-api.
   return { tone: "ok", health: container.health === "healthy" ? "Healthy" : "Running" };
 }
 

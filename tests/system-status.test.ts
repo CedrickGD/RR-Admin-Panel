@@ -34,7 +34,12 @@ function payload(patch: Partial<SystemStatusPayload> = {}): SystemStatusPayload 
       diskFreeBytes: 2.5 * 1024 ** 4,
       diskTotalBytes: 3.6 * 1024 ** 4,
     },
-    backup: { newestFile: "rr-20260913-0315.sqlite.gz", newestAt: generatedAt, ageSeconds: 60 },
+    backup: {
+      newestFile: "rr-20260913-0315.sqlite.gz",
+      newestAt: generatedAt,
+      ageSeconds: 60,
+      verified: true,
+    },
     serverErrors: { last5Minutes: 0, last60Minutes: 2 },
     bot: { reachable: true, latencyMs: 12, uptimeSeconds: 600, clients: 0, watching: 1 },
     containers: [

@@ -104,7 +104,26 @@ services:
       - ${DATA_DIR}/db:/data/db:ro
       - ${BACKUP_DIR}:/backups
       - ./backup/backup.sh:/backup.sh:ro
-    command: sh -c "apk add --no-cache sqlite >/dev/null && echo '15 3 * * * sh /backup.sh' > /etc/crontabs/root && crond -f -l 2"
+    # `seed` dates /backups/.last-success from the newest intact archive when there is no marker
+    # yet (backup/backup.sh), so a recreated container is healthy before its first 03:15 run. It
+    # is best-effort: a failing seed must not keep crond from starting.
+    command: sh -c "apk add --no-cache sqlite >/dev/null && (sh /backup.sh seed || true) && echo '15 3 * * * sh /backup.sh' > /etc/crontabs/root && crond -f -l 2"
+    # Healthy = /backups/.last-success exists and is younger than 36 h (2160 min). backup.sh
+    # rewrites it only after the copy passed PRAGMA integrity_check and gzip -t, so a run that
+    # produced a broken file fails this check exactly like a run that never happened. 36 h is the
+    # nightly run plus a day of slack, so one late night is not a flap. busybox `find -mmin`
+    # prints the path only when the file exists AND is young enough; `grep -q .` turns an empty
+    # result into exit 1. No `$` in the test, so compose interpolation cannot touch it.
+    # start_period: a fresh volume has no archive to seed from, so the marker can only appear
+    # after the first 03:15 run; 26 h covers that from any start time (the same slack the page
+    # gives a backup before calling it overdue). A marker that exists ends the start period at
+    # the first probe, so a normal recreate is healthy within one interval.
+    healthcheck:
+      test: ["CMD-SHELL", "find /backups/.last-success -mmin -2160 2>/dev/null | grep -q ."]
+      interval: 5m
+      timeout: 10s
+      retries: 2
+      start_period: 26h
 
   # Path allowlist in front of docker-proxy (see docker-gateway/Caddyfile). rr-api talks only to
   # this service; it is the only member of the docker-proxy network besides the proxy itself.

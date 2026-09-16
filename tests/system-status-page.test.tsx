@@ -34,7 +34,12 @@ function payload(patch: Partial<SystemStatusPayload> = {}): SystemStatusPayload 
     // No event rates: the chart is recharts, and this test is about the health summary.
     events: null,
     storage: null,
-    backup: { newestFile: "rr-20260913-0315.sqlite.gz", newestAt: generatedAt, ageSeconds: 60 },
+    backup: {
+      newestFile: "rr-20260913-0315.sqlite.gz",
+      newestAt: generatedAt,
+      ageSeconds: 60,
+      verified: true,
+    },
     serverErrors: null,
     bot: { reachable: true, latencyMs: 12, uptimeSeconds: 600, clients: 0, watching: 1 },
     containers: [
@@ -224,5 +229,19 @@ describe("SystemStatusPage: what it knows right now", () => {
     expect(tile("Overall").textContent).toContain("Healthy");
     expect(container.textContent).toContain("Every check passed on the last refresh.");
     expect(greenDots()).toBeGreaterThan(0);
+  });
+
+  it("labels the last backup as unverified only while rr-api has no success marker", async () => {
+    const backup = payload().backup!;
+    // No /backups/.last-success: the newest file's mtime is all rr-api had, and it says so.
+    answerOnce(payload({ backup: { ...backup, verified: false } }));
+    await render();
+    expect(tile("Last backup").textContent).toContain("rr-20260913-0315.sqlite.gz · not verified");
+
+    // The marker names a verified run: the file name stands on its own, nothing added.
+    answerOnce(payload({ backup: { ...backup, verified: true } }));
+    await poll();
+    expect(tile("Last backup").textContent).toContain("rr-20260913-0315.sqlite.gz");
+    expect(tile("Last backup").textContent).not.toContain("not verified");
   });
 });

@@ -218,7 +218,12 @@ export function computeIncidents(input: IncidentInput, now: number): SystemIncid
         severity: "warning",
         service: "backup",
         title: "Backup is overdue",
-        detail: `The newest backup is ${hoursLabel(input.backup.ageSeconds)} old; one runs every night.`,
+        // The age is measured from the success marker when there is one (a verified backup), and
+        // from the newest file's mtime when there is not — that file was written, nothing more.
+        detail:
+          input.backup.verified === false
+            ? `The newest backup file is ${hoursLabel(input.backup.ageSeconds)} old and no verified backup is recorded; one runs every night.`
+            : `The last verified backup is ${hoursLabel(input.backup.ageSeconds)} old; one runs every night.`,
       });
   }
 

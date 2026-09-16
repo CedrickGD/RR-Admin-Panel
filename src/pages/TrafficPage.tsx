@@ -28,6 +28,7 @@ import {
   buildTimezoneActivity,
   buildTrafficTimeline,
 } from "../utils/dashboardInsights";
+import { isRealErrorEvent } from "../utils/errorEvents";
 import { formatDuration, formatNumber } from "../utils/format";
 import { TIMEZONE_PANELS } from "./dashboardShared";
 import "../theme/traffic-workspace.css";
@@ -143,9 +144,7 @@ export function TrafficPage({ summary, stats, theme }: TrafficPageProps) {
     // matching the server's real-error counters without changing event volume.
     const errorSummary = {
       ...summary,
-      recentEvents: summary.recentEvents.filter(
-        (event) => event.service === "app_error" && event.metrics["error_kind"] !== "background",
-      ),
+      recentEvents: summary.recentEvents.filter(isRealErrorEvent),
     };
     return TIMEZONE_PANELS.map((panel) => {
       const data = buildTimezoneActivity(summary, panel.timeZone);

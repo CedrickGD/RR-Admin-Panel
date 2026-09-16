@@ -108,6 +108,36 @@ describe("Customer directory record presentation", () => {
     }
   });
 
+  it("opens Customer 360 from the whole card head without nesting controls", () => {
+    const host = renderCustomer();
+    const head = host.querySelector<HTMLElement>(".customer-directory-open");
+    expect(head?.tagName).toBe("BUTTON");
+    expect(head?.getAttribute("type")).toBe("button");
+    expect(head?.getAttribute("aria-label")).toBe("Open Customer 360 for Alex Morgan");
+    // Avatar, name and the facts under it are all inside the one control.
+    expect(head?.querySelector(".person-avatar")).not.toBeNull();
+    expect(head?.querySelector(".record-link")?.textContent).toBe("Alex Morgan");
+    expect(head?.textContent).toContain("License: Premium");
+    // The name is a span now: a button in a button is invalid markup.
+    expect(head?.querySelector(".record-link")?.tagName).toBe("SPAN");
+    expect(head?.querySelectorAll("button, a, summary, input, select, details")).toHaveLength(0);
+    // The footer keeps its own controls, outside the head.
+    const footer = host.querySelector('[aria-label="Manage app access for Alex Morgan"]');
+    expect(footer).not.toBeNull();
+    expect(head?.contains(footer)).toBe(false);
+    expect(host.querySelectorAll('[aria-label="Open Customer 360 for Alex Morgan"]')).toHaveLength(
+      2,
+    );
+  });
+
+  it("nests no control inside another anywhere on the page", () => {
+    const host = renderCustomer();
+    const nested = [...host.querySelectorAll("button, a, summary")].filter((control) =>
+      control.parentElement?.closest("button, a, summary"),
+    );
+    expect(nested).toEqual([]);
+  });
+
   it("keeps app-access actions permission-gated while retaining Customer 360", () => {
     permissions.access = false;
     const host = renderCustomer();

@@ -100,5 +100,9 @@ describe("Customers CRM page", () => {
     expect(page).toContain("<Customer360Overlay");
     expect(page).toContain("anchor={selectedAnchor}");
     expect(page).toContain("Open Customer 360 for");
+    // The card head is the primary way in (ds/RecordOpen); the footer button stays as the labelled one.
+    expect(page).toContain("<RecordOpen");
+    expect(page).toContain("customer-directory-open");
+    expect(page).not.toContain("<RecordLink");
   });
 });

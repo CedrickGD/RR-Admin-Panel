@@ -148,6 +148,28 @@ export function RecordLink({
   );
 }
 
+/**
+ * A whole record header as one control: avatar, identity and supporting facts
+ * open the record together, so a stacked card (TableFrame mobileLayout="stack")
+ * gets its full card head as the tap target instead of the name alone. The
+ * identity inside stays a plain <span className="record-link"> — it reads and
+ * hovers as the link did, and no control nests in another. Pages pass an
+ * explicit aria-label: without one the accessible name is every fact in the
+ * header run together.
+ */
+export function RecordOpen({
+  children,
+  className = "",
+  type = "button",
+  ...rest
+}: RecordLinkProps) {
+  return (
+    <button type={type} className={`record-open${className ? ` ${className}` : ""}`} {...rest}>
+      {children}
+    </button>
+  );
+}
+
 /** A readable identity with supporting information and natural line wrapping. */
 export function RecordCell({ primary, secondary }: { primary: ReactNode; secondary?: ReactNode }) {
   return (

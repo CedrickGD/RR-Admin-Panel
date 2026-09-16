@@ -26,7 +26,7 @@ import { Field, FormError } from "../components/ds/Field";
 import { Input, Textarea } from "../components/ds/Input";
 import { Modal, ModalActions } from "../components/ds/Modal";
 import { SegmentedControl } from "../components/ds/SegmentedControl";
-import { SkeletonRows } from "../components/ds/Skeleton";
+import { SkeletonRows, type SkeletonColumn } from "../components/ds/Skeleton";
 import { Tabs, type TabItem } from "../components/ds/Tabs";
 import { PageHeader } from "../components/ds/PageHeader";
 import { PageToolbar } from "../components/ds/PageToolbar";
@@ -447,17 +447,17 @@ export function LicenseInventoryRow({
           }
         />
       </td>
-      <td className="license-row-secondary" data-label="Order">
+      <td className="license-row-secondary license-order-cell" data-label="Order">
         <RecordCell
           primary={license.order_id || "No order recorded"}
           secondary={license.order_source || undefined}
         />
         <LicenseOrderDetails license={license} />
       </td>
-      <td className="license-row-secondary license-duration-cell" data-label="Duration">
+      <td className="license-row-secondary license-duration-cell col-md" data-label="Duration">
         {licenseDuration(license)}
       </td>
-      <td className="license-row-secondary license-usage-cell" data-label="Usage">
+      <td className="license-row-secondary license-usage-cell col-md" data-label="Usage">
         {license.usage_count} / {license.max_uses === -1 ? "Unlimited" : license.max_uses}
       </td>
       <td className="license-status-cell" data-label="License status">
@@ -537,6 +537,30 @@ export function LicenseInventoryRow({
     </tr>
   );
 }
+
+/**
+ * Width floor of the inventory table: the measured max-content width of its
+ * narrowest layout (Duration and Usage bowed out, long values capped, actions
+ * two by two — see the tier note above the table head). A 1440px window leaves
+ * 1110px next to the rail, so that layout fits without the frame scrolling.
+ */
+export const LICENSE_TABLE_FLOOR = 1093;
+
+/**
+ * The inventory head as the skeleton sees it: one entry per column, in the same
+ * order and carrying the same priority tier, so a placeholder cell bows out
+ * exactly when its column does.
+ */
+const INVENTORY_SKELETON_COLUMNS: SkeletonColumn[] = [
+  {}, // Customer
+  {}, // License key
+  {}, // Order
+  { className: "col-md" }, // Duration
+  { className: "col-md" }, // Usage
+  {}, // License status
+  {}, // Linked session
+  {}, // License actions
+];
 
 interface LicensesPageProps {
   summary?: SummaryPayload | null;
@@ -1117,9 +1141,18 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker }: LicensesP
             : "No license keys generated yet."}
         </EmptyState>
       ) : (
+        /*
+          Column priority: Duration and Usage carry .col-md and bow out when the
+          frame can no longer afford them (app-glue.css, measured); both read back
+          in every row's Device details (Duration, Seats used). Nothing else is
+          tiered — Linked session holds the only in-table button that opens a bound
+          session, and the rest has no second home on the row. Below that, long
+          values wrap sooner and the four actions sit two by two
+          (license-workspace.css); LICENSE_TABLE_FLOOR is that layout's own width.
+        */
         <TableFrame
           className="license-table"
-          minWidth={1180}
+          minWidth={LICENSE_TABLE_FLOOR}
           stickyActions
           mobileLayout="stack"
           aria-busy={loading || undefined}
@@ -1132,15 +1165,19 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker }: LicensesP
               <th scope="col">Customer</th>
               <th scope="col">License key</th>
               <th scope="col">Order</th>
-              <th scope="col">Duration</th>
-              <th scope="col">Usage</th>
+              <th scope="col" className="col-md">
+                Duration
+              </th>
+              <th scope="col" className="col-md">
+                Usage
+              </th>
               <th scope="col">License status</th>
               <th scope="col">Linked session</th>
               <th scope="col" aria-label="License actions" />
             </tr>
           </thead>
           <tbody>
-            {loading && lics.length === 0 && <SkeletonRows columns={8} />}
+            {loading && lics.length === 0 && <SkeletonRows columns={INVENTORY_SKELETON_COLUMNS} />}
             {lics.map((lic) => (
               <LicenseInventoryRow
                 key={lic.id}

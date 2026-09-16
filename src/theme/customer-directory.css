@@ -57,6 +57,26 @@ html[data-theme] .customer-directory-section[data-density] .person-cell {
   min-width: 190px;
   max-width: 280px;
 }
+/* The whole card head opens Customer 360 (ds/RecordOpen). A button sizes to
+   its content even as a block, so it needs the width to make the stacked
+   card's head the tap target; the button reset in index.css and .person-cell's
+   own flex, gap and padding cover the rest. */
+html[data-theme] .customer-directory-section[data-density] .customer-directory-open {
+  width: 100%;
+  color: inherit;
+}
+/* consistency.css tints any hovered .person-cell control accent as a whole.
+   Only the name answers hover here, exactly as it did while it was the link. */
+html[data-theme] .customer-directory-section[data-density] .customer-directory-open:hover {
+  color: inherit;
+}
+html[data-theme]
+  .customer-directory-section[data-density]
+  .customer-directory-open:hover
+  .record-link {
+  color: var(--accent-text);
+  text-decoration: underline;
+}
 html[data-theme] .customer-directory-section[data-density] .person-avatar {
   width: var(--directory-avatar-size);
   height: var(--directory-avatar-size);
@@ -226,11 +246,10 @@ html[data-theme] .customer-directory-section[data-density] .customer-directory-a
     flex-basis: 36px;
     margin-top: 4px;
   }
-  html[data-theme] .customer-directory-section[data-density] .record-link {
+  /* The touch floor sits on the head control, not on the name inside it — both
+     at 44px would make every card a line taller. */
+  html[data-theme] .customer-directory-section[data-density] .customer-directory-open {
     min-height: 44px;
-    display: inline-flex;
-    align-items: center;
-    text-align: left;
   }
   .customer-directory-mobile-contact {
     display: block;

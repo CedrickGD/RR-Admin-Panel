@@ -2,7 +2,7 @@
 import type { ComponentProps } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { LicenseInventoryRow, LicensesPage } from "../src/pages/LicensesPage";
+import { LICENSE_TABLE_FLOOR, LicenseInventoryRow, LicensesPage } from "../src/pages/LicensesPage";
 
 const permissions = vi.hoisted(() => ({ write: true }));
 vi.mock("../src/hooks/usePanelPermission", () => ({
@@ -133,6 +133,55 @@ describe("License workspace presentation", () => {
     expect(host.querySelector(".license-usage-cell")?.textContent).toContain("Unlimited");
     expect(host.querySelector(".license-session-state")?.textContent).toBe("Live session");
     expect(host.querySelector('button[title="View live session"]')).not.toBeNull();
+  });
+
+  it("tiers Duration and Usage, which read back in the row's Device details", () => {
+    const host = renderRow();
+    const cells = [...host.querySelectorAll("tbody > tr > td")];
+    expect(cells.map((cell) => cell.classList.contains("col-md"))).toEqual([
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+    ]);
+    expect(cells[3].getAttribute("data-label")).toBe("Duration");
+    expect(cells[4].getAttribute("data-label")).toBe("Usage");
+    expect(cells[2].classList.contains("license-order-cell")).toBe(true);
+    // The tier is only allowed because both facts stay on the row, one disclosure away.
+    const device = host.querySelector(".license-technical-details");
+    expect(device?.querySelector("summary")?.textContent).toBe("Device details");
+    const facts = [...(device?.querySelectorAll("dt") ?? [])].map((dt) => dt.textContent);
+    expect(facts).toContain("Duration");
+    expect(facts).toContain("Seats used");
+    expect(device?.textContent).toContain("Lifetime");
+    expect(device?.textContent).toContain("1 / 2");
+  });
+
+  it("keeps the head, the loading skeleton and the frame's floor in step with the tier", () => {
+    const host = document.createElement("div");
+    host.innerHTML = renderToStaticMarkup(<LicensesPage />);
+    const heads = [...host.querySelectorAll(".license-table thead th")];
+    expect(heads.map((th) => th.textContent?.trim())).toEqual([
+      "Customer",
+      "License key",
+      "Order",
+      "Duration",
+      "Usage",
+      "License status",
+      "Linked session",
+      "",
+    ]);
+    const tiered = [false, false, false, true, true, false, false, false];
+    expect(heads.map((th) => th.classList.contains("col-md"))).toEqual(tiered);
+    const skeleton = host.querySelector(".license-table tbody tr.skeleton-row");
+    expect([...skeleton!.children].map((td) => td.classList.contains("col-md"))).toEqual(tiered);
+    expect(host.querySelector(".license-table")?.getAttribute("style")).toContain(
+      `--table-min-w:${LICENSE_TABLE_FLOOR}px`,
+    );
   });
 
   it("retains one inventory filter home and the real return link", () => {

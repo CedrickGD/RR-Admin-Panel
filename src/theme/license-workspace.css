@@ -80,7 +80,9 @@ html[data-theme] .license-workspace .license-customer-cell .record-primary {
 }
 html[data-theme] .license-workspace .license-key-cell {
   align-items: flex-start;
-  max-width: 245px;
+  /* The record cell's own cap: a 27-character key plus the copy button is
+     251px, and 245px broke every key onto a second line. */
+  max-width: 255px;
 }
 .license-workspace .license-key-cell > .mono {
   overflow-wrap: anywhere;
@@ -104,6 +106,13 @@ html[data-theme] .license-workspace .license-key-cell {
   flex-direction: column;
   align-items: flex-start;
   min-width: 130px;
+  /* The bound device's label is free text; unwrapped it set the column's width
+     (a long label once pushed Linked session to ~490px). */
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.license-workspace .license-row-secondary .license-session-context {
+  max-width: 180px;
 }
 html[data-theme] .license-workspace .license-table .license-row-actions {
   flex-wrap: nowrap;
@@ -120,6 +129,29 @@ html[data-theme] .license-workspace .license-table .license-row-actions .btn {
 .license-action-label,
 .license-mobile-context {
   display: none;
+}
+/* Below the width app-glue.css measures for the six-column layout (Duration
+   and Usage already bowed out), long values wrap sooner and the four row
+   actions sit two by two — the same controls at the same size, inside a row
+   that three lines of customer and order text already make taller than the
+   2×30px grid. Desktop only: the stacked card below 900px has its own grid. */
+@media (min-width: 901px) {
+  @container tablefit (max-width: 1350px) {
+    html[data-theme] .license-workspace .license-table .license-customer-cell .record-cell {
+      max-width: 180px;
+    }
+    html[data-theme] .license-workspace .license-table .license-order-cell .record-cell {
+      max-width: 160px;
+    }
+    html[data-theme] .license-workspace .license-row-secondary .license-session-context {
+      max-width: 160px;
+    }
+    html[data-theme] .license-workspace .license-table .license-row-actions {
+      display: grid;
+      grid-template-columns: repeat(2, 30px);
+      justify-content: end;
+    }
+  }
 }
 .license-workspace :is(.license-order-details, .license-technical-details) {
   margin-top: 6px;

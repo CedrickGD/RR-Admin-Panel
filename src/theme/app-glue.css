@@ -1315,12 +1315,20 @@ select.glass-input {
     display: none;
   }
 }
-/* Licenses has no rules here on purpose. It has no expanded row, so a hidden
-   column is lost rather than folded away — and Linked session holds the only
-   in-table button that opens a bound session. Its columns are untiered in
-   LicensesPage.tsx. With its action column at icon width the table wants
-   ~1230px: it fits from ~1540px and scrolls about 100px at 1440, which is the
-   accepted trade. */
+/* Licenses — 8 columns, one tier. Duration and Usage read back in every row's
+   Device details (Duration, Seats used), so they are the two this table can
+   fold away; Linked session holds the only in-table button that opens a bound
+   session and stays, as does everything without a second home on the row.
+   With the session label wrapping at 180px and the 255px text cells the full
+   table wants 1502px. Below that these two bow out (1351px), and below 1351px
+   license-workspace.css caps the long text cells and sets the actions two by
+   two: 1093px, which is the frame's floor (LICENSE_TABLE_FLOOR) — a 1440px
+   window leaves 1110px next to the rail. */
+@container tablefit (max-width: 1501px) {
+  .license-table .col-md {
+    display: none;
+  }
+}
 
 /* ── Reduced motion: fewer and gentler, not zero — opacity cues stay,
    position changes go. (.spinner/.animate-spin keep rotating: activity

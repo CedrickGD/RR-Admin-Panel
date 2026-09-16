@@ -1,5 +1,5 @@
 import "../theme/customer-directory.css";
-import { TableFrame, RecordCell, RecordLink } from "../components/ds/TableFrame";
+import { TableFrame, RecordCell, RecordOpen } from "../components/ds/TableFrame";
 import {
   CustomerAvatar,
   useCustomerDirectory,
@@ -655,22 +655,27 @@ export function CustomersPage({ users: sourceUsers }: CustomersPageProps) {
                         (paginated?.items ?? []).map((user) => (
                           <tr key={user.identity} className="customer-directory-row">
                             <td>
-                              <div className="person-cell">
+                              {/* The whole header — avatar, name and the facts under it — opens
+                                  the same workspace as the row action, so on a stacked card the
+                                  tap target is the card head, not the name alone. The name keeps
+                                  .record-link as a span: same paint, no control inside a control. */}
+                              <RecordOpen
+                                className="person-cell customer-directory-open"
+                                title="Open customer workspace"
+                                aria-label={`Open Customer 360 for ${displayName(user)}`}
+                                onClick={(event) => {
+                                  // Safari does not focus a tapped button; the workspace hands
+                                  // focus back to whatever had it, so make sure that is this card.
+                                  event.currentTarget.focus();
+                                  setSelectedUser(user);
+                                }}
+                              >
                                 <CustomerAvatar
                                   profile={findProfile(user.identity, user.hwid)}
                                   label={displayName(user)}
                                 />
                                 <RecordCell
-                                  primary={
-                                    // The name opens the same workspace as the row action,
-                                    // so Customer 360 is one click away from the first column.
-                                    <RecordLink
-                                      title="Open customer workspace"
-                                      onClick={() => setSelectedUser(user)}
-                                    >
-                                      {displayName(user)}
-                                    </RecordLink>
-                                  }
+                                  primary={<span className="record-link">{displayName(user)}</span>}
                                   secondary={
                                     <span className="customer-directory-identity-meta">
                                       <span className="customer-directory-mobile-contact">
@@ -689,7 +694,7 @@ export function CustomersPage({ users: sourceUsers }: CustomersPageProps) {
                                     </span>
                                   }
                                 />
-                              </div>
+                              </RecordOpen>
                             </td>
                             <td
                               className="muted col-md customer-directory-secondary-cell"

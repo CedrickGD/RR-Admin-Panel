@@ -8,6 +8,7 @@ import {
   APP_ERROR_SERVICE,
   BACKGROUND_ERROR_KIND,
   describeBackgroundReport,
+  describeSuppressedIo,
   isBackgroundErrorKind,
   isOverviewErrorInWindow,
   isRealErrorEvent,
@@ -137,11 +138,19 @@ describe("what a listed background row stands for", () => {
     expect(describeBackgroundReport(report({ kind: "rollup", occurrences: 412 }))).toBe(
       "5-minute rollup, 412 faults",
     );
+    // Exceptions, not faults: the sentence never contradicts itself, and the Errors page note
+    // prints the very same one (tests/errors-page.test.tsx).
     expect(
       describeBackgroundReport(
         report({ kind: "suppressed", occurrences: 17, suppressedAbortedIo: 17 }),
       ),
-    ).toBe("17 faults of aborted Discord-pipe I/O, suppressed by the client");
+    ).toBe("17 aborted Discord-pipe I/O exceptions suppressed by the client, not app faults");
+    expect(describeSuppressedIo(1)).toBe(
+      "1 aborted Discord-pipe I/O exception suppressed by the client, not app faults",
+    );
+    expect(describeSuppressedIo(1204)).toBe(
+      "1,204 aborted Discord-pipe I/O exceptions suppressed by the client, not app faults",
+    );
   });
 
   it("says nothing for a row that is one fault, or that carries no report", () => {

@@ -379,21 +379,16 @@ export interface SummaryPayload {
   };
 }
 
+/**
+ * GET /api/admin/health, and the `health` member of GET /api/admin/data: a liveness and
+ * storage-reachability probe, nothing more. The event count, last ingest time and build details
+ * that used to ride along fed the old System status page, which now reads /api/admin/system
+ * (shared/system-status.ts); no page, hook, test, the desktop client or the bot reads them from
+ * here, so the payload is exactly what the dashboard gate and the NAS integration test check.
+ */
 export interface HealthPayload {
   ok: boolean;
-  api: "alive";
-  storage: {
-    backend: StorageBackend;
-    available: boolean;
-  };
-  lastIngestAt: string | null;
-  count: number;
-  build: {
-    commit: string;
-    branch: string;
-    environment: string;
-    generatedAt: string;
-  };
+  storage: { available: boolean };
 }
 
 export interface SessionClaims {

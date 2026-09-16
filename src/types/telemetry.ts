@@ -377,18 +377,10 @@ export interface SummaryPayload {
   };
 }
 
+/** Mirror of functions/_lib/types.ts HealthPayload. The dashboard only checks that it arrived. */
 export interface HealthPayload {
   ok: boolean;
-  api: "alive";
-  storage: { backend: "d1" | "kv"; available?: boolean };
-  lastIngestAt: string | null;
-  count: number;
-  build: {
-    commit: string;
-    branch?: string;
-    environment?: string;
-    generatedAt?: string;
-  };
+  storage: { available: boolean };
 }
 
 export interface AuthUser {

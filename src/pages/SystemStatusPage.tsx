@@ -149,6 +149,15 @@ export function SystemStatusPage() {
 
   const events = payload?.events ?? null;
   const backup = payload?.backup ?? null;
+  // Without the success marker the backup figures come from the newest file alone: it was
+  // written, whether it is intact is not known (shared/system-status.ts), and the line says so.
+  const backupLine = !backup
+    ? "Backup folder not mounted"
+    : backup.newestFile === null
+      ? "No backup file yet"
+      : backup.verified === false
+        ? `${backup.newestFile} · not verified`
+        : backup.newestFile;
   const incidents = payload?.incidents ?? [];
   const incidentLine =
     incidents.length === 0
@@ -229,18 +238,16 @@ export function SystemStatusPage() {
           label="Events last 60 min"
           loading={loading}
           value={events ? formatNumber(events.last60Minutes) : "Unknown"}
-          sub={events ? `${formatNumber(events.last5Minutes)} in the last 5 min` : "Event query failed"}
+          sub={
+            events ? `${formatNumber(events.last5Minutes)} in the last 5 min` : "Event query failed"
+          }
           icon={<Activity size={14} />}
         />
         <KpiStatCard
           label="Last backup"
           loading={loading}
           value={backup?.newestAt ? <RelativeTime iso={backup.newestAt} /> : "Unknown"}
-          sub={
-            !backup
-              ? "Backup folder not mounted"
-              : (backup.newestFile ?? "No backup file yet")
-          }
+          sub={backupLine}
           icon={<Archive size={14} />}
         />
       </div>
@@ -255,11 +262,7 @@ export function SystemStatusPage() {
 
       {payload ? (
         <>
-          <CollapsiblePanel
-            title="Services"
-            sub={servicesNote || undefined}
-            padding="flush"
-          >
+          <CollapsiblePanel title="Services" sub={servicesNote || undefined} padding="flush">
             <DataTable
               flush
               mobileLayout="stack"
@@ -295,11 +298,23 @@ export function SystemStatusPage() {
                       <AreaChart data={chartData} margin={CHART_MARGIN}>
                         <defs>
                           <linearGradient id="systemEventsFill" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="var(--chart-sessions)" stopOpacity={0.22} />
-                            <stop offset="100%" stopColor="var(--chart-sessions)" stopOpacity={0.01} />
+                            <stop
+                              offset="0%"
+                              stopColor="var(--chart-sessions)"
+                              stopOpacity={0.22}
+                            />
+                            <stop
+                              offset="100%"
+                              stopColor="var(--chart-sessions)"
+                              stopOpacity={0.01}
+                            />
                           </linearGradient>
                         </defs>
-                        <CartesianGrid stroke="var(--chart-grid)" vertical={false} strokeDasharray="3 6" />
+                        <CartesianGrid
+                          stroke="var(--chart-grid)"
+                          vertical={false}
+                          strokeDasharray="3 6"
+                        />
                         <XAxis
                           dataKey="label"
                           tickLine={false}
@@ -368,7 +383,9 @@ export function SystemStatusPage() {
                   {incidents.map((incident) => (
                     <li className="system-incident" key={incident.id}>
                       <span
-                        className={statusDotClass(incident.severity === "critical" ? "danger" : "warning")}
+                        className={statusDotClass(
+                          incident.severity === "critical" ? "danger" : "warning",
+                        )}
                         aria-hidden="true"
                       />
                       <div className="system-incident-text">

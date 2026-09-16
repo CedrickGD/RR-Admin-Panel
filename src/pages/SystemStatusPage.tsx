@@ -9,7 +9,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { SystemStatusPayload } from "../../shared/system-status";
+import { SYSTEM_STATUS_POLL_MS, type SystemStatusPayload } from "../../shared/system-status";
 import { ChartLegend } from "../components/charts/ChartLegend";
 import { CHART_MARGIN } from "../components/charts/chartMargin";
 import { TelemetryChartTooltip } from "../components/charts/TelemetryChartTooltip";
@@ -32,7 +32,9 @@ import {
   type ServiceRow,
 } from "../utils/systemStatus";
 
-const POLL_MS = 30_000;
+const POLL_MS = SYSTEM_STATUS_POLL_MS;
+/** The figure the page quotes; derived so the copy cannot drift from the interval it describes. */
+const POLL_SECONDS = POLL_MS / 1000;
 const EVENT_LEGEND = [{ label: "Events", color: "var(--chart-sessions)" }];
 
 function useSystemStatus() {
@@ -149,6 +151,18 @@ export function SystemStatusPage() {
 
   const events = payload?.events ?? null;
   const backup = payload?.backup ?? null;
+  // Without the success marker the backup figures come from the newest file alone: it was
+  // written, whether it is intact is not known (shared/system-status.ts), and the line says so.
+  // The state leads and the archive's stamp follows without its constant ".sqlite.gz": the tile
+  // has one line, and at 1440px it held the file name but cut the state, which is the part that
+  // matters. The Services backup row prints the full file name either way.
+  const backupLine = !backup
+    ? "Backup folder not mounted"
+    : backup.newestFile === null
+      ? "No backup file yet"
+      : backup.verified === false
+        ? `Not verified · ${backup.newestFile.replace(/\.sqlite\.gz$/, "")}`
+        : backup.newestFile;
   const incidents = payload?.incidents ?? [];
   const incidentLine =
     incidents.length === 0
@@ -186,8 +200,8 @@ export function SystemStatusPage() {
         page="system"
         sub={
           stale
-            ? "The last refresh failed. Showing the previous result; retrying every 30 seconds."
-            : "rr-api, database, Discord bot and NAS containers. Refreshes every 30 seconds."
+            ? `The last refresh failed. Showing the previous result; retrying every ${POLL_SECONDS} seconds.`
+            : `rr-api, database, Discord bot and NAS containers. Refreshes every ${POLL_SECONDS} seconds.`
         }
       />
 
@@ -229,18 +243,16 @@ export function SystemStatusPage() {
           label="Events last 60 min"
           loading={loading}
           value={events ? formatNumber(events.last60Minutes) : "Unknown"}
-          sub={events ? `${formatNumber(events.last5Minutes)} in the last 5 min` : "Event query failed"}
+          sub={
+            events ? `${formatNumber(events.last5Minutes)} in the last 5 min` : "Event query failed"
+          }
           icon={<Activity size={14} />}
         />
         <KpiStatCard
           label="Last backup"
           loading={loading}
           value={backup?.newestAt ? <RelativeTime iso={backup.newestAt} /> : "Unknown"}
-          sub={
-            !backup
-              ? "Backup folder not mounted"
-              : (backup.newestFile ?? "No backup file yet")
-          }
+          sub={backupLine}
           icon={<Archive size={14} />}
         />
       </div>
@@ -248,18 +260,14 @@ export function SystemStatusPage() {
       {!payload && failed ? (
         <section className="panel">
           <EmptyState icon={<ServerCrash />} title="System health unavailable">
-            The backend did not answer. Retrying every 30 seconds.
+            The backend did not answer. Retrying every {POLL_SECONDS} seconds.
           </EmptyState>
         </section>
       ) : null}
 
       {payload ? (
         <>
-          <CollapsiblePanel
-            title="Services"
-            sub={servicesNote || undefined}
-            padding="flush"
-          >
+          <CollapsiblePanel title="Services" sub={servicesNote || undefined} padding="flush">
             <DataTable
               flush
               mobileLayout="stack"
@@ -295,11 +303,23 @@ export function SystemStatusPage() {
                       <AreaChart data={chartData} margin={CHART_MARGIN}>
                         <defs>
                           <linearGradient id="systemEventsFill" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="var(--chart-sessions)" stopOpacity={0.22} />
-                            <stop offset="100%" stopColor="var(--chart-sessions)" stopOpacity={0.01} />
+                            <stop
+                              offset="0%"
+                              stopColor="var(--chart-sessions)"
+                              stopOpacity={0.22}
+                            />
+                            <stop
+                              offset="100%"
+                              stopColor="var(--chart-sessions)"
+                              stopOpacity={0.01}
+                            />
                           </linearGradient>
                         </defs>
-                        <CartesianGrid stroke="var(--chart-grid)" vertical={false} strokeDasharray="3 6" />
+                        <CartesianGrid
+                          stroke="var(--chart-grid)"
+                          vertical={false}
+                          strokeDasharray="3 6"
+                        />
                         <XAxis
                           dataKey="label"
                           tickLine={false}
@@ -368,7 +388,9 @@ export function SystemStatusPage() {
                   {incidents.map((incident) => (
                     <li className="system-incident" key={incident.id}>
                       <span
-                        className={statusDotClass(incident.severity === "critical" ? "danger" : "warning")}
+                        className={statusDotClass(
+                          incident.severity === "critical" ? "danger" : "warning",
+                        )}
                         aria-hidden="true"
                       />
                       <div className="system-incident-text">

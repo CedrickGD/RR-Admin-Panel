@@ -110,7 +110,9 @@ html[data-theme] .customer-glass .customer360-environment .customer360-info-grid
     flex-wrap: wrap;
   }
 
-  .customer-directory-workspace .record-link {
+  /* Link buttons only (Restrictions): the directory name is a span inside the
+     card head control, which carries the floor itself (customer-directory.css). */
+  .customer-directory-workspace button.record-link {
     min-height: 44px;
   }
 

@@ -71,7 +71,7 @@ export function createTelemetryTestDb(vars: Record<string, string> = {}): Teleme
 /** The production background fault: RR-E1003, an AggregateException around `baseType`. */
 export function backgroundFault(
   ts: string,
-  metrics: Record<string, unknown> & { base_exception_type?: string },
+  metrics: Record<string, unknown> & { base_exception_type?: string | null },
 ): TestEvent {
   return {
     ts,
@@ -97,4 +97,36 @@ export function realError(ts: string, metrics: Record<string, unknown>): TestEve
       ...metrics,
     },
   };
+}
+
+/**
+ * A background fault row as the desktop client reports it from 1.5.3 (the contract in
+ * shared/telemetry-contract.ts): one row per distinct fault and session (`first`), 5-minute
+ * rollups of the repeats (`rollup`), and the aborted Discord-pipe I/O it dropped on a row of its
+ * own (`suppressed`, whose top_frame/top_frames arrive as JSON null and whose message the client
+ * drops). `metrics` overrides or extends the contract keys — identity keys go in the same way.
+ */
+export function backgroundReport(
+  ts: string,
+  kind: "first" | "rollup" | "suppressed",
+  metrics: Record<string, unknown> = {},
+): TestEvent {
+  const suppressed = kind === "suppressed";
+  const row = backgroundFault(ts, {
+    base_exception_type: suppressed ? null : "System.NullReferenceException",
+    top_frame: suppressed
+      ? null
+      : "RazorReaper.Components.Pages.Home.UpdateResources (Home.razor:1394)",
+    top_frames: suppressed
+      ? null
+      : "Home.UpdateResources (Home.razor:1394) > Home.OnInitializedAsync (Home.razor:889)",
+    leaf_exception_count: suppressed ? 0 : 1,
+    occurrences: 1,
+    report_kind: kind,
+    suppressed_aborted_io: 0,
+    fault_source: "unobserved_task",
+    app_version: "1.5.3",
+    ...metrics,
+  });
+  return suppressed ? { ...row, message: null } : row;
 }

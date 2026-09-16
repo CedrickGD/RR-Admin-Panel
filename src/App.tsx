@@ -209,7 +209,6 @@ export default function App() {
     summary,
     health,
     loadError,
-    refreshing,
     authenticate,
     logout,
     retrySession,
@@ -339,17 +338,7 @@ export default function App() {
       <CustomerProfilesProvider key={user.email}>
         <div className="app-shell v2-shell">
           <PanelBackground />
-          <Navbar
-            page={page}
-            onNavigate={setPage}
-            user={user}
-            authMode={authMode}
-            summary={summary}
-            health={health}
-            onRefresh={refresh}
-            refreshing={refreshing}
-            onLogout={() => void logout()}
-          />
+          <Navbar page={page} onNavigate={setPage} user={user} onLogout={() => void logout()} />
 
           <main className="main-area v2-main">
             {loadError ? (

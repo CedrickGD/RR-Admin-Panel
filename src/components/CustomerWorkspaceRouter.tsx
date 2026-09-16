@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Customer360Anchor } from "./Customer360Overlay";
 import type { AuthUser } from "../types/telemetry";
 import { canVisit } from "../../shared/panel-policy";
@@ -90,7 +90,12 @@ export function CustomerWorkspaceRouter({ user }: { user: AuthUser }) {
     },
   );
 
-  useEffect(() => {
+  // A layout effect, not a passive one: once the workspace chunk is warm (every
+  // open after the first) the view mounts in the same commit and its own effect
+  // moves focus to its heading. Read before any passive effect runs, or the
+  // element handed focus back on close is the workspace heading that no longer
+  // exists, and focus falls to <body> instead of the row that opened it.
+  useLayoutEffect(() => {
     if (!open) return;
     const main = document.querySelector("main");
     // Locked on <html>, not <body>: see ds/Modal. A body overflow turned body

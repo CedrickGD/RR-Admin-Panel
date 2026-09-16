@@ -25,7 +25,14 @@ import {
   resetServerErrorRing,
   serverErrorCounts,
 } from "../../functions/_lib/http-error-ring";
-import { loadBackup, loadStorage, type SystemFs } from "../../functions/_lib/system-adapter";
+import {
+  BACKUP_MARKER,
+  loadBackup,
+  loadStorage,
+  parseBackupMarker,
+  type SystemFs,
+} from "../../functions/_lib/system-adapter";
+import { SYSTEM_STATUS_POLL_MS } from "../../shared/system-status";
 import {
   buildSystemStatus,
   computeIncidents,
@@ -47,6 +54,8 @@ const MINUTE = 60_000;
 function fakeFs(options: {
   files?: Record<string, { size: number; mtimeMs: number }>;
   dirs?: Record<string, string[]>;
+  /** Text files readable with readFile, e.g. the backup success marker. */
+  texts?: Record<string, string>;
   disk?: { bsize: number; blocks: number; bavail: number } | null;
 }): SystemFs {
   return {
@@ -63,6 +72,11 @@ function fakeFs(options: {
       const entries = options.dirs?.[path];
       if (!entries) throw new Error(`ENOENT ${path}`);
       return entries;
+    },
+    async readFile(path) {
+      const text = options.texts?.[path];
+      if (text === undefined) throw Object.assign(new Error(`ENOENT ${path}`), { code: "ENOENT" });
+      return text;
     },
   };
 }
@@ -122,17 +136,96 @@ describe("system adapter (file system)", () => {
     expect(await loadStorage({ DB_PATH: "/missing/rr.sqlite" }, fakeFs({ disk: null }))).toBeNull();
   });
 
-  it("picks the newest nightly backup by its stamp and ages it", async () => {
+  it("picks the newest nightly backup by its stamp and ages it when there is no marker", async () => {
+    // No .last-success in the folder: the newest file is all there is, and it is unverified.
     expect(await loadBackup({ BACKUP_DIR: "/backups" }, fs, NOW)).toEqual({
       newestFile: "rr-20260913-0315.sqlite.gz",
       newestAt: iso(-2 * 3600_000),
       ageSeconds: 7200,
+      verified: false,
     });
     expect(await loadBackup({}, fs, NOW)).toBeNull();
     expect(await loadBackup({ BACKUP_DIR: "/unreadable" }, fs, NOW)).toBeNull();
     expect(
       await loadBackup({ BACKUP_DIR: "/empty" }, fakeFs({ dirs: { "/empty": [] } }), NOW),
-    ).toEqual({ newestFile: null, newestAt: null, ageSeconds: null });
+    ).toEqual({ newestFile: null, newestAt: null, ageSeconds: null, verified: false });
+  });
+
+  it("reads the age from the success marker, not from the newest file", async () => {
+    // Last night's file exists but the marker still names the night before: that run wrote a
+    // file and never verified it (or died before the marker), so the verified age is 26 h.
+    const withMarker = fakeFs({
+      files: { "/backups/rr-20260913-0315.sqlite.gz": { size: 35 * MB, mtimeMs: NOW - 3600_000 } },
+      dirs: { "/backups": ["rr-20260912-0315.sqlite.gz", "rr-20260913-0315.sqlite.gz"] },
+      texts: {
+        [`/backups/${BACKUP_MARKER}`]: `${iso(-26 * 3600_000)} rr-20260912-0315.sqlite.gz\n`,
+      },
+    });
+    expect(await loadBackup({ BACKUP_DIR: "/backups" }, withMarker, NOW)).toEqual({
+      newestFile: "rr-20260912-0315.sqlite.gz",
+      newestAt: iso(-26 * 3600_000),
+      ageSeconds: 26 * 3600,
+      verified: true,
+    });
+    // The marker is enough on its own: no listing is needed, and a trailing slash is tolerated.
+    expect(
+      await loadBackup(
+        { BACKUP_DIR: "/backups/" },
+        fakeFs({
+          texts: { "/backups/.last-success": "2026-09-13T03:15:42Z rr-20260913-0315.sqlite.gz" },
+        }),
+        NOW,
+      ),
+    ).toMatchObject({ newestFile: "rr-20260913-0315.sqlite.gz", verified: true });
+  });
+
+  it("ignores a marker it cannot read and falls back to the newest file, unverified", async () => {
+    for (const text of [
+      "",
+      "seeded from rr-20260913-0315.sqlite.gz",
+      "yesterday rr-20260913-0315.sqlite.gz",
+      "2026-09-13T03:15:42Z notes.txt",
+      "2026-09-13T03:15:42Z rr-20260913-0315.sqlite.gz extra",
+    ]) {
+      const broken = fakeFs({
+        files: {
+          "/backups/rr-20260913-0315.sqlite.gz": { size: 35 * MB, mtimeMs: NOW - 2 * 3600_000 },
+        },
+        dirs: { "/backups": ["rr-20260913-0315.sqlite.gz"] },
+        texts: { "/backups/.last-success": text },
+      });
+      expect([text, await loadBackup({ BACKUP_DIR: "/backups" }, broken, NOW)]).toEqual([
+        text,
+        {
+          newestFile: "rr-20260913-0315.sqlite.gz",
+          newestAt: iso(-2 * 3600_000),
+          ageSeconds: 7200,
+          verified: false,
+        },
+      ]);
+    }
+  });
+
+  it("parses exactly the line backup.sh writes: an ISO timestamp and a backup file name", () => {
+    expect(parseBackupMarker("2026-09-13T03:15:42Z rr-20260913-0315.sqlite.gz\n")).toEqual({
+      at: "2026-09-13T03:15:42.000Z",
+      file: "rr-20260913-0315.sqlite.gz",
+    });
+    // Whitespace around and between the two tokens is tolerated; an uncompressed name too.
+    expect(parseBackupMarker("  2026-09-13T03:15:42Z   rr-20260913-0315.sqlite\r\n")).toEqual({
+      at: "2026-09-13T03:15:42.000Z",
+      file: "rr-20260913-0315.sqlite",
+    });
+    for (const bad of [
+      "",
+      "rr-20260913-0315.sqlite.gz",
+      "2026-09-13T03:15:42Z",
+      "not-a-date rr-20260913-0315.sqlite.gz",
+      // An ad-hoc copy in the same folder is not a nightly backup.
+      "2026-09-13T03:15:42Z rr-pre-errors-20260913.sqlite",
+      "2026-09-13T03:15:42Z rr-20260913-0315.sqlite.gz extra",
+    ])
+      expect([bad, parseBackupMarker(bad)]).toEqual([bad, null]);
   });
 });
 
@@ -350,19 +443,34 @@ describe("containers via docker-gateway", () => {
     expect(urls).not.toContain(`${base}/containers/razorreaper-backup-1/stats?stream=false`);
   });
 
-  it("serves a cached result for 15 seconds", async () => {
+  it("keeps the cache TTL at or above the page's poll interval", () => {
+    // At 15 s no 30 s poll ever hit the cache, so every poll from every open tab paid a full
+    // stats round on the NAS. The TTL is defined from the poll interval; this pins the relation
+    // so it cannot quietly drop below it again.
+    expect(CACHE_TTL_MS).toBeGreaterThanOrEqual(SYSTEM_STATUS_POLL_MS);
+  });
+
+  it("serves every poll inside one interval from one Docker round, then samples again", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(NOW);
     const fetchFn = fakeFetch(routes);
     const listCalls = () =>
       fetchFn.mock.calls.filter((call) => call[0].endsWith("/containers/json?all=1")).length;
+    const statsCalls = () =>
+      fetchFn.mock.calls.filter((call) => call[0].endsWith("/stats?stream=false")).length;
+    // Three tabs, each polling every SYSTEM_STATUS_POLL_MS, land inside one interval.
     await loadContainers({}, fetchFn);
-    vi.setSystemTime(NOW + CACHE_TTL_MS - 1);
+    vi.setSystemTime(NOW + 10_000);
+    await loadContainers({}, fetchFn);
+    vi.setSystemTime(NOW + SYSTEM_STATUS_POLL_MS - 1);
     await loadContainers({}, fetchFn);
     expect(listCalls()).toBe(1);
-    vi.setSystemTime(NOW + CACHE_TTL_MS + 1);
+    expect(statsCalls()).toBe(2); // rr-api and bot are running; backup is not sampled
+    // The first tab's next poll, one interval on, is the first that samples again.
+    vi.setSystemTime(NOW + SYSTEM_STATUS_POLL_MS);
     await loadContainers({}, fetchFn);
     expect(listCalls()).toBe(2);
+    expect(statsCalls()).toBe(4);
   });
 
   it("throws when the proxy does not answer, so the section turns null", async () => {
@@ -383,7 +491,12 @@ describe("incident rules", () => {
       buckets: [],
       lastIngestAt: iso(-2 * MINUTE),
     },
-    backup: { newestFile: "rr-20260913-0315.sqlite.gz", newestAt: iso(0), ageSeconds: 3600 },
+    backup: {
+      newestFile: "rr-20260913-0315.sqlite.gz",
+      newestAt: iso(0),
+      ageSeconds: 3600,
+      verified: true,
+    },
     bot: { reachable: true, latencyMs: 5, uptimeSeconds: 60, clients: 0, watching: 1 },
     containers: [
       {
@@ -402,6 +515,31 @@ describe("incident rules", () => {
   it("raises nothing when every check passes", () => {
     expect(computeIncidents(healthy, NOW)).toEqual([]);
     expect(overallFrom([])).toBe("ok");
+  });
+
+  it("says whether an overdue backup age is a verified one", () => {
+    const stale = (verified: boolean) =>
+      computeIncidents(
+        { ...healthy, backup: { ...healthy.backup!, ageSeconds: 27 * 3600, verified } },
+        NOW,
+      );
+    // With the marker, the age is the time since the last verified backup.
+    expect(stale(true)).toEqual([
+      expect.objectContaining({
+        id: "backup-stale",
+        severity: "warning",
+        detail: "The last verified backup is 27 h old; one runs every night.",
+      }),
+    ]);
+    // Without it, the newest file's mtime is all there is, and the wording says so.
+    expect(stale(false)).toEqual([
+      expect.objectContaining({
+        id: "backup-stale",
+        severity: "warning",
+        detail:
+          "The newest backup file is 27 h old and no verified backup is recorded; one runs every night.",
+      }),
+    ]);
   });
 
   it("flags a stale backup, stalled ingest and an unreachable bot", () => {
@@ -557,7 +695,8 @@ describe("buildSystemStatus", () => {
       database: { reachable: true },
       events: { last5Minutes: 1, last60Minutes: 1 },
       storage: { databaseBytes: 333 * MB, walBytes: null },
-      backup: { ageSeconds: 3600 },
+      // No .last-success in this fake folder: the newest file's age, and said to be unverified.
+      backup: { ageSeconds: 3600, verified: false },
       bot: { reachable: true, uptimeSeconds: 60 },
       containers: null,
       sources: { containers: "unavailable" },

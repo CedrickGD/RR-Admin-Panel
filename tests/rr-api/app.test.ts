@@ -192,19 +192,15 @@ describe("rr-api app", () => {
     expect((await call("/healthz")).status).toBe(200);
   });
 
-  it("keeps detailed database health behind dashboard authentication on the NAS", async () => {
+  it("keeps the database health probe behind dashboard authentication on the NAS", async () => {
     const denied = await call("/api/admin/health");
     expect(denied.status).toBe(401);
     const health = await call("/api/admin/health", {
       headers: await accessIdentityHeaders(ADMIN_EMAIL),
     });
     expect(health.status).toBe(200);
-    expect(await health.json()).toMatchObject({
-      ok: true,
-      api: "alive",
-      storage: { available: true },
-      count: expect.any(Number),
-    });
+    // Exactly the probe: no event count, ingest time or build detail rides along any more.
+    expect(await health.json()).toEqual({ ok: true, storage: { available: true } });
   });
 
   it("classifies worker-owned paths", () => {

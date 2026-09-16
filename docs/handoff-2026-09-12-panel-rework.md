@@ -611,8 +611,12 @@ echten Gerät, Headless-Chrome hat den Sheet-Bug nicht gezeigt.
    ~267 Events pro Session in einer Schleife, v. a. 1.4.8.11 / 1.4.9 / 1.5.2. Fix gehört ins
    Client-Repo; optional Ingest-Dämpfung (erste N gleiche Hintergrundfehler pro Session, dann Zähler).
 3. **Healthchecks ohne Tunnel-Neustart nicht machbar:** cloudflared `--metrics` + `/ready`
-   (zählt dann auch Origin-Fehler), `backup.sh` schreibt `.last-success` + Healthcheck,
-   Caddy-Liveness. Jede davon startet den jeweiligen Container neu → bewusst planen.
+   (zählt dann auch Origin-Fehler), Caddy-Liveness. Jede davon startet den jeweiligen Container
+   neu → bewusst planen. Der Backup-Teil ist erledigt (`r3/backup-healthcheck`): `backup.sh`
+   prüft die Kopie (`PRAGMA integrity_check`, `gzip -t`) und schreibt erst dann
+   `/backups/.last-success`; der `backup`-Service hat darauf einen Healthcheck (36 h), und
+   „Last backup" auf System health ist das Alter des letzten verifizierten Laufs
+   (`deploy/nas/README.md`, „Backups").
 4. **Bot:** Guild-/Reconcile-Status braucht eine Änderung im `razorreaper-bot`-Repo.
 5. **Customers am Handy:** Tippen auf Kartenkopf/Avatar soll Customer 360 öffnen (heute nur
    36px-Icon im Kartenfuß).

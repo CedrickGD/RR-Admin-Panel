@@ -1,6 +1,13 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+
+// Warms the workspace chunk here, while the file is collected and no per-test timeout applies,
+// instead of inside the first test. CustomerWorkspaceRouter lazy-loads it, and that import fetches
+// its ~30 modules one RPC at a time through vitest's single main process: ~0.7 s alone, 4-5 s in a
+// full run with every worker collecting at once, past the 5 s cap. The router's lazy import then
+// resolves from this worker's module cache.
+import "../src/components/Customer360Overlay";
 import { CustomerWorkspaceRouter } from "../src/components/CustomerWorkspaceRouter";
 import { CustomerReturnLink } from "../src/components/CustomerReturnLink";
 import { resetHistoryLayers } from "../src/hooks/useHistoryLayer";

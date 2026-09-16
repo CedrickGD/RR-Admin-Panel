@@ -57,6 +57,29 @@ html[data-theme] .customer-directory-section[data-density] .person-cell {
   min-width: 190px;
   max-width: 280px;
 }
+/* The whole card head opens Customer 360 (ds/RecordOpen). A button sizes to
+   its content even as a block, so it needs the width to make the stacked
+   card's head the tap target; the button reset in index.css and .person-cell's
+   own flex, gap and padding cover the rest. */
+html[data-theme] .customer-directory-section[data-density] .customer-directory-open {
+  width: 100%;
+  color: inherit;
+  /* A button centres its text by default; the name and the facts under it read from the left
+     like every other record cell (the old text-align on the name span did nothing here). */
+  text-align: left;
+}
+/* consistency.css tints any hovered .person-cell control accent as a whole.
+   Only the name answers hover here, exactly as it did while it was the link. */
+html[data-theme] .customer-directory-section[data-density] .customer-directory-open:hover {
+  color: inherit;
+}
+html[data-theme]
+  .customer-directory-section[data-density]
+  .customer-directory-open:hover
+  .record-link {
+  color: var(--accent-text);
+  text-decoration: underline;
+}
 html[data-theme] .customer-directory-section[data-density] .person-avatar {
   width: var(--directory-avatar-size);
   height: var(--directory-avatar-size);
@@ -226,11 +249,21 @@ html[data-theme] .customer-directory-section[data-density] .customer-directory-a
     flex-basis: 36px;
     margin-top: 4px;
   }
-  html[data-theme] .customer-directory-section[data-density] .record-link {
+  /* The touch floor sits on the head control, not on the name inside it — both
+     at 44px would make every card a line taller. */
+  html[data-theme] .customer-directory-section[data-density] .customer-directory-open {
     min-height: 44px;
-    display: inline-flex;
-    align-items: center;
-    text-align: left;
+  }
+  /* Touch has no hover: on the stacked card the name rests in the paint a record link takes on
+     hover (.record-link:hover, consistency.css) so the head reads as tappable — the same two
+     tokens, nothing added. On desktop the hover paint is cue enough, as on the other rows. */
+  html[data-theme]
+    .customer-directory-section[data-density]
+    .customer-directory-open
+    .record-link {
+    color: var(--accent-text);
+    text-decoration: underline;
+    text-underline-offset: 4px;
   }
   .customer-directory-mobile-contact {
     display: block;

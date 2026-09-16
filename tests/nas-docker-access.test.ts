@@ -1,26 +1,9 @@
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-
 import { describe, expect, it } from "vitest";
 
-function repoFile(path: string): string {
-  return readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), "utf8").replace(
-    /\r\n/g,
-    "\n",
-  );
-}
+import { composeService as service, repoFile } from "./helpers/nas-compose";
 
 const compose = repoFile("deploy/nas/compose.yml");
 const gateway = repoFile("deploy/nas/docker-gateway/Caddyfile");
-
-/** The block of `compose.yml` belonging to one service, up to the next top-level `  <name>:`. */
-function service(name: string): string {
-  const match = new RegExp(
-    `\\n  ${name}:\\n([\\s\\S]*?)(?=\\n  [a-z][a-z0-9-]*:\\n|\\nnetworks:)`,
-  ).exec(compose);
-  if (!match) throw new Error(`service ${name} not found in compose.yml`);
-  return match[1];
-}
 
 interface Matcher {
   name: string;

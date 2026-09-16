@@ -20,6 +20,12 @@ export interface DataTableColumn<T = unknown> {
   width?: number | string;
   /** Per-column floor. The table's own width floor is the sum of these when any is set. */
   minWidth?: number;
+  /**
+   * Per-column cap in px: past it the cell ellipsises (`.cell-truncate`) instead of widening the
+   * column, so a table whose other columns are bounded can promise to fit its frame. Put the full
+   * value in the cell's `title`; the stacked mobile layout lifts the cap and wraps the value.
+   */
+  maxWidth?: number;
 }
 
 export interface SortState {
@@ -179,9 +185,17 @@ export function DataTable<T = unknown>({
                         col.mono ? "mono" : "",
                         col.muted ? "muted" : "",
                         col.numeric ? "numeric" : "",
+                        col.maxWidth ? "cell-truncate" : "",
                       ]
                         .join(" ")
                         .trim() || undefined
+                    }
+                    // The cap rides on the class's own variable (theme/css/components.css), not
+                    // on an inline max-width, so the stacked layout's reset still wins.
+                    style={
+                      col.maxWidth
+                        ? ({ "--cell-max": `${col.maxWidth}px` } as CSSProperties)
+                        : undefined
                     }
                   >
                     {col.render

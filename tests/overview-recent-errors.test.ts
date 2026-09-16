@@ -5,6 +5,7 @@ import { loadSummary } from "../functions/_lib/storage";
 import { isOverviewErrorInWindow } from "../src/utils/errorEvents";
 import {
   backgroundFault,
+  backgroundReport,
   createTelemetryTestDb,
   realError,
   type TelemetryTestDb,
@@ -30,6 +31,15 @@ beforeEach(() => {
         session_id: "s-loop",
       }),
     ),
+    // The same loop as a client from 1.5.3 reports it — a rollup of 412 faults and a
+    // suppressed-I/O row, newest of all. Neither is an error, and neither is a new incident.
+    backgroundReport(ago(500), "rollup", { occurrences: 412, hwid: "HW-153", session_id: "s-153" }),
+    backgroundReport(ago(250), "suppressed", {
+      occurrences: 17,
+      suppressed_aborted_io: 17,
+      hwid: "HW-153",
+      session_id: "s-153",
+    }),
   ]);
 });
 

@@ -100,5 +100,35 @@ describe("Customers CRM page", () => {
     expect(page).toContain("<Customer360Overlay");
     expect(page).toContain("anchor={selectedAnchor}");
     expect(page).toContain("Open Customer 360 for");
+    // The card head is the primary way in (ds/RecordOpen); the footer button stays as the labelled one.
+    expect(page).toContain("<RecordOpen");
+    expect(page).toContain("customer-directory-open");
+    expect(page).not.toContain("<RecordLink");
+  });
+
+  it("names the destination once — Customer 360 — on the head, the row action and the overlay", () => {
+    const overlay = source("../src/components/Customer360Overlay.tsx");
+    expect(page).toContain('title="Open Customer 360"');
+    expect(page).not.toContain("Open customer workspace");
+    expect(overlay).toContain("<span>Customer 360</span>");
+    expect(overlay).not.toContain("Customer record");
+  });
+
+  it("aligns the card head's text from the left and paints the name as tappable on the stacked card", () => {
+    const css = source("../src/theme/customer-directory.css");
+    const head = css.match(/\.customer-directory-open \{([^}]*)\}/)?.[1].replace(/\s+/g, " ");
+    // A <button> centres its text by default; the name span inherits, so the rule sits on the button.
+    expect(head).toContain("text-align: left;");
+    // Touch has no hover: below 900px the name rests in the record link's hover paint.
+    const stackedAt = css.indexOf("@media (max-width: 900px)");
+    expect(css.slice(stackedAt).replace(/\s+/g, " ")).toContain(
+      ".customer-directory-open .record-link { color: var(--accent-text); text-decoration: underline;",
+    );
+    // On desktop the name keeps the rows' treatment: painted on hover only.
+    const desktopRules = css
+      .slice(0, stackedAt)
+      .match(/\.customer-directory-open[^{]*\.record-link \{/g);
+    expect(desktopRules).toHaveLength(1);
+    expect(desktopRules?.[0]).toContain(":hover");
   });
 });

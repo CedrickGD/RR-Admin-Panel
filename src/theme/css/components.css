@@ -1452,8 +1452,14 @@
 .error-tier-pill.is-free { background: transparent; color: var(--text-3); }
 .error-identity-id { margin-left: 8px; }
 .error-cell-sub { font-size: var(--fs-tiny); color: var(--text-2); }
-.error-cell-bg { font-size: var(--fs-micro); color: var(--text-3); }
 .error-cell-more { color: var(--text-3); }
+/* Background faults table. The source word with the render breaker's note under it; the note and
+   the versions list wrap inside their columns (record-table cells are nowrap), and a member name
+   that cannot ellipsise in the stacked card may break anywhere rather than widen it. */
+.error-fault-source { display: grid; gap: 2px; }
+.error-cell-note { display: block; font-size: var(--fs-micro); color: var(--text-3); white-space: normal; }
+.error-fault-versions { white-space: normal; }
+.error-fault-frame { overflow-wrap: anywhere; }
 .error-cell-empty { color: var(--text-3); opacity: 0.55; }
 /* An inline cluster inside a table cell: a badge beside a count, a live dot
    beside a timestamp. */

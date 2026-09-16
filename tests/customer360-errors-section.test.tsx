@@ -2,6 +2,13 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
+// Warms the workspace chunk here, while the file is collected and no per-test timeout applies,
+// instead of inside the first test. CustomerWorkspaceRouter lazy-loads it, and that import fetches
+// its ~30 modules one RPC at a time through vitest's single main process: ~0.7 s alone, 4-5 s in a
+// full run with every worker collecting at once, past the 5 s cap. The router's lazy import then
+// resolves from this worker's module cache.
+import "../src/components/Customer360Overlay";
+
 import { CustomerWorkspaceRouter } from "../src/components/CustomerWorkspaceRouter";
 import { resetHistoryLayers } from "../src/hooks/useHistoryLayer";
 import { PanelIdentity } from "../src/hooks/usePanelPermission";
@@ -21,7 +28,25 @@ const BACKGROUND_MESSAGE = "A Task's exception(s) were not observed";
 const BACKGROUND_ROWS = 40;
 
 const fixtures = vi.hoisted(() => {
-  const errorRow = (index: number, kind: "unhandled" | "background") => ({
+  /** What the API attaches to a background row from a client before 1.5.3: one row, one fault. */
+  const legacyReport = {
+    kind: null,
+    occurrences: 1,
+    faultSource: "unobserved_task",
+    topFrame: null,
+    topFrames: null,
+    baseExceptionType: "System.NullReferenceException",
+    leafExceptionCount: null,
+    suppressedAbortedIo: 0,
+    renderOwner: null,
+    renderOrigin: null,
+    renderStopped: false,
+  };
+  const errorRow = (
+    index: number,
+    kind: "unhandled" | "background",
+    report: Record<string, unknown> | null = kind === "background" ? legacyReport : null,
+  ) => ({
     id: `evt-${kind}-${index}`,
     timestamp: new Date(Date.UTC(2026, 8, 13, 12, 0, index)).toISOString(),
     receivedAt: new Date(Date.UTC(2026, 8, 13, 12, 0, index)).toISOString(),
@@ -36,9 +61,11 @@ const fixtures = vi.hoisted(() => {
     appVersion: "1.5.2",
     source: "desktop-app",
     extras: {},
+    report,
   });
 
   return {
+    legacyReport,
     customer: {
       anchor: {
         requested_by: "hwid",
@@ -87,7 +114,24 @@ const fixtures = vi.hoisted(() => {
       feedback: [],
       errors: [
         errorRow(0, "unhandled"),
-        ...Array.from({ length: 40 }, (_, index) => errorRow(index + 1, "background")),
+        ...Array.from({ length: 38 }, (_, index) => errorRow(index + 1, "background")),
+        // The client from 1.5.3: one 5-minute rollup standing for 412 faults, and the aborted
+        // Discord-pipe I/O it suppressed, which is not a fault at all.
+        errorRow(39, "background", {
+          ...legacyReport,
+          kind: "rollup",
+          occurrences: 412,
+          topFrame: "RazorReaper.Components.Pages.Home.UpdateResources (Home.razor:1394)",
+          topFrames: "Home.UpdateResources (Home.razor:1394)",
+        }),
+        errorRow(40, "background", {
+          ...legacyReport,
+          kind: "suppressed",
+          occurrences: 17,
+          suppressedAbortedIo: 17,
+          baseExceptionType: null,
+          leafExceptionCount: 0,
+        }),
       ],
       installs: [],
       sessions: [],
@@ -143,6 +187,11 @@ afterEach(async () => {
   resetHistoryLayers();
 });
 
+/*
+ * Lets React, the (warm) workspace chunk, fetches and jsdom's async traversals settle. The
+ * budget stays under vitest's 5 s per-test cap on purpose: a wait that outlives the cap keeps
+ * polling act() after the test was failed, on top of the next test's own act() scopes.
+ */
 async function waitFor(check: () => boolean, what: string, timeout = 3000) {
   const end = Date.now() + timeout;
   while (!check()) {
@@ -263,12 +312,49 @@ describe("Customer 360 Errors section", () => {
     const caption = card.querySelector(".customer360-caption");
     const list = card.querySelector(".customer360-record-list");
 
-    expect(caption?.textContent).toContain("40 background faults are listed below");
-    expect(caption?.textContent).toContain("never counted as an error");
+    // 40 rows, of which 38 are one fault each and one is a rollup of 412; the suppressed I/O
+    // row stands for no fault.
+    expect(caption?.textContent).toContain(
+      "40 background fault reports are listed below, standing for 450 faults",
+    );
+    expect(caption?.textContent).toContain("never counted as errors");
     // Read before the rows, not after 40 of them: the explanation is what keeps a list of
     // background noise under a heading that counts 1 from reading as 41 crashes.
     expect(caption && list && caption.compareDocumentPosition(list)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
+  });
+
+  it("says on the row what a rollup or a suppressed-I/O row stands for", async () => {
+    await openErrorsSection();
+    const metas = [...errorsCard().querySelectorAll("details.customer360-record summary small")].map(
+      (small) => small.textContent ?? "",
+    );
+
+    expect(metas).toHaveLength(BACKGROUND_ROWS + 1);
+    expect(metas.filter((meta) => meta.includes("5-minute rollup, 412 faults"))).toHaveLength(1);
+    expect(
+      metas.filter((meta) =>
+        meta.includes(
+          "17 aborted Discord-pipe I/O exceptions suppressed by the client, not app faults",
+        ),
+      ),
+    ).toHaveLength(1);
+    // A row that is one fault says nothing extra; neither does the real error.
+    expect(metas.filter((meta) => /rollup|suppressed|sighting/.test(meta))).toHaveLength(2);
+  });
+
+  it("counts a list of only old-style rows as one fault each, with no standing-for clause", async () => {
+    const all = fixtures.customer.errors;
+    fixtures.customer.errors = all.filter((row) => row.report === null || row.report.kind === null);
+    try {
+      await openErrorsSection();
+      const caption = errorsCard().querySelector(".customer360-caption");
+
+      expect(caption?.textContent).toContain("38 background fault reports are listed below —");
+      expect(caption?.textContent).not.toContain("standing for");
+    } finally {
+      fixtures.customer.errors = all;
+    }
   });
 });

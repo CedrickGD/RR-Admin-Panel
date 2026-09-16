@@ -5,6 +5,13 @@
  * instead of guessing.
  */
 
+/**
+ * How often the System health page asks rr-api for this payload. The container cache in
+ * functions/_lib/container-health.ts is sized from it, so several open tabs cost one Docker
+ * round per interval; tests/api/admin-system.test.ts pins that relation.
+ */
+export const SYSTEM_STATUS_POLL_MS = 30_000;
+
 export type SystemOverall = "ok" | "degraded" | "critical";
 
 export interface SystemEventBucket {
@@ -34,6 +41,14 @@ export interface SystemBackup {
   newestFile: string | null;
   newestAt: string | null;
   ageSeconds: number | null;
+  /**
+   * True when the three figures come from the success marker backup.sh writes only after the
+   * copy passed its integrity checks (deploy/nas/backup/backup.sh), so the age is the time since
+   * the last verified backup. False when there is no marker and they come from the newest file
+   * name and its mtime, which proves a file was written and nothing more. Optional: an older
+   * rr-api build does not send it.
+   */
+  verified?: boolean;
 }
 
 export interface SystemBot {

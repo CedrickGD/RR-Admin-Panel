@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 
 import { onRequestGet as customer360 } from "../../functions/api/admin/customer-360";
 import { resetInstallsSchemaStateForTests } from "../../shared/installs-store";
+import { BACKGROUND_REPORT_METRIC_KEYS } from "../../shared/telemetry-contract";
 import { createMockD1 } from "../helpers/mock-d1";
 import {
   TEST_ACCESS_TEAM_DOMAIN,
@@ -256,7 +257,7 @@ describe("GET /api/admin/customer-360", () => {
   });
 
   it("lists background faults under Errors but does not count them in the summary", async () => {
-    const backgroundRow = (n: number) => ({
+    const backgroundRow = (n: number, report: Record<string, unknown> = {}) => ({
       event_id: `bg-${n}`,
       source: "desktop",
       ts: `2026-09-03T10:01:0${n}.000Z`,
@@ -266,10 +267,39 @@ describe("GET /api/admin/customer-360", () => {
         error_kind: "background",
         error_code: "RR-E1003",
         exception_type: "System.AggregateException",
+        ...report,
       }),
       message: "A Task's exception(s) were not observed.",
       received_at: `2026-09-03T10:01:0${n}.000Z`,
     });
+    // Three shapes of the same fault: a row from a client before 1.5.3, a render-dispatch
+    // rollup, and the suppressed Discord-pipe I/O the client dropped (frames as JSON null).
+    const rows = [
+      backgroundRow(1),
+      backgroundRow(2, {
+        base_exception_type: "System.NullReferenceException",
+        top_frame: "RazorReaper.Components.Pages.Home.UpdateResources (Home.razor:1394)",
+        top_frames: "Home.UpdateResources (Home.razor:1394)",
+        leaf_exception_count: 1,
+        occurrences: 412,
+        report_kind: "rollup",
+        suppressed_aborted_io: 5,
+        fault_source: "render_dispatch",
+        render_owner: "Home",
+        render_origin: "UpdateResources",
+        render_stopped: true,
+      }),
+      backgroundRow(3, {
+        base_exception_type: null,
+        top_frame: null,
+        top_frames: null,
+        leaf_exception_count: 0,
+        occurrences: 17,
+        report_kind: "suppressed",
+        suppressed_aborted_io: 17,
+        fault_source: "unobserved_task",
+      }),
+    ];
     const mock = createMockD1({
       first: [
         { match: /FROM app_sessions WHERE session_id = \? LIMIT 1/, result: SESSION },
@@ -285,7 +315,7 @@ describe("GET /api/admin/customer-360", () => {
         },
         {
           match: /FROM telemetry_events WHERE service = 'app_error'/,
-          result: { results: [backgroundRow(1), backgroundRow(2), backgroundRow(3)] },
+          result: { results: rows },
         },
       ],
     });
@@ -303,7 +333,101 @@ describe("GET /api/admin/customer-360", () => {
     const payload = (await response.json()) as Record<string, any>;
     expect(payload.customer.errors).toHaveLength(3);
     expect(payload.customer.errors[0].kind).toBe("background");
-    // SESSION.error_count (real errors) is 1; the three background rows add nothing.
+    // SESSION.error_count (real errors) is 1; the three background rows add nothing — not
+    // the rollup standing for 412 faults either.
     expect(payload.customer.summary.error_count).toBe(1);
+
+    // Each row says what it stands for, as a field the overlay can read, not a metric buried
+    // in the capped extras.
+    const [legacy, rollup, suppressed] = payload.customer.errors;
+    expect(legacy.report).toMatchObject({
+      kind: null,
+      occurrences: 1,
+      faultSource: "unobserved_task",
+    });
+    expect(rollup.report).toEqual({
+      kind: "rollup",
+      occurrences: 412,
+      faultSource: "render_dispatch",
+      topFrame: "RazorReaper.Components.Pages.Home.UpdateResources (Home.razor:1394)",
+      topFrames: "Home.UpdateResources (Home.razor:1394)",
+      baseExceptionType: "System.NullReferenceException",
+      leafExceptionCount: 1,
+      suppressedAbortedIo: 5,
+      renderOwner: "Home",
+      renderOrigin: "UpdateResources",
+      renderStopped: true,
+    });
+    expect(suppressed.report).toMatchObject({
+      kind: "suppressed",
+      occurrences: 17,
+      suppressedAbortedIo: 17,
+      topFrame: null,
+      baseExceptionType: null,
+    });
+    for (const row of payload.customer.errors)
+      for (const key of BACKGROUND_REPORT_METRIC_KEYS)
+        expect(Object.keys(row.extras)).not.toContain(key);
+  });
+
+  it("attaches no report to a real error and keeps its report-named metrics in the extras", async () => {
+    // Only a background row moves the report keys out of the extras (into `report`). A real
+    // error that happens to carry one — its base exception, the frame it was thrown from — has
+    // no report to show it in, so it stays where support reads it.
+    const realRow = {
+      event_id: "real-1",
+      source: "desktop",
+      ts: "2026-09-03T10:02:00.000Z",
+      metrics_json: JSON.stringify({
+        hwid: HWID,
+        session_id: SESSION_ID,
+        error_kind: "unhandled",
+        error_code: "RR-E1000",
+        exception_type: "System.NullReferenceException",
+        is_terminating: true,
+        base_exception_type: "System.InvalidOperationException",
+        top_frame: "RazorReaper.Services.Licensing.Refresh (Licensing.cs:88)",
+      }),
+      message: "Object reference not set to an instance of an object.",
+      received_at: "2026-09-03T10:02:00.000Z",
+    };
+    const mock = createMockD1({
+      first: [
+        { match: /FROM app_sessions WHERE session_id = \? LIMIT 1/, result: SESSION },
+        {
+          match: /SUM\(CASE WHEN session_id LIKE 'install:%'/,
+          result: { legacy_rows: 0, first_seen: SESSION.started_at, legacy_last_seen: null },
+        },
+      ],
+      all: [
+        {
+          match: /SELECT session_id, install_id, hwid, source, user_label.*FROM app_sessions WHERE/,
+          result: { results: [SESSION] },
+        },
+        {
+          match: /FROM telemetry_events WHERE service = 'app_error'/,
+          result: { results: [realRow] },
+        },
+      ],
+    });
+
+    const response = await customer360({
+      request: createSyntheticRequest({
+        path: "/api/admin/customer-360",
+        query: { session_id: SESSION_ID },
+        headers: await accessIdentityHeaders(ADMIN),
+      }),
+      env: env(mock.db),
+    });
+
+    expect(response.status).toBe(200);
+    const payload = (await response.json()) as Record<string, any>;
+    expect(payload.customer.errors).toHaveLength(1);
+    expect(payload.customer.errors[0]).toMatchObject({ kind: "unhandled", report: null });
+    expect(payload.customer.errors[0].extras).toMatchObject({
+      is_terminating: "true",
+      base_exception_type: "System.InvalidOperationException",
+      top_frame: "RazorReaper.Services.Licensing.Refresh (Licensing.cs:88)",
+    });
   });
 });

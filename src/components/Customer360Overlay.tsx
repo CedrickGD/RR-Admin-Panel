@@ -26,7 +26,12 @@ import type {
 import type { AppSessionRecord, ErrorEventDetail } from "../types/telemetry";
 import { fetchCustomer360 } from "../utils/api";
 import { getCustomer360Overview } from "../utils/customer360Overview";
-import { isBackgroundErrorKind, isRealErrorRow } from "../utils/errorEvents";
+import {
+  describeBackgroundReport,
+  isBackgroundErrorKind,
+  isRealErrorRow,
+  summarizeBackgroundRows,
+} from "../utils/errorEvents";
 import { useRefreshSignal } from "../utils/refreshBus";
 import {
   formatDate,
@@ -275,16 +280,22 @@ function RecordList({
  */
 function ErrorsSection({ errors }: { errors: ErrorEventDetail[] }) {
   const realErrors = errors.filter(isRealErrorRow).length;
-  const backgroundFaults = errors.length - realErrors;
+  // Rows, and the faults they stand for: from client 1.5.3 one row can be a 5-minute rollup.
+  const background = summarizeBackgroundRows(errors);
   return (
     <section className="customer360-card">
       <SectionHeading icon={<AlertTriangle />} title="Errors" count={realErrors} />
-      {backgroundFaults > 0 ? (
+      {background.reports > 0 ? (
         <p className="customer360-caption customer360-caption-lead">
-          {backgroundFaults === 1
-            ? "1 background fault is listed below"
-            : `${formatNumber(backgroundFaults)} background faults are listed below`}
-          {" — a known client bug that does not crash the app, so it is never counted as an error."}
+          {background.reports === 1
+            ? "1 background fault report is listed below"
+            : `${formatNumber(background.reports)} background fault reports are listed below`}
+          {background.faults > background.reports
+            ? `, standing for ${formatNumber(background.faults)} faults`
+            : ""}
+          {background.reports === 1
+            ? " — a known client bug that does not crash the app, so it is never counted as an error."
+            : " — a known client bug that does not crash the app, so they are never counted as errors."}
         </p>
       ) : null}
       <RecordList
@@ -292,7 +303,14 @@ function ErrorsSection({ errors }: { errors: ErrorEventDetail[] }) {
         empty="No errors are linked to this customer."
         label={(row, index) => displayValue(row.message ?? row.type ?? `Error ${index + 1}`)}
         meta={(row) =>
-          `${displayValue(row.type ?? row.kind)} · ${row.timestamp ? formatDate(String(row.timestamp)) : "time unknown"}`
+          [
+            displayValue(row.type ?? row.kind),
+            // A rollup or suppressed-I/O row says so, right where its date is.
+            describeBackgroundReport(row.report),
+            row.timestamp ? formatDate(String(row.timestamp)) : "time unknown",
+          ]
+            .filter(Boolean)
+            .join(" · ")
         }
         badge={(row) => String(row.kind ?? "error")}
         badgeTone={errorKindTone}

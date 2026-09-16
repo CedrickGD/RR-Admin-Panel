@@ -28,6 +28,10 @@ import type {
 import { ensureUsageSchema, FREE_LIMITS } from "../../_lib/usage";
 import { INSTALL_ID_PATTERN } from "../../../shared/install-auth";
 import { ensureInstallsSchema } from "../../../shared/installs-store";
+import {
+  BACKGROUND_REPORT_METRIC_KEYS,
+  readBackgroundFaultReport,
+} from "../../../shared/telemetry-contract";
 
 type HandlerContext = { request: Request; env: RuntimeEnv };
 type CustomerSelector =
@@ -855,6 +859,9 @@ function mapInstall(row: InstallRow): Record<string, unknown> {
 
 function mapError(row: ErrorRow): ErrorEventDetail {
   const metrics = parseObject(row.metrics_json);
+  const kind = metricText(metrics, "error_kind");
+  // A background row's report keys ship as `report`, so they are not repeated in the extras
+  // (which are capped at 16 keys and would otherwise cut them off behind the base metrics).
   const surfaced = new Set([
     "hwid",
     "install_id",
@@ -863,6 +870,7 @@ function mapError(row: ErrorRow): ErrorEventDetail {
     "error_kind",
     "error_code",
     "app_version",
+    ...BACKGROUND_REPORT_METRIC_KEYS,
   ]);
   const extras = Object.fromEntries(
     Object.entries(metrics)
@@ -882,12 +890,15 @@ function mapError(row: ErrorRow): ErrorEventDetail {
     receivedAt: row.received_at,
     message: row.message ?? null,
     type: metricText(metrics, "exception_type"),
-    kind: metricText(metrics, "error_kind"),
+    kind,
     code: metricText(metrics, "error_code"),
     sessionId: metricText(metrics, "session_id"),
     appVersion: metricText(metrics, "app_version"),
     source: row.source,
     extras: toStringRecord(redacted),
+    // What a listed background row stands for: one fault (older client), a first sighting, a
+    // 5-minute rollup, or suppressed I/O. Real errors carry none of it.
+    report: kind === BACKGROUND_KIND ? readBackgroundFaultReport(metrics) : null,
   };
 }
 

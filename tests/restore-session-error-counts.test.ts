@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { COVERAGE_PROOF } from "../deploy/nas/rr-api/scripts/recompute-session-error-counts.mjs";
 import {
   ingestWriteSince,
   main,
@@ -87,6 +88,14 @@ const startEvent = (sessionId: string, msAgo: number) => ({
   metrics: { session_id: sessionId },
 });
 
+/** The client's update_check, fired moments before session_start as part of the same run. */
+const updateCheck = (sessionId: string, msAgo: number) => ({
+  service: "update_check",
+  status: "ok" as const,
+  ts: ago(msAgo),
+  metrics: { session_id: sessionId },
+});
+
 const loop = (sessionId: string, count: number, startMsAgo: number) =>
   Array.from({ length: count }, (_, index) =>
     backgroundFault(ago(startMsAgo - index * 1000), { session_id: sessionId }),
@@ -113,6 +122,14 @@ beforeEach(() => {
     realError(ago(2 * DAY - 2 * MINUTE), { session_id: "p-proven-real" }),
     ...loop("p-proven-real", 3, 2 * DAY - 10 * MINUTE),
   ]);
+  // Its update_check fired 30 s before its session_start — the prelude of the same run, inside
+  // the window — so the start anchors the history and the run's 400 -> 0 stands.
+  insertPair("p-prelude", { errorCount: 400 }, { errorCount: 0 });
+  live.insertEvents([
+    updateCheck("p-prelude", 2 * DAY + 30_000),
+    startEvent("p-prelude", 2 * DAY),
+    ...loop("p-prelude", 6, 2 * DAY - MINUTE),
+  ]);
 
   // --- the strict rule CANNOT prove these: the pre-run count goes back ----------------------
   // started_at was rewritten forward; the real errors behind the stored 300 were pruned.
@@ -129,6 +146,21 @@ beforeEach(() => {
   live.insertEvents([
     startEvent("install:abc", 1 * DAY),
     ...loop("install:abc", 2, 1 * DAY - MINUTE),
+  ]);
+  // An event 20 minutes before its retained start: outside the prelude window, so that start does
+  // not anchor the history and the pre-run 50 goes back.
+  insertPair("u-prelude-late", { errorCount: 50 }, { errorCount: 0 });
+  live.insertEvents([
+    updateCheck("u-prelude-late", 2 * DAY + 20 * MINUTE),
+    startEvent("u-prelude-late", 2 * DAY),
+    ...loop("u-prelude-late", 2, 2 * DAY - MINUTE),
+  ]);
+  // A genuine prelude beside an older event from an earlier use of the id: the older event decides.
+  insertPair("u-prelude-reused", { errorCount: 60 }, { errorCount: 0 });
+  live.insertEvents([
+    ...loop("u-prelude-reused", 2, 2 * DAY + 12 * HOUR),
+    updateCheck("u-prelude-reused", 2 * DAY + 30_000),
+    startEvent("u-prelude-reused", 2 * DAY),
   ]);
 
   // --- rows the restore must not touch ------------------------------------------------------
@@ -203,14 +235,14 @@ describe("restore-session-error-counts", () => {
   it("restores only what the strict rule cannot prove, and says which is which", () => {
     const result = run({ apply: true, batchSize: 3 });
 
-    expect(result.sessionsLive).toBe(16);
-    expect(result.sessionsInBackup).toBe(15);
-    expect(result.sessionsScanned).toBe(16);
+    expect(result.sessionsLive).toBe(19);
+    expect(result.sessionsInBackup).toBe(18);
+    expect(result.sessionsScanned).toBe(19);
 
-    expect(result.counts.restored).toBe(3);
-    expect(result.counts.errorsRestored).toBe(352);
-    expect(result.counts.provenKept).toBe(2);
-    expect(result.counts.errorsProvenDropped).toBe(507);
+    expect(result.counts.restored).toBe(5);
+    expect(result.counts.errorsRestored).toBe(462);
+    expect(result.counts.provenKept).toBe(3);
+    expect(result.counts.errorsProvenDropped).toBe(907);
     expect(result.counts.notRestoredIngestWrote).toBe(1);
     expect(result.counts.errorsNotRestoredIngestWrote).toBe(77);
     expect(result.counts.refused).toEqual({
@@ -221,9 +253,9 @@ describe("restore-session-error-counts", () => {
       "row-written-by-ingest-since-the-backup": { sessions: 1, errors: 0 },
     });
     expect(result.counts.sumBefore).toBe(21);
-    expect(result.counts.sumAfter).toBe(373);
+    expect(result.counts.sumAfter).toBe(483);
     // Projected, then measured: the report never claims a sum it did not read back.
-    expect(result.counts.sumAfterObserved).toBe(373);
+    expect(result.counts.sumAfterObserved).toBe(483);
 
     expect(errorCounts()).toEqual({
       "install:abc": 12,
@@ -231,6 +263,7 @@ describe("restore-session-error-counts", () => {
       "n-new": 5,
       "n-odd": 2,
       "n-same": 3,
+      "p-prelude": 0,
       "p-proven": 0,
       "p-proven-real": 2,
       "st-churn": 0,
@@ -241,8 +274,22 @@ describe("restore-session-error-counts", () => {
       "st-unproven": 0,
       "u-forward": 300,
       "u-ingest": 0,
+      "u-prelude-late": 50,
+      "u-prelude-reused": 60,
       "u-pruned": 40,
     });
+  });
+
+  it("applies the prelude rule the recompute script applies, through the same helper", () => {
+    const result = run({ apply: true });
+
+    // A prelude inside the window: the start anchors the history, the corrected 0 stands.
+    expect(errorCounts()["p-prelude"]).toBe(0);
+    // Outside the window, or beside an older event from an earlier use: unprovable, restored.
+    expect(errorCounts()["u-prelude-late"]).toBe(50);
+    expect(errorCounts()["u-prelude-reused"]).toBe(60);
+    expect(result.counts.provenKept).toBe(3);
+    expect(result.counts.restored).toBe(5);
   });
 
   it("restores a status only where no retained event proves the new one", () => {
@@ -314,8 +361,8 @@ describe("restore-session-error-counts", () => {
     const result = run();
 
     expect(result.dryRun).toBe(true);
-    expect(result.counts.restored).toBe(3);
-    expect(result.counts.sumAfter).toBe(373);
+    expect(result.counts.restored).toBe(5);
+    expect(result.counts.sumAfter).toBe(483);
     // Nothing was written, so there is no measured sum to report.
     expect(result.counts.sumAfterObserved).toBeNull();
     expect(result.status.restored).toBe(1);
@@ -330,12 +377,12 @@ describe("restore-session-error-counts", () => {
     expect(second.counts.restored).toBe(0);
     expect(second.counts.errorsRestored).toBe(0);
     expect(second.status.restored).toBe(0);
-    expect(second.counts.sumBefore).toBe(373);
-    expect(second.counts.sumAfter).toBe(373);
-    expect(second.counts.sumAfterObserved).toBe(373);
+    expect(second.counts.sumBefore).toBe(483);
+    expect(second.counts.sumAfter).toBe(483);
+    expect(second.counts.sumAfterObserved).toBe(483);
     expect(second.counts.refused["count-unchanged-since-the-backup"]).toEqual({
-      sessions: 10,
-      errors: 355,
+      sessions: 12,
+      errors: 465,
     });
     expect(second.status.refused["status-unchanged-since-the-backup"]).toEqual({
       sessions: 2,
@@ -363,7 +410,7 @@ describe("restore-session-error-counts", () => {
 
     const result = run({ apply: true });
 
-    expect(result.counts.restored).toBe(2);
+    expect(result.counts.restored).toBe(4);
     expect(result.counts.refused["row-changed-between-the-read-and-the-write"]).toEqual({
       sessions: 1,
       errors: 0,
@@ -371,8 +418,8 @@ describe("restore-session-error-counts", () => {
     // Not restored, and not silently reported as an ingest write either.
     expect(errorCounts()["u-pruned"]).toBe(0);
     expect(errorCounts()["u-forward"]).toBe(300);
-    expect(result.counts.sumAfter).toBe(333);
-    expect(result.counts.sumAfterObserved).toBe(333);
+    expect(result.counts.sumAfter).toBe(443);
+    expect(result.counts.sumAfterObserved).toBe(443);
   });
 
   it("rejects a batch size that is not a positive integer", () => {
@@ -427,18 +474,21 @@ describe("restore-session-error-counts CLI", () => {
       openDatabase: openBoth(true),
     });
 
-    expect(result?.counts.restored).toBe(3);
+    expect(result?.counts.restored).toBe(5);
     expect(lines[0]).toBe("restore-session-error-counts (dry run, nothing written)");
     expect(lines).toContain("  live database:       /data/db/rr.sqlite");
     expect(lines).toContain("  backup (read-only):  /backups/pre-run.sqlite");
+    // The same one-line rule the recompute script prints, from the same constant.
+    expect(lines).toContain(`  coverage proof:      ${COVERAGE_PROOF}`);
+    expect(COVERAGE_PROOF).toContain("10-minute prelude");
     expect(lines).toContain(
       "  RESTORED — the strict rule CANNOT prove these rows, so the pre-run value goes back",
     );
     expect(lines).toContain(
-      "    error_count would restore:            3 sessions, +352 error_count",
+      "    error_count would restore:            5 sessions, +462 error_count",
     );
     expect(lines).toContain(
-      "    error_count would keep:            2 sessions, 507 error_count stays dropped",
+      "    error_count would keep:            3 sessions, 907 error_count stays dropped",
     );
     expect(lines).toContain(
       "  HELD BACK — the strict rule cannot prove these either, but INGEST wrote them since the backup",
@@ -447,7 +497,7 @@ describe("restore-session-error-counts CLI", () => {
       "    error_count left as it stands:  1 session, 77 error_count NOT handed back",
     );
     expect(lines).toContain("    last_status/last_event left:    1 session");
-    expect(lines).toContain("  error_count sum, all sessions:    21 -> 373 (projected)");
+    expect(lines).toContain("  error_count sum, all sessions:    21 -> 483 (projected)");
     expect(lines.some((line) => line.includes("re-read after the write"))).toBe(false);
     expect(errorCounts()["u-forward"]).toBe(0);
     // Written for the report: the exact output on this test database.
@@ -467,8 +517,8 @@ describe("restore-session-error-counts CLI", () => {
     expect(errorCounts()["u-forward"]).toBe(300);
     expect(errorCounts()["p-proven"]).toBe(0);
     // The value it wrote, read back out of the database rather than projected.
-    expect(lines).toContain("  error_count sum, all sessions:    21 -> 373");
-    expect(lines).toContain("  error_count sum, re-read after the write: 373");
+    expect(lines).toContain("  error_count sum, all sessions:    21 -> 483");
+    expect(lines).toContain("  error_count sum, re-read after the write: 483");
     console.log(lines.join("\n"));
   });
 

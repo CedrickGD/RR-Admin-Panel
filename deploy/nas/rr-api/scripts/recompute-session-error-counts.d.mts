@@ -69,7 +69,10 @@ export interface RecomputeResult {
     changed: number;
     refused: RefusalBreakdown;
     sumBefore: number;
+    /** Projected from what this run changed. */
     sumAfter: number;
+    /** Re-read from the database after a successful --apply; null on a dry run. */
+    sumAfterObserved: number | null;
     errorsOnUnknownHistory: number;
     sessionsWithErrorsOnUnknownHistory: number;
   };

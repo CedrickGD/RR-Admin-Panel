@@ -282,6 +282,8 @@ describe("recompute-session-error-counts, the strict coverage rule", () => {
     expect(first.counts.sessionsWithErrorsOnUnknownHistory).toBe(7);
     expect(first.counts.sumBefore).toBe(671);
     expect(first.counts.sumAfter).toBe(390);
+    // Projected, then measured: the report never claims a sum it did not read back.
+    expect(first.counts.sumAfterObserved).toBe(390);
     expect(errorCounts()).toEqual({
       "a-down-bg": 0,
       "a-down-pruned": 0,
@@ -315,6 +317,8 @@ describe("recompute-session-error-counts, the strict coverage rule", () => {
     expect(result.dryRun).toBe(true);
     expect(result.counts.changed).toBe(4);
     expect(result.counts.sumAfter).toBe(390);
+    // Nothing was written, so there is no measured sum to report.
+    expect(result.counts.sumAfterObserved).toBeNull();
     expect(errorCounts()).toEqual(before);
   });
 
@@ -517,7 +521,8 @@ describe("recompute-session-error-counts CLI", () => {
     expect(lines).toContain(
       "      no-retained-session-start: 1 session, 40 error_count left standing",
     );
-    expect(lines).toContain("  error_count sum, all sessions:    307 -> 40");
+    expect(lines).toContain("  error_count sum, all sessions:    307 -> 40 (projected)");
+    expect(lines.some((line) => line.includes("re-read after the write"))).toBe(false);
     // Written for the report: the exact output on this test database.
     console.log(lines.join("\n"));
   });
@@ -541,6 +546,9 @@ describe("recompute-session-error-counts CLI", () => {
     expect(lines).toContain("  status repair:       on (from retained non-background events only)");
     expect(sessionState("s-down")).toEqual({ lastStatus: "ok", lastEvent: "session_start" });
     expect(errorCounts()["s-forward-start"]).toBe(40);
+    // The value it wrote, read back out of the database rather than projected.
+    expect(lines).toContain("  error_count sum, all sessions:    307 -> 40");
+    expect(lines).toContain("  error_count sum, re-read after the write: 40");
     console.log(lines.join("\n"));
   });
 

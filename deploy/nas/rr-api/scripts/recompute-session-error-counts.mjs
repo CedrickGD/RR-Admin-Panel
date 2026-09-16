@@ -353,6 +353,8 @@ export function recomputeSessionErrorCounts(db, options = {}) {
       refused: {},
       sumBefore: Number(all.errors),
       sumAfter: Number(all.errors),
+      /** Re-read from the database after a successful --apply; null on a dry run. */
+      sumAfterObserved: null,
       /** error_count standing on rows left untouched because their history is unknown. */
       errorsOnUnknownHistory: 0,
       /** How many of those rows carry a non-zero count — the ones a weaker rule would erase. */
@@ -486,6 +488,14 @@ export function recomputeSessionErrorCounts(db, options = {}) {
     if (last === null) break;
     cursor = last;
   }
+
+  if (apply) {
+    // The projected sum is a claim; this is the measurement. They can differ legitimately — ingest
+    // keeps writing between batches — and the report says which is which rather than assuming.
+    result.counts.sumAfterObserved = Number(
+      db.prepare(`SELECT COALESCE(SUM(error_count), 0) AS errors FROM app_sessions`).get().errors,
+    );
+  }
   return result;
 }
 
@@ -523,7 +533,15 @@ export function formatReport(result, dbPath) {
       ? ["", `  last_status/last_event left alone`, ...breakdown(result.status.refused, false)]
       : []),
     "",
-    `  error_count sum, all sessions:    ${result.counts.sumBefore} -> ${result.counts.sumAfter}`,
+    `  error_count sum, all sessions:    ${result.counts.sumBefore} -> ${result.counts.sumAfter}${result.dryRun ? " (projected)" : ""}`,
+    ...(result.counts.sumAfterObserved === null
+      ? []
+      : [
+          `  error_count sum, re-read after the write: ${result.counts.sumAfterObserved}` +
+            (result.counts.sumAfterObserved === result.counts.sumAfter
+              ? ""
+              : ` — differs from the projection by ${result.counts.sumAfterObserved - result.counts.sumAfter}; ingest kept writing during the run`),
+        ]),
   ];
 }
 

@@ -618,3 +618,40 @@ echten Gerät, Headless-Chrome hat den Sheet-Bug nicht gezeigt.
    36px-Icon im Kartenfuß).
 6. **Aufräumen:** ungenutzte Detailfelder von `/api/admin/health`, sobald die Navbar sie nicht
    mehr braucht.
+
+### Runde 2 (16.09.2026): Review-Nachbesserungen, live mit `c106047`
+
+Ein Gegen-Review der ungeprüften Runde-1-Änderungen (Errors, System health) fand 11 bestätigte Befunde,
+ein Co-Review zwei weitere. Alles ist behoben und live (admin `index-Cxltm2Yk.js` / `index-DvnpsXQO.css`;
+rr-api-Image aus `0573234`, die Skripte laufen per `docker cp`).
+
+- **Eine Fehler-Regel:** `src/utils/errorEvents.ts` ist die einzige Stelle, die entscheidet, ob ein
+  `app_error` zählt; ein Wächter-Test (`tests/error-events.test.ts`) fällt, sobald jemand die Regel kopiert.
+  Overview-Diagramm, Traffic-Karten, Live, Errors-KPIs und Customer 360 nutzen sie.
+- **Customer 360:** echte Fehler und Hintergrundfehler haben getrennte Budgets (200/40), der Kopf zählt nur
+  echte, Hintergrundfehler bleiben sichtbar und markiert.
+- **System health:** ausgefallene Quelle ≠ nicht vorhandene Quelle; keine Laufzeit für gestoppte Container;
+  Hinweis bei fehlgeschlagener Aktualisierung; Neustarts sind ohne `inspect` nicht verfügbar und stehen als „—“.
+- **Docker-Gateway** (`deploy/nas/docker-gateway/Caddyfile`, Service `docker-gateway`): rr-api erreicht nur
+  noch `GET /containers/json` (auf das Compose-Projekt gefiltert) und `GET /containers/<projekt>/stats`
+  (`stream=false` erzwungen); jeder `inspect`-, `archive`-, `logs`-, `images`-, `info`-Pfad und jedes POST
+  bekommt 403. Grund: `inspect` liefert `Config.Env` aller Container, also `admin.env`
+  (`ORIGIN_KEY`) und `rr-api.env` (35 Schlüssel). rr-api hängt nicht mehr am `docker-proxy`-Netz.
+- **BUILD_SHA** kommt aus dem Image-ENV; die leere Zeile `BUILD_SHA=` in `rr-api.env` auf dem NAS wurde
+  entfernt (Sicherung `rr-api.env.bak-20260914`).
+- **Sitzungszähler:** `recompute-session-error-counts.mjs` fasst nur Sitzungen an, deren eigenes
+  `session_start` noch im Fenster liegt (Vorlauf bis 10 min davor erlaubt, 23 % der Sitzungen schicken vorher
+  ein `update_check`). Alles andere ist „Historie unbekannt“ und bleibt stehen.
+  `restore-session-error-counts.mjs` hat die Zeilen, die der schwächere erste Lauf am 13.09. genullt hatte, aus
+  `rr-pre-errors-20260913.sqlite` zurückgeholt, sofern unbeweisbar und seitdem nicht vom Betrieb beschrieben
+  (`updated_at` als Unterscheidung): 9 Sitzungen, +3.344, Summe 902 → 4.246; 297 bewiesene Korrekturen
+  bleiben. Sicherung davor: `rr-pre-round2-20260916T1852Z.sqlite`. `--repair-status` nie ohne eigenen
+  Probelauf auf Produktion.
+
+**Desktop-Client (Repo RazorReaper):** Branch `fix/client-tidy` auf GitHub, Review „ship“, 0 Warnungen,
+367 Tests. Behebt die RR-E1003-Ursachen (abbrechbare UDP-Abfragen, Render-Zustellung über eine Schleuse,
+kein `async void` mehr, thread-sichere Benachrichtigungen, gedrosselte Meldung mit oberstem eigenen
+Aufrufpfad, Unterdrückung auf die Discord-Pipe eingegrenzt). Vor dem Release wissen: Eine Komponente, die
+zehnmal hintereinander beim Neuzeichnen fehlschlägt, aktualisiert sich für den Rest der Sitzung nicht mehr
+(nicht gegen eine echte BlazorWebView verifiziert). **Erst Runde 3 des Panels ausliefern (Summe der
+`occurrences` statt Zeilen zählen), dann den Client.**

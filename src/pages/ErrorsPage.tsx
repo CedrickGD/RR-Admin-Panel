@@ -40,7 +40,7 @@ import type {
   ErrorUserGroup,
 } from "../types/telemetry";
 import { formatDate, formatNumber } from "../utils/format";
-import { BACKGROUND_ERROR_KIND, isRealErrorRow } from "../utils/errorEvents";
+import { BACKGROUND_ERROR_KIND, describeSuppressedIo, isRealErrorRow } from "../utils/errorEvents";
 
 type ViewKey = "users" | "failures";
 type SortKey = "errors" | "firstError" | "lastError";
@@ -211,18 +211,22 @@ function faultKey(fault: BackgroundFaultGroup): string {
 }
 
 /**
- * "RazorReaper.Components.Pages.Home.UpdateResources (Home.razor:1394)" →
- * "Home.UpdateResources (Home.razor:1394)"; the full frame stays in the title. Sentinels such as
- * "(no RazorReaper frame)" have no namespace and stay as they are.
+ * The member alone: "RazorReaper.Components.Pages.Home.UpdateResources (Home.razor:1394)" →
+ * "Home.UpdateResources". The file and line, and the frame chain, stay in the cell's title
+ * (frameTitle). Sentinels such as "(no RazorReaper frame)" have no namespace and stay as they are.
  */
-function shortFrame(frame: string | null): string {
+function frameMember(frame: string | null): string {
   const trimmed = frame?.trim();
   if (!trimmed) return "—";
   const at = trimmed.indexOf(" (");
   const member = at === -1 ? trimmed : trimmed.slice(0, at);
-  const location = at === -1 ? "" : trimmed.slice(at);
   const parts = member.split(".");
-  return parts.length > 2 ? `${parts.slice(-2).join(".")}${location}` : trimmed;
+  return parts.length > 2 ? parts.slice(-2).join(".") : member;
+}
+
+/** The chain (top frame with its file:line first, then its callers) when the client sent one. */
+function frameTitle(fault: BackgroundFaultGroup): string | undefined {
+  return fault.topFrames ?? fault.topFrame ?? undefined;
 }
 
 /** metrics.fault_source, as a word: which client path reported the fault. */
@@ -233,13 +237,33 @@ const SOURCE_LABELS: Record<string, string> = {
 const RENDER_STOPPED_TITLE =
   "The component stopped rendering for the rest of the session after 10 consecutive faults.";
 
-function sourceLabel(fault: BackgroundFaultGroup): string {
-  const label = SOURCE_LABELS[fault.faultSource] ?? fault.faultSource ?? "—";
-  if (!(fault.stoppedSessions > 0)) return label;
-  return `${label} · stopped in ${formatNumber(fault.stoppedSessions)} ${
+function sourceWord(fault: BackgroundFaultGroup): string {
+  return SOURCE_LABELS[fault.faultSource] ?? fault.faultSource ?? "—";
+}
+
+/**
+ * The render breaker, as a muted line under the source word: kept out of the word itself so the
+ * Source column stays one word wide and the table keeps fitting its frame.
+ */
+function stoppedNote(fault: BackgroundFaultGroup): string | null {
+  if (!(fault.stoppedSessions > 0)) return null;
+  return `stopped in ${formatNumber(fault.stoppedSessions)} ${
     fault.stoppedSessions === 1 ? "session" : "sessions"
   }`;
 }
+
+/*
+ * Column caps (DataTableColumn.maxWidth) are what let this table promise to fit the 1130px its
+ * frame has in a 1440px window with the rail expanded. Every other column is bounded on its own:
+ * Code is one fixed-format token, the counts are numbers, the two dates are relative, Source is
+ * one word with a wrapping note, and Versions wraps at its commas. The two mono identifiers are
+ * the only cells free text could widen, so they ellipsise with the full value in their title:
+ * Exception at 240px and Top frame at 210px. Measured with the rail expanded: the columns came to
+ * 94+227+204+99+69+72+84+106+88+87 = 1130, no capped cell cut — "InvalidOperationException" (25
+ * characters) and "(no RazorReaper frame)" (22) both whole. tests/errors-page.test.tsx pins the caps.
+ */
+const EXCEPTION_CELL_MAX = 240;
+const FRAME_CELL_MAX = 210;
 
 const FAULT_COLUMNS: Array<DataTableColumn<BackgroundFaultGroup>> = [
   { key: "code", header: "Code", mono: true, render: (fault) => fault.code ?? "—" },
@@ -247,6 +271,7 @@ const FAULT_COLUMNS: Array<DataTableColumn<BackgroundFaultGroup>> = [
     key: "exception",
     header: "Exception",
     mono: true,
+    maxWidth: EXCEPTION_CELL_MAX,
     render: (fault) => (
       <span title={fault.exceptionType ?? undefined}>{shortTypeName(fault.exceptionType)}</span>
     ),
@@ -256,9 +281,10 @@ const FAULT_COLUMNS: Array<DataTableColumn<BackgroundFaultGroup>> = [
     header: "Top frame",
     mono: true,
     muted: true,
+    maxWidth: FRAME_CELL_MAX,
     render: (fault) => (
-      <span title={fault.topFrames ?? fault.topFrame ?? undefined}>
-        {shortFrame(fault.topFrame)}
+      <span className="error-fault-frame" title={frameTitle(fault)}>
+        {frameMember(fault.topFrame)}
       </span>
     ),
   },
@@ -266,11 +292,20 @@ const FAULT_COLUMNS: Array<DataTableColumn<BackgroundFaultGroup>> = [
     key: "source",
     header: "Source",
     muted: true,
-    render: (fault) => (
-      <span title={fault.stoppedSessions > 0 ? RENDER_STOPPED_TITLE : undefined}>
-        {sourceLabel(fault)}
-      </span>
-    ),
+    render: (fault) => {
+      const stopped = stoppedNote(fault);
+      // One wrapper: the stacked mobile cell is a flex row, and the note must stay under the word.
+      return (
+        <span className="error-fault-source">
+          <span>{sourceWord(fault)}</span>
+          {stopped ? (
+            <span className="error-cell-note" title={RENDER_STOPPED_TITLE}>
+              {stopped}
+            </span>
+          ) : null}
+        </span>
+      );
+    },
   },
   {
     key: "faults",
@@ -304,8 +339,12 @@ const FAULT_COLUMNS: Array<DataTableColumn<BackgroundFaultGroup>> = [
     key: "versions",
     header: "Versions",
     muted: true,
-    render: (fault) =>
-      fault.versions.length > 0 ? fault.versions.map((v) => versionLabel(v)).join(", ") : "—",
+    render: (fault) => (
+      // A list that grows with every release: it wraps at its commas rather than widen the table.
+      <span className="error-fault-versions">
+        {fault.versions.length > 0 ? fault.versions.map((v) => versionLabel(v)).join(", ") : "—"}
+      </span>
+    ),
   },
   {
     key: "firstSeen",
@@ -343,7 +382,7 @@ function BackgroundFaultsPanel({
     <CollapsiblePanel
       kicker="Known client bug"
       title="Background faults"
-      sub="Faults in the desktop app's background tasks and render updates, reported once per distinct fault and rolled up every 5 minutes. They do not crash the app and are not counted as errors anywhere."
+      sub="Faults in the desktop app's background tasks and render updates. They do not crash the app and are not counted as errors anywhere. From client 1.5.3 a distinct fault is reported once and rolled up every 5 minutes; older clients report every fault separately."
       right={
         state === "data" && total > 0 ? (
           <Badge tone="muted">
@@ -761,11 +800,8 @@ export function ErrorsPage() {
         </p>
       ) : null}
       {segment === "background" && backgroundSuppressed > 0 ? (
-        <p className="page-note">
-          The client also suppressed {formatNumber(backgroundSuppressed)} aborted-I/O{" "}
-          {backgroundSuppressed === 1 ? "fault" : "faults"} on the Discord pipe before reporting;
-          they are not faults in the app and are not listed.
-        </p>
+        // The same sentence Customer 360 prints under such a row (utils/errorEvents.ts).
+        <p className="page-note">{describeSuppressedIo(backgroundSuppressed)}.</p>
       ) : null}
 
       {/* The one filter place on this page (handoff §2.3), directly above the

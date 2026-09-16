@@ -78,15 +78,25 @@ function faultCount(value: number): string {
 }
 
 /**
+ * The one sentence for suppressed Discord-pipe I/O, on the Errors page note and under a Customer
+ * 360 row alike: exceptions the client dropped before reporting, and not app faults — so it never
+ * calls them faults in one breath and not faults in the next.
+ */
+export function describeSuppressedIo(count: number): string {
+  return `${formatNumber(count)} aborted Discord-pipe I/O ${
+    count === 1 ? "exception" : "exceptions"
+  } suppressed by the client, not app faults`;
+}
+
+/**
  * One calm phrase for the line under a listed background row, saying what it stands for.
  * null when it stands for one fault, which needs no explanation.
  */
 export function describeBackgroundReport(report: unknown): string | null {
   const listed = readListedReport(report);
   if (!listed || listed.kind === null) return null;
-  if (listed.kind === SUPPRESSED_REPORT_KIND) {
-    return `${faultCount(listed.suppressedAbortedIo)} of aborted Discord-pipe I/O, suppressed by the client`;
-  }
+  if (listed.kind === SUPPRESSED_REPORT_KIND)
+    return describeSuppressedIo(listed.suppressedAbortedIo);
   return `${listed.kind === "first" ? "first sighting" : "5-minute rollup"}, ${faultCount(listed.occurrences)}`;
 }
 

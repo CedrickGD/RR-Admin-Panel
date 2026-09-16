@@ -213,8 +213,9 @@ describe("ErrorsPage: Errors | Background faults", () => {
     await act(async () => link!.click());
 
     expect(radio("Background faults").getAttribute("aria-checked")).toBe("true");
+    // The rollup is a 1.5.3 behaviour; rows from older clients sit in the same table.
     expect(container.textContent).toContain(
-      "Faults in the desktop app's background tasks and render updates, reported once per distinct fault and rolled up every 5 minutes. They do not crash the app and are not counted as errors anywhere.",
+      "Faults in the desktop app's background tasks and render updates. They do not crash the app and are not counted as errors anywhere. From client 1.5.3 a distinct fault is reported once and rolled up every 5 minutes; older clients report every fault separately.",
     );
     // The badge counts faults (SUM of occurrences), never rows.
     expect(container.textContent).toContain("2,297 faults");
@@ -235,23 +236,27 @@ describe("ErrorsPage: Errors | Background faults", () => {
     ]);
     expect(firstRow[0].textContent).toBe("RR-E1003");
     expect(firstRow[1].textContent).toBe("NullReferenceException");
-    // The frame without its namespace; the full chain stays in the title.
-    expect(firstRow[2].textContent).toBe("Home.UpdateResources (Home.razor:1394)");
+    // The member alone; file, line and the chain stay in the title.
+    expect(firstRow[2].textContent).toBe("Home.UpdateResources");
     expect(firstRow[2].querySelector("span")?.getAttribute("title")).toBe(
       "Home.UpdateResources (Home.razor:1394) > Home.OnInitializedAsync (Home.razor:889)",
     );
     expect(firstRow[3].textContent).toBe("Task");
+    expect(firstRow[3].querySelector(".error-cell-note")).toBeNull();
     expect(firstRow[4].textContent).toBe("1,702");
     expect(firstRow[4].querySelector("span")?.getAttribute("title")).toBe(
       "23 reports from the client",
     );
     expect(firstRow[7].textContent).toBe("1.5.2, 1.4.9, 1.4.8.11");
-    // A render fault names its source, and says when the breaker stopped a component.
+    // A render fault names its source; the breaker is a note under the word, not part of it.
     const secondRow = [...rows[1].querySelectorAll("td")];
-    expect(secondRow[2].textContent).toBe(
-      "Server.RefreshVisibleServersAsync (Server.razor:496)",
+    expect(secondRow[2].textContent).toBe("Server.RefreshVisibleServersAsync");
+    expect(secondRow[3].querySelector(".error-fault-source > span")?.textContent).toBe("Render");
+    const note = secondRow[3].querySelector(".error-cell-note");
+    expect(note?.textContent).toBe("stopped in 2 sessions");
+    expect(note?.getAttribute("title")).toBe(
+      "The component stopped rendering for the rest of the session after 10 consecutive faults.",
     );
-    expect(secondRow[3].textContent).toBe("Render · stopped in 2 sessions");
     expect(secondRow[4].querySelector("span")?.getAttribute("title")).toBeNull();
     // A segment is plain state: no navigation, no history entry, tiles unchanged.
     expect(location.href).toBe(href);
@@ -260,6 +265,40 @@ describe("ErrorsPage: Errors | Background faults", () => {
 
     await act(async () => radio("Errors").click());
     expect(container.textContent).toContain("No crashes reported in the last 24 hours");
+  });
+
+  it("bounds every fault column so the table fits its 1130px frame at 1440px", async () => {
+    await render(payload());
+    await act(async () => radio("Background faults").click());
+    const cells = [...container.querySelectorAll("tbody tr")[1].querySelectorAll("td")];
+    const cap = (cell: Element) =>
+      cell.classList.contains("cell-truncate")
+        ? (cell as HTMLElement).style.getPropertyValue("--cell-max")
+        : null;
+
+    // The two mono identifiers are the only free text a row could widen the table with: they
+    // ellipsise at their caps (the full value is in the title). Measured in the visual harness:
+    // with these caps the frame's scrollWidth equals its clientWidth with the rail expanded.
+    expect(cells.map(cap)).toEqual([
+      null, // Code
+      "240px", // Exception
+      "210px", // Top frame
+      null, // Source
+      null, // Faults
+      null, // Installs
+      null, // Sessions
+      null, // Versions
+      null, // First seen
+      null, // Last seen
+    ]);
+    expect(cells[1].querySelector("span")?.getAttribute("title")).toBe(
+      "System.Net.Sockets.SocketException",
+    );
+    // Source is one word; the breaker note under it may wrap but never widens the column.
+    expect(cells[3].querySelector(".error-fault-source > span")?.textContent).toBe("Render");
+    expect(cells[3].querySelector(".error-cell-note")).not.toBeNull();
+    // Versions grows with every release, so it wraps at its commas instead.
+    expect(cells[7].querySelector(".error-fault-versions")).not.toBeNull();
   });
 
   it("mentions suppressed Discord-pipe I/O once, only on the fault segment, only when there is some", async () => {
@@ -281,8 +320,9 @@ describe("ErrorsPage: Errors | Background faults", () => {
 
     expect(note()).toBeUndefined();
     await act(async () => radio("Background faults").click());
+    // The same sentence Customer 360 prints under such a row (tests/error-events.test.ts).
     expect(note()?.textContent).toBe(
-      "The client also suppressed 1,204 aborted-I/O faults on the Discord pipe before reporting; they are not faults in the app and are not listed.",
+      "1,204 aborted Discord-pipe I/O exceptions suppressed by the client, not app faults.",
     );
     // Nothing of it reaches the tiles: it is not an error, and not a fault either.
     expect(errorsTileText()).toMatch(/^0\s*Errors in range/);

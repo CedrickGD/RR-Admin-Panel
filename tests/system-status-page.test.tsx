@@ -236,7 +236,11 @@ describe("SystemStatusPage: what it knows right now", () => {
     // No /backups/.last-success: the newest file's mtime is all rr-api had, and it says so.
     answerOnce(payload({ backup: { ...backup, verified: false } }));
     await render();
-    expect(tile("Last backup").textContent).toContain("rr-20260913-0315.sqlite.gz · not verified");
+    // The state leads and the archive's stamp follows; on one tile line at 1440px the full file
+    // name used to push "not verified" past the ellipsis.
+    expect(tile("Last backup").querySelector(".stat-sub-text")?.textContent).toBe(
+      "Not verified · rr-20260913-0315",
+    );
 
     // The marker names a verified run: the file name stands on its own, nothing added.
     answerOnce(payload({ backup: { ...backup, verified: true } }));

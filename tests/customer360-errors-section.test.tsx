@@ -335,7 +335,9 @@ describe("Customer 360 Errors section", () => {
     expect(metas.filter((meta) => meta.includes("5-minute rollup, 412 faults"))).toHaveLength(1);
     expect(
       metas.filter((meta) =>
-        meta.includes("17 faults of aborted Discord-pipe I/O, suppressed by the client"),
+        meta.includes(
+          "17 aborted Discord-pipe I/O exceptions suppressed by the client, not app faults",
+        ),
       ),
     ).toHaveLength(1);
     // A row that is one fault says nothing extra; neither does the real error.

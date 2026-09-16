@@ -105,9 +105,10 @@ files, then set the worker's `MEDIA_ORIGIN=https://media.<domain>/` and redeploy
 `/volume1/docker/razorreaper/backups` (30-day retention). Media is static — copy it once to the HDD pool;
 optional weekly offsite with rclone -> R2.
 
-A backup counts only once it is verified. `backup/backup.sh` runs `PRAGMA integrity_check` on the copy and
-`gzip -t` on the archive, and only then rewrites `/volume1/docker/razorreaper/backups/.last-success` (one
-line: `<ISO-8601 UTC> <file name>`). A failed check exits non-zero, removes what it produced and leaves the
+A backup counts only once it is verified. `backup/backup.sh` requires the copy to be at least 1 MB and to
+hold app sessions (`SELECT COUNT(*) FROM app_sessions`, `PRAGMA integrity_check` alone answers ok on an
+empty database), runs `PRAGMA integrity_check` on it and `gzip -t` on the archive, and only then rewrites
+`/volume1/docker/razorreaper/backups/.last-success` (one line: `<ISO-8601 UTC> <file name>`). A failed check exits non-zero, removes what it produced and leaves the
 marker as it was. Two readers make that visible:
 
 - the `backup` service's healthcheck fails when the marker is missing or older than 36 h (`docker ps`

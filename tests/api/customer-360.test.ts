@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 
 import { onRequestGet as customer360 } from "../../functions/api/admin/customer-360";
 import { resetInstallsSchemaStateForTests } from "../../shared/installs-store";
+import { BACKGROUND_REPORT_METRIC_KEYS } from "../../shared/telemetry-contract";
 import { createMockD1 } from "../helpers/mock-d1";
 import {
   TEST_ACCESS_TEAM_DOMAIN,
@@ -364,13 +365,15 @@ describe("GET /api/admin/customer-360", () => {
       topFrame: null,
       baseExceptionType: null,
     });
-    for (const row of payload.customer.errors) {
-      expect(Object.keys(row.extras)).not.toContain("occurrences");
-      expect(Object.keys(row.extras)).not.toContain("report_kind");
-    }
+    for (const row of payload.customer.errors)
+      for (const key of BACKGROUND_REPORT_METRIC_KEYS)
+        expect(Object.keys(row.extras)).not.toContain(key);
   });
 
-  it("attaches no report to a real error", async () => {
+  it("attaches no report to a real error and keeps its report-named metrics in the extras", async () => {
+    // Only a background row moves the report keys out of the extras (into `report`). A real
+    // error that happens to carry one — its base exception, the frame it was thrown from — has
+    // no report to show it in, so it stays where support reads it.
     const realRow = {
       event_id: "real-1",
       source: "desktop",
@@ -382,6 +385,8 @@ describe("GET /api/admin/customer-360", () => {
         error_code: "RR-E1000",
         exception_type: "System.NullReferenceException",
         is_terminating: true,
+        base_exception_type: "System.InvalidOperationException",
+        top_frame: "RazorReaper.Services.Licensing.Refresh (Licensing.cs:88)",
       }),
       message: "Object reference not set to an instance of an object.",
       received_at: "2026-09-03T10:02:00.000Z",
@@ -419,6 +424,10 @@ describe("GET /api/admin/customer-360", () => {
     const payload = (await response.json()) as Record<string, any>;
     expect(payload.customer.errors).toHaveLength(1);
     expect(payload.customer.errors[0]).toMatchObject({ kind: "unhandled", report: null });
-    expect(payload.customer.errors[0].extras).toMatchObject({ is_terminating: "true" });
+    expect(payload.customer.errors[0].extras).toMatchObject({
+      is_terminating: "true",
+      base_exception_type: "System.InvalidOperationException",
+      top_frame: "RazorReaper.Services.Licensing.Refresh (Licensing.cs:88)",
+    });
   });
 });

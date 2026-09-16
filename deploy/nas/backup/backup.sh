@@ -2,8 +2,9 @@
 # Nightly SQLite backup with 30-day retention. DB path matches the rr-api volume.
 #
 # /backups/.last-success records the last VERIFIED backup: one line, "<ISO-8601 UTC> <file name>",
-# rewritten only after the copy passed PRAGMA integrity_check and the archive passed gzip -t. Its
-# mtime is set at the same moment. Two readers depend on that meaning:
+# rewritten only after the copy proved to be a real one (at least MIN_BYTES, holding app sessions),
+# passed PRAGMA integrity_check, and the archive passed gzip -t. Its mtime is set at the same
+# moment. Two readers depend on that meaning:
 #   - the healthcheck on the backup service (deploy/nas/compose.yml) fails when the marker is
 #     missing or its mtime is older than 36 h, so a run that produced a broken file fails it the
 #     same way as a run that never happened;
@@ -14,23 +15,27 @@
 set -eu
 SRC=/data/db/rr.sqlite
 MARKER=/backups/.last-success
+# PRAGMA integrity_check answers ok for an empty database, so a .backup that left next to nothing
+# behind would verify on that alone. The live DB is ~340 MB and only grows: 1 MB is far below it
+# and far above an empty file.
+MIN_BYTES=1048576
 
 # `seed` runs once at container start (compose command) and makes no backup. When there is no
-# marker yet it dates one from the newest existing archive that passes gzip -t, so a recreated
-# container is not reported unhealthy before its next 03:15 run had a chance. With no intact
-# archive at all the marker stays missing and the healthcheck's start period covers the first
-# night. gzip -t is a weaker check than the nightly integrity_check (the plain .sqlite is gone).
+# marker yet it dates one from the newest existing archive that is non-empty and passes gzip -t,
+# so a recreated container is not reported unhealthy before its next 03:15 run had a chance. With
+# no intact archive at all the marker stays missing and the healthcheck's start period covers the
+# first night. This is a weaker check than the nightly ones (the plain .sqlite is gone).
 if [ "${1:-}" = "seed" ]; then
   if [ -e "$MARKER" ]; then exit 0; fi
   # Names carry a sortable YYYYMMDD-HHMM stamp, so reverse name order is newest first.
   for ARCHIVE in $(ls -1r /backups/rr-*.sqlite.gz 2>/dev/null); do
-    if gzip -t "$ARCHIVE" 2>/dev/null; then
+    if [ -s "$ARCHIVE" ] && gzip -t "$ARCHIVE" 2>/dev/null; then
       printf '%s %s\n' "$(date -u -r "$ARCHIVE" +%Y-%m-%dT%H:%M:%SZ)" "$(basename "$ARCHIVE")" > "$MARKER"
       touch -r "$ARCHIVE" "$MARKER"
       echo "seeded $MARKER from $(basename "$ARCHIVE")"
       exit 0
     fi
-    echo "seed: $(basename "$ARCHIVE") failed gzip -t, skipped"
+    echo "seed: $(basename "$ARCHIVE") is empty or failed gzip -t, skipped"
   done
   echo "seed: no intact archive, no marker written"
   exit 0
@@ -44,9 +49,25 @@ OUT=/backups/rr-$STAMP.sqlite
 trap 'rm -f "$OUT"' EXIT
 sqlite3 "$SRC" ".backup '$OUT'"
 # Verify before it counts: a truncated .backup would otherwise sit in the folder looking good.
+# First that the copy is a real one (its size, then a row count from the table every app session
+# lands in), then that it is intact. busybox wc prints the bare number for stdin.
+SIZE=$(wc -c < "$OUT" | tr -d ' ')
+if [ "$SIZE" -lt "$MIN_BYTES" ]; then
+  echo "backup FAILED size: $SIZE bytes, expected at least $MIN_BYTES"
+  exit 1
+fi
 CHECK=$(sqlite3 "$OUT" "PRAGMA integrity_check;" | head -n 1)
 if [ "$CHECK" != "ok" ]; then
   echo "backup FAILED integrity_check: ${CHECK:-no result}"
+  exit 1
+fi
+# A query that fails (no such table, not a database) fails the run like a count of 0 does.
+ROWS=$(sqlite3 "$OUT" "SELECT COUNT(*) FROM app_sessions;" 2>/dev/null) || ROWS=""
+case "$ROWS" in
+  ''|*[!0-9]*) echo "backup FAILED app_sessions count: ${ROWS:-no result}"; exit 1 ;;
+esac
+if [ "$ROWS" -lt 1 ]; then
+  echo "backup FAILED app_sessions count: $ROWS"
   exit 1
 fi
 gzip -f "$OUT"

@@ -14,6 +14,8 @@ import { composeService, repoFile } from "./helpers/nas-compose";
 const backup = composeService("backup");
 const script = repoFile("deploy/nas/backup/backup.sh");
 const MARKER_PATH = `/backups/${BACKUP_MARKER}`;
+/** The smallest copy the script accepts; the live DB is ~340 MB, its gzip ~35 MB. */
+const MIN_BYTES = 1024 * 1024;
 
 /** The `if [ "${1:-}" = "seed" ]; then … fi` block of backup.sh, the part that runs at start. */
 function seedBlock(): string {
@@ -23,12 +25,16 @@ function seedBlock(): string {
 }
 
 describe("backup.sh", () => {
-  it("writes the success marker last, after the copy passed integrity_check and gzip -t", () => {
+  it("writes the success marker last, after the copy proved real and intact and the archive passed gzip -t", () => {
     expect(script).toMatch(/^set -eu$/m);
     expect(script).toContain(`MARKER=${MARKER_PATH}`);
     const steps = [
       `sqlite3 "$SRC" ".backup '$OUT'"`,
+      `SIZE=$(wc -c < "$OUT" | tr -d ' ')`,
+      `if [ "$SIZE" -lt "$MIN_BYTES" ]; then`,
       `sqlite3 "$OUT" "PRAGMA integrity_check;"`,
+      `sqlite3 "$OUT" "SELECT COUNT(*) FROM app_sessions;"`,
+      `if [ "$ROWS" -lt 1 ]; then`,
       `gzip -f "$OUT"`,
       `gzip -t "$OUT.gz"`,
       "find /backups -name 'rr-*.sqlite.gz' -mtime +30 -delete",
@@ -52,6 +58,31 @@ describe("backup.sh", () => {
     );
   });
 
+  it("refuses a copy below 1 MB or without app sessions, which integrity_check alone would pass", () => {
+    // PRAGMA integrity_check answers ok on an empty database, so "verified" needs the copy to be
+    // a real one first: a size floor, then a row count read from the copy itself.
+    expect(Number(/^MIN_BYTES=(\d+)$/m.exec(script)?.[1])).toBe(MIN_BYTES);
+    expect(script).toContain(`SIZE=$(wc -c < "$OUT" | tr -d ' ')`);
+    expect(script).toMatch(
+      /if \[ "\$SIZE" -lt "\$MIN_BYTES" \]; then\n\s+echo "backup FAILED size[^\n]*"\n\s+exit 1\nfi\n/,
+    );
+    // The count comes from the copy, not the live DB; a failing query (no such table, not a
+    // database) fails the run the same way as a count of 0.
+    expect(script).toContain(
+      `ROWS=$(sqlite3 "$OUT" "SELECT COUNT(*) FROM app_sessions;" 2>/dev/null) || ROWS=""`,
+    );
+    expect(script).toMatch(/case "\$ROWS" in\n\s+''\|\*\[!0-9\]\*\) [^\n]*; exit 1 ;;\n\s*esac\n/);
+    expect(script).toMatch(
+      /if \[ "\$ROWS" -lt 1 \]; then\n\s+echo "backup FAILED app_sessions count[^\n]*"\n\s+exit 1\nfi\n/,
+    );
+    // Both guards run before gzip, so the EXIT trap still removes the rejected copy.
+    expect(script.indexOf('if [ "$ROWS" -lt 1 ]')).toBeLessThan(script.indexOf(`gzip -f "$OUT"`));
+    // The table every app session lands in: rr-api's schema owns the name the script counts.
+    expect(repoFile("functions/_lib/storage.ts")).toContain(
+      "CREATE TABLE IF NOT EXISTS app_sessions (",
+    );
+  });
+
   it("keeps the 30-day retention rule and leaves the marker outside of it", () => {
     expect(script).toContain("find /backups -name 'rr-*.sqlite.gz' -mtime +30 -delete");
     // A dotfile: the retention glob never matches it, and neither does the page's file pattern.
@@ -72,9 +103,10 @@ describe("backup.sh", () => {
   it("seeds the marker from an intact archive only, and never makes a backup itself", () => {
     const seed = seedBlock();
     expect(seed).toContain(`if [ -e "$MARKER" ]; then exit 0; fi`);
-    // Newest first, by the sortable stamp in the name; only an archive that passes gzip -t.
+    // Newest first, by the sortable stamp in the name; only a non-empty archive that passes
+    // gzip -t (the plain .sqlite is gone, so the nightly size and row-count guards cannot apply).
     expect(seed).toContain("ls -1r /backups/rr-*.sqlite.gz");
-    expect(seed).toContain(`if gzip -t "$ARCHIVE"`);
+    expect(seed).toContain(`if [ -s "$ARCHIVE" ] && gzip -t "$ARCHIVE"`);
     // The marker's content and mtime both say when that archive was written.
     expect(seed).toContain(`date -u -r "$ARCHIVE"`);
     expect(seed).toContain(`touch -r "$ARCHIVE" "$MARKER"`);

@@ -12,6 +12,7 @@ import {
 import type { ThemeMode } from "../../types/telemetry";
 import type { TimezoneActivityPoint } from "../../utils/dashboardInsights";
 import { formatNumber } from "../../utils/format";
+import { CHART_MARGIN } from "./chartMargin";
 import { TelemetryChartTooltip } from "./TelemetryChartTooltip";
 
 interface TimezoneUsageChartProps {
@@ -75,7 +76,7 @@ export function TimezoneUsageChart({
 
       <div className="timezone-card-shell">
         <ResponsiveContainer width="100%" height={chartHeight}>
-          <AreaChart data={data} margin={{ top: 12, right: 10, left: -20, bottom: 0 }}>
+          <AreaChart data={data} margin={CHART_MARGIN}>
             <defs>
               <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor={accentColor} stopOpacity={0.34} />

@@ -9,7 +9,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { SystemStatusPayload } from "../../shared/system-status";
+import { SYSTEM_STATUS_POLL_MS, type SystemStatusPayload } from "../../shared/system-status";
 import { ChartLegend } from "../components/charts/ChartLegend";
 import { CHART_MARGIN } from "../components/charts/chartMargin";
 import { TelemetryChartTooltip } from "../components/charts/TelemetryChartTooltip";
@@ -32,7 +32,9 @@ import {
   type ServiceRow,
 } from "../utils/systemStatus";
 
-const POLL_MS = 30_000;
+const POLL_MS = SYSTEM_STATUS_POLL_MS;
+/** The figure the page quotes; derived so the copy cannot drift from the interval it describes. */
+const POLL_SECONDS = POLL_MS / 1000;
 const EVENT_LEGEND = [{ label: "Events", color: "var(--chart-sessions)" }];
 
 function useSystemStatus() {
@@ -186,8 +188,8 @@ export function SystemStatusPage() {
         page="system"
         sub={
           stale
-            ? "The last refresh failed. Showing the previous result; retrying every 30 seconds."
-            : "rr-api, database, Discord bot and NAS containers. Refreshes every 30 seconds."
+            ? `The last refresh failed. Showing the previous result; retrying every ${POLL_SECONDS} seconds.`
+            : `rr-api, database, Discord bot and NAS containers. Refreshes every ${POLL_SECONDS} seconds.`
         }
       />
 
@@ -248,7 +250,7 @@ export function SystemStatusPage() {
       {!payload && failed ? (
         <section className="panel">
           <EmptyState icon={<ServerCrash />} title="System health unavailable">
-            The backend did not answer. Retrying every 30 seconds.
+            The backend did not answer. Retrying every {POLL_SECONDS} seconds.
           </EmptyState>
         </section>
       ) : null}

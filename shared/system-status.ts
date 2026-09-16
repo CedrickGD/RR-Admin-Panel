@@ -5,6 +5,13 @@
  * instead of guessing.
  */
 
+/**
+ * How often the System health page asks rr-api for this payload. The container cache in
+ * functions/_lib/container-health.ts is sized from it, so several open tabs cost one Docker
+ * round per interval; tests/api/admin-system.test.ts pins that relation.
+ */
+export const SYSTEM_STATUS_POLL_MS = 30_000;
+
 export type SystemOverall = "ok" | "degraded" | "critical";
 
 export interface SystemEventBucket {

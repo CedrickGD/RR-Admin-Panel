@@ -1,4 +1,8 @@
-import type { ContainerHealth, SystemContainer } from "../../shared/system-status";
+import {
+  SYSTEM_STATUS_POLL_MS,
+  type ContainerHealth,
+  type SystemContainer,
+} from "../../shared/system-status";
 import type { FetchLike } from "./bot-health";
 import { isNodeRuntime } from "./runtime";
 import type { RuntimeEnv } from "./types";
@@ -12,11 +16,15 @@ import type { RuntimeEnv } from "./types";
  * HostConfig and Mounts. So this module never asks for it: state, the healthcheck verdict and an
  * approximate uptime all come out of the list entry, and RestartCount is not collected at all.
  * Containers are addressed by name, not id, because the allowlist matches on the name.
- * Results are cached per module for CACHE_TTL_MS so a page polling every 30 s from several tabs
- * costs one Docker round per window; `stats?stream=false` alone takes about a second.
+ * Results are cached per module for CACHE_TTL_MS, one poll interval of the System health page:
+ * every tab that polls inside the same interval is served the same sample, so several open tabs
+ * cost one Docker round per interval instead of one each, and a sample is never served older
+ * than the interval the page promises. The TTL must not drop below the poll interval again — at
+ * 15 s no 30 s poll ever hit the cache, and every poll paid a full `stats?stream=false` round,
+ * about a second per container on the NAS. A test pins the relation.
  */
 export const DEFAULT_DOCKER_PROXY_URL = "http://docker-gateway:2375";
-export const CACHE_TTL_MS = 15_000;
+export const CACHE_TTL_MS = SYSTEM_STATUS_POLL_MS;
 const REQUEST_TIMEOUT_MS = 4_000;
 /** Compose project name from deploy/nas/compose.yml (`name: razorreaper`). */
 const PROJECT_PREFIX = "razorreaper-";

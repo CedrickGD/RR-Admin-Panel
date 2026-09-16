@@ -5,6 +5,11 @@
 // The normalize/validate/context helpers are a verbatim move of the copies that used to live in
 // functions/api/ingest.ts and backend-worker/index.js; they define *what* is accepted and how
 // legacy (≤ 1.3) heartbeats are mapped, and must not change what ends up stored.
+//
+// Metrics are an open bag: a key the panel does not know is stored as sent, and a JSON null
+// inside metrics is stored as null (not dropped). The background-fault section at the end
+// documents the app_error keys the desktop client sends from 1.5.3 and reads both the old and
+// the new row shape; it is read-side only and changes nothing about ingest.
 
 export type TelemetryStatus = "ok" | "degraded" | "down";
 
@@ -515,4 +520,116 @@ function normalizeCoordinate(value: number | null, min: number, max: number): nu
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+// ── app_error background faults (desktop client ≥ 1.5.3) ──────────────────────
+//
+// A background fault (error_kind = "background", RR-E1003) used to arrive as one app_error row
+// per fault. From client 1.5.3 the client reports each distinct fault once per session
+// (report_kind "first"), rolls repeats up every 5 minutes ("rollup"), and reports the aborted
+// Discord-pipe I/O it dropped on its own row ("suppressed"). The fault count is `occurrences`;
+// counting rows would read the client change as a 99 % fix on day one. Rows from older clients
+// carry none of these keys and stand for one fault each. error_kind itself is unchanged for all
+// three kinds, so every "is this a background fault" test keeps working; the reader below does
+// not look at it — callers pair it with their own background test.
+//
+// Always present from 1.5.3 (JSON null where noted; older rows have none of them):
+//   report_kind            "first" | "rollup" | "suppressed"
+//   occurrences            ≥ 1 — faults the row stands for. On a suppressed row it equals
+//                          suppressed_aborted_io and is dropped I/O, not an app fault.
+//   fault_source           "unobserved_task" | "render_dispatch"; a missing value is unobserved_task
+//   top_frame              top RazorReaper frame ("Home.UpdateResources (Home.razor:1394)"), or a
+//                          sentinel such as "(no RazorReaper frame)"; null on a suppressed row
+//   top_frames             up to 3 frames joined with " > "; null on a suppressed row
+//   base_exception_type    may be null on a suppressed row
+//   leaf_exception_count   0 on a suppressed row
+//   suppressed_aborted_io  aborted-I/O faults dropped since the last drain; rides on one row per flush
+// Only when fault_source = "render_dispatch" (absent otherwise, never null):
+//   render_owner, render_origin, render_stopped (true: the component stopped rendering for the
+//   rest of the session).
+
+export type BackgroundReportKind = "first" | "rollup" | "suppressed";
+export type BackgroundFaultSource = "unobserved_task" | "render_dispatch";
+
+export const BACKGROUND_REPORT_KINDS: ReadonlySet<string> = new Set<BackgroundReportKind>([
+  "first",
+  "rollup",
+  "suppressed",
+]);
+export const SUPPRESSED_REPORT_KIND: BackgroundReportKind = "suppressed";
+export const UNOBSERVED_TASK_SOURCE: BackgroundFaultSource = "unobserved_task";
+export const RENDER_DISPATCH_SOURCE: BackgroundFaultSource = "render_dispatch";
+/**
+ * Bound on one report's counters. The ingest key ships inside the client binary, so a counter
+ * is attacker-influencable text; a single row must not be able to swamp a window's total.
+ */
+export const MAX_FAULTS_PER_REPORT = 1_000_000;
+/** The metric keys a background report adds to an app_error row. */
+export const BACKGROUND_REPORT_METRIC_KEYS: readonly string[] = [
+  "base_exception_type",
+  "top_frame",
+  "top_frames",
+  "leaf_exception_count",
+  "occurrences",
+  "report_kind",
+  "suppressed_aborted_io",
+  "fault_source",
+  "render_owner",
+  "render_origin",
+  "render_stopped",
+];
+
+export interface BackgroundFaultReport {
+  /** What the row stands for; null on a row from a client before 1.5.3 (one row, one fault). */
+  kind: BackgroundReportKind | null;
+  /** Faults the row stands for, 1 ≤ n ≤ MAX_FAULTS_PER_REPORT; 1 for an old row. */
+  occurrences: number;
+  /** "unobserved_task" (also for every old row) or "render_dispatch". */
+  faultSource: string;
+  topFrame: string | null;
+  topFrames: string | null;
+  baseExceptionType: string | null;
+  leafExceptionCount: number | null;
+  /** Aborted Discord-pipe I/O faults the client dropped; 0 ≤ n ≤ MAX_FAULTS_PER_REPORT. */
+  suppressedAbortedIo: number;
+  renderOwner: string | null;
+  renderOrigin: string | null;
+  renderStopped: boolean;
+}
+
+/**
+ * Reads a background fault row's report from its metrics, old shape or new. The SQL aggregate in
+ * functions/_lib/errors.ts applies the same defaults and bounds, so a row counts the same
+ * wherever it is read.
+ */
+export function readBackgroundFaultReport(metrics: Record<string, unknown>): BackgroundFaultReport {
+  const source = isObject(metrics) ? metrics : {};
+  const kind = toText(source.report_kind);
+
+  return {
+    kind:
+      kind !== null && BACKGROUND_REPORT_KINDS.has(kind) ? (kind as BackgroundReportKind) : null,
+    occurrences: clampReportCount(source.occurrences, 1),
+    faultSource: toText(source.fault_source) ?? UNOBSERVED_TASK_SOURCE,
+    topFrame: toText(source.top_frame),
+    topFrames: toText(source.top_frames),
+    baseExceptionType: toText(source.base_exception_type),
+    leafExceptionCount:
+      toFiniteNumber(source.leaf_exception_count) === null
+        ? null
+        : clampReportCount(source.leaf_exception_count, 0),
+    suppressedAbortedIo: clampReportCount(source.suppressed_aborted_io, 0),
+    renderOwner: toText(source.render_owner),
+    renderOrigin: toText(source.render_origin),
+    renderStopped: source.render_stopped === true,
+  };
+}
+
+/** Missing or unreadable → floor; otherwise the integer part, held within [floor, MAX_FAULTS_PER_REPORT]. */
+function clampReportCount(value: unknown, floor: number): number {
+  const parsed = toFiniteNumber(value);
+  if (parsed === null) {
+    return floor;
+  }
+  return Math.min(Math.max(Math.trunc(parsed), floor), MAX_FAULTS_PER_REPORT);
 }

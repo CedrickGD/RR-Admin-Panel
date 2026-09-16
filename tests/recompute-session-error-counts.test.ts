@@ -80,6 +80,14 @@ const startEvent = (sessionId: string, msAgo: number) => ({
   metrics: { session_id: sessionId },
 });
 
+/** The client's update_check, fired moments before session_start as part of the same run. */
+const updateCheck = (sessionId: string, msAgo: number) => ({
+  service: "update_check",
+  status: "ok" as const,
+  ts: ago(msAgo),
+  metrics: { session_id: sessionId },
+});
+
 const loop = (sessionId: string, count: number, startMsAgo: number) =>
   Array.from({ length: count }, (_, index) =>
     backgroundFault(ago(startMsAgo - index * 1000), {
@@ -149,6 +157,14 @@ describe("recompute-session-error-counts, the strict coverage rule", () => {
       updatedAt: new Date(NOW.getTime() + MINUTE).toISOString(),
     });
     db.insertEvents([startEvent("s-busy", 1 * DAY), ...loop("s-busy", 10, 1 * DAY - MINUTE)]);
+    // Its update_check fired 30 s before its session_start — the prelude of the same run, inside
+    // the window — so the start still anchors the whole history.
+    insertSession("s-prelude", { startedAt: ago(2 * DAY), errorCount: 9, updatedAt: ago(1 * DAY) });
+    db.insertEvents([
+      updateCheck("s-prelude", 2 * DAY + 30_000),
+      startEvent("s-prelude", 2 * DAY),
+      ...loop("s-prelude", 9, 2 * DAY - MINUTE),
+    ]);
 
     // --- UNKNOWN HISTORY: the regression the strict rule exists to prevent ---------------------
     // started_at was rewritten forward by a session_start that has since been pruned, together
@@ -167,6 +183,28 @@ describe("recompute-session-error-counts, the strict coverage rule", () => {
     db.insertEvents([
       ...loop("s-events-precede-start", 2, 2 * DAY),
       startEvent("s-events-precede-start", 1 * DAY),
+    ]);
+    // An earlier event OUTSIDE the prelude window: not a prelude, an id in use before that start.
+    insertSession("s-prelude-late", { startedAt: ago(1 * DAY), errorCount: 6 });
+    db.insertEvents([
+      updateCheck("s-prelude-late", 1 * DAY + 11 * MINUTE),
+      startEvent("s-prelude-late", 1 * DAY),
+      ...loop("s-prelude-late", 2, 1 * DAY - MINUTE),
+    ]);
+    // A genuine prelude AND an older event from an earlier use of the id: the older event decides.
+    insertSession("s-prelude-reused", { startedAt: ago(1 * DAY), errorCount: 8 });
+    db.insertEvents([
+      ...loop("s-prelude-reused", 2, 2 * DAY),
+      updateCheck("s-prelude-reused", 1 * DAY + 30_000),
+      startEvent("s-prelude-reused", 1 * DAY),
+    ]);
+    // Started five minutes after the floor: its prelude window reaches below the floor, so
+    // whatever was in that part of it may already be pruned.
+    insertSession("s-near-floor", { startedAt: ago(3 * DAY - 5 * MINUTE), errorCount: 3 });
+    db.insertEvents([
+      updateCheck("s-near-floor", 3 * DAY - 4 * MINUTE),
+      startEvent("s-near-floor", 3 * DAY - 5 * MINUTE),
+      ...loop("s-near-floor", 3, 3 * DAY - 6 * MINUTE),
     ]);
     // Would be covered but for its id: one row for the whole life of an install.
     insertSession("install:abc", { startedAt: ago(1 * DAY), errorCount: 12 });
@@ -227,22 +265,25 @@ describe("recompute-session-error-counts, the strict coverage rule", () => {
     const first = recomputeSessionErrorCounts(db.handle, { apply: true, now: NOW, batchSize: 2 });
 
     expect(first.retentionFloor).toBe(ago(3 * DAY));
-    expect(first.sessionsTotal).toBe(12);
-    expect(first.sessionsScanned).toBe(12);
-    expect(first.sessionsProven).toBe(7);
-    expect(first.sessionsUnknownHistory).toBe(5);
-    expect(first.counts.changed).toBe(3);
+    expect(first.sessionsTotal).toBe(16);
+    expect(first.sessionsScanned).toBe(16);
+    expect(first.sessionsProven).toBe(8);
+    expect(first.sessionsUnknownHistory).toBe(8);
+    expect(first.counts.changed).toBe(4);
     expect(first.counts.refused).toEqual({
       "no-retained-session-start": { sessions: 1, errors: 300 },
-      "events-precede-the-retained-start": { sessions: 1, errors: 7 },
+      "events-precede-the-retained-start": { sessions: 3, errors: 21 },
+      "start-too-close-to-the-retention-floor": { sessions: 1, errors: 3 },
       "legacy-install-id": { sessions: 1, errors: 12 },
       "no-retained-events": { sessions: 2, errors: 40 },
       "updated-during-the-run": { sessions: 1, errors: 10 },
     });
-    expect(first.counts.errorsOnUnknownHistory).toBe(359);
-    expect(first.counts.sessionsWithErrorsOnUnknownHistory).toBe(4);
-    expect(first.counts.sumBefore).toBe(645);
-    expect(first.counts.sumAfter).toBe(373);
+    expect(first.counts.errorsOnUnknownHistory).toBe(376);
+    expect(first.counts.sessionsWithErrorsOnUnknownHistory).toBe(7);
+    expect(first.counts.sumBefore).toBe(671);
+    expect(first.counts.sumAfter).toBe(390);
+    // Projected, then measured: the report never claims a sum it did not read back.
+    expect(first.counts.sumAfterObserved).toBe(390);
     expect(errorCounts()).toEqual({
       "a-down-bg": 0,
       "a-down-pruned": 0,
@@ -251,8 +292,12 @@ describe("recompute-session-error-counts, the strict coverage rule", () => {
       "s-busy": 10,
       "s-events-precede-start": 7,
       "s-forward-start": 300,
+      "s-near-floor": 3,
       "s-no-events": 40,
       "s-none": 0,
+      "s-prelude": 0,
+      "s-prelude-late": 6,
+      "s-prelude-reused": 8,
       "s-proven-bg": 0,
       "s-proven-mixed": 2,
       "s-proven-ok": 1,
@@ -270,9 +315,32 @@ describe("recompute-session-error-counts, the strict coverage rule", () => {
     const result = recomputeSessionErrorCounts(db.handle, { now: NOW });
 
     expect(result.dryRun).toBe(true);
-    expect(result.counts.changed).toBe(3);
-    expect(result.counts.sumAfter).toBe(373);
+    expect(result.counts.changed).toBe(4);
+    expect(result.counts.sumAfter).toBe(390);
+    // Nothing was written, so there is no measured sum to report.
+    expect(result.counts.sumAfterObserved).toBeNull();
     expect(errorCounts()).toEqual(before);
+  });
+
+  it("takes a prelude inside the window as part of the run, and nothing outside it", () => {
+    const result = recomputeSessionErrorCounts(db.handle, { apply: true, now: NOW });
+
+    // update_check 30 s before session_start: the same run, fully retained, so the noise goes.
+    expect(errorCounts()["s-prelude"]).toBe(0);
+    // update_check 11 min before the start: not a prelude, an id in use before that start.
+    expect(errorCounts()["s-prelude-late"]).toBe(6);
+    // A genuine prelude does not rescue a row that also has an older event from an earlier use.
+    expect(errorCounts()["s-prelude-reused"]).toBe(8);
+    // A start five minutes after the floor: its prelude window reaches below the floor.
+    expect(errorCounts()["s-near-floor"]).toBe(3);
+    expect(result.counts.refused["events-precede-the-retained-start"]).toEqual({
+      sessions: 3,
+      errors: 21,
+    });
+    expect(result.counts.refused["start-too-close-to-the-retention-floor"]).toEqual({
+      sessions: 1,
+      errors: 3,
+    });
   });
 
   it("repairs a status only from a retained non-background event", () => {
@@ -330,10 +398,11 @@ describe("recompute-session-error-counts, the strict coverage rule", () => {
     const result = recomputeSessionErrorCounts(db.handle, { now: NOW });
 
     expect(result.retentionFloor).toBe(ago(90 * DAY));
-    // The floor is reporting only: coverage is decided by the retained session_start, so the
-    // classification does not move with it.
-    expect(result.sessionsProven).toBe(7);
-    expect(result.counts.changed).toBe(3);
+    // Coverage is decided by the retained session_start; the floor only guards the prelude
+    // window. With the floor 90 days back, s-near-floor's window no longer reaches below it.
+    expect(result.sessionsProven).toBe(9);
+    expect(result.counts.changed).toBe(5);
+    expect(result.counts.refused["start-too-close-to-the-retention-floor"]).toBeUndefined();
   });
 });
 
@@ -444,14 +513,16 @@ describe("recompute-session-error-counts CLI", () => {
     expect(lines[0]).toBe("recompute-session-error-counts (dry run, nothing written)");
     expect(lines).toContain("  database:            /data/db/rr.sqlite");
     expect(lines).toContain(
-      "  coverage proof:      the session's own session_start event must still be retained",
+      "  coverage proof:      the session's own session_start event must still be retained " +
+        "(earlier events of the session only inside the 10-minute prelude before it)",
     );
     expect(lines).toContain("  PROVEN  — history fully retained, safe to rewrite: 2 sessions");
     expect(lines).toContain("  UNKNOWN HISTORY — evidence pruned, NOTHING written: 1 session");
     expect(lines).toContain(
       "      no-retained-session-start: 1 session, 40 error_count left standing",
     );
-    expect(lines).toContain("  error_count sum, all sessions:    307 -> 40");
+    expect(lines).toContain("  error_count sum, all sessions:    307 -> 40 (projected)");
+    expect(lines.some((line) => line.includes("re-read after the write"))).toBe(false);
     // Written for the report: the exact output on this test database.
     console.log(lines.join("\n"));
   });
@@ -475,6 +546,9 @@ describe("recompute-session-error-counts CLI", () => {
     expect(lines).toContain("  status repair:       on (from retained non-background events only)");
     expect(sessionState("s-down")).toEqual({ lastStatus: "ok", lastEvent: "session_start" });
     expect(errorCounts()["s-forward-start"]).toBe(40);
+    // The value it wrote, read back out of the database rather than projected.
+    expect(lines).toContain("  error_count sum, all sessions:    307 -> 40");
+    expect(lines).toContain("  error_count sum, re-read after the write: 40");
     console.log(lines.join("\n"));
   });
 

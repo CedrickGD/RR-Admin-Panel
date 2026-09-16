@@ -10,10 +10,12 @@
 //   gone from telemetry_events, so the stored count was the last record of them.
 //
 //   recompute-session-error-counts.mjs now only writes a row whose OWN session_start event is
-//   still retained. This script applies that same rule to the rows the earlier run already
-//   changed: every row the strict rule cannot prove gets its pre-run value back; every row it can
-//   prove keeps the corrected value. The proof helpers are imported from that script, not
-//   reimplemented, so the two cannot drift apart.
+//   still retained, allowing for the client's short prelude before it (an update_check fired
+//   moments before the start is part of the same run; the rule, its window and the measured
+//   numbers are in that script's header). This script applies that same rule to the rows the
+//   earlier run already changed: every row the strict rule cannot prove gets its pre-run value
+//   back; every row it can prove keeps the corrected value. The proof helpers are imported from
+//   that script, not reimplemented, so the two cannot drift apart.
 //
 // HOW IT KNOWS A VALUE CAME FROM THE RUN AND NOT FROM INGEST: updated_at
 //   Time passes between the backup, the bad run and this restore — that is the whole point of the
@@ -98,6 +100,7 @@ import { pathToFileURL } from "node:url";
 import {
   buildEvidenceIndex,
   countTargetFor,
+  COVERAGE_PROOF,
   coverageGap,
   DEFAULT_BATCH_SIZE,
   statusRepairFor,
@@ -408,7 +411,7 @@ export function formatReport(result, dbPath, backupPath) {
     `  backup (read-only):  ${backupPath}`,
     `  run started:         ${result.runStartedAt}`,
     `  retention floor:     ${result.retentionFloor}`,
-    `  coverage proof:      the session's own session_start event must still be retained`,
+    `  coverage proof:      ${COVERAGE_PROOF}`,
     `  ingest discriminator: updated_at — a recompute never bumps it, every ingest write sets it,`,
     `                        so a row whose updated_at moved since the backup is ingest's, not the run's`,
     `  sessions:            ${result.sessionsLive} live, ${result.sessionsInBackup} in the backup, ${result.sessionsScanned} scanned`,
@@ -475,7 +478,7 @@ export function main(argv, { log = console.log, env = process.env, openDatabase,
     );
     log("without --apply nothing is written: the default is a read-only dry run.");
     log("restores the pre-run error_count only for sessions whose history the strict rule cannot");
-    log("prove; rows it can prove keep the recomputed value.");
+    log(`prove (${COVERAGE_PROOF}); rows it can prove keep the recomputed value.`);
     log("a row whose updated_at has moved since the backup was written by ingest, not by the");
     log("recompute run, and is reported rather than rolled back.");
     return null;

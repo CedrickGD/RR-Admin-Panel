@@ -15,10 +15,30 @@
 //
 //   The proof this script accepts is the session's OWN session_start event, still in
 //   telemetry_events. Pruning is strictly by age, so an event that survived proves every event of
-//   that session at or after its timestamp survived too; a session's events all follow its start;
-//   therefore a retained session_start proves the session's whole history is retained and the
-//   recomputed count is the complete count. Nothing weaker is accepted:
+//   that session at or after its timestamp survived too. A session's events do not all FOLLOW its
+//   start, though: the desktop client fires update_check (now and then crosshair_overlay, or an
+//   app_error) moments before session_start, as part of the same run. Measured read-only on the
+//   live database on 2026-09-16 (191,359 retained events, 15,304 non-legacy sessions with a
+//   retained start): 3,570 of those sessions (23 %) have retained events before their oldest
+//   retained session_start. The distance is under 10 s for 3,551 of them, 10-60 s for 17, 1-2 min
+//   for 2, 87.8 s at most — and none is over 10 minutes. The 3,577 prelude events are 3,553
+//   update_check, 20 crosshair_overlay, 3 app_error and 1 session_end.
 //
+//   So a retained session_start is the proof anchor when every earlier retained event of the
+//   session lies inside the SESSION_START_PRELUDE_MS window (10 minutes) before it, and that whole
+//   window lies at or above the retention floor. Then every event of the run, prelude included, is
+//   retained and the recomputed count is the complete count. Nothing weaker is accepted:
+//
+//     - An earlier retained event OUTSIDE the window is refused (events-precede-the-retained-
+//       start). A gap that size is not a prelude: the id was already in use before that start, so
+//       an earlier start — and its errors — may have been pruned. The window is about seven times
+//       the largest prelude seen and leaves nothing in between: on the live database no session
+//       has an earlier event more than 88 s before its start, and a reused id shows as hours or
+//       days, not seconds.
+//     - A start within the window of the retention floor is refused (start-too-close-to-the-
+//       retention-floor): part of its prelude may already be pruned, and what was in it is not
+//       something this script guesses. That is a handful of rows on any given day (3 on 2026-09-16)
+//       and they move out of the band as the floor advances.
 //     - "started_at is inside the retention window" is NOT a proof. Ingest rewrites started_at
 //       forward on every session_start (functions/_lib/storage.ts, SESSION_START branch), so a
 //       row whose older real errors were pruned can still look young.
@@ -89,6 +109,18 @@ export const DEFAULT_BATCH_SIZE = 200;
 export const LEGACY_SESSION_ID_PREFIX = "install:";
 /** The event ingest writes when a session starts (functions/_lib/storage.ts, SESSION_START). */
 export const SESSION_START_SERVICE = "session_start";
+/**
+ * How long before its session_start a session's own events may be retained and still count as
+ * that run's prelude (the client's update_check before the start). Measured on the live database,
+ * 2026-09-16: the largest prelude is 87.8 s and nothing sits between that and the reused-id gaps
+ * this window exists to catch, which are hours or days. Ten minutes is a round figure roughly seven
+ * times the largest prelude seen; it is not tuned to the data and has room to spare on both sides.
+ */
+export const SESSION_START_PRELUDE_MS = 10 * 60 * 1000;
+/** The rule in one line, as both scripts' reports and --help print it. */
+export const COVERAGE_PROOF =
+  `the session's own ${SESSION_START_SERVICE} event must still be retained ` +
+  `(earlier events of the session only inside the ${SESSION_START_PRELUDE_MS / 60_000}-minute prelude before it)`;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -146,6 +178,27 @@ const tally = (bucket, reason, errors) => {
 };
 
 /**
+ * Whether a session's oldest retained session_start (at `startAt`) anchors its whole history, given
+ * that its oldest retained event of any kind is at `firstEventAt`: null when it does, otherwise the
+ * reason it does not. The arithmetic is on parsed times; an unparseable timestamp fails every
+ * comparison and lands on the refusing side, which is the safe one.
+ */
+function startAnchorGap(firstEventAt, startAt, retentionFloor) {
+  const start = Date.parse(startAt);
+  const prelude = start - Date.parse(firstEventAt);
+  if (!(prelude <= SESSION_START_PRELUDE_MS)) {
+    // Retained events predate the start by more than a prelude: the id was already in use before
+    // that start, so an earlier start — and its errors — may have been pruned.
+    return "events-precede-the-retained-start";
+  }
+  if (!(start - SESSION_START_PRELUDE_MS >= Date.parse(retentionFloor))) {
+    // The prelude window reaches below the floor: part of it may be pruned already.
+    return "start-too-close-to-the-retention-floor";
+  }
+  return null;
+}
+
+/**
  * Everything both scripts need to know about what telemetry_events still holds. Built once, read
  * many times; restore-session-error-counts.mjs imports this so the two scripts cannot drift into
  * disagreeing about what "proven" means.
@@ -164,8 +217,12 @@ export function buildEvidenceIndex(db, options = {}) {
   const realErrors = new Map();
   /** session ids whose whole history is provably retained. @type {Set<string>} */
   const covered = new Set();
-  /** session ids with retained events whose oldest retained event is not a session_start. */
-  const startedBeforeRetainedHistory = new Set();
+  /**
+   * session ids with retained events that the rule does NOT cover -> the one reason why. Legacy
+   * ids are not in here: their prefix is the reason, whatever their events look like.
+   * @type {Map<string, string>}
+   */
+  const uncovered = new Map();
   /** session ids with any retained event at all. @type {Set<string>} */
   const seen = new Set();
 
@@ -174,17 +231,14 @@ export function buildEvidenceIndex(db, options = {}) {
     if (!sessionId) continue;
     seen.add(sessionId);
     realErrors.set(sessionId, Number(row.real_errors ?? 0));
-    const firstStartAt = row.first_start_ts == null ? null : String(row.first_start_ts);
-    const firstEventAt = String(row.first_ts);
     if (sessionId.startsWith(LEGACY_SESSION_ID_PREFIX)) continue;
-    if (firstStartAt === null) continue;
-    if (firstStartAt > firstEventAt) {
-      // Retained events predate this session's oldest retained session_start: the row was already
-      // running before that start, so an earlier start — and its errors — may have been pruned.
-      startedBeforeRetainedHistory.add(sessionId);
+    if (row.first_start_ts == null) {
+      uncovered.set(sessionId, "no-retained-session-start");
       continue;
     }
-    covered.add(sessionId);
+    const gap = startAnchorGap(String(row.first_ts), String(row.first_start_ts), retentionFloor);
+    if (gap) uncovered.set(sessionId, gap);
+    else covered.add(sessionId);
   }
 
   /** session_id -> newest retained event / newest retained non-background event. */
@@ -210,7 +264,7 @@ export function buildEvidenceIndex(db, options = {}) {
     realErrors,
     covered,
     seen,
-    startedBeforeRetainedHistory,
+    uncovered,
     newestEvent,
     newestNonBackgroundEvent,
     hasStatusEvidence: options.statusEvidence === true,
@@ -226,8 +280,9 @@ export function coverageGap(index, sessionId) {
   if (index.covered.has(id)) return null;
   if (id.startsWith(LEGACY_SESSION_ID_PREFIX)) return "legacy-install-id";
   if (!index.seen.has(id)) return "no-retained-events";
-  if (index.startedBeforeRetainedHistory.has(id)) return "events-precede-the-retained-start";
-  return "no-retained-session-start";
+  // Every other seen id has its reason recorded; the fallback is for a shape the index never
+  // produces, and it refuses.
+  return index.uncovered.get(id) ?? "no-retained-session-start";
 }
 
 /** The error_count a covered session's retained evidence accounts for. */
@@ -298,6 +353,8 @@ export function recomputeSessionErrorCounts(db, options = {}) {
       refused: {},
       sumBefore: Number(all.errors),
       sumAfter: Number(all.errors),
+      /** Re-read from the database after a successful --apply; null on a dry run. */
+      sumAfterObserved: null,
       /** error_count standing on rows left untouched because their history is unknown. */
       errorsOnUnknownHistory: 0,
       /** How many of those rows carry a non-zero count — the ones a weaker rule would erase. */
@@ -431,6 +488,14 @@ export function recomputeSessionErrorCounts(db, options = {}) {
     if (last === null) break;
     cursor = last;
   }
+
+  if (apply) {
+    // The projected sum is a claim; this is the measurement. They can differ legitimately — ingest
+    // keeps writing between batches — and the report says which is which rather than assuming.
+    result.counts.sumAfterObserved = Number(
+      db.prepare(`SELECT COALESCE(SUM(error_count), 0) AS errors FROM app_sessions`).get().errors,
+    );
+  }
   return result;
 }
 
@@ -453,7 +518,7 @@ export function formatReport(result, dbPath) {
     `  database:            ${dbPath}`,
     `  run started:         ${result.runStartedAt}`,
     `  retention floor:     ${result.retentionFloor} (oldest retained event: ${result.oldestRetainedEventAt ?? "none"})`,
-    `  coverage proof:      the session's own ${SESSION_START_SERVICE} event must still be retained`,
+    `  coverage proof:      ${COVERAGE_PROOF}`,
     `  status repair:       ${result.repairStatus ? "on (from retained non-background events only)" : "off (--repair-status)"}`,
     `  sessions:            ${result.sessionsTotal} total, ${result.sessionsScanned} scanned`,
     "",
@@ -468,7 +533,15 @@ export function formatReport(result, dbPath) {
       ? ["", `  last_status/last_event left alone`, ...breakdown(result.status.refused, false)]
       : []),
     "",
-    `  error_count sum, all sessions:    ${result.counts.sumBefore} -> ${result.counts.sumAfter}`,
+    `  error_count sum, all sessions:    ${result.counts.sumBefore} -> ${result.counts.sumAfter}${result.dryRun ? " (projected)" : ""}`,
+    ...(result.counts.sumAfterObserved === null
+      ? []
+      : [
+          `  error_count sum, re-read after the write: ${result.counts.sumAfterObserved}` +
+            (result.counts.sumAfterObserved === result.counts.sumAfter
+              ? ""
+              : ` — differs from the projection by ${result.counts.sumAfterObserved - result.counts.sumAfter}; ingest kept writing during the run`),
+        ]),
   ];
 }
 
@@ -505,10 +578,11 @@ export function main(argv, { log = console.log, env = process.env, openDatabase,
       "usage: node recompute-session-error-counts.mjs [--apply] [--repair-status] [--db <path>] [--batch-size <n>]",
     );
     log("without --apply nothing is written: the default is a read-only dry run.");
+    log("only sessions whose own session_start event is still retained are ever written, and only");
     log(
-      "only sessions whose own session_start event is still retained are ever written; rows whose",
+      `when their earlier retained events all lie inside the ${SESSION_START_PRELUDE_MS / 60_000}-minute prelude before it;`,
     );
-    log("history was pruned are reported as unknown history and left alone.");
+    log("rows whose history was pruned are reported as unknown history and left alone.");
     return null;
   }
   const dbPath = args.dbPath ?? env.DB_PATH ?? null;

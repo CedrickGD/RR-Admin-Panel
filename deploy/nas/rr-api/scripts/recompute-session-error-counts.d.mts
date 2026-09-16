@@ -7,6 +7,10 @@ export const RETENTION_DAYS: number;
 export const DEFAULT_BATCH_SIZE: number;
 export const LEGACY_SESSION_ID_PREFIX: string;
 export const SESSION_START_SERVICE: string;
+/** How far before its session_start a session's own retained events may lie and still be its prelude. */
+export const SESSION_START_PRELUDE_MS: number;
+/** The coverage rule in one line, as both scripts' reports and --help print it. */
+export const COVERAGE_PROOF: string;
 
 /** reason -> how many sessions were left untouched, and the error_count still standing on them. */
 export type RefusalBreakdown = Record<string, { sessions: number; errors: number }>;
@@ -25,12 +29,12 @@ export interface EvidenceIndex {
   retentionFloor: string;
   /** session_id -> retained real (non-background) app_error rows. */
   realErrors: Map<string, number>;
-  /** session ids whose own session_start is retained: their whole history is provably intact. */
+  /** session ids whose own session_start anchors their history: provably intact, prelude included. */
   covered: Set<string>;
   /** session ids with at least one retained event. */
   seen: Set<string>;
-  /** session ids whose oldest retained event predates their oldest retained session_start. */
-  startedBeforeRetainedHistory: Set<string>;
+  /** session ids with retained events the rule does not cover -> the one reason (legacy ids excluded). */
+  uncovered: Map<string, string>;
   newestEvent: Map<string, RetainedEvent>;
   newestNonBackgroundEvent: Map<string, RetainedEvent>;
   hasStatusEvidence: boolean;
@@ -65,7 +69,10 @@ export interface RecomputeResult {
     changed: number;
     refused: RefusalBreakdown;
     sumBefore: number;
+    /** Projected from what this run changed. */
     sumAfter: number;
+    /** Re-read from the database after a successful --apply; null on a dry run. */
+    sumAfterObserved: number | null;
     errorsOnUnknownHistory: number;
     sessionsWithErrorsOnUnknownHistory: number;
   };

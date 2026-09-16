@@ -26,6 +26,7 @@ import {
   serverErrorCounts,
 } from "../../functions/_lib/http-error-ring";
 import { loadBackup, loadStorage, type SystemFs } from "../../functions/_lib/system-adapter";
+import { SYSTEM_STATUS_POLL_MS } from "../../shared/system-status";
 import {
   buildSystemStatus,
   computeIncidents,
@@ -350,19 +351,34 @@ describe("containers via docker-gateway", () => {
     expect(urls).not.toContain(`${base}/containers/razorreaper-backup-1/stats?stream=false`);
   });
 
-  it("serves a cached result for 15 seconds", async () => {
+  it("keeps the cache TTL at or above the page's poll interval", () => {
+    // At 15 s no 30 s poll ever hit the cache, so every poll from every open tab paid a full
+    // stats round on the NAS. The TTL is defined from the poll interval; this pins the relation
+    // so it cannot quietly drop below it again.
+    expect(CACHE_TTL_MS).toBeGreaterThanOrEqual(SYSTEM_STATUS_POLL_MS);
+  });
+
+  it("serves every poll inside one interval from one Docker round, then samples again", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(NOW);
     const fetchFn = fakeFetch(routes);
     const listCalls = () =>
       fetchFn.mock.calls.filter((call) => call[0].endsWith("/containers/json?all=1")).length;
+    const statsCalls = () =>
+      fetchFn.mock.calls.filter((call) => call[0].endsWith("/stats?stream=false")).length;
+    // Three tabs, each polling every SYSTEM_STATUS_POLL_MS, land inside one interval.
     await loadContainers({}, fetchFn);
-    vi.setSystemTime(NOW + CACHE_TTL_MS - 1);
+    vi.setSystemTime(NOW + 10_000);
+    await loadContainers({}, fetchFn);
+    vi.setSystemTime(NOW + SYSTEM_STATUS_POLL_MS - 1);
     await loadContainers({}, fetchFn);
     expect(listCalls()).toBe(1);
-    vi.setSystemTime(NOW + CACHE_TTL_MS + 1);
+    expect(statsCalls()).toBe(2); // rr-api and bot are running; backup is not sampled
+    // The first tab's next poll, one interval on, is the first that samples again.
+    vi.setSystemTime(NOW + SYSTEM_STATUS_POLL_MS);
     await loadContainers({}, fetchFn);
     expect(listCalls()).toBe(2);
+    expect(statsCalls()).toBe(4);
   });
 
   it("throws when the proxy does not answer, so the section turns null", async () => {

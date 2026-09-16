@@ -514,27 +514,13 @@ async function loadHealthD1(env: RuntimeEnv): Promise<HealthPayload> {
   }
 
   await ensureTelemetrySchema(db);
-  await expireStaleSessionsD1(db);
-
+  // A reachability probe and nothing else. The COUNT(*)/MAX(ts) aggregate that used to run here
+  // on every dashboard poll fed fields nobody reads any more, and the expiry sweep is loadSummary's
+  // job on the same /api/admin/data request — a probe the public Pages /api/health route also
+  // serves should not trigger a write.
   await db.prepare("SELECT 1 AS ok").first();
-  const stats = await db
-    .prepare("SELECT COUNT(*) AS totalEvents, MAX(ts) AS lastIngestAt FROM telemetry_events")
-    .first<{
-      totalEvents: number | string;
-      lastIngestAt: string | null;
-    }>();
 
-  return {
-    ok: true,
-    api: "alive",
-    storage: {
-      backend: "d1",
-      available: true,
-    },
-    lastIngestAt: stats?.lastIngestAt ?? null,
-    count: toNumber(stats?.totalEvents),
-    build: buildInfo(env),
-  };
+  return { ok: true, storage: { available: true } };
 }
 
 async function storeTelemetryKv(
@@ -595,19 +581,8 @@ async function loadHealthKv(env: RuntimeEnv): Promise<HealthPayload> {
   }
 
   await kv.list({ prefix: "rr:", limit: 1 });
-  const events = await kvGetJson<TelemetryEvent[]>(kv, EVENTS_KEY, []);
 
-  return {
-    ok: true,
-    api: "alive",
-    storage: {
-      backend: "kv",
-      available: true,
-    },
-    lastIngestAt: events[0]?.timestamp ?? null,
-    count: events.length,
-    build: buildInfo(env),
-  };
+  return { ok: true, storage: { available: true } };
 }
 
 async function loadSessionExportTextD1(env: RuntimeEnv): Promise<string> {
@@ -1347,17 +1322,6 @@ function safeParseMetrics(raw: string | null): Record<string, unknown> {
   } catch {
     return {};
   }
-}
-
-function buildInfo(env: RuntimeEnv): HealthPayload["build"] {
-  return {
-    // `||`, not `??`: an empty BUILD_SHA (unset build arg, or a stray `BUILD_SHA=` in an env
-    // file) means "not stamped", not "the commit is the empty string".
-    commit: env.BUILD_SHA?.trim() || env.CF_PAGES_COMMIT_SHA || "unknown",
-    branch: env.CF_PAGES_BRANCH ?? "unknown",
-    environment: env.CF_PAGES ? "pages" : "local",
-    generatedAt: nowIso(),
-  };
 }
 
 /** error_kind 'background', matched exactly like the KPI queries do in SQL. */

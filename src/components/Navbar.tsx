@@ -35,13 +35,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type {
-  AuthMode,
-  AuthUser,
-  HealthPayload,
-  PageKey,
-  SummaryPayload,
-} from "../types/telemetry";
+import type { AuthUser, PageKey } from "../types/telemetry";
 import { canVisit } from "../../shared/panel-policy";
 import { PAGE_META, pageHeading, type PageGroup } from "../pageMeta";
 import { useAppearance } from "../hooks/useAppearance";
@@ -132,11 +126,6 @@ export interface NavbarProps {
   page: PageKey;
   onNavigate: (p: PageKey) => void;
   user: AuthUser;
-  authMode: AuthMode;
-  summary?: SummaryPayload | null;
-  health?: HealthPayload | null;
-  onRefresh: () => void;
-  refreshing?: boolean;
   onLogout: () => void;
 }
 export function Navbar({ page, onNavigate, user, onLogout }: NavbarProps) {

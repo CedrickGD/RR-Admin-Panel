@@ -101,8 +101,28 @@ files, then set the worker's `MEDIA_ORIGIN=https://media.<domain>/` and redeploy
 
 ## Backups
 
-`backup` runs nightly at 03:15: `sqlite3 .backup` of the rr-api DB into `/volume1/docker/razorreaper/backups`
-(30-day retention). Media is static — copy it once to the HDD pool; optional weekly offsite with rclone -> R2.
+`backup` runs nightly at 03:15 (the container's clock, UTC): `sqlite3 .backup` of the rr-api DB into
+`/volume1/docker/razorreaper/backups` (30-day retention). Media is static — copy it once to the HDD pool;
+optional weekly offsite with rclone -> R2.
+
+A backup counts only once it is verified. `backup/backup.sh` runs `PRAGMA integrity_check` on the copy and
+`gzip -t` on the archive, and only then rewrites `/volume1/docker/razorreaper/backups/.last-success` (one
+line: `<ISO-8601 UTC> <file name>`). A failed check exits non-zero, removes what it produced and leaves the
+marker as it was. Two readers make that visible:
+
+- the `backup` service's healthcheck fails when the marker is missing or older than 36 h (`docker ps`
+  shows `unhealthy`; the System health page raises `container-unhealthy-backup`);
+- rr-api reads the marker's line, so "Last backup" on the System health page is the time since the last
+  verified success, not the newest file's mtime, and `backup-stale` (26 h) is measured from it. Without a
+  marker the page falls back to the newest `rr-*.sqlite.gz` and labels it "not verified".
+
+First healthy state: at container start `backup.sh seed` dates a missing marker from the newest archive
+that passes `gzip -t`, so a recreate on an existing backup folder is healthy within one probe interval
+(5 min). A fresh volume has nothing to seed from; the healthcheck's 26 h start period keeps the container
+at `health: starting` until the first 03:15 run writes the marker. To prove the whole path once:
+`docker exec razorreaper-backup-1 sh /backup.sh` (expect `backup ok rr-<stamp>.sqlite.gz`, a new archive and
+a fresh marker line). Negative check: `touch -d "3 days ago"` the marker and wait for the next probe — the
+container turns unhealthy and the page shows it; the next run, or the manual one, clears it.
 
 ## Docker access for the System health page
 

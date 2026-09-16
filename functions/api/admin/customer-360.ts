@@ -860,8 +860,10 @@ function mapInstall(row: InstallRow): Record<string, unknown> {
 function mapError(row: ErrorRow): ErrorEventDetail {
   const metrics = parseObject(row.metrics_json);
   const kind = metricText(metrics, "error_kind");
+  const background = kind === BACKGROUND_KIND;
   // A background row's report keys ship as `report`, so they are not repeated in the extras
-  // (which are capped at 16 keys and would otherwise cut them off behind the base metrics).
+  // (which are capped at 16 keys and would otherwise cut them off behind the base metrics). Any
+  // other row keeps them: a real error carrying base_exception_type has no report to show it in.
   const surfaced = new Set([
     "hwid",
     "install_id",
@@ -870,7 +872,7 @@ function mapError(row: ErrorRow): ErrorEventDetail {
     "error_kind",
     "error_code",
     "app_version",
-    ...BACKGROUND_REPORT_METRIC_KEYS,
+    ...(background ? BACKGROUND_REPORT_METRIC_KEYS : []),
   ]);
   const extras = Object.fromEntries(
     Object.entries(metrics)
@@ -898,7 +900,7 @@ function mapError(row: ErrorRow): ErrorEventDetail {
     extras: toStringRecord(redacted),
     // What a listed background row stands for: one fault (older client), a first sighting, a
     // 5-minute rollup, or suppressed I/O. Real errors carry none of it.
-    report: kind === BACKGROUND_KIND ? readBackgroundFaultReport(metrics) : null,
+    report: background ? readBackgroundFaultReport(metrics) : null,
   };
 }
 

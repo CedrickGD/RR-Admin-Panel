@@ -2,6 +2,13 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
+// Warms the workspace chunk here, while the file is collected and no per-test timeout applies,
+// instead of inside the first test. CustomerWorkspaceRouter lazy-loads it, and that import fetches
+// its ~30 modules one RPC at a time through vitest's single main process: ~0.7 s alone, 4-5 s in a
+// full run with every worker collecting at once, past the 5 s cap. The router's lazy import then
+// resolves from this worker's module cache.
+import "../src/components/Customer360Overlay";
+
 import { CustomerWorkspaceRouter } from "../src/components/CustomerWorkspaceRouter";
 import { resetHistoryLayers } from "../src/hooks/useHistoryLayer";
 import { PanelIdentity } from "../src/hooks/usePanelPermission";
@@ -181,11 +188,11 @@ afterEach(async () => {
 });
 
 /*
- * The first test in this file pays the cold start of the whole Customer 360 workspace (~0.8 s
- * alone); under a full parallel run that stretches several-fold, so the budget is generous.
- * It only bounds the wait — a card that never appears still fails on its assertion.
+ * Lets React, the (warm) workspace chunk, fetches and jsdom's async traversals settle. The
+ * budget stays under vitest's 5 s per-test cap on purpose: a wait that outlives the cap keeps
+ * polling act() after the test was failed, on top of the next test's own act() scopes.
  */
-async function waitFor(check: () => boolean, what: string, timeout = 10_000) {
+async function waitFor(check: () => boolean, what: string, timeout = 3000) {
   const end = Date.now() + timeout;
   while (!check()) {
     if (Date.now() > end) throw new Error(`timed out waiting for ${what}`);

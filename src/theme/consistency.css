@@ -483,12 +483,9 @@ html[data-theme] .record-table td:has(> .btn-icon) {
 /* The distinct neutral surfaces and the readable text ladder this layer had the
    last word on are declared once in tokens/colors.css now, at exactly the values
    that stood here — WCAG notes for --line-hi and the skeleton stops included. */
-html[data-theme] * {
-  scrollbar-color: var(--scroll-thumb) transparent;
-}
-html[data-theme] *::-webkit-scrollbar-thumb {
-  background: var(--scroll-thumb);
-}
+/* The scrollbar thumb is --scroll-thumb straight from css/base.css now; the
+   `html[data-theme] *` re-declaration that stood here never matched <html>,
+   the document scroller. */
 /* Prevent flex layout from crushing icons inside padded controls. */
 html[data-theme] .btn-icon {
   width: 36px;

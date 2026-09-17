@@ -107,22 +107,6 @@ body::after {
   background: hsl(var(--ah) var(--as) var(--al) / 0.35);
 }
 
-/* Scrollbar */
-::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: var(--accent-dim);
-  border-radius: var(--r-pill);
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--accent);
-}
-
 /* ═══════════════════════════════════════════════════════════════
    TYPOGRAPHY
    ═══════════════════════════════════════════════════════════════ */

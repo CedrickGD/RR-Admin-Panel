@@ -38,8 +38,10 @@
   color: var(--on-accent);
   border-color: var(--accent);
 }
-.btn-primary:hover:not(:disabled) {
-  background: var(--accent-bright);
+@media (hover: hover) {
+  .btn-primary:hover:not(:disabled) {
+    background: var(--accent-bright);
+  }
 }
 
 .btn-ghost {
@@ -47,10 +49,12 @@
   color: var(--text-2);
   border-color: var(--line);
 }
-.btn-ghost:hover:not(:disabled) {
-  background: var(--surface-3);
-  color: var(--text-1);
-  border-color: var(--line-hi);
+@media (hover: hover) {
+  .btn-ghost:hover:not(:disabled) {
+    background: var(--surface-3);
+    color: var(--text-1);
+    border-color: var(--line-hi);
+  }
 }
 
 .btn-accent-ghost {
@@ -58,9 +62,11 @@
   color: var(--accent-text);
   border-color: hsl(var(--ah) var(--as) var(--al) / 0.22);
 }
-.btn-accent-ghost:hover:not(:disabled) {
-  background: hsl(var(--ah) var(--as) var(--al) / 0.2);
-  border-color: hsl(var(--ah) var(--as) var(--al) / 0.4);
+@media (hover: hover) {
+  .btn-accent-ghost:hover:not(:disabled) {
+    background: hsl(var(--ah) var(--as) var(--al) / 0.2);
+    border-color: hsl(var(--ah) var(--as) var(--al) / 0.4);
+  }
 }
 
 .btn-danger {
@@ -68,8 +74,10 @@
   color: #fff;
   border-color: var(--danger);
 }
-.btn-danger:hover:not(:disabled) {
-  background: hsl(4 86% 65%);
+@media (hover: hover) {
+  .btn-danger:hover:not(:disabled) {
+    background: hsl(4 86% 65%);
+  }
 }
 
 .btn-sm {
@@ -97,10 +105,12 @@
     color var(--t-med),
     border-color var(--t-med);
 }
-.btn-icon:hover:not(:disabled) {
-  background: var(--surface-3);
-  color: var(--text-1);
-  border-color: var(--line-hi);
+@media (hover: hover) {
+  .btn-icon:hover:not(:disabled) {
+    background: var(--surface-3);
+    color: var(--text-1);
+    border-color: var(--line-hi);
+  }
 }
 
 /* ── ds/Tabs — underline sub-view switcher ────────────────────────
@@ -137,8 +147,10 @@
     color var(--t-med),
     border-color var(--t-med);
 }
-.ds-tab:hover:not(.is-active) {
-  color: var(--text-2);
+@media (hover: hover) {
+  .ds-tab:hover:not(.is-active) {
+    color: var(--text-2);
+  }
 }
 .ds-tab.is-active {
   color: var(--text-1);
@@ -194,8 +206,10 @@
     background var(--t-fast),
     color var(--t-fast);
 }
-.ds-seg-btn:hover:not(.is-active) {
-  color: var(--text-1);
+@media (hover: hover) {
+  .ds-seg-btn:hover:not(.is-active) {
+    color: var(--text-1);
+  }
 }
 .ds-seg-btn.is-active {
   background: var(--accent-subtle);
@@ -227,10 +241,12 @@
     color var(--t-med),
     background var(--t-med);
 }
-.gdrop-trigger:hover {
-  border-color: var(--line-hi);
-  background: var(--surface-2);
-  color: var(--text-1);
+@media (hover: hover) {
+  .gdrop-trigger:hover {
+    border-color: var(--line-hi);
+    background: var(--surface-2);
+    color: var(--text-1);
+  }
 }
 .gdrop-active .gdrop-trigger {
   background: hsl(var(--ah) var(--as) var(--al) / 0.1);
@@ -302,9 +318,11 @@
     background 0.12s,
     color 0.12s;
 }
-.gdrop-item:hover {
-  background: hsl(210 80% 75% / 0.07);
-  color: var(--text-1);
+@media (hover: hover) {
+  .gdrop-item:hover {
+    background: hsl(210 80% 75% / 0.07);
+    color: var(--text-1);
+  }
 }
 .gdrop-item-selected,
 .gdrop-item-selected:hover {

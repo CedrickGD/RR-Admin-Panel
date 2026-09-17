@@ -52,8 +52,10 @@ html[data-background]:not([data-background="plain"])
   text-underline-offset: 4px;
 }
 
-.customer-directory-workspace .record-link:hover {
-  color: var(--accent-text);
+@media (hover: hover) {
+  .customer-directory-workspace .record-link:hover {
+    color: var(--accent-text);
+  }
 }
 
 /* Reuse the existing identity rail, section headings, and definition lists.

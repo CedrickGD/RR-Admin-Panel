@@ -196,34 +196,44 @@ html[data-theme] .feedback-card.is-new .badge-info {
      #09090b). At 55% it was 3.05:1 light / 2.89:1 dark. */
   border: 1px solid color-mix(in srgb, var(--danger) 75%, var(--line));
 }
-.btn:not(:disabled):hover,
-.btn-icon:not(:disabled):hover,
-.gdrop-trigger:not(:disabled):hover {
-  border-color: var(--accent);
+@media (hover: hover) {
+  .btn:not(:disabled):hover,
+  .btn-icon:not(:disabled):hover,
+  .gdrop-trigger:not(:disabled):hover {
+    border-color: var(--accent);
+  }
 }
-.btn-ghost:not(:disabled):hover,
-.btn-icon:not(:disabled):hover,
-.gdrop-trigger:not(:disabled):hover {
-  background: var(--surface-3);
-  color: var(--text-1);
+@media (hover: hover) {
+  .btn-ghost:not(:disabled):hover,
+  .btn-icon:not(:disabled):hover,
+  .gdrop-trigger:not(:disabled):hover {
+    background: var(--surface-3);
+    color: var(--text-1);
+  }
 }
-.btn-accent-ghost:not(:disabled):hover {
-  background: color-mix(in srgb, var(--accent) 26%, var(--surface-1));
+@media (hover: hover) {
+  .btn-accent-ghost:not(:disabled):hover {
+    background: color-mix(in srgb, var(--accent) 26%, var(--surface-1));
+  }
 }
 /* Both fill and ink come from utils/accentContrast, which derives the hover fill
    and re-runs the ink picker on it. Mixing the accent toward --text-1 here
    repainted the button without re-deriving --on-accent, so a white-inked accent
    (blue/indigo/violet) dropped to ~4.0–4.5:1 for as long as the pointer was on
    it — the one state where the label matters most. */
-.btn-primary:not(:disabled):hover {
-  background: var(--accent-hover);
-  border-color: var(--accent-hover);
-  color: var(--on-accent-hover);
+@media (hover: hover) {
+  .btn-primary:not(:disabled):hover {
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
+    color: var(--on-accent-hover);
+  }
 }
-.btn-danger:not(:disabled):hover {
-  background: color-mix(in srgb, var(--danger) 24%, var(--surface-1));
-  border-color: var(--danger);
-  color: var(--danger-text);
+@media (hover: hover) {
+  .btn-danger:not(:disabled):hover {
+    background: color-mix(in srgb, var(--danger) 24%, var(--surface-1));
+    border-color: var(--danger);
+    color: var(--danger-text);
+  }
 }
 .search-wrap input.glass-input,
 .gdrop-search input {
@@ -286,9 +296,11 @@ html[data-theme] .feedback-card.is-new .badge-info {
   border-bottom: 1px solid var(--line-row);
   vertical-align: middle;
 }
-.data-table tbody tr:hover > td,
-.clean-table tbody tr:hover > td {
-  background: var(--surface-2);
+@media (hover: hover) {
+  .data-table tbody tr:hover > td,
+  .clean-table tbody tr:hover > td {
+    background: var(--surface-2);
+  }
 }
 .data-table-wrap {
   width: 100%;
@@ -445,11 +457,16 @@ html.sb-collapsed .sb-brand-img {
   color: var(--text-3);
   opacity: 0.45;
 }
-.table-sort:hover .table-sort-icon-idle,
-.table-sort:focus-visible .table-sort-icon-idle,
-th:hover .table-sort .table-sort-icon-idle {
+.table-sort:focus-visible .table-sort-icon-idle {
   color: var(--accent-text);
   opacity: 1;
+}
+@media (hover: hover) {
+  .table-sort:hover .table-sort-icon-idle,
+  th:hover .table-sort .table-sort-icon-idle {
+    color: var(--accent-text);
+    opacity: 1;
+  }
 }
 /* The header button is the sort control on five pages now, so it needs the same
    keyboard ring as .btn — nothing else in the cascade gives one to a bare button. */

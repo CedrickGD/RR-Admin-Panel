@@ -380,8 +380,10 @@ h6 {
   color: var(--on-accent);
   border-color: var(--accent);
 }
-.btn-primary:hover:not(:disabled) {
-  background: var(--accent-bright);
+@media (hover: hover) {
+  .btn-primary:hover:not(:disabled) {
+    background: var(--accent-bright);
+  }
 }
 
 .btn-ghost {
@@ -389,10 +391,12 @@ h6 {
   color: var(--text-2);
   border-color: rgba(255, 255, 255, 0.1);
 }
-.btn-ghost:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--text-1);
-  border-color: rgba(255, 255, 255, 0.18);
+@media (hover: hover) {
+  .btn-ghost:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-1);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
 }
 
 .btn-accent-ghost {
@@ -400,9 +404,11 @@ h6 {
   color: var(--accent-text);
   border-color: hsl(var(--ah) var(--as) var(--al) / 0.22);
 }
-.btn-accent-ghost:hover:not(:disabled) {
-  background: hsl(var(--ah) var(--as) var(--al) / 0.2);
-  border-color: hsl(var(--ah) var(--as) var(--al) / 0.4);
+@media (hover: hover) {
+  .btn-accent-ghost:hover:not(:disabled) {
+    background: hsl(var(--ah) var(--as) var(--al) / 0.2);
+    border-color: hsl(var(--ah) var(--as) var(--al) / 0.4);
+  }
 }
 
 .btn-danger {
@@ -410,8 +416,10 @@ h6 {
   color: #fff;
   border-color: var(--danger);
 }
-.btn-danger:hover:not(:disabled) {
-  background: hsl(4 86% 65%);
+@media (hover: hover) {
+  .btn-danger:hover:not(:disabled) {
+    background: hsl(4 86% 65%);
+  }
 }
 
 .btn-sm {
@@ -431,9 +439,11 @@ h6 {
   color: var(--text-2);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
-.btn-icon:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--text-1);
+@media (hover: hover) {
+  .btn-icon:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-1);
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -546,8 +556,10 @@ h6 {
 .data-table tbody tr:last-child {
   border-bottom: none;
 }
-.data-table tbody tr:hover {
-  background: rgba(255, 255, 255, 0.03);
+@media (hover: hover) {
+  .data-table tbody tr:hover {
+    background: rgba(255, 255, 255, 0.03);
+  }
 }
 .data-table tbody tr.row-expanded {
   background: rgba(255, 255, 255, 0.04);
@@ -709,8 +721,10 @@ h6 {
   color: var(--text-1);
   font-family: inherit;
 }
-.error-group-row:hover {
-  background: rgba(255, 255, 255, 0.025);
+@media (hover: hover) {
+  .error-group-row:hover {
+    background: rgba(255, 255, 255, 0.025);
+  }
 }
 .error-group.is-open > .error-group-row {
   background: rgba(255, 255, 255, 0.02);
@@ -821,8 +835,10 @@ h6 {
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.02);
 }
-.error-occurrence-item:hover {
-  background: rgba(255, 255, 255, 0.04);
+@media (hover: hover) {
+  .error-occurrence-item:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -963,8 +979,10 @@ h6 {
   border: 2px solid var(--bg);
   cursor: pointer;
 }
-.timeline-marker:hover {
-  box-shadow: 0 0 0 4px var(--accent-glow);
+@media (hover: hover) {
+  .timeline-marker:hover {
+    box-shadow: 0 0 0 4px var(--accent-glow);
+  }
 }
 @media (hover: hover) and (pointer: fine) {
   .timeline-marker:hover {
@@ -974,8 +992,10 @@ h6 {
 .timeline-marker.is-error {
   background: var(--danger);
 }
-.timeline-marker.is-error:hover {
-  box-shadow: 0 0 0 4px hsl(4 86% 58% / 0.35);
+@media (hover: hover) {
+  .timeline-marker.is-error:hover {
+    box-shadow: 0 0 0 4px hsl(4 86% 58% / 0.35);
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -1174,10 +1194,12 @@ h6 {
     border-color 0.2s,
     color 0.2s;
 }
-.world-heatmap-clear-chip:hover {
-  background: rgba(8, 12, 22, 0.95);
-  border-color: rgba(255, 255, 255, 0.2);
-  color: var(--text-1);
+@media (hover: hover) {
+  .world-heatmap-clear-chip:hover {
+    background: rgba(8, 12, 22, 0.95);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: var(--text-1);
+  }
 }
 
 /* In-map controls, top right: the menu trigger over the always-visible zoom and fullscreen
@@ -1211,10 +1233,15 @@ h6 {
     border-color 0.2s,
     color 0.2s;
 }
-.world-heatmap-menu-trigger:hover,
 .world-heatmap-menu-trigger[aria-expanded="true"] {
   color: var(--accent, rgb(140, 190, 220));
   border-color: rgba(255, 255, 255, 0.2);
+}
+@media (hover: hover) {
+  .world-heatmap-menu-trigger:hover {
+    color: var(--accent, rgb(140, 190, 220));
+    border-color: rgba(255, 255, 255, 0.2);
+  }
 }
 .world-heatmap-zoom {
   display: flex;
@@ -1244,9 +1271,11 @@ h6 {
     background 0.15s,
     color 0.15s;
 }
-.world-heatmap-control:hover {
-  background: var(--surface-3);
-  color: var(--accent, rgb(140, 190, 220));
+@media (hover: hover) {
+  .world-heatmap-control:hover {
+    background: var(--surface-3);
+    color: var(--accent, rgb(140, 190, 220));
+  }
 }
 
 /* The open menu: the GlassDropdown menu surface (theme/operations.css `.gdrop-menu[popover]`),
@@ -1285,9 +1314,11 @@ h6 {
     background 0.12s,
     color 0.12s;
 }
-.world-heatmap-menu-item:hover:not(:disabled) {
-  background: hsl(210 80% 75% / 0.07);
-  color: var(--text-1);
+@media (hover: hover) {
+  .world-heatmap-menu-item:hover:not(:disabled) {
+    background: hsl(210 80% 75% / 0.07);
+    color: var(--text-1);
+  }
 }
 .world-heatmap-menu-item:focus-visible {
   outline: 2px solid var(--accent);
@@ -1377,8 +1408,10 @@ h6 {
   height: 36px;
   background: transparent;
 }
-.world-heatmap-map .maplibregl-ctrl-group button:hover {
-  background: rgba(255, 255, 255, 0.06);
+@media (hover: hover) {
+  .world-heatmap-map .maplibregl-ctrl-group button:hover {
+    background: rgba(255, 255, 255, 0.06);
+  }
 }
 .world-heatmap-map .maplibregl-ctrl button .maplibregl-ctrl-icon {
   filter: invert(96%) sepia(2%) saturate(258%) hue-rotate(181deg) brightness(96%) contrast(88%);
@@ -1435,9 +1468,11 @@ h6 {
     background 0.15s,
     color 0.15s;
 }
-.map-node-popup-close:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--text-1);
+@media (hover: hover) {
+  .map-node-popup-close:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-1);
+  }
 }
 .map-node-popup-kicker {
   /* Was 9px, under the 11px floor the scale documents. */
@@ -1652,13 +1687,17 @@ html[data-theme] .record-link.user-activity-timeline-total {
   color: var(--text-3);
   cursor: pointer;
 }
-html[data-theme] .record-link.user-activity-timeline-date:hover {
-  color: var(--text-2);
-  text-decoration: none;
+@media (hover: hover) {
+  html[data-theme] .record-link.user-activity-timeline-date:hover {
+    color: var(--text-2);
+    text-decoration: none;
+  }
 }
-html[data-theme] .record-link.user-activity-timeline-total:hover {
-  color: var(--text-3);
-  text-decoration: none;
+@media (hover: hover) {
+  html[data-theme] .record-link.user-activity-timeline-total:hover {
+    color: var(--text-3);
+    text-decoration: none;
+  }
 }
 @media (hover: hover) {
   html[data-theme]
@@ -1710,12 +1749,19 @@ html[data-theme] .record-link.user-activity-timeline-total:hover {
   );
   border-right: 1px dashed rgba(255, 255, 255, 0.8);
 }
-.user-activity-timeline-segment:hover,
 .user-activity-timeline-segment:focus-visible {
   z-index: 2;
   outline: 2px solid rgba(255, 255, 255, 0.72);
   outline-offset: 1px;
   filter: brightness(1.2);
+}
+@media (hover: hover) {
+  .user-activity-timeline-segment:hover {
+    z-index: 2;
+    outline: 2px solid rgba(255, 255, 255, 0.72);
+    outline-offset: 1px;
+    filter: brightness(1.2);
+  }
 }
 .user-activity-timeline-offline {
   position: absolute;
@@ -2143,9 +2189,11 @@ html[data-theme] .record-link.user-activity-timeline-total:hover {
   font-size: var(--fs-small);
   cursor: pointer;
 }
-.gdrop-trigger:hover {
-  border-color: rgba(255, 255, 255, 0.18);
-  color: var(--text-1);
+@media (hover: hover) {
+  .gdrop-trigger:hover {
+    border-color: rgba(255, 255, 255, 0.18);
+    color: var(--text-1);
+  }
 }
 .gdrop-active .gdrop-trigger {
   border-color: hsl(var(--ah) var(--as) var(--al) / 0.5);
@@ -2211,17 +2259,21 @@ html[data-theme] .record-link.user-activity-timeline-total:hover {
   text-align: left;
   cursor: pointer;
 }
-.gdrop-item:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--text-1);
+@media (hover: hover) {
+  .gdrop-item:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-1);
+  }
 }
 .gdrop-item-selected {
   color: var(--accent-text);
   background: var(--accent-subtle);
 }
-.gdrop-item-selected:hover {
-  background: var(--accent-subtle);
-  color: var(--accent-text);
+@media (hover: hover) {
+  .gdrop-item-selected:hover {
+    background: var(--accent-subtle);
+    color: var(--accent-text);
+  }
 }
 .gdrop-empty {
   padding: 10px 12px;
@@ -2233,10 +2285,12 @@ html[data-theme] .record-link.user-activity-timeline-total:hover {
 .kpi-card-clickable {
   cursor: pointer;
 }
-.kpi-card-clickable:hover {
-  /* --accent is a complete hsl() color; alpha variants must compose from --ah/--as/--al. */
-  border-color: hsl(var(--ah) var(--as) var(--al) / 0.45);
-  box-shadow: 0 0 0 3px var(--accent-subtle);
+@media (hover: hover) {
+  .kpi-card-clickable:hover {
+    /* --accent is a complete hsl() color; alpha variants must compose from --ah/--as/--al. */
+    border-color: hsl(var(--ah) var(--as) var(--al) / 0.45);
+    box-shadow: 0 0 0 3px var(--accent-subtle);
+  }
 }
 .kpi-card-chevron {
   display: inline-block;
@@ -2388,8 +2442,10 @@ html[data-theme] .record-link.user-activity-timeline-total:hover {
   cursor: pointer;
   user-select: none;
 }
-.panel-head-clickable:hover .section-title {
-  color: var(--accent-text);
+@media (hover: hover) {
+  .panel-head-clickable:hover .section-title {
+    color: var(--accent-text);
+  }
 }
 .panel-collapsed .panel-head {
   border-bottom: none;

@@ -72,12 +72,16 @@ html[data-theme] .customer-directory-workspace .customer-directory-open {
 /* consistency.css tints any hovered .person-cell control accent as a whole
    (its :is() list carries 0,4,2). Only the name answers hover here, exactly
    as it did while it was the link, so this override keeps one class ahead. */
-html[data-theme] .customer-directory-workspace .person-cell.customer-directory-open:hover {
-  color: inherit;
+@media (hover: hover) {
+  html[data-theme] .customer-directory-workspace .person-cell.customer-directory-open:hover {
+    color: inherit;
+  }
 }
-html[data-theme] .customer-directory-workspace .customer-directory-open:hover .record-link {
-  color: var(--accent-text);
-  text-decoration: underline;
+@media (hover: hover) {
+  html[data-theme] .customer-directory-workspace .customer-directory-open:hover .record-link {
+    color: var(--accent-text);
+    text-decoration: underline;
+  }
 }
 html[data-theme] .customer-directory-section[data-density] .person-avatar {
   width: var(--directory-avatar-size);

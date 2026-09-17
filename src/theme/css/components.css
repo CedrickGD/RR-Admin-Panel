@@ -13,8 +13,10 @@
   overflow: hidden;
   transition: border-color 0.2s;
 }
-.panel:hover {
-  border-color: var(--line-hi);
+@media (hover: hover) {
+  .panel:hover {
+    border-color: var(--line-hi);
+  }
 }
 
 .panel-head {
@@ -52,8 +54,10 @@
   cursor: pointer;
   user-select: none;
 }
-.panel-head-clickable:hover .section-title {
-  color: var(--accent-text);
+@media (hover: hover) {
+  .panel-head-clickable:hover .section-title {
+    color: var(--accent-text);
+  }
 }
 .panel-collapsed .panel-head {
   border-bottom: none;
@@ -127,9 +131,11 @@
     border-color var(--t-med),
     background var(--t-med);
 }
-.stat-card:hover {
-  background: var(--surface-2);
-  border-color: var(--line-hi);
+@media (hover: hover) {
+  .stat-card:hover {
+    background: var(--surface-2);
+    border-color: var(--line-hi);
+  }
 }
 
 /* Icon well on the left, ahead of the text; the sparkline (opt-in, see below)
@@ -661,8 +667,10 @@
 .data-table tbody tr:last-child {
   border-bottom: none;
 }
-.data-table tbody tr:hover {
-  background: hsl(210 80% 75% / 0.04);
+@media (hover: hover) {
+  .data-table tbody tr:hover {
+    background: hsl(210 80% 75% / 0.04);
+  }
 }
 .data-table tbody tr.row-expanded {
   background: hsl(210 80% 75% / 0.06);
@@ -1387,9 +1395,11 @@
   width: 14px;
   height: 14px;
 }
-.customer360-tabs button:hover {
-  color: var(--text-1);
-  background: var(--surface-2);
+@media (hover: hover) {
+  .customer360-tabs button:hover {
+    color: var(--text-1);
+    background: var(--surface-2);
+  }
 }
 .customer360-tabs button.active {
   color: var(--accent-text);
@@ -2284,8 +2294,10 @@
     transform 0.15s,
     box-shadow 0.15s;
 }
-.timeline-marker:hover {
-  box-shadow: 0 0 0 4px var(--accent-glow);
+@media (hover: hover) {
+  .timeline-marker:hover {
+    box-shadow: 0 0 0 4px var(--accent-glow);
+  }
 }
 @media (hover: hover) and (pointer: fine) {
   .timeline-marker:hover {
@@ -2295,8 +2307,10 @@
 .timeline-marker.is-error {
   background: var(--danger);
 }
-.timeline-marker.is-error:hover {
-  box-shadow: 0 0 0 4px hsl(4 86% 58% / 0.35);
+@media (hover: hover) {
+  .timeline-marker.is-error:hover {
+    box-shadow: 0 0 0 4px hsl(4 86% 58% / 0.35);
+  }
 }
 
 /* ── Progress bars ────────────────────────────────────────────── */

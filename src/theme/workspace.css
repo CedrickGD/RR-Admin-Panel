@@ -196,9 +196,11 @@ body {
   height: 17px;
   flex-shrink: 0;
 }
-.sb-item:hover {
-  background: var(--surface-2);
-  color: var(--text-1);
+@media (hover: hover) {
+  .sb-item:hover {
+    background: var(--surface-2);
+    color: var(--text-1);
+  }
 }
 .sb-item.active,
 .sb-item.active:hover {
@@ -320,8 +322,10 @@ body {
   text-decoration: none;
   border-radius: 2px;
 }
-.workspace-breadcrumb-group:hover {
-  text-decoration: underline;
+@media (hover: hover) {
+  .workspace-breadcrumb-group:hover {
+    text-decoration: underline;
+  }
 }
 .workspace-breadcrumb-group:focus-visible {
   outline: 2px solid var(--accent);
@@ -446,9 +450,11 @@ body {
   color: var(--on-accent);
   border-color: transparent;
 }
-.btn-primary:hover {
-  background: var(--accent-bright);
-  color: var(--on-accent);
+@media (hover: hover) {
+  .btn-primary:hover {
+    background: var(--accent-bright);
+    color: var(--on-accent);
+  }
 }
 .btn-ghost {
   background: var(--surface-2);
@@ -460,9 +466,11 @@ body {
   border-radius: 7px;
   background: transparent;
 }
-.btn-icon:hover {
-  background: var(--surface-3);
-  color: var(--text-1);
+@media (hover: hover) {
+  .btn-icon:hover {
+    background: var(--surface-3);
+    color: var(--text-1);
+  }
 }
 .gdrop-trigger,
 .auth-input {
@@ -1165,9 +1173,11 @@ html[data-theme="light"] .recharts-default-tooltip {
     border: 1px solid var(--line);
     flex-shrink: 0;
   }
-  .sidebar .sb-close:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: var(--text-1);
+  @media (hover: hover) {
+    .sidebar .sb-close:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--text-1);
+    }
   }
   .sidebar .sb-nav {
     flex: 1;

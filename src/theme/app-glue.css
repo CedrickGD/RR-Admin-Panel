@@ -141,9 +141,11 @@ body::after {
     color 0.15s ease,
     background 0.15s ease;
 }
-.feed-dismiss:hover {
-  color: var(--text-1);
-  background: var(--surface-2);
+@media (hover: hover) {
+  .feed-dismiss:hover {
+    color: var(--text-1);
+    background: var(--surface-2);
+  }
 }
 
 /* Traffic — timezone insight grid (TrafficPage tz view) */
@@ -165,8 +167,10 @@ body::after {
   padding: 12px 14px 6px;
   transition: border-color 0.2s;
 }
-.timezone-card:hover {
-  border-color: var(--line-hi);
+@media (hover: hover) {
+  .timezone-card:hover {
+    border-color: var(--line-hi);
+  }
 }
 .timezone-card-top {
   display: flex;
@@ -399,8 +403,10 @@ body::after {
     box-shadow var(--t-med),
     background var(--t-med);
 }
-.auth-input:hover {
-  border-color: var(--line-hi);
+@media (hover: hover) {
+  .auth-input:hover {
+    border-color: var(--line-hi);
+  }
 }
 .auth-input:focus-within {
   border-color: var(--accent);
@@ -681,12 +687,16 @@ svg * {
     opacity var(--t-med),
     color var(--t-med);
 }
-.sb-item:hover {
-  color: var(--text-1);
-  background: rgba(255, 255, 255, 0.06);
+@media (hover: hover) {
+  .sb-item:hover {
+    color: var(--text-1);
+    background: rgba(255, 255, 255, 0.06);
+  }
 }
-.sb-item:hover svg {
-  opacity: 1;
+@media (hover: hover) {
+  .sb-item:hover svg {
+    opacity: 1;
+  }
 }
 .sb-item:active {
   transform: scale(0.97);
@@ -908,10 +918,12 @@ svg * {
 .btn-icon {
   border-radius: 50%;
 }
-.btn:hover:not(:disabled),
-.btn-icon:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.12);
-  color: var(--text-1);
+@media (hover: hover) {
+  .btn:hover:not(:disabled),
+  .btn-icon:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.12);
+    color: var(--text-1);
+  }
 }
 @media (hover: hover) and (pointer: fine) {
   .btn:hover:not(:disabled),
@@ -1003,14 +1015,16 @@ select.glass-input {
   color: #fff;
   font-weight: 600;
 }
-.btn-primary:hover:not(:disabled) {
-  background: linear-gradient(
-    135deg,
-    hsl(var(--ah) var(--as) calc(var(--al) + 6%)),
-    hsl(calc(var(--ah) + 32) var(--as) var(--al))
-  );
-  border-color: transparent;
-  color: #fff;
+@media (hover: hover) {
+  .btn-primary:hover:not(:disabled) {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--ah) var(--as) calc(var(--al) + 6%)),
+      hsl(calc(var(--ah) + 32) var(--as) var(--al))
+    );
+    border-color: transparent;
+    color: #fff;
+  }
 }
 @media (hover: hover) and (pointer: fine) {
   .btn-primary:hover:not(:disabled) {
@@ -1145,8 +1159,10 @@ select.glass-input {
   background: hsl(var(--ah) var(--as) var(--al) / 0.45);
   border-radius: var(--r-pill);
 }
-.data-table-wrap::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--ah) var(--as) var(--al) / 0.7);
+@media (hover: hover) {
+  .data-table-wrap::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--ah) var(--as) var(--al) / 0.7);
+  }
 }
 
 /* Phones: make sure the last column never hides under the panel edge. */

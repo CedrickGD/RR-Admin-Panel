@@ -175,8 +175,10 @@ html[data-theme] .overview-workspace .panel {
   font-size: var(--fs-small);
   line-height: 1.6;
 }
-.overview-route:hover strong {
-  color: var(--accent);
+@media (hover: hover) {
+  .overview-route:hover strong {
+    color: var(--accent);
+  }
 }
 .overview-snapshot {
   margin: 0 22px;

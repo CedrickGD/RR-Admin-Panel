@@ -144,8 +144,10 @@ html[data-theme] .record-table > tbody > tr > td {
   vertical-align: middle;
   color: var(--text-2);
 }
-html[data-theme] .record-table > tbody > tr:hover > td {
-  background: var(--surface-2);
+@media (hover: hover) {
+  html[data-theme] .record-table > tbody > tr:hover > td {
+    background: var(--surface-2);
+  }
 }
 html[data-theme] .record-table > tbody > tr:last-child > td {
   border-bottom: 0;
@@ -197,9 +199,11 @@ html[data-theme] .record-table > tbody > tr > td.live-detail-cell {
   font: inherit;
   cursor: pointer;
 }
-.record-link:hover {
-  color: var(--accent-text);
-  text-decoration: underline;
+@media (hover: hover) {
+  .record-link:hover {
+    color: var(--accent-text);
+    text-decoration: underline;
+  }
 }
 /* Inside running text (an empty state's "listed under …" line) a record link must read as a
    link before hover — touch has no hover. Same token and underline the hover state uses. */
@@ -438,8 +442,10 @@ html[data-theme] .license-table td:first-child .record-primary {
 html[data-theme] .record-table td:has(> .row-actions) {
   background: transparent;
 }
-html[data-theme] .record-table tr:hover > td:has(> .row-actions) {
-  background: transparent;
+@media (hover: hover) {
+  html[data-theme] .record-table tr:hover > td:has(> .row-actions) {
+    background: transparent;
+  }
 }
 html[data-theme] .record-table .row-created > td:has(> .row-actions) {
   background: color-mix(in srgb, var(--accent) 12%, var(--surface-1));
@@ -468,8 +474,10 @@ html[data-theme] .feedback-card .badge {
 html[data-theme] .record-table td:has(> .btn-icon) {
   background: transparent;
 }
-html[data-theme] .record-table tr:hover > td:has(> .btn-icon) {
-  background: transparent;
+@media (hover: hover) {
+  html[data-theme] .record-table tr:hover > td:has(> .btn-icon) {
+    background: transparent;
+  }
 }
 
 /* The distinct neutral surfaces and the readable text ladder this layer had the
@@ -656,9 +664,15 @@ html[data-theme] .world-heatmap-menu-trigger > svg {
   object-fit: cover;
   display: block;
 }
-html[data-theme] :is(.data-table, .record-table, .clean-table, .monitor-table) > tbody > tr:hover,
-html[data-theme] :is(.data-table, .record-table, .clean-table, .monitor-table) > tbody > tr:hover > td {
-  background: transparent;
+@media (hover: hover) {
+  html[data-theme] :is(.data-table, .record-table, .clean-table, .monitor-table) > tbody > tr:hover,
+  html[data-theme]
+    :is(.data-table, .record-table, .clean-table, .monitor-table)
+    > tbody
+    > tr:hover
+    > td {
+    background: transparent;
+  }
 }
 /* The expanded session-history cell (WorkersPage): one full-width [colspan] cell.
    Both declarations used to be split — 20px of padding forced from
@@ -686,9 +700,11 @@ html[data-theme] .dialog-overlay {
   background: rgb(0 0 0 / 38%);
   backdrop-filter: blur(2px);
 }
-html[data-background]:not([data-background="plain"]) .stat-card:hover {
-  background: var(--workspace-surface);
-  border-color: var(--accent);
+@media (hover: hover) {
+  html[data-background]:not([data-background="plain"]) .stat-card:hover {
+    background: var(--workspace-surface);
+    border-color: var(--accent);
+  }
 }
 html[data-theme] .world-heatmap-menu-sep {
   background: var(--line);
@@ -736,11 +752,13 @@ html[data-theme] .record-table tbody > tr > td:has(> .btn-icon) {
   position: static;
   background: transparent;
 }
-html[data-theme]
-  :is(.customer360-tabs button, .sb-item, .person-cell, .team-tab):hover:not(:disabled) {
-  background: transparent;
-  color: var(--accent-text);
-  box-shadow: none;
+@media (hover: hover) {
+  html[data-theme]
+    :is(.customer360-tabs button, .sb-item, .person-cell, .team-tab):hover:not(:disabled) {
+    background: transparent;
+    color: var(--accent-text);
+    box-shadow: none;
+  }
 }
 html[data-theme] .customer360-tabs button.active {
   background: transparent;
@@ -1153,6 +1171,15 @@ html[data-theme]
     border: 1px solid var(--line);
     border-radius: var(--r);
     background: var(--surface-1);
+  }
+  /* The desktop row-hover reset above (`tr:hover { background: transparent }`)
+     outranks the card fill by its pseudo-class; a card is a card whether or not
+     a pointer rests on it. */
+  html[data-theme] .table-frame--stack > tbody > tr:hover {
+    background: var(--surface-1);
+  }
+  html[data-theme] .table-frame--stack > tbody > tr:hover > td {
+    background: transparent;
   }
   html[data-theme] .table-frame--stack > tbody > tr > td {
     display: flex;

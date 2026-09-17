@@ -87,6 +87,12 @@ function formatClock(value: string, timezone: string): string {
   }).format(new Date(value));
 }
 
+/** "20:00:00", or "20:00" where the selection box is too narrow for seconds. */
+function selectionClock(value: string, timezone: string, compact: boolean): string {
+  const clock = formatClock(value, timezone);
+  return compact ? clock.slice(0, 5) : clock;
+}
+
 function segmentLabel(segment: SelectedSegment, timezone: string): string {
   const prefix = segment.approximateEnd ? "≈ " : "";
   return `${formatActivityDate(segment.date)} · ${formatClock(segment.startedAt, timezone)}–${prefix}${formatClock(segment.endedAt, timezone)} · ${formatDuration(segment.durationSeconds)} · ${timezone}`;
@@ -313,11 +319,17 @@ export function UserActivityPanel({ identity }: UserActivityPanelProps) {
           <div className="user-activity-selection" role="status" aria-live="polite">
             {selectedSegment ? (
               <>
-                <strong>{formatActivityDate(selectedSegment.date)}</strong>
+                {/* The compact box has ~250px: the date goes short like the row
+                    dates (the full one on the title) and the clocks drop their
+                    seconds, so "Wed 16 · 20:00–≈ 20:55 · 55m 0s" stays one line
+                    instead of pushing the timeline down by a line on every tap. */}
+                <strong title={compact ? formatActivityDate(selectedSegment.date) : undefined}>
+                  {formatActivityDate(selectedSegment.date, compact)}
+                </strong>
                 <span>
-                  {formatClock(selectedSegment.startedAt, activity.timezone)}–
+                  {selectionClock(selectedSegment.startedAt, activity.timezone, compact)}–
                   {selectedSegment.approximateEnd ? "≈ " : ""}
-                  {formatClock(selectedSegment.endedAt, activity.timezone)} ·{" "}
+                  {selectionClock(selectedSegment.endedAt, activity.timezone, compact)} ·{" "}
                   {formatDuration(selectedSegment.durationSeconds)}
                 </span>
               </>

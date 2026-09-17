@@ -239,6 +239,24 @@ describe("UserActivityPanel", () => {
     );
   });
 
+  it("shortens the selected segment's date and clocks when the box is compact", async () => {
+    await render();
+    const selection = () => container.querySelector(".user-activity-selection");
+    const bar = container.querySelector<HTMLButtonElement>(".user-activity-timeline-segment");
+    if (!bar) throw new Error("Missing segment");
+    await act(async () => bar.click());
+    expect(selection()?.textContent).toBe("Thu, 17 Sept 202610:00:00–18:20:00 · 8h 20m");
+    expect(selection()?.querySelector("strong")?.getAttribute("title")).toBeNull();
+
+    // A 390px phone: "Thu 17 · 10:00–18:20 · 8h 20m" is one line; the full date on the title.
+    await resize({ timeline: 250, track: 150 });
+    expect(selection()?.textContent).toBe("Thu 1710:00–18:20 · 8h 20m");
+    expect(selection()?.querySelector("strong")?.getAttribute("title")).toBe("Thu, 17 Sept 2026");
+
+    await resize({ timeline: 900, track: 700 });
+    expect(selection()?.textContent).toBe("Thu, 17 Sept 202610:00:00–18:20:00 · 8h 20m");
+  });
+
   it("keeps the figures as a definition list in sentence case", async () => {
     await render();
     const labels = Array.from(container.querySelectorAll(".user-activity-stats dt")).map(

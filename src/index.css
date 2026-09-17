@@ -1236,14 +1236,16 @@ h6 {
   border: none;
   border-radius: var(--r-ctl);
   background: transparent;
-  color: rgba(255, 255, 255, 0.7);
+  /* Text-ladder ink, not a white alpha: the zoom box is --surface-float in both
+     themes (consistency.css), so 70% white was invisible on the light one. */
+  color: var(--text-2);
   cursor: pointer;
   transition:
     background 0.15s,
     color 0.15s;
 }
 .world-heatmap-control:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--surface-3);
   color: var(--accent, rgb(140, 190, 220));
 }
 

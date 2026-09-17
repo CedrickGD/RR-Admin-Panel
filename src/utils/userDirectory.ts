@@ -1,4 +1,5 @@
 import type { UserRollupRecord } from "../types/telemetry";
+import { formatDate, formatDay, formatNumber } from "./format";
 import { formatCountryLabel, getMacroRegion, resolveCountry } from "./geography";
 
 export type UserDirectorySortKey =
@@ -11,7 +12,7 @@ export type UserDirectorySortKey =
   | "firstSeen"
   | "sessions"
   | "totalTime"
-  | "errors";
+  | "status";
 export type DirectorySortDirection = "asc" | "desc";
 
 export interface UserDirectoryFilters {
@@ -112,8 +113,8 @@ function sortValue(user: UserRollupRecord, key: UserDirectorySortKey): string | 
       return Number.isFinite(user.sessions) ? user.sessions : null;
     case "totalTime":
       return Number.isFinite(user.totalDurationSeconds) ? user.totalDurationSeconds : null;
-    case "errors":
-      return Number.isFinite(user.errors) ? user.errors : null;
+    case "status":
+      return statusSeverity(user);
   }
 }
 
@@ -154,18 +155,133 @@ export function buildUserDirectoryOptions(
   };
 }
 
-/**
- * Customers "Needs attention": a real error, an active restriction, or a degraded/down last
- * status. `errors` sums the sessions' error_count, which counts real errors only — background
- * faults (the RR-E1003 client loop) never flag a customer.
+/*
+ * ── The directory's Status column ─────────────────────────────────────────
+ * One cell says what is wrong with a customer, if anything: their app access (a ban or a
+ * suspension, the same record Restrictions lists) and their support state (real errors, or a last
+ * status of down or degraded). Nothing wrong reads as a dash; the full wording stays reachable in
+ * the cell's title and, on the stacked phone card, as two labelled lines. `errors` sums the
+ * sessions' error_count, which counts real errors only — background faults (the RR-E1003 client
+ * loop) never flag a customer.
  */
+
+export type DirectoryStatusTone = "danger" | "warning";
+
+export interface DirectoryStatusFlag {
+  /** Which line of the full wording the badge stands for. */
+  line: "access" | "support";
+  /** Badge text: "Banned", "Suspended until 1 Oct 2026", "3 errors", "Down", "Degraded". */
+  label: string;
+  tone: DirectoryStatusTone;
+  /** The fact behind the badge, for its title: "Lifts automatically on …", "Last status down". */
+  title: string | null;
+}
+
+export interface DirectoryStatus {
+  /** At most two badges — the access state, then the support state. Empty when nothing is wrong. */
+  flags: DirectoryStatusFlag[];
+  /** The App access line in full. */
+  access: string;
+  /** The Support line in full. */
+  support: string;
+  /** Both lines, one per line, for the cell's title. */
+  summary: string;
+  /** Sort weight, worst first — see statusSeverity. */
+  severity: number;
+}
+
+/*
+ * Worst first when the Status column is sorted: a ban, then a suspension, then a client whose last
+ * status was down, then real errors, then a degraded last status; nothing wrong sorts last. Rows
+ * of one rank order by their error count. The one ranking on the page — needsAttention() is
+ * "severity above zero".
+ */
+const STATUS_RANK = { banned: 5, suspended: 4, down: 3, errors: 2, degraded: 1, clear: 0 } as const;
+const ERROR_WEIGHT_CAP = 999_999;
+
+function realErrors(user: UserRollupRecord): number {
+  return Number.isFinite(user.errors) && user.errors > 0 ? user.errors : 0;
+}
+
+export function statusSeverity(user: UserRollupRecord): number {
+  const errors = Math.min(realErrors(user), ERROR_WEIGHT_CAP);
+  const rank = user.suspension
+    ? user.suspension.mode === "ban"
+      ? STATUS_RANK.banned
+      : STATUS_RANK.suspended
+    : user.lastStatus === "down"
+      ? STATUS_RANK.down
+      : errors > 0
+        ? STATUS_RANK.errors
+        : user.lastStatus === "degraded"
+          ? STATUS_RANK.degraded
+          : STATUS_RANK.clear;
+  return rank * (ERROR_WEIGHT_CAP + 1) + errors;
+}
+
+/** Customers "Needs attention": anything the Status column would badge. */
 export function needsAttention(user: UserRollupRecord): boolean {
-  return (
-    user.errors > 0 ||
-    Boolean(user.suspension) ||
-    user.lastStatus === "degraded" ||
-    user.lastStatus === "down"
-  );
+  return statusSeverity(user) > 0;
+}
+
+function errorCount(errors: number): string {
+  return `${formatNumber(errors)} ${errors === 1 ? "error" : "errors"}`;
+}
+
+export function directoryStatus(user: UserRollupRecord): DirectoryStatus {
+  const flags: DirectoryStatusFlag[] = [];
+  const { suspension } = user;
+  let access: string;
+  if (suspension) {
+    access =
+      suspension.mode === "ban"
+        ? "Banned"
+        : suspension.bannedUntil
+          ? `Suspended until ${formatDay(suspension.bannedUntil)}`
+          : "Suspended";
+    flags.push({
+      line: "access",
+      label: access,
+      tone: suspension.mode === "ban" ? "danger" : "warning",
+      title:
+        suspension.mode !== "ban" && suspension.bannedUntil
+          ? `Lifts automatically on ${formatDate(suspension.bannedUntil)}`
+          : null,
+    });
+  } else {
+    // undefined: the rollup carried no access information at all (no access.read, an older API).
+    access = suspension === undefined ? "Not reported" : "No restriction reported";
+  }
+
+  const errors = realErrors(user);
+  const health =
+    user.lastStatus === "down" || user.lastStatus === "degraded" ? user.lastStatus : null;
+  let support: string;
+  if (errors > 0) {
+    // Errors are the actionable fact; the last status, when it is also off, rides in the title.
+    const note = health ? `Last status ${health}` : null;
+    flags.push({ line: "support", label: errorCount(errors), tone: "warning", title: note });
+    support = note ? `${errorCount(errors)}, last status ${health}` : errorCount(errors);
+  } else if (health) {
+    flags.push({
+      line: "support",
+      label: health === "down" ? "Down" : "Degraded",
+      tone: health === "down" ? "danger" : "warning",
+      title: null,
+    });
+    support = `Last status ${health}`;
+  } else {
+    support = "No errors reported";
+  }
+
+  return {
+    flags,
+    access,
+    support,
+    summary: `App access: ${access}
+Support: ${support}`,
+    severity: statusSeverity(user),
+  };
 }
 
 export function filterAndSortUsers(

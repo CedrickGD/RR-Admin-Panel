@@ -114,6 +114,29 @@ describe("Customers CRM page", () => {
     expect(overlay).not.toContain("Customer record");
   });
 
+  it("reads the directory's status at a glance and keeps the table inside its frame", () => {
+    // One Status column, sorted by severity; the inline "App access" / "Support" labels are gone
+    // from the cell and live on as the stacked phone card's lines and the cell title.
+    expect(page).toContain('label="Status"');
+    expect(page).toContain('sortKey="status"');
+    expect(page).not.toContain('label="Support"');
+    expect(page).not.toContain("customer-directory-status-label");
+    expect(page).toContain("customer-directory-status-flags");
+    expect(page).toContain("customer-directory-status-lines");
+    expect(page).toContain("title={status.summary}");
+    // The free-text cells ellipsise at the measured caps with the full value in their title.
+    expect(page).toContain("const CONTACT_CELL_MAX = 150;");
+    expect(page).toContain("const DEVICE_CELL_MAX = 210;");
+    expect(page).toContain("const LOCATION_CELL_MAX = 190;");
+    expect(page.match(/customer-directory-secondary-cell cell-truncate"/g)).toHaveLength(3);
+    const css = source("../src/theme/customer-directory.css");
+    expect(css.replace(/\s+/g, " ")).toContain(
+      ".customer-directory-status-flags { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; max-width: 196px; }",
+    );
+    // The status badges are the ds size, like the Version badge beside them: no per-cell font size.
+    expect(css).not.toContain(".customer-directory-status-cell .badge");
+  });
+
   it("aligns the card head's text from the left and paints the name as tappable on the stacked card", () => {
     const css = source("../src/theme/customer-directory.css");
     const head = css.match(/\.customer-directory-open \{([^}]*)\}/)?.[1].replace(/\s+/g, " ");

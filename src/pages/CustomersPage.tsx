@@ -16,7 +16,15 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
-import { useCallback, useDeferredValue, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { CollapsiblePanel } from "../components/CollapsiblePanel";
 import { Customer360Overlay, type Customer360Anchor } from "../components/Customer360Overlay";
 import {
@@ -45,16 +53,18 @@ import { TablePagination } from "../components/ds/TablePagination";
 import type { SuspensionRecord, UserRollupRecord } from "../types/telemetry";
 import { fetchAdminSuspensions } from "../utils/api";
 import { useRefreshSignal } from "../utils/refreshBus";
-import { formatDate, formatDay, formatDuration, formatNumber } from "../utils/format";
+import { formatDate, formatDuration, formatNumber } from "../utils/format";
 import { paginate } from "../utils/pagination";
 import { restrictionState } from "../utils/restrictions";
 import {
   buildUserDirectoryOptions,
   defaultUserSortDirection,
+  directoryStatus,
   filterAndSortUsers,
   lastIpAddress,
   needsAttention,
   type DirectorySortDirection,
+  type DirectoryStatusFlag,
   type UserDirectoryFilters,
   type UserDirectorySortKey,
 } from "../utils/userDirectory";
@@ -164,19 +174,19 @@ function ipLines(ip: string | null, absent: string): ReactNode {
   );
 }
 
-/** The directory's restriction wording, shared by the Support cell and the export. */
-function restrictionLabel(user: UserRollupRecord): string {
-  const suspension = user.suspension;
-  if (!suspension) return "";
-  if (suspension.mode === "ban") return "Banned";
-  return suspension.bannedUntil
-    ? `Suspended until ${formatDay(suspension.bannedUntil)}`
-    : "Suspended";
+/** The device line: the CPU string the client reports, or its platform. */
+function deviceLabel(user: UserRollupRecord): string {
+  return user.deviceModel?.trim() || user.platform?.trim() || "—";
+}
+
+function osLabel(user: UserRollupRecord): string {
+  return user.osVersion?.trim() || "OS not reported";
 }
 
 /**
  * The currently filtered directory as a sheet — every page, in the table's order. Same
- * lazy chunk and wording as the Session history export; the columns follow the table.
+ * lazy chunk and wording as the Session history export; the columns follow the table, and
+ * Restriction is the Status column's app-access wording, blank when nothing is on record.
  */
 async function exportCustomers(users: UserRollupRecord[]) {
   const XLSX = await import("xlsx");
@@ -195,7 +205,7 @@ async function exportCustomers(users: UserRollupRecord[]) {
     Errors: user.errors,
     "First seen": user.firstSeen,
     "Last seen": user.lastSeen,
-    Restriction: restrictionLabel(user),
+    Restriction: user.suspension ? directoryStatus(user).access : "",
   }));
   const sheet = XLSX.utils.json_to_sheet(rows);
   sheet["!cols"] = Object.keys(rows[0] ?? {}).map(() => ({ wch: 22 }));
@@ -239,6 +249,85 @@ function customerAnchor(user: UserRollupRecord): Customer360Anchor {
     label: displayName(user),
     detail: `All-time customer · ${userVersionLabel(user)} · ${discordHandle(user.discordUser)}`,
   };
+}
+
+/*
+ * ── Column caps ───────────────────────────────────────────────────────────
+ * What lets the table promise to fit its frame: 1,130px in a 1,440px window with the rail
+ * expanded (Location, Device / OS, Last IP and Total time folded away by the tablefit tiers in
+ * app-glue.css) and 1,610px at 1,920px with every column but Location shown. The name wraps
+ * inside .person-cell (190–280px); the version badge, the counts, the relative times, the IP (a
+ * 20ch mono cell, customer-directory.css) and the status badges (their row caps itself) are
+ * bounded on their own. The three free-text cells — a Discord handle, the CPU string the client
+ * reports as its device, a city and country — are the only ones a long value could widen, so
+ * they ellipsise at a per-column cap with the full value in the cell's title (.cell-truncate;
+ * the stacked phone card lifts it).
+ * Measured with the harness on the owner's data shape (1,359 rows, 37-character device strings,
+ * Argentine city names, 32-character handles, 39-character IPv6 addresses, the widest status
+ * badge on the page): with every column shown the table wants 1,835px and fits from 1,728px
+ * (the name column at its floor); without Location it fits from 1,538px, so at 1,610px the
+ * columns come to 275+150+89+210+168+98+103+214+103+102+98 with no cell content past its
+ * column; at 1,130px it is 276+150+89+98+215+103+102+98 = 1,130. The tier thresholds and the
+ * 907px floor (TableFrame minWidth) are the same measurement, in app-glue.css.
+ */
+const CONTACT_CELL_MAX = 150;
+const DEVICE_CELL_MAX = 210;
+const LOCATION_CELL_MAX = 190;
+
+/** The cap rides on .cell-truncate's own variable, the way ds/DataTable passes it. */
+function cellCap(max: number): CSSProperties {
+  return { "--cell-max": `${max}px` } as CSSProperties;
+}
+
+/** One state of the Status column as a ds Badge; the fact behind it rides in the title. */
+function StatusBadge({ flag }: { flag: DirectoryStatusFlag }) {
+  return (
+    <Badge tone={flag.tone} title={flag.title ?? undefined}>
+      {flag.label}
+    </Badge>
+  );
+}
+
+/**
+ * The Status cell: a badge only when something is wrong (at most two — app access, then
+ * support), a muted dash otherwise. The full wording is the cell's title for the mouse, visually
+ * hidden text for the reader when there is no badge to read, and the two labelled lines the
+ * stacked phone card shows in place of the badge row (customer-directory.css swaps the two
+ * below 900px).
+ */
+function CustomerDirectoryStatus({ user }: { user: UserRollupRecord }) {
+  const status = directoryStatus(user);
+  const access = status.flags.find((flag) => flag.line === "access");
+  const support = status.flags.find((flag) => flag.line === "support");
+  return (
+    <td className="customer-directory-status-cell" data-label="Status" title={status.summary}>
+      <span className="customer-directory-status-flags">
+        {status.flags.length > 0 ? (
+          status.flags.map((flag) => <StatusBadge key={flag.line} flag={flag} />)
+        ) : (
+          <>
+            <span className="customer-directory-status-clear" aria-hidden="true">
+              —
+            </span>
+            <span className="sr-only">{`${status.access}. ${status.support}.`}</span>
+          </>
+        )}
+      </span>
+      <dl className="customer-directory-status-lines">
+        <div>
+          <dt>App access</dt>
+          <dd>{access ? <StatusBadge flag={access} /> : status.access}</dd>
+        </div>
+        <div>
+          <dt>Support</dt>
+          <dd>
+            {support ? <StatusBadge flag={support} /> : status.support}
+            {support?.title ? <span>{support.title}</span> : null}
+          </dd>
+        </div>
+      </dl>
+    </td>
+  );
 }
 
 /** Mobile cards retain the table's secondary facts in a native disclosure. */
@@ -313,7 +402,7 @@ const DIRECTORY_SKELETON_COLUMNS: SkeletonColumn[] = [
   { className: "col-lg customer-directory-secondary-cell" }, // Last IP
   { className: "customer-directory-secondary-cell" }, // Sessions
   { className: "col-lg customer-directory-secondary-cell" }, // Total time
-  {}, // Support
+  {}, // Status
   { className: "customer-directory-secondary-cell" }, // First seen
   {}, // Last seen
   {}, // Customer actions
@@ -687,7 +776,7 @@ export function CustomersPage({ users: sourceUsers }: CustomersPageProps) {
                     paginated
                     stickyActions
                     mobileLayout="stack"
-                    minWidth={960}
+                    minWidth={907}
                     aria-busy={directoryUsers === null || undefined}
                   >
                     <caption className="table-caption">
@@ -746,8 +835,8 @@ export function CustomersPage({ users: sourceUsers }: CustomersPageProps) {
                           className="col-lg numeric"
                         />
                         <SortHeader
-                          label="Support"
-                          sortKey="errors"
+                          label="Status"
+                          sortKey="status"
                           sort={sort}
                           onSortChange={changeSort}
                         />
@@ -815,9 +904,10 @@ export function CustomersPage({ users: sourceUsers }: CustomersPageProps) {
                               </RecordOpen>
                             </td>
                             <td
-                              className="muted col-md customer-directory-secondary-cell"
+                              className="muted col-md customer-directory-secondary-cell cell-truncate"
                               data-label="Contact"
-                              title={user.discordUser ?? undefined}
+                              title={user.discordUser ? discordHandle(user.discordUser) : undefined}
+                              style={cellCap(CONTACT_CELL_MAX)}
                             >
                               {discordHandle(user.discordUser)}
                             </td>
@@ -825,20 +915,21 @@ export function CustomersPage({ users: sourceUsers }: CustomersPageProps) {
                               <Badge tone="muted">{userVersionLabel(user)}</Badge>
                             </td>
                             <td
-                              className="muted col-lg customer-directory-secondary-cell"
+                              className="muted col-lg customer-directory-secondary-cell cell-truncate"
                               data-label="Device / OS"
+                              title={`${deviceLabel(user)} · ${osLabel(user)}`}
+                              style={cellCap(DEVICE_CELL_MAX)}
                             >
                               <div className="customer-directory-stacked">
-                                <span>
-                                  {user.deviceModel?.trim() || user.platform?.trim() || "—"}
-                                </span>
-                                <small>{user.osVersion?.trim() || "OS not reported"}</small>
+                                <span>{deviceLabel(user)}</span>
+                                <small>{osLabel(user)}</small>
                               </div>
                             </td>
                             <td
-                              className="muted col-xl customer-directory-secondary-cell"
+                              className="muted col-xl customer-directory-secondary-cell cell-truncate"
                               data-label="Location"
                               title={locationLabel(user)}
+                              style={cellCap(LOCATION_CELL_MAX)}
                             >
                               {locationLabel(user)}
                             </td>
@@ -866,52 +957,7 @@ export function CustomersPage({ users: sourceUsers }: CustomersPageProps) {
                                 ? formatDuration(user.totalDurationSeconds)
                                 : "—"}
                             </td>
-                            <td className="customer-directory-status-cell" data-label="Support">
-                              <div className="customer-directory-status-group">
-                                <span className="customer-directory-status-label">App access</span>
-                                <div className="customer-directory-access">
-                                  {user.suspension ? (
-                                    <Badge
-                                      tone={user.suspension.mode === "ban" ? "danger" : "warning"}
-                                      title={
-                                        user.suspension.bannedUntil
-                                          ? `Lifts automatically on ${formatDate(user.suspension.bannedUntil)}`
-                                          : undefined
-                                      }
-                                    >
-                                      {user.suspension.mode === "ban"
-                                        ? "Banned"
-                                        : user.suspension.bannedUntil
-                                          ? `Suspended until ${formatDay(user.suspension.bannedUntil)}`
-                                          : "Suspended"}
-                                    </Badge>
-                                  ) : (
-                                    <span className="customer-directory-neutral">
-                                      {user.suspension === undefined
-                                        ? "Not reported"
-                                        : "No restriction reported"}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="customer-directory-status-group">
-                                <span className="customer-directory-status-label">Support</span>
-                                <div className="customer-directory-support">
-                                  {user.errors > 0 ? (
-                                    <Badge tone="warning">{formatNumber(user.errors)} errors</Badge>
-                                  ) : user.lastStatus === "degraded" ||
-                                    user.lastStatus === "down" ? (
-                                    <Badge tone={user.lastStatus === "down" ? "danger" : "warning"}>
-                                      {user.lastStatus === "down" ? "Down" : "Degraded"}
-                                    </Badge>
-                                  ) : (
-                                    <span className="customer-directory-neutral">
-                                      No errors reported
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </td>
+                            <CustomerDirectoryStatus user={user} />
                             <td
                               className="muted customer-directory-first-seen customer-directory-secondary-cell"
                               data-label="First seen"

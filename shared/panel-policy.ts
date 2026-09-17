@@ -12,6 +12,12 @@ export const PERMISSIONS = [
   { key: "announcements.read", label: "View announcements", group: "Communication" },
   { key: "announcements.write", label: "Publish & edit announcements", group: "Communication" },
   { key: "exports.read", label: "Export records", group: "Data" },
+  { key: "releases.read", label: "View releases & drafts", group: "Releases" },
+  { key: "releases.write", label: "Draft, build, publish & roll back", group: "Releases" },
+  // Owner-only (docs/release-management-design.md decision 2): repository file writes and
+  // free-form workflow dispatches are remote code execution on a runner that holds the release
+  // token. The key deliberately ends in neither ".read" nor ".write" — see effectivePermissions.
+  { key: "releases.files", label: "Edit repository files & workflows", group: "Releases" },
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number]["key"];
 export type PanelRole = "owner" | "admin" | "support" | "viewer";
@@ -24,7 +30,11 @@ export const ROLE_LABELS: Record<PanelRole, string> = {
   viewer: "Read only",
 };
 export function rolePermissions(role: PanelRole): Permission[] {
-  if (role === "owner" || role === "admin") return PERMISSIONS.map((p) => p.key);
+  if (role === "owner") return PERMISSIONS.map((p) => p.key);
+  // Owner and admin stop sharing one list here: an admin keeps drafts, builds, publish and
+  // rollback, but never edits repository files or dispatches an arbitrary workflow.
+  if (role === "admin")
+    return PERMISSIONS.map((p) => p.key).filter((key) => key !== "releases.files");
   if (role === "support")
     return [
       "overview.read",
@@ -34,6 +44,9 @@ export function rolePermissions(role: PanelRole): Permission[] {
       "monitoring.read",
       "support.read",
       "support.write",
+      // A support seat sees the Releases page read-only (design decision 6); the viewer role
+      // below picks the same key up through its ".read" filter.
+      "releases.read",
     ];
   return PERMISSIONS.filter((p) => p.key.endsWith(".read") && p.key !== "exports.read").map(
     (p) => p.key,
@@ -52,6 +65,9 @@ export function effectivePermissions(
     else allowed.add(key);
   }
   // A write grant never bypasses an explicit denial of its corresponding read permission.
+  // "releases.files" ends in neither ".read" nor ".write", so this filter deliberately does not
+  // pair it with "releases.read" — which is exactly why the file and workflow routes below ask
+  // for both keys instead of trusting this to imply the read.
   return [...allowed].filter(
     (key) => !key.endsWith(".write") || allowed.has(key.replace(".write", ".read") as Permission),
   );
@@ -72,6 +88,7 @@ export const PAGE_PERMISSION: Record<string, Permission | "team.manage" | null> 
   errors: "support.read",
   feedback: "support.read",
   announcements: "announcements.read",
+  releases: "releases.read",
   team: "team.manage",
   system: "monitoring.read",
   settings: null,
@@ -107,6 +124,16 @@ export function routePermissions(
     return [write ? "support.write" : "support.read"];
   if (path.startsWith("/api/admin/announcements"))
     return [write ? "announcements.write" : "announcements.read"];
+  // Releases, specific-first — the generic branch is last and would otherwise swallow all four.
+  // The Versions page reads this route instead of api.github.com, so it keeps its own permission.
+  if (path === "/api/admin/releases/versions") return ["monitoring.read"];
+  // Reading a repository file is as owner-only as writing one: both keys, both directions.
+  if (path.startsWith("/api/admin/releases/files")) return ["releases.read", "releases.files"];
+  // Dispatching an arbitrary workflow is remote code execution on a runner holding the release
+  // token, so it sits with files; the draft's own build dispatch falls through to releases.write.
+  if (path.startsWith("/api/admin/releases/workflows"))
+    return write ? ["releases.read", "releases.files"] : ["releases.read"];
+  if (path.startsWith("/api/admin/releases")) return [write ? "releases.write" : "releases.read"];
   if (
     [
       "/api/admin/stats",

@@ -1,0 +1,389 @@
+/*
+ * Releases workspace — the layout ReleasesPage.tsx needs and the DS does not already own.
+ *
+ * Tokens only, no colour literal, no new hue: every value below is a `var(--…)` from
+ * theme/tokens. The page's chrome (panels, tables, tiles, dialogs, toolbar) comes from the DS;
+ * what is here is the editor's two columns, the notes preview, the effect list in the confirm
+ * modal, the run panel and the log tail — none of which exist anywhere else.
+ *
+ * Sizing follows the same two breakpoints as the rest of the console: the editor is one column
+ * below 900px (§9) and the phone layout at 600px leaves nothing wider than its column, so there
+ * is no horizontal page scroll at 1440 with the rail open or at 390 without it.
+ */
+.releases-workspace {
+  min-width: 0;
+}
+
+.releases-workspace .page-stack-lg {
+  min-width: 0;
+}
+
+/* The persistent token line (§9, decision 8) sits under the PageHeader and stays calm: it is a
+   state, not a failure, so it keeps the neutral .inline-notice fill. */
+.releases-token-line {
+  align-items: flex-start;
+  line-height: 1.5;
+}
+
+/* ─────────────────────────────── Releases table ─────────────────────────────── */
+
+.releases-tag-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* The blocked-unpublish band: the 409's reason with its make-current candidates inline, so the
+   explicit second action (§6) is one click from the refusal that named it. */
+.releases-blocked {
+  display: grid;
+  gap: 10px;
+  margin: 0 var(--pad-panel-x) 12px;
+  padding: 12px 14px;
+  background: var(--warning-sub);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  line-height: 1.5;
+}
+
+.releases-blocked > p {
+  margin: 0;
+}
+
+.releases-candidates {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.releases-candidates > li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.releases-notes-body {
+  max-height: 44vh;
+  overflow: auto;
+}
+
+.releases-notes-body > pre {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--text-2);
+}
+
+/* ──────────────────────────── Drafts: list and editor ──────────────────────────── */
+
+.releases-editor-layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--gap-panel);
+  min-width: 0;
+}
+
+.releases-draft-list,
+.releases-draft-editor {
+  min-width: 0;
+}
+
+.releases-draft-rows {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0 var(--pad-panel-x) var(--pad-panel-x);
+  list-style: none;
+}
+
+.releases-draft-rows > li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.releases-draft-rows > li > .releases-draft-open {
+  flex: 1 1 auto;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.releases-draft-rows > li.is-active > .releases-draft-open {
+  border-color: var(--accent);
+  color: var(--text-1);
+}
+
+.releases-editor-fields {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.releases-editor-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  min-width: 0;
+}
+
+.releases-editor-actions {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Notes beside their preview: the operator writes a bullet and sees the line the app will show. */
+.releases-notes-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+  min-width: 0;
+}
+
+.releases-notes-preview-wrap {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px 14px;
+  background: var(--glass-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+}
+
+/* The app's What's-new list: one accent dot per bullet, body text, generous line box. */
+.releases-notes-preview {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.releases-notes-preview > li {
+  position: relative;
+  padding-left: 16px;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.releases-notes-preview > li::before {
+  content: "";
+  position: absolute;
+  top: 0.6em;
+  left: 0;
+  width: 5px;
+  height: 5px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+}
+
+.releases-notes-empty {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--fs-small);
+}
+
+.releases-commits {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+
+.releases-commits > summary {
+  padding: 10px 14px;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  cursor: pointer;
+}
+
+.releases-commits > ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0 14px 12px;
+  list-style: none;
+}
+
+.releases-commits > ul > li {
+  display: flex;
+  gap: 10px;
+  min-width: 0;
+  color: var(--text-3);
+  font-size: var(--fs-tiny);
+  line-height: 1.5;
+}
+
+.releases-commits > ul > li > span:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ───────────────────────────────── Run panel ───────────────────────────────── */
+
+.releases-run {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px 14px;
+  background: var(--glass-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+}
+
+.releases-run-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: var(--text-3);
+  font-size: var(--fs-tiny);
+}
+
+.releases-run-head a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--accent-text);
+}
+
+.releases-run-jobs {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.releases-run-jobs > li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+}
+
+.releases-log,
+.releases-file-editor {
+  font-family: var(--font-mono);
+  font-size: var(--fs-tiny);
+  line-height: 1.55;
+}
+
+.releases-log {
+  max-height: 260px;
+  margin: 0;
+  padding: 10px 12px;
+  overflow: auto;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--text-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* ───────────────────────────────── Files tab ───────────────────────────────── */
+
+.releases-entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.releases-file-editor {
+  min-height: 320px;
+  resize: vertical;
+  white-space: pre;
+}
+
+/* ────────────────────────────── Confirm dialog ────────────────────────────── */
+
+.releases-dialog-wait {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  color: var(--text-3);
+  font-size: var(--fs-small);
+}
+
+/* The server's ConfirmEffect[], printed verbatim and in order. The icon well carries the kind;
+   no wording of the page's own joins the list. */
+.releases-effects {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 0;
+  list-style: none;
+}
+
+.releases-effect {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.releases-effect-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--r-sm);
+  background: var(--glass-2);
+  color: var(--text-3);
+}
+
+.releases-ack {
+  margin-bottom: 12px;
+}
+
+/* ─────────────────────────────── Narrow layouts ─────────────────────────────── */
+
+@media (max-width: 900px) {
+  .releases-editor-layout,
+  .releases-notes-split,
+  .releases-editor-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .releases-blocked {
+    margin-inline: 0;
+  }
+  .releases-candidates > li {
+    flex-wrap: wrap;
+  }
+  .releases-run-jobs > li {
+    flex-direction: column;
+    gap: 2px;
+  }
+  .releases-file-editor {
+    min-height: 220px;
+    white-space: pre-wrap;
+  }
+}

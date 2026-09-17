@@ -426,6 +426,12 @@ html[data-theme] .customer-directory-section[data-density] .customer-directory-a
   .customer-directory-mobile-details dl > div {
     min-width: 0;
   }
+  /* An IPv6 is two 19-character halves (ipLines); a 142px half-column at
+     390px broke it into four lines with a lone ":" and "4". The address gets
+     the row, so each half is a line. */
+  .customer-directory-mobile-details dl > .customer-directory-mobile-ip {
+    grid-column: 1 / -1;
+  }
   .customer-directory-mobile-details dt {
     margin: 0 0 3px;
     color: var(--text-3);

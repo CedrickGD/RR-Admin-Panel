@@ -352,7 +352,7 @@ function CustomerDirectoryDetails({ user }: { user: UserRollupRecord }) {
           <dt>Location</dt>
           <dd>{locationLabel(user)}</dd>
         </div>
-        <div>
+        <div className="customer-directory-mobile-ip">
           <dt>Last IP</dt>
           <dd className="mono" title={ipTitle(user)}>
             {ipLines(lastIpAddress(user), "Not reported")}

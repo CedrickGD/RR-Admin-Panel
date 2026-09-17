@@ -27,16 +27,19 @@ import { fetchApi } from "../src/utils/api";
 import {
   INSTALLER_ASSET_NAME,
   RELEASES_API_VERSION,
+  type ConfirmAction,
   type ConfirmEffect,
   type ConfirmTokenResponse,
   type GithubRelease,
   type ReleaseAsset,
   type ReleaseDraft,
+  type ReleaseDraftStatus,
   type ReleasesOverviewResponse,
   type RepoFile,
   type RepoTreeEntry,
   type TokenStatus,
   type WorkflowRunSummary,
+  type WorkflowSummary,
 } from "../shared/releases-contract";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -148,7 +151,11 @@ function overview(token: TokenStatus): ReleasesOverviewResponse {
     token,
     latestPublished: CURRENT,
     releases: [UNPUBLISHED, BETA, CURRENT, PREVIOUS],
-    drafts: [DRAFT],
+    drafts: [
+      draftStatus === DRAFT.status
+        ? DRAFT
+        : { ...DRAFT, status: draftStatus, updatedAt: "2026-09-15T09:00:00.000Z" },
+    ],
     recentRuns: [RUN],
     updateXml: {
       version: "1.5.3.0",
@@ -195,18 +202,70 @@ const GOVERNED: RepoFile = {
   editRefusal: GOVERNED_REFUSAL,
 };
 
+/** An ordinary editable blob — the other half of the denylist, and the Commit tab's way in. */
+const EDITABLE: RepoFile = {
+  path: "installer/RazorReaper.iss",
+  sha: "issblobsha",
+  size: 2_400,
+  content: '#define MyAppVersion "1.5.3"\n',
+  editable: true,
+};
+
 const ROOT_ENTRIES: RepoTreeEntry[] = [
   { path: ".github", type: "tree", sha: "t1", size: null, editable: true },
   { path: "installer", type: "tree", sha: "t2", size: null, editable: true },
   { path: "update.xml", type: "blob", sha: "manifestsha", size: 412, editable: false },
 ];
 
-const MINTED: ConfirmTokenResponse = {
-  ok: true,
-  token: "confirm-token-1",
-  expiresAt: "2026-09-17T09:02:00.000Z",
-  effects: MAKE_CURRENT_EFFECTS,
+const WORKFLOWS: WorkflowSummary[] = [
+  {
+    id: 12,
+    name: "Build installer",
+    path: ".github/workflows/build-installer.yml",
+    state: "active",
+    inputs: [
+      { name: "version", description: "3-part version", required: true, type: "string" },
+      { name: "prerelease", description: "Prerelease", required: false, type: "boolean" },
+    ],
+  },
+];
+
+/**
+ * What the server would mint for each action. They differ on purpose: a modal that prints the
+ * response is only demonstrably printing *the response* if a different response prints
+ * differently, which a single shared fixture can never show.
+ */
+const MINTED_EFFECTS: Record<ConfirmAction, ConfirmEffect[]> = {
+  "make-current": MAKE_CURRENT_EFFECTS,
+  publish: [
+    { kind: "github", text: "GitHub: v1.5.4 is published and its notes go live." },
+    { kind: "manifest", text: "update.xml: 1.5.3 → 1.5.4" },
+    { kind: "installs", text: "829 installs are on 1.5.3 and will be offered 1.5.4." },
+    {
+      kind: "discord",
+      text: "Discord: a release post goes to the updates channel and the RIP webhook (discord-release.yml, on release published).",
+    },
+  ],
+  build: [
+    { kind: "github", text: "GitHub: one commit bumps RazorReaper.csproj and RazorReaper.iss." },
+    { kind: "note", text: "build-installer.yml is dispatched on master." },
+  ],
+  unpublish: [{ kind: "github", text: "GitHub: v1.5.2 goes back to a draft; its tag stays." }],
+  commit: [{ kind: "github", text: `GitHub: one commit rewrites ${EDITABLE.path} on master.` }],
+  dispatch: [
+    { kind: "github", text: "GitHub Actions: Build installer is dispatched on master." },
+    { kind: "note", text: "A dispatched workflow runs with this repository's secrets." },
+  ],
 };
+
+function minted(action: ConfirmAction): ConfirmTokenResponse {
+  return {
+    ok: true,
+    token: `confirm-token-${action}`,
+    expiresAt: "2026-09-17T09:02:00.000Z",
+    effects: MINTED_EFFECTS[action],
+  };
+}
 
 /* ───────────────────────────────── Harness ───────────────────────────────── */
 
@@ -221,6 +280,8 @@ const VIEWER = seat(["releases.read"]);
 let container: HTMLDivElement;
 let root: Root;
 let token: TokenStatus = WRITE_TOKEN;
+/** What the *server* says the open draft's status is — moved mid-test to simulate a finished run. */
+let draftStatus: ReleaseDraftStatus = DRAFT.status;
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -249,6 +310,7 @@ beforeAll(() => {
 beforeEach(() => {
   resetHistoryLayers();
   token = WRITE_TOKEN;
+  draftStatus = DRAFT.status;
   history.replaceState(null, "", "http://localhost:3000/#/releases");
   container = document.createElement("div");
   document.body.append(container);
@@ -259,12 +321,27 @@ beforeEach(() => {
     const { pathname, searchParams } = new URL(String(input), window.location.origin);
     const method = init?.method ?? "GET";
     if (method === "GET" && pathname === "/api/admin/releases") return json(overview(token));
-    if (method === "POST" && pathname === "/api/admin/releases/confirm") return json(MINTED);
+    if (method === "POST" && pathname === "/api/admin/releases/confirm") {
+      const body = JSON.parse(String(init?.body ?? "{}")) as { action: ConfirmAction };
+      return json(minted(body.action));
+    }
     if (method === "GET" && pathname === "/api/admin/releases/files") {
       const path = searchParams.get("path") ?? "";
       if (path === GOVERNED.path) return json({ ok: true, ref: "master", path, file: GOVERNED });
+      if (path === EDITABLE.path) return json({ ok: true, ref: "master", path, file: EDITABLE });
       return json({ ok: true, ref: "master", path, entries: ROOT_ENTRIES });
     }
+    // The run panel polls while a draft is `building`. `pollAfterSeconds: 0` answers once and
+    // stops, so the test drives the refresh itself instead of waiting on a real 10 s timer.
+    if (method === "GET" && /\/drafts\/\d+\/run$/.test(pathname))
+      return json({ ok: true, run: RUN, jobs: [], logTail: [], pollAfterSeconds: 0 });
+    if (method === "GET" && pathname === "/api/admin/releases/workflows")
+      return json({ ok: true, workflows: WORKFLOWS });
+    if (method === "GET" && pathname === "/api/admin/releases/workflows/runs")
+      return json({ ok: true, runs: [RUN] });
+    // Every governed action's write route: the suite drives the modal, so only the mint body and
+    // the fact that the write followed are of interest here.
+    if (method === "POST" || method === "PUT") return json({ ok: true });
     throw new Error(`Unexpected mocked request: ${method} ${pathname}`);
   });
 });
@@ -324,10 +401,63 @@ function setValue(input: HTMLInputElement, value: string) {
   input.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
+function setTextareaValue(area: HTMLTextAreaElement, value: string) {
+  const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!;
+  setter.call(area, value);
+  area.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
 async function click(element: HTMLElement) {
   await act(async () => {
     element.dispatchEvent(new MouseEvent("click", { bubbles: true }));
   });
+}
+
+/* Each governed action, driven the way an operator reaches it, so a test can assert on the
+   modal the server's mint actually produced rather than on the page's source text. */
+
+async function openMakeCurrent() {
+  await mount(OWNER);
+  await click(buttons("Make current").find((button) => !button.disabled)!);
+}
+
+async function openUnpublish() {
+  await mount(OWNER);
+  // Scoped to v1.5.2's row: the prerelease above it is unpublishable too, so "the first enabled
+  // Unpublish" would name a different release than the test says it does.
+  await click(buttons("Unpublish", tagRow(PREVIOUS.tag))[0]);
+}
+
+/** The `<tbody>` row for a tag — a row action has to be reached through its own row. */
+function tagRow(tag: string): HTMLTableRowElement {
+  const row = [...document.querySelectorAll<HTMLTableRowElement>("tbody tr")].find((tr) =>
+    tr.querySelector(".releases-tag-cell")?.textContent?.includes(tag),
+  );
+  if (!row) throw new Error(`No release row for ${tag}.`);
+  return row;
+}
+
+async function openDraftAction(label: "Build installer" | "Publish") {
+  await mount(OWNER);
+  await click(buttons("Drafts")[0]);
+  await click(document.querySelector<HTMLButtonElement>(".releases-draft-open")!);
+  await click(buttons(label)[0]);
+}
+
+async function openCommit() {
+  await mount(OWNER);
+  await click(buttons("Files")[0]);
+  const field = document.querySelector<HTMLInputElement>('input[aria-label="Repository path"]')!;
+  await act(async () => setValue(field, EDITABLE.path));
+  await click(buttons("Open")[0]);
+  await click(buttons("Commit")[0]);
+}
+
+async function openDispatch() {
+  await mount(OWNER);
+  await click(buttons("Workflows")[0]);
+  await click(buttons("Prepare")[0]);
+  await click(buttons("Dispatch")[0]);
 }
 
 /* ───────────────────────────────── The cases ───────────────────────────────── */
@@ -502,6 +632,56 @@ describe("the Drafts editor", () => {
       expect(button.title, name).toBe(PLACEHOLDER_MESSAGE);
     }
   });
+
+  /**
+   * The editor holds a copy of the draft taken when it was opened. `status` is the one field on
+   * it the server owns — `GET …/drafts/:id/run` writes `built` when the run finishes — so until
+   * the copy followed it, a finished build left the header on "Building" and Publish disabled
+   * with "Build the installer before publishing.", and only closing and reopening the draft fixed
+   * it.
+   */
+  it("follows the server's status when a build finishes under the open editor", async () => {
+    draftStatus = "building";
+    await mount(OWNER);
+    await click(buttons("Drafts")[0]);
+    await click(document.querySelector<HTMLButtonElement>(".releases-draft-open")!);
+
+    expect(document.querySelector(".releases-draft-editor .section-sub")?.textContent).toBe(
+      "Building",
+    );
+    expect(buttons("Publish")[0].disabled).toBe(true);
+    expect(buttons("Publish")[0].title).toBe("Build the installer before publishing.");
+
+    // The run finished, so the next overview carries `built`.
+    draftStatus = "built";
+    await click(buttons("Refresh")[0]);
+
+    expect(document.querySelector(".releases-draft-editor .section-sub")?.textContent).toBe(
+      "Built",
+    );
+    expect(buttons("Publish")[0].disabled).toBe(false);
+  });
+
+  it("keeps notes the operator is part-way through typing when the status moves", async () => {
+    draftStatus = "building";
+    await mount(OWNER);
+    await click(buttons("Drafts")[0]);
+    await click(document.querySelector<HTMLButtonElement>(".releases-draft-open")!);
+
+    const notes = [...document.querySelectorAll<HTMLTextAreaElement>("textarea")].find(
+      (area) => area.value === DRAFT.notesCustomer,
+    )!;
+    await act(async () => setTextareaValue(notes, "A bullet still being written"));
+
+    draftStatus = "built";
+    await click(buttons("Refresh")[0]);
+
+    // The status followed the server; the unsaved edit did not get thrown away with it.
+    expect(buttons("Publish")[0].disabled).toBe(false);
+    expect(
+      [...document.querySelectorAll<HTMLTextAreaElement>("textarea")].map((area) => area.value),
+    ).toContain("A bullet still being written");
+  });
 });
 
 describe("the Files tab", () => {
@@ -524,8 +704,10 @@ describe("the Files tab", () => {
   it("shows the server's refusal and no enabled Commit once a governed file is opened", async () => {
     await mount(OWNER);
     await click(buttons("Files")[0]);
-    // Reached through the path field, which is the other way in.
-    const field = document.querySelector<HTMLInputElement>(".page-toolbar-search input")!;
+    // Reached through the path field, which is the other way in. Found by its accessible name,
+    // not by the row's class: what the test cares about is the field an operator types a path
+    // into, not which wrapper the page happens to render it in.
+    const field = document.querySelector<HTMLInputElement>('input[aria-label="Repository path"]')!;
     await act(async () => setValue(field, GOVERNED.path));
     await click(buttons("Open")[0]);
 
@@ -535,6 +717,20 @@ describe("the Files tab", () => {
     const [commit] = buttons("Commit");
     expect(commit.disabled).toBe(true);
     expect(commit.title).toBe(GOVERNED_REFUSAL);
+  });
+
+  it("keeps Open and Up out of a toolbar slot documented as ds/Select only", async () => {
+    await mount(OWNER);
+    await click(buttons("Files")[0]);
+
+    // ds/PageToolbar's `filters` slot takes ds/Select and nothing else — every other page in the
+    // panel passes only Selects — so the path navigator renders its own row instead.
+    expect(document.querySelectorAll(".page-toolbar-filters .btn")).toHaveLength(0);
+    const row = document.querySelector(".releases-path-row")!;
+    expect(row).not.toBeNull();
+    expect(row.querySelector('input[aria-label="Repository path"]')).not.toBeNull();
+    expect(buttons("Open", row).length).toBe(1);
+    expect(buttons("Up", row).length).toBe(1);
   });
 });
 
@@ -550,34 +746,74 @@ describe("the page carries no effect copy of its own", () => {
     expect(page).not.toMatch(/release post goes to/);
   });
 
-  it("renders the effect list from the response and only from it", () => {
-    expect(page).toContain("minted.effects");
-    expect(page).toContain("<span>{effect.text}</span>");
-  });
+  /**
+   * Asserted on the rendered dialog, across three different effect lists, rather than on the
+   * page's source text: grepping for `minted.effects` proves the identifier is present, not that
+   * what reaches the screen is the response. Three lists of different lengths and kinds, each
+   * printed verbatim and in order and with nothing added, is what proves it.
+   */
+  it.each([
+    ["make-current", async () => openMakeCurrent()],
+    ["unpublish", async () => openUnpublish()],
+    ["build", async () => openDraftAction("Build installer")],
+    ["publish", async () => openDraftAction("Publish")],
+    ["commit", async () => openCommit()],
+    ["dispatch", async () => openDispatch()],
+  ] as Array<[ConfirmAction, () => Promise<void>]>)(
+    "prints the server's %s effects verbatim, in order, and adds nothing",
+    async (action, open) => {
+      await open();
+      const printed = [...dialog()!.querySelectorAll(".releases-effect")].map((node) =>
+        (node.textContent ?? "").trim(),
+      );
+      expect(printed).toEqual(MINTED_EFFECTS[action].map((effect) => effect.text));
+    },
+  );
 
-  it("asks the server for a token before every governed action", () => {
-    for (const action of [
-      '"make-current"',
-      '"unpublish"',
-      '"build"',
-      '"publish"',
-      '"commit"',
-      '"dispatch"',
-    ]) {
-      expect(page, action).toContain(`action: ${action}`);
-    }
-  });
+  it.each([
+    ["make-current", String(PREVIOUS.id), async () => openMakeCurrent()],
+    ["unpublish", String(PREVIOUS.id), async () => openUnpublish()],
+    ["build", String(DRAFT.id), async () => openDraftAction("Build installer")],
+    ["publish", String(DRAFT.id), async () => openDraftAction("Publish")],
+    ["commit", EDITABLE.path, async () => openCommit()],
+    ["dispatch", String(WORKFLOWS[0].id), async () => openDispatch()],
+  ] as Array<[ConfirmAction, string, () => Promise<void>]>)(
+    "mints a %s token naming the subject before the action runs",
+    async (action, subject, open) => {
+      await open();
+      const mints = api.mock.calls.filter(([url]) => String(url).endsWith("/releases/confirm"));
+      expect(mints).toHaveLength(1);
+      expect(JSON.parse(String(mints[0]?.[1]?.body))).toEqual({ action, subject });
+    },
+  );
 });
 
 describe("nothing scrolls sideways", () => {
-  const page = source("../src/pages/ReleasesPage.tsx");
+  // Only the stylesheet is read as text here: the two remaining cases are about media queries and
+  // colour literals, which have no DOM to assert against in jsdom.
   const css = source("../src/theme/releases-workspace.css");
 
-  it("stacks every table into cards on a phone, like the customer directory", () => {
-    const tables = page.match(/<DataTable/g) ?? [];
-    const stacked = page.match(/mobileLayout="stack"/g) ?? [];
-    expect(tables.length).toBeGreaterThan(0);
-    expect(stacked).toHaveLength(tables.length);
+  /**
+   * Asserted on the rendered tables, not by counting `<DataTable` against `mobileLayout="stack"`
+   * in the page's text: those two counts match just as happily when a stacked table is added and
+   * an unstacked one somewhere else is what actually scrolls. Every table a seat can reach is
+   * visited and every one of them has to carry the class that does the stacking.
+   */
+  it.each([
+    ["Releases", 1],
+    ["Workflows", 2],
+    ["Files", 1],
+  ])("stacks every table on the %s section into cards on a phone", async (tab, expected) => {
+    await mount(OWNER);
+    if (tab !== "Releases") await click(buttons(tab)[0]);
+
+    const tables = [...document.querySelectorAll<HTMLTableElement>("table.data-table")];
+    expect(tables).toHaveLength(expected);
+    for (const table of tables) {
+      expect(table.classList.contains("table-frame--stack"), table.caption?.textContent ?? "").toBe(
+        true,
+      );
+    }
   });
 
   it("collapses the editor to one column below 900px", () => {

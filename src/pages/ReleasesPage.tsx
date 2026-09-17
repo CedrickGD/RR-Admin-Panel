@@ -820,6 +820,24 @@ function DraftsSection({
   const building = form?.status === "building";
   const run = useRunStatus(building ? (form?.id ?? null) : null, building, refresh);
 
+  /**
+   * `form` is a copy taken when the draft was opened, and `status` is the one field on it the
+   * operator never sets — the server does, when `GET …/drafts/:id/run` sees the run finish. Until
+   * this ran, a finished build left the editor behind: the header still said "Building" while the
+   * run panel already showed Success, and Publish stayed disabled with "Build the installer
+   * before publishing." until the draft was closed and reopened.
+   *
+   * Only `status` and the `updatedAt` that moved with it are adopted, never the whole row: a
+   * blanket `setForm(formFromDraft(...))` here would throw away notes the operator is part-way
+   * through typing, every time the overview refreshed under them.
+   */
+  const openDraftId = form?.id ?? null;
+  const serverStatus = openDraftId === null ? null : data.drafts.find((d) => d.id === openDraftId);
+  useEffect(() => {
+    if (!form || !serverStatus || serverStatus.status === form.status) return;
+    setForm({ ...form, status: serverStatus.status, updatedAt: serverStatus.updatedAt });
+  }, [form, serverStatus, setForm]);
+
   const openCommits = useCallback(async () => {
     if (commits) return;
     try {
@@ -1504,32 +1522,32 @@ function FilesSection({ writeBlock, onConfirm, notify }: FilesSectionProps) {
 
   return (
     <div className="page-stack-lg">
-      <PageToolbar
-        aria-label="Repository path"
-        search={
-          <SearchInput
-            value={pending}
-            onChange={setPending}
-            placeholder="Path on master, e.g. installer/RazorReaper.iss"
-            aria-label="Repository path"
-          />
-        }
-        filters={
-          <>
-            <Button size="sm" icon={<FolderOpen />} onClick={() => void open(pending.trim())}>
-              Open
-            </Button>
-            <Button
-              size="sm"
-              icon={<ArrowLeft />}
-              disabled={path === ""}
-              onClick={() => void open(parentOf(path))}
-            >
-              Up
-            </Button>
-          </>
-        }
-      />
+      {/*
+        Deliberately not a ds/PageToolbar. That row's `filters` slot is ds/Select only — every
+        other page in the panel passes nothing else — and Open / Up are actions on the path in the
+        field beside them, not filters narrowing the list below. The row keeps the toolbar's
+        control height and gutter, so it still reads as the same strip.
+      */}
+      <section className="releases-path-row" aria-label="Repository path">
+        <SearchInput
+          className="releases-path-field"
+          value={pending}
+          onChange={setPending}
+          placeholder="Path on master, e.g. installer/RazorReaper.iss"
+          aria-label="Repository path"
+        />
+        <Button size="sm" icon={<FolderOpen />} onClick={() => void open(pending.trim())}>
+          Open
+        </Button>
+        <Button
+          size="sm"
+          icon={<ArrowLeft />}
+          disabled={path === ""}
+          onClick={() => void open(parentOf(path))}
+        >
+          Up
+        </Button>
+      </section>
 
       <section className="panel">
         <div className="panel-head">

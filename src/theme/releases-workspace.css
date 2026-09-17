@@ -301,6 +301,28 @@
 
 /* ───────────────────────────────── Files tab ───────────────────────────────── */
 
+/* The path navigator above the tree. Not a ds/PageToolbar: that row's `filters` slot is
+   ds/Select only, and Open / Up act on the path in the field rather than narrowing a list.
+   It borrows the toolbar's measurements — --control-h on every control, the same 8px gap,
+   the same 340px search basis — so the two rows sit on one baseline. */
+.releases-path-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.releases-path-row .releases-path-field {
+  flex: 1 1 340px;
+  min-width: 180px;
+}
+
+.releases-path-row :is(.btn, .glass-input) {
+  height: var(--control-h);
+  min-height: var(--control-h);
+}
+
 .releases-entry {
   display: inline-flex;
   align-items: center;
@@ -385,5 +407,10 @@
   .releases-file-editor {
     min-height: 220px;
     white-space: pre-wrap;
+  }
+  /* The path is the control people reach for, so it takes the first row whole and Open / Up
+     wrap underneath — the same shape PageToolbar gives its search on a phone. */
+  .releases-path-row .releases-path-field {
+    flex: 1 0 100%;
   }
 }

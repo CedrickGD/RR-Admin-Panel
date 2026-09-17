@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  activityAxisTicks,
+  activityGridStep,
+  activitySegmentLabelFits,
   addCalendarDays,
   buildActivityTimelineRows,
+  formatActivityDate,
   localDateStartEpoch,
 } from "../src/utils/activityTimeline";
 import { paginate } from "../src/utils/pagination";
@@ -98,5 +102,35 @@ describe("exact activity timeline", () => {
     expect(firstPage.items).toHaveLength(30);
     expect(lastPage.items.length).toBeLessThanOrEqual(30);
     expect(lastPage.page).toBe(lastPage.pageCount);
+  });
+});
+
+describe("timeline axis for a measured track", () => {
+  it("picks the densest tick set whose labels fit, and shortens them on a phone", () => {
+    const labels = (width: number | null) => activityAxisTicks(width).map((tick) => tick.label);
+    // Not measured yet (or no layout engine): the full two-hour axis.
+    expect(labels(null)).toHaveLength(13);
+    expect(labels(null)[0]).toBe("00:00");
+    expect(labels(900)).toHaveLength(13);
+    expect(labels(300)).toEqual(["00:00", "04:00", "08:00", "12:00", "16:00", "20:00", "24:00"]);
+    expect(labels(200)).toEqual(["00:00", "06:00", "12:00", "18:00", "24:00"]);
+    expect(labels(150)).toEqual(["00", "06", "12", "18", "24"]);
+    expect(activityAxisTicks(150).map((tick) => tick.hour)).toEqual([0, 6, 12, 18, 24]);
+    // The track's guide lines follow the ticks.
+    expect(activityGridStep(activityAxisTicks(150))).toBe("25%");
+    expect(activityGridStep(activityAxisTicks(900))).toBe(`${100 / 12}%`);
+  });
+
+  it("only labels a bar that has the pixels for its start time", () => {
+    expect(activitySegmentLabelFits(9, null)).toBe(true);
+    expect(activitySegmentLabelFits(8, null)).toBe(false);
+    expect(activitySegmentLabelFits(30, 100)).toBe(false);
+    expect(activitySegmentLabelFits(50, 100)).toBe(true);
+  });
+
+  it("formats a row date in full or as weekday and day", () => {
+    expect(formatActivityDate("2026-09-17")).toBe("Thu, 17 Sept 2026");
+    expect(formatActivityDate("2026-09-17", true)).toBe("Thu 17");
+    expect(formatActivityDate("2026-10-05", true)).toBe("Mon 05");
   });
 });

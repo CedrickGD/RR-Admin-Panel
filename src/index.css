@@ -1487,28 +1487,35 @@ h6 {
   font-size: var(--fs-micro);
   color: var(--text-3);
 }
+/* The five figures take the KPI tile's label/value treatment (.stat-label in
+   theme/css/components.css): sentence-case label, plain value. They were
+   uppercase tracked labels over monospace values — the one place in the
+   console that still shouted, and on a phone the mono timezone alone was a
+   full line. The list is a <dl>, so the browser's dl/dd margins are reset. */
 .user-activity-stats {
   display: flex;
   flex-wrap: wrap;
   gap: 6px 22px;
-  margin-bottom: 10px;
+  margin: 0 0 10px;
 }
 .user-activity-stat {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
+  min-width: 0;
 }
 .user-activity-stat-label {
-  font-size: var(--fs-micro);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
+  font-size: var(--fs-tiny);
+  font-weight: 500;
   color: var(--text-3);
 }
 .user-activity-stat-value {
-  font-family: var(--font-mono, "JetBrains Mono", monospace);
-  font-size: var(--fs-tiny);
+  margin: 0;
+  font-size: var(--fs-small);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
   color: var(--text-1);
+  overflow-wrap: anywhere;
 }
 .user-activity-selection {
   min-height: 30px;
@@ -1526,7 +1533,8 @@ h6 {
 .user-activity-selection strong {
   color: var(--text-1);
 }
-.user-activity-selection span:last-child {
+/* Only a selected segment's clock times are mono; the hint is prose. */
+.user-activity-selection strong + span {
   font-family: var(--font-mono, "JetBrains Mono", monospace);
 }
 .user-activity-timeline-scroll {
@@ -1536,16 +1544,26 @@ h6 {
   border-radius: var(--r-sm);
   background: rgba(4, 7, 14, 0.28);
 }
+/* The rows scale to the box they are in: no 760px floor, no inner scroll. The
+   component measures the box and the track (ResizeObserver) and picks the
+   tick set, the date format and the bar labels from those widths; at a
+   compact width the date column shrinks to its "Thu 17" content so the
+   24-hour track keeps the room. --activity-grid-step is set by the component
+   to one tick interval, so the track's guide lines follow the axis. */
 .user-activity-timeline {
-  min-width: 760px;
+  min-width: 0;
   padding: 8px;
 }
 .user-activity-timeline-axis-row,
 .user-activity-timeline-row {
   display: grid;
-  grid-template-columns: 132px minmax(560px, 1fr) 62px;
+  grid-template-columns: 132px minmax(0, 1fr) 62px;
   align-items: center;
   gap: 8px;
+}
+.user-activity-timeline.is-compact .user-activity-timeline-axis-row,
+.user-activity-timeline.is-compact .user-activity-timeline-row {
+  grid-template-columns: auto minmax(0, 1fr) auto;
 }
 .user-activity-timeline-axis-row {
   padding-bottom: 5px;
@@ -1579,6 +1597,7 @@ h6 {
   border-top: 1px solid rgba(255, 255, 255, 0.035);
 }
 .user-activity-timeline-date {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1595,9 +1614,9 @@ h6 {
   background-image: repeating-linear-gradient(
     to right,
     transparent 0,
-    transparent calc(8.333333% - 1px),
-    rgba(255, 255, 255, 0.065) calc(8.333333% - 1px),
-    rgba(255, 255, 255, 0.065) 8.333333%
+    transparent calc(var(--activity-grid-step, 8.333333%) - 1px),
+    rgba(255, 255, 255, 0.065) calc(var(--activity-grid-step, 8.333333%) - 1px),
+    rgba(255, 255, 255, 0.065) var(--activity-grid-step, 8.333333%)
   );
 }
 .user-activity-timeline-segment {

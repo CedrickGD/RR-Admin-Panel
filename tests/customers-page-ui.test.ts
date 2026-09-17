@@ -78,8 +78,14 @@ describe("Customers CRM page", () => {
     // Stacked cards on a phone; every cell labelled by ds/DataTable.
     expect(restrictions).toContain("<DataTable");
     expect(restrictions).toContain('mobileLayout="stack"');
-    // Customer 360 through the shared navigation helper.
+    // Customer 360 through the shared navigation helper, from the same card-head control as
+    // the directory (ds/RecordOpen): the name is a span inside it, not a link button of its own.
     expect(restrictions).toContain("openCustomerWorkspace(");
+    expect(restrictions).toContain("<RecordOpen");
+    expect(restrictions).toContain("customer-directory-open");
+    expect(restrictions).toContain("Open Customer 360 for");
+    expect(restrictions).not.toContain("<RecordLink");
+    expect(restrictions).not.toContain("Open customer workspace");
   });
 
   it("provides support-focused search, filters, and summaries", () => {

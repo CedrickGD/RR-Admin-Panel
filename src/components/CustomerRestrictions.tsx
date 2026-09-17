@@ -49,7 +49,7 @@ import { SearchInput } from "./ds/SearchInput";
 import { SegmentedControl, type TabItem } from "./ds/SegmentedControl";
 import { Select } from "./ds/Select";
 import { SkeletonRows } from "./ds/Skeleton";
-import { RecordCell, RecordLink, TableFrame } from "./ds/TableFrame";
+import { RecordCell, RecordOpen, TableFrame } from "./ds/TableFrame";
 
 const NO_WRAP: CSSProperties = { whiteSpace: "nowrap" };
 
@@ -212,8 +212,22 @@ export function CustomerRestrictions({
       render: (entry) => {
         const { record } = entry;
         const id = record.hwid ?? record.identity;
+        const name = entry.name ?? "Unknown customer";
         return (
-          <div className="person-cell">
+          // The whole head — avatar, name and the facts under it — opens Customer 360, the
+          // way the directory's rows do (ds/RecordOpen): on the stacked phone card the tap
+          // target is the card head, on the desktop the name still reads as the record link.
+          <RecordOpen
+            className="person-cell customer-directory-open"
+            title="Open Customer 360"
+            aria-label={`Open Customer 360 for ${name}`}
+            onClick={(event) => {
+              // Safari does not focus a tapped button; the workspace hands focus back to
+              // whatever had it, so make sure that is this head.
+              event.currentTarget.focus();
+              openCustomerWorkspace(workspaceTarget(entry));
+            }}
+          >
             <CustomerAvatar
               profile={findProfile(record.install_id ?? record.identity, record.hwid)}
               label={entry.name ?? record.identity}
@@ -221,12 +235,7 @@ export function CustomerRestrictions({
             <RecordCell
               primary={
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                  <RecordLink
-                    title="Open customer workspace"
-                    onClick={() => openCustomerWorkspace(workspaceTarget(entry))}
-                  >
-                    {entry.name ?? "Unknown customer"}
-                  </RecordLink>
+                  <span className="record-link">{name}</span>
                   {record.had_paid_license === 1 ? (
                     <Badge tone="muted" title="Had an active paid license when restricted">
                       Paid
@@ -242,7 +251,7 @@ export function CustomerRestrictions({
                 </span>
               }
             />
-          </div>
+          </RecordOpen>
         );
       },
     },
@@ -527,8 +536,8 @@ export function CustomerRestrictions({
               {dialogEntry.record.reason ? ` · ${dialogEntry.record.reason}` : ""}
             </p>
             <p className="confirm-copy">
-              The customer’s app unlocks within one status poll. The record stays in this list
-              under Lifted.
+              The customer’s app unlocks within one status poll. The record stays in this list under
+              Lifted.
             </p>
           </>
         ) : null}

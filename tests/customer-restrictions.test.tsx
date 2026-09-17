@@ -202,6 +202,37 @@ describe("the Restrictions tab", () => {
     expect(emitRefresh).toHaveBeenCalledTimes(1);
   });
 
+  it("opens Customer 360 from the whole name cell, the way the directory does", async () => {
+    await render(OWNER, <Harness initial={RECORDS} />);
+    const heads = [...container.querySelectorAll<HTMLButtonElement>("tbody button.record-open")];
+    expect(heads.map((head) => head.getAttribute("aria-label"))).toEqual([
+      "Open Customer 360 for Customer 1",
+      "Open Customer 360 for Customer 2",
+    ]);
+    expect(heads.map((head) => head.className)).toEqual([
+      "record-open person-cell customer-directory-open",
+      "record-open person-cell customer-directory-open",
+    ]);
+    // The avatar and the name sit inside the one control; the name is no control of its own.
+    expect(heads[0].querySelector(".person-avatar")).not.toBeNull();
+    expect(heads[0].querySelector("span.record-link")?.textContent).toBe("Customer 1");
+    expect(heads[0].querySelectorAll("button, a")).toHaveLength(0);
+    expect(container.querySelector("tbody button.record-link")).toBeNull();
+
+    const opened: CustomEvent[] = [];
+    const listen = (event: Event) => opened.push(event as CustomEvent);
+    window.addEventListener("rr:open-customer", listen);
+    try {
+      await act(async () => heads[1].click());
+    } finally {
+      window.removeEventListener("rr:open-customer", listen);
+    }
+    expect(opened.map((event) => event.detail)).toEqual([
+      { selector: "hwid", value: "device-2", label: "Customer 2" },
+    ]);
+    expect(document.activeElement).toBe(heads[1]);
+  });
+
   it("offers no Lift without access.write", async () => {
     await render(SUPPORT, <Harness initial={RECORDS} />);
     expect(rowNames()).toEqual(["Customer 1", "Customer 2"]);

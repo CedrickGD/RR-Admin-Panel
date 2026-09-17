@@ -167,6 +167,77 @@ describe("exact interval list", () => {
     expect(rows[0].segments.map((segment) => segment.id)).toContain(after.id);
   });
 
+  it("marks every day of a run that spans three local days, 24:00 on all but the last", () => {
+    // 12:00 CEST on the 25th to 14:00 CEST on the 27th: a whole middle day.
+    const dates = ["2026-08-27", "2026-08-26", "2026-08-25"];
+    const threeDays = buildActivityTimelineRows(
+      dates.map((date) => ({ date, seconds: 3_600, sessions: 1 })),
+      [
+        {
+          startedAt: "2026-08-25T10:00:00.000Z",
+          endedAt: "2026-08-27T12:00:00.000Z",
+          approximateEnd: false,
+        },
+      ],
+      "Europe/Berlin",
+    );
+    const [last, middle, first] = buildActivityIntervalDays(threeDays, "Europe/Berlin");
+    expect([first, middle, last].map((day) => day.lines)).toHaveLength(3);
+    expect(first.lines[0]).toMatchObject({
+      start: "12:00",
+      end: "24:00",
+      fromPreviousDay: false,
+      intoNextDay: true,
+    });
+    expect(middle.lines[0]).toMatchObject({
+      start: "00:00",
+      end: "24:00",
+      fromPreviousDay: true,
+      intoNextDay: true,
+      durationSeconds: 24 * 3_600,
+    });
+    expect(last.lines[0]).toMatchObject({
+      start: "00:00",
+      end: "14:00",
+      fromPreviousDay: true,
+      intoNextDay: false,
+    });
+  });
+
+  it("keeps clock and duration on the 25-hour DST day, and its midnight end reads 24:00", () => {
+    // Europe/Berlin leaves DST on 2026-10-25 at 03:00: the day has 25 hours.
+    const fallBack = buildActivityTimelineRows(
+      [{ date: "2026-10-25", seconds: 3_600 + 7_200, sessions: 2 }],
+      [
+        // 12:00–13:00 CET, well after the switch.
+        {
+          startedAt: "2026-10-25T11:00:00.000Z",
+          endedAt: "2026-10-25T12:00:00.000Z",
+          approximateEnd: false,
+        },
+        // 22:00 CET to exactly local midnight (23:00Z): this day's 24:00, not clipped.
+        {
+          startedAt: "2026-10-25T21:00:00.000Z",
+          endedAt: "2026-10-25T23:00:00.000Z",
+          approximateEnd: false,
+        },
+      ],
+      "Europe/Berlin",
+    );
+    const [day] = buildActivityIntervalDays(fallBack, "Europe/Berlin");
+    expect(day.lines.map((line) => `${line.start}–${line.end}`)).toEqual([
+      "12:00–13:00",
+      "22:00–24:00",
+    ]);
+    expect(day.lines[0].durationSeconds).toBe(3_600);
+    expect(day.lines[1]).toMatchObject({
+      durationSeconds: 7_200,
+      intoNextDay: false,
+      fromPreviousDay: false,
+    });
+    expect(day).toMatchObject({ first: "12:00", last: "24:00" });
+  });
+
   it("does not call a run that really starts or ends on local midnight clipped", () => {
     const onTheStroke = buildActivityTimelineRows(
       [

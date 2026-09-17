@@ -311,6 +311,133 @@ describe("UserActivityPanel", () => {
     expect(days[0].className).not.toContain("is-flash");
   });
 
+  it("opens a folded day and selects its line when the day's bar is clicked", async () => {
+    await render();
+    const box = container.querySelector<HTMLDetailsElement>(".user-activity-intervals")!;
+    const days = Array.from(
+      container.querySelectorAll<HTMLDetailsElement>(".user-activity-intervals-day"),
+    );
+    box.open = false;
+    days[1].open = false;
+    // The second bar is Wed 16's five-minute run.
+    const bars = container.querySelectorAll<HTMLButtonElement>(".user-activity-timeline-segment");
+    await act(async () => bars[1].click());
+    expect(box.open).toBe(true);
+    expect(days[1].open).toBe(true);
+    const selected = container.querySelectorAll("li.user-activity-interval.is-selected");
+    expect(selected).toHaveLength(1);
+    expect(days[1].contains(selected[0])).toBe(true);
+    expect(selected[0].id).toContain("line-");
+    // A bar click reveals; it does not flash the day the way a strip cell does.
+    expect(container.querySelector(".is-flash")).toBeNull();
+  });
+
+  it("hangs a bar whose centre is past noon from the right edge of the track", async () => {
+    await render();
+    const [long, short] = Array.from(
+      container.querySelectorAll<HTMLButtonElement>(".user-activity-timeline-segment"),
+    );
+    // 10:00–18:20 centres at 59%: anchored right, 100 − 41.667 − 34.722.
+    expect(long.style.left).toBe("");
+    expect(parseFloat(long.style.right)).toBeCloseTo(23.611, 2);
+    expect(long.style.width).toBe("34.72222222222222%");
+    // 16:00–16:05 sits at 66.7%: anchored right, 100 − 66.667 − 0.347.
+    expect(short.style.left).toBe("");
+    expect(parseFloat(short.style.right)).toBeCloseTo(32.986, 2);
+  });
+
+  it("says on each line where local midnight clipped a run of three days", async () => {
+    vi.mocked(fetchUserActivity).mockResolvedValue({
+      ok: true,
+      status: 200,
+      activity: {
+        ...ACTIVITY,
+        days: [
+          { date: "2026-09-14", seconds: 3_600, sessions: 1 },
+          { date: "2026-09-15", seconds: 3_600, sessions: 0 },
+          { date: "2026-09-16", seconds: 3_600, sessions: 0 },
+        ],
+        intervals: [
+          {
+            startedAt: "2026-09-14T10:00:00.000Z",
+            endedAt: "2026-09-16T12:00:00.000Z",
+            approximateEnd: false,
+          },
+        ],
+      },
+    });
+    await render();
+    const notes = Array.from(container.querySelectorAll(".user-activity-interval")).map(
+      (line) => line.querySelector(".user-activity-interval-note")?.textContent ?? null,
+    );
+    // Newest day first: the 16th ends the run, the 15th is a whole middle day, the 14th starts it.
+    expect(notes).toEqual([
+      "from previous day",
+      "from previous day · into next day",
+      "into next day",
+    ]);
+  });
+
+  it("drops the selection and the flash when the page of days changes", async () => {
+    const dates = Array.from({ length: 31 }, (_, index) => {
+      const day = new Date(Date.UTC(2026, 7, 17 + index));
+      return day.toISOString().slice(0, 10);
+    });
+    vi.mocked(fetchUserActivity).mockResolvedValue({
+      ok: true,
+      status: 200,
+      activity: {
+        ...ACTIVITY,
+        rangeDays: 0,
+        days: dates.map((date) => ({ date, seconds: 600, sessions: 1 })),
+        intervals: dates.map((date) => ({
+          startedAt: `${date}T10:00:00.000Z`,
+          endedAt: `${date}T10:10:00.000Z`,
+          approximateEnd: false,
+        })),
+      },
+    });
+    await render();
+    const hint = () => container.querySelector(".user-activity-selection")?.textContent;
+    expect(container.querySelector(".table-pagination")).not.toBeNull();
+    const bar = container.querySelector<HTMLButtonElement>(".user-activity-timeline-segment")!;
+    const cell = container.querySelector<HTMLButtonElement>("button.user-activity-timeline-date")!;
+    await act(async () => bar.click());
+    await act(async () => cell.click());
+    expect(container.querySelector(".user-activity-interval.is-selected")).not.toBeNull();
+    expect(container.querySelector(".user-activity-intervals-day.is-flash")).not.toBeNull();
+    expect(hint()).not.toContain("Hover or select");
+
+    const next = container.querySelector<HTMLButtonElement>('button[aria-label="Next page"]')!;
+    await act(async () => next.click());
+    expect(container.querySelector(".user-activity-interval.is-selected")).toBeNull();
+    expect(container.querySelector(".user-activity-intervals-day.is-flash")).toBeNull();
+    expect(hint()).toBe("Hover or select a segment for its exact start and end time.");
+  });
+
+  it("lets the tapped day's flash fade after a second and a half", async () => {
+    await render();
+    vi.useFakeTimers();
+    try {
+      const cell = container.querySelector<HTMLButtonElement>(
+        "button.user-activity-timeline-total",
+      )!;
+      await act(async () => cell.click());
+      const day = () => container.querySelector(".user-activity-intervals-day");
+      expect(day()?.className).toContain("is-flash");
+      await act(async () => {
+        vi.advanceTimersByTime(1_499);
+      });
+      expect(day()?.className).toContain("is-flash");
+      await act(async () => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(day()?.className).not.toContain("is-flash");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("keeps the figures as a definition list in sentence case", async () => {
     await render();
     const labels = Array.from(container.querySelectorAll(".user-activity-stats dt")).map(

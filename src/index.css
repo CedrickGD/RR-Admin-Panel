@@ -1723,8 +1723,9 @@ html[data-theme] .record-link.user-activity-timeline-total:hover {
   display: grid;
   place-items: center;
   font-size: var(--fs-micro);
+  /* No alpha on top of the meta tone: at 0.55 this 11px label was 2.3:1 in
+     light. --text-3 alone is 5.8:1 light / 8:1 dark on the track. */
   color: var(--text-3);
-  opacity: 0.55;
 }
 .user-activity-timeline-total {
   text-align: right;

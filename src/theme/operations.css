@@ -30,7 +30,8 @@
   overflow-y: auto;
 }
 .user-activity-timeline-scroll,
-.user-activity-selection {
+.user-activity-selection,
+.user-activity-intervals {
   background: var(--surface-2);
   border-color: var(--line);
 }

@@ -5,6 +5,7 @@ import {
   activityAxisTicks,
   activityGridStep,
   activitySegmentLabelFits,
+  activitySegmentPlacement,
   buildActivityTimelineRows,
   formatActivityDate,
   type ActivityTimelineSegment,
@@ -386,10 +387,7 @@ export function UserActivityPanel({ identity }: UserActivityPanelProps) {
                             key={segment.id}
                             type="button"
                             className={`user-activity-timeline-segment${segment.approximateEnd ? " is-approximate" : ""}`}
-                            style={{
-                              left: `${segment.leftPercent}%`,
-                              width: `${segment.widthPercent}%`,
-                            }}
+                            style={activitySegmentPlacement(segment)}
                             title={label}
                             aria-label={label}
                             onMouseEnter={() => setSelectedSegment(selected)}

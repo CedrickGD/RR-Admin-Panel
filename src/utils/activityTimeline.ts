@@ -165,6 +165,29 @@ export function activitySegmentLabelFits(widthPercent: number, trackWidth: numbe
 }
 
 /**
+ * Where a bar hangs on its track. A bar keeps a minimum width (index.css) that
+ * a short session cannot fill, and that floor grows away from the anchor: a
+ * 23:30–00:00 bar anchored on the left grew 2px past the track's rounded end.
+ * A bar in the right half hangs from the right edge instead, so the floor
+ * grows towards the middle of the day and never past either end.
+ */
+export function activitySegmentPlacement(
+  segment: Pick<ActivityTimelineSegment, "leftPercent" | "widthPercent">,
+): { left?: string; right?: string; width: string } {
+  const width = `${segment.widthPercent}%`;
+  const centre = segment.leftPercent + segment.widthPercent / 2;
+  if (centre > 50) {
+    // Snapped: 100 − 97.916 − 2.084 is 9.8e-15 in floating point, not 0.
+    const right = Math.max(
+      0,
+      Number((100 - segment.leftPercent - segment.widthPercent).toFixed(6)),
+    );
+    return { right: `${right}%`, width };
+  }
+  return { left: `${segment.leftPercent}%`, width };
+}
+
+/**
  * Row label for a local calendar date: "Thu, 17 Sept 2026", or "Thu 17" where
  * the date column has to stay narrow (the full date goes on the title).
  */

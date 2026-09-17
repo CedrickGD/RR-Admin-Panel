@@ -4,6 +4,7 @@ import {
   activityAxisTicks,
   activityGridStep,
   activitySegmentLabelFits,
+  activitySegmentPlacement,
   addCalendarDays,
   buildActivityTimelineRows,
   formatActivityDate,
@@ -138,6 +139,29 @@ describe("timeline axis for a measured track", () => {
     expect(activitySegmentLabelFits(8, null)).toBe(false);
     expect(activitySegmentLabelFits(30, 100)).toBe(false);
     expect(activitySegmentLabelFits(50, 100)).toBe(true);
+  });
+
+  it("hangs a bar from the nearer end of the track so its floor never leaves it", () => {
+    // Morning: from the left, as before.
+    expect(activitySegmentPlacement({ leftPercent: 10, widthPercent: 20 })).toEqual({
+      left: "10%",
+      width: "20%",
+    });
+    // 23:30–00:00: from the right edge, so a 6px floor on a 2.9px bar grows inwards.
+    expect(activitySegmentPlacement({ leftPercent: 97.916, widthPercent: 2.084 })).toEqual({
+      right: "0%",
+      width: "2.084%",
+    });
+    // 18:00–19:00: right half, hung 20% from the right.
+    expect(activitySegmentPlacement({ leftPercent: 75, widthPercent: 5 })).toEqual({
+      right: "20%",
+      width: "5%",
+    });
+    // A bar straddling noon keeps its left anchor.
+    expect(activitySegmentPlacement({ leftPercent: 40, widthPercent: 20 })).toEqual({
+      left: "40%",
+      width: "20%",
+    });
   });
 
   it("formats a row date in full or as weekday and day", () => {

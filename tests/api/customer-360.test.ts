@@ -201,6 +201,11 @@ describe("GET /api/admin/customer-360", () => {
       total_sessions: 1,
       total_duration_seconds: 120,
       os_version: "Windows 11",
+      // The identity rail shows where the newest session came from.
+      last_ip: "203.0.113.10",
+      ip_count: 1,
+      country: "DE",
+      city: "Berlin",
     });
     expect(payload.customer.orders[0]).toMatchObject({ order_id: "ORDER-100", license_count: 1 });
     expect(payload.customer.feedback[0]).toMatchObject({

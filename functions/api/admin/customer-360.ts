@@ -246,6 +246,10 @@ export async function onRequestGet(context: HandlerContext): Promise<Response> {
           city: latest?.clientCity ?? null,
           region: latest?.clientRegion ?? null,
           timezone: latest?.clientTimezone ?? null,
+          last_ip: latest?.clientIp?.trim() || null,
+          ip_count: new Set(
+            sessions.map((row) => row.clientIp?.trim() ?? "").filter((ip) => ip.length > 0),
+          ).size,
           first_seen: firstSeen,
           last_seen: lastSeen,
           total_sessions: sessions.length,

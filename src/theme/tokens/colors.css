@@ -210,5 +210,8 @@ html[data-theme="light"] {
   --chart-errors: #b3261e;
   --chart-grid: #18181b0c;
   --chart-axis: #62626d;
-  --chart-axis-soft: #737380;
+  /* The value axis of the Activity and Daily-customers charts sits on the
+     #f5f5f5 page (their panels are transparent), where #737380 was 4.29:1 at
+     11px. Alias to the x-axis tone: 5.5:1 on the page, 5.9:1 on a panel. */
+  --chart-axis-soft: var(--chart-axis);
 }

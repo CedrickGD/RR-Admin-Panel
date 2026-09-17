@@ -707,11 +707,13 @@ h6 {
 }
 @media (hover: hover) {
   .error-group-row:hover {
-    background: rgba(255, 255, 255, 0.025);
+    background: var(--surface-2);
   }
 }
+/* Surface ladder, not white alphas: those only lift a dark ground and left the
+   open group, its detail area and the occurrence rows flat white in light. */
 .error-group.is-open > .error-group-row {
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--surface-2);
 }
 .error-group-chevron {
   color: var(--text-3);
@@ -784,8 +786,8 @@ h6 {
 /* Expanded detail panel */
 .error-group-detail {
   padding: 12px 18px 16px 50px;
-  background: rgba(255, 255, 255, 0.015);
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  background: var(--surface-2);
+  border-top: 1px solid var(--line);
 }
 .error-group-detail-header {
   display: flex;
@@ -798,7 +800,7 @@ h6 {
   font-family: "JetBrains Mono", monospace;
   font-size: var(--fs-micro);
   color: var(--text-2);
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--surface-3);
   padding: 2px 7px;
   border-radius: 5px;
 }
@@ -817,11 +819,11 @@ h6 {
   gap: 12px;
   padding: 4px 8px;
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--surface-3);
 }
 @media (hover: hover) {
   .error-occurrence-item:hover {
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--line-row);
   }
 }
 

@@ -28,7 +28,6 @@ interface AnnouncementRecord {
   updated_at: string;
 }
 
-
 interface FormState {
   title: string;
   body: string;
@@ -363,13 +362,19 @@ export function AnnouncementsPage() {
                     <td data-label="Status">
                       <Badge tone={status.tone}>{status.label}</Badge>
                     </td>
+                    {/* One wrapper, no inline nowrap: the stacked card lays the cell
+                        out as a flex row (label + value), so two loose divs sat side by
+                        side on one unbreakable line and Until ran past the viewport.
+                        Desktop keeps its nowrap from the record-table cell rule. */}
                     <td
                       className="muted"
                       data-label="Window"
-                      style={{ whiteSpace: "nowrap", fontSize: "var(--fs-small)" }}
+                      style={{ fontSize: "var(--fs-small)" }}
                     >
-                      <div>From: {a.starts_at ? formatDate(a.starts_at) : "immediately"}</div>
-                      <div>Until: {a.expires_at ? formatDate(a.expires_at) : "no end"}</div>
+                      <div>
+                        <div>From: {a.starts_at ? formatDate(a.starts_at) : "immediately"}</div>
+                        <div>Until: {a.expires_at ? formatDate(a.expires_at) : "no end"}</div>
+                      </div>
                     </td>
                     <td>
                       <div style={{ display: "flex", alignItems: "center", gap: 4 }}>

@@ -57,7 +57,11 @@ describe("Customer 360 workspace", () => {
   it("gives phones a back arrow in the workspace bar while a layer is open", () => {
     expect(navbar).toContain("useTopHistoryLayer()");
     expect(navbar).toContain('className="workspace-layer-back"');
-    expect(navbar).toContain("onClick={() => history.back()}");
+    // Blur, then back: with the button still focused React would restore focus
+    // to it (it outlives the workspace by one commit) instead of the card head.
+    expect(navbar).toMatch(
+      /onClick=\{\(event\) => \{[\s\S]*?event\.currentTarget\.blur\(\);\s*history\.back\(\);/,
+    );
   });
 
   it("renders no viewport-sized dialog: Customer 360 is only the inline workspace", () => {

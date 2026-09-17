@@ -62,7 +62,7 @@ describe("KPI tile is specified once", () => {
     // The icon well is 28px and sits on the left of the text.
     expect(spec).toMatch(/\.tile-icon\s*\{[^}]*width:\s*28px/);
     // No sparkline well unless the call site opts in (KpiStatCard showSpark).
-    expect(spec).toContain(".tile-spark { display: none; }");
+    expect(spec).toMatch(/\.tile-spark\s*\{\s*display:\s*none;?\s*\}/);
   });
 
   it("leaves no sizing rule for the tile in any other layer", () => {
@@ -177,7 +177,7 @@ describe("tiles on a phone", () => {
     // The icon well drop is the one rule meant to fire on container width
     // alone, at any viewport — it must NOT be inside the phone-only @media.
     const iconWellRule = spec.match(
-      /@container tile \(max-width: 200px\) \{\s*\.tile-side \{ display: none; \}\s*\}/,
+      /@container tile \(max-width: 200px\) \{\s*\.tile-side \{\s*display: none;?\s*\}\s*\}/,
     );
     expect(
       iconWellRule,

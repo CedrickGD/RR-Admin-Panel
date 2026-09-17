@@ -479,6 +479,37 @@ describe("feedback workspace", () => {
     root = createRoot(container);
   });
 
+  it("carries the open section on the Customer 360 link, so closing the workspace lands back on it", async () => {
+    history.replaceState(
+      null,
+      "",
+      "http://localhost:3000/?section=support&customerTab=history#/feedback",
+    );
+    await mount();
+    await waitFor(() => report(5) !== null, "the support inbox");
+    const customerLink = (id: number) =>
+      new URL(
+        report(id)!.querySelector<HTMLAnchorElement>('a[href*="customerBy=feedback_id"]')!.href,
+      );
+    expect(customerLink(5).searchParams.get("section")).toBe("support");
+    expect(customerLink(5).searchParams.get("customer")).toBe("5");
+    expect(customerLink(5).searchParams.get("customerBy")).toBe("feedback_id");
+    // A stale tab from an earlier workspace is not carried into a different customer's.
+    expect(customerLink(5).searchParams.get("customerTab")).toBeNull();
+    expect(customerLink(5).hash).toBe("#/feedback");
+    await click(report(5)!.querySelector("a"));
+    const destination = vi.mocked(navigateCustomerUrl).mock.calls[0]?.[0] as URL;
+    expect(destination.searchParams.get("section")).toBe("support");
+    expect(destination.searchParams.get("customer")).toBe("5");
+
+    // Switching sections by tab re-addresses the links in the same render as the list.
+    await click(sectionTab("Feedback"));
+    expect(customerLink(1).searchParams.get("section")).toBeNull();
+    expect(customerLink(1).searchParams.get("customer")).toBe("1");
+    await click(sectionTab("Support"));
+    expect(customerLink(5).searchParams.get("section")).toBe("support");
+  });
+
   it("keeps every row action in the Support section, including the delete confirmation", async () => {
     await loaded();
     await click(sectionTab("Support"));

@@ -82,14 +82,33 @@ function readSection(): FeedbackSection {
     : "feedback";
 }
 
-/** Mirrors the section into the address without a new history entry (as CustomersPage does). */
-function writeSection(section: FeedbackSection | null) {
-  const url = new URL(window.location.href);
+function withSection(url: URL, section: FeedbackSection | null): URL {
   if (section === "support") url.searchParams.set(SECTION_PARAM, section);
   else url.searchParams.delete(SECTION_PARAM);
+  return url;
+}
+
+/** Mirrors the section into the address without a new history entry (as CustomersPage does). */
+function writeSection(section: FeedbackSection | null) {
+  const url = withSection(new URL(window.location.href), section);
   if (url.href !== window.location.href) {
     window.history.replaceState(window.history.state, "", url);
   }
+}
+
+/**
+ * A report's Customer 360 address, built from the current one the way CustomerWorkspaceRouter
+ * addresses an open workspace (customer/customerBy set, a stale customerTab dropped): the open
+ * section rides along, so closing the workspace lands back on it. The section comes from state,
+ * since the address only follows a tab switch after the render.
+ */
+function customerHref(id: number, section: FeedbackSection): string {
+  const url = withSection(new URL(window.location.href), section);
+  url.searchParams.delete("customerTab");
+  url.searchParams.set("customerBy", "feedback_id");
+  url.searchParams.set("customer", String(id));
+  url.hash = "/feedback";
+  return `${url.search}${url.hash}`;
 }
 
 const SECTION_COPY: Record<
@@ -524,7 +543,7 @@ export function FeedbackPage({ summary }: FeedbackPageProps) {
                         <span className="support-report-id">Report #{f.id}</span>
                         {canOpenCustomer && (
                           <a
-                            href={`?customerBy=feedback_id&customer=${f.id}#/feedback`}
+                            href={customerHref(f.id, section)}
                             onClick={(event) => {
                               if (
                                 event.button !== 0 ||

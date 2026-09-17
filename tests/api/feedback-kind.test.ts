@@ -286,7 +286,7 @@ describe("ensureFeedbackSchema kind migration", () => {
       expect(() => legacy.prepare("UPDATE feedback SET kind='bogus' WHERE id=1").run()).toThrow();
 
       // An admin moves the report to Feedback; the next process start (a fresh binding around the
-      // same file) must leave that alone — the backfill only runs when the column was just added.
+      // same file) must leave that alone — the backfill ran once and left its schema_markers row.
       legacy.prepare("UPDATE feedback SET kind='feedback' WHERE id=1").run();
       await ensureFeedbackSchema({ DB: createD1Database(legacy) });
       expect(kinds(legacy)).toEqual([

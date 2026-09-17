@@ -80,20 +80,30 @@ const FEEDBACK_SCHEMA_STATEMENTS = [
     created_at TEXT NOT NULL
   )`,
   `CREATE INDEX IF NOT EXISTS idx_feedback_status ON feedback(status, created_at DESC)`,
+  // One row per one-time data fix the app has applied (see FEEDBACK_KIND_MARKER). Also in schema.sql.
+  `CREATE TABLE IF NOT EXISTS schema_markers (
+    key TEXT PRIMARY KEY,
+    applied_at TEXT NOT NULL
+  )`,
 ];
 
 /**
  * The kind column shipped after the feedback table. SQLite has no `ADD COLUMN IF NOT EXISTS`: on a
  * database that already has it the ALTER fails with "duplicate column name", which is the success
- * case (same pattern as ensureLicenseOrderColumns). Only when the ALTER really added the column do
- * the historic rows get sorted once: a report that came with a diagnostics snapshot was the
- * client's "report a problem" flow. The index and the backfill are idempotent; the same statements
- * live in tools/migrations/2026-09-17-feedback-kind.sql for a database the app never touches.
+ * case (same pattern as ensureLicenseOrderColumns). The historic rows get sorted once: a report
+ * that came with a diagnostics snapshot was the client's "report a problem" flow. Whether that
+ * backfill has run is a row in schema_markers, written after it went through — not the outcome
+ * of the ALTER, so a first call that added the column and then failed (index, backfill) leaves
+ * the marker absent and the next call backfills. A database that got the column before the marker
+ * existed is backfilled once more, which only touches rows still marked feedback despite a
+ * snapshot. The same statements live in tools/migrations/2026-09-17-feedback-kind.sql for a
+ * database the app never touches.
  */
 const FEEDBACK_KIND_COLUMN = `ALTER TABLE feedback ADD COLUMN kind TEXT NOT NULL DEFAULT 'feedback'
   CHECK (kind IN ('feedback', 'support'))`;
 const FEEDBACK_KIND_INDEX = `CREATE INDEX IF NOT EXISTS idx_feedback_kind_status
   ON feedback(kind, status, created_at DESC)`;
+const FEEDBACK_KIND_MARKER = "2026-09-17-feedback-kind";
 const FEEDBACK_KIND_BACKFILL = `UPDATE feedback SET kind = 'support'
   WHERE kind = 'feedback' AND id IN (SELECT feedback_id FROM feedback_diagnostics)`;
 
@@ -110,17 +120,25 @@ async function prepareFeedbackSchema(db: D1Database): Promise<void> {
   for (const query of FEEDBACK_SCHEMA_STATEMENTS) {
     await db.prepare(query).run();
   }
-  let columnAdded = false;
   try {
     await db.prepare(FEEDBACK_KIND_COLUMN).run();
-    columnAdded = true;
   } catch (err) {
     if (!isDuplicateColumn(err)) throw err;
   }
   await db.prepare(FEEDBACK_KIND_INDEX).run();
-  if (columnAdded && (await hasFeedbackDiagnosticsTable(db))) {
+  if (await hasSchemaMarker(db, FEEDBACK_KIND_MARKER)) return;
+  if (await hasFeedbackDiagnosticsTable(db)) {
     await db.prepare(FEEDBACK_KIND_BACKFILL).run();
   }
+  await db
+    .prepare(`INSERT OR IGNORE INTO schema_markers (key, applied_at) VALUES (?, ?)`)
+    .bind(FEEDBACK_KIND_MARKER, new Date().toISOString())
+    .run();
+}
+
+async function hasSchemaMarker(db: D1Database, key: string): Promise<boolean> {
+  const row = await db.prepare(`SELECT key FROM schema_markers WHERE key = ?`).bind(key).first();
+  return row !== null;
 }
 
 /**

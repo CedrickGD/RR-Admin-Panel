@@ -145,6 +145,14 @@ CREATE TABLE IF NOT EXISTS feedback (
 CREATE INDEX IF NOT EXISTS idx_feedback_status ON feedback(status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_feedback_kind_status ON feedback(kind, status, created_at DESC);
 
+-- One row per one-time data fix the app has applied at runtime (functions/_lib/content.ts
+-- ensureFeedbackSchema and the matching file in tools/migrations/): the fix runs when its key is
+-- absent and is recorded once it went through, so it never runs twice.
+CREATE TABLE IF NOT EXISTS schema_markers (
+  key TEXT PRIMARY KEY,
+  applied_at TEXT NOT NULL
+);
+
 -- Optional structured diagnostic reports. The established feedback table remains unchanged;
 -- these one-to-one/one-to-many tables enrich a feedback row only when a modern client opts in.
 CREATE TABLE IF NOT EXISTS feedback_report_meta (

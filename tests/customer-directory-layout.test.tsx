@@ -245,10 +245,18 @@ describe("Customer directory record presentation", () => {
     const header = [...host.querySelectorAll("thead th")].find((th) =>
       th.textContent?.includes("Last IP"),
     );
-    // Same tier treatment as the other secondary columns: it bows out with col-lg.
-    expect(header?.className).toContain("col-lg");
+    // The widest tier: it is the one column a 1,920px window with the rail open gives up, so
+    // the row shows the customer's location; the card, the export and Customer 360 keep the IP.
+    expect(header?.className).toContain("col-xl");
+    const location = [...host.querySelectorAll("thead th")].find((th) =>
+      th.textContent?.includes("Location"),
+    );
+    expect(location?.className).toContain("col-lg");
+    expect(host.querySelector("td[data-label='Location']")?.classList.contains("col-lg")).toBe(
+      true,
+    );
     const cell = host.querySelector("td.customer-directory-ip-cell");
-    for (const className of ["muted", "mono", "col-lg", "customer-directory-secondary-cell"]) {
+    for (const className of ["muted", "mono", "col-xl", "customer-directory-secondary-cell"]) {
       expect(cell?.classList.contains(className)).toBe(true);
     }
     expect(cell?.getAttribute("data-label")).toBe("Last IP");

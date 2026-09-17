@@ -255,7 +255,7 @@ function customerAnchor(user: UserRollupRecord): Customer360Anchor {
  * ── Column caps ───────────────────────────────────────────────────────────
  * What lets the table promise to fit its frame: 1,130px in a 1,440px window with the rail
  * expanded (Location, Device / OS, Last IP and Total time folded away by the tablefit tiers in
- * app-glue.css) and 1,610px at 1,920px with every column but Location shown. The name wraps
+ * app-glue.css) and 1,610px at 1,920px with every column but Last IP shown. The name wraps
  * inside .person-cell (190–280px); the version badge, the counts, the relative times, the IP (a
  * 20ch mono cell, customer-directory.css) and the status badges (their row caps itself) are
  * bounded on their own. The three free-text cells — a Discord handle, the CPU string the client
@@ -265,10 +265,13 @@ function customerAnchor(user: UserRollupRecord): Customer360Anchor {
  * Measured with the harness on the owner's data shape (1,359 rows, 37-character device strings,
  * Argentine city names, 32-character handles, 39-character IPv6 addresses, the widest status
  * badge on the page): with every column shown the table wants 1,835px and fits from 1,728px
- * (the name column at its floor); without Location it fits from 1,538px, so at 1,610px the
- * columns come to 275+150+89+210+168+98+103+214+103+102+98 with no cell content past its
- * column; at 1,130px it is 276+150+89+98+215+103+102+98 = 1,130. The tier thresholds and the
- * 907px floor (TableFrame minWidth) are the same measurement, in app-glue.css.
+ * (the name column at its floor); without Last IP it fits from 1,561px (Location is 22px wider
+ * than the 168px IP column; measured on the fixture with s5-tier-sweep.mjs, 1px over at 1,560),
+ * so at 1,610px the columns come to 253+150+89+210+190+98+103+214+103+102+98 with no cell content
+ * past its column; at 1,130px it is 276+150+89+98+215+103+102+98 = 1,130. Both go at 1,440;
+ * at 1,920 the row shows where the customer is and the card, the export and Customer 360 keep
+ * the address (session 2026-09-17, item "1920: Ort oder IP"). The tier thresholds and the 907px
+ * floor (TableFrame minWidth) are the same measurement, in app-glue.css.
  */
 const CONTACT_CELL_MAX = 150;
 const DEVICE_CELL_MAX = 210;
@@ -398,8 +401,8 @@ const DIRECTORY_SKELETON_COLUMNS: SkeletonColumn[] = [
   { className: "col-md customer-directory-secondary-cell" }, // Contact
   { className: "customer-directory-secondary-cell" }, // Version
   { className: "col-lg customer-directory-secondary-cell" }, // Device / OS
-  { className: "col-xl customer-directory-secondary-cell" }, // Location
-  { className: "col-lg customer-directory-secondary-cell" }, // Last IP
+  { className: "col-lg customer-directory-secondary-cell" }, // Location
+  { className: "col-xl customer-directory-secondary-cell" }, // Last IP
   { className: "customer-directory-secondary-cell" }, // Sessions
   { className: "col-lg customer-directory-secondary-cell" }, // Total time
   {}, // Status
@@ -811,14 +814,14 @@ export function CustomersPage({ users: sourceUsers }: CustomersPageProps) {
                           sortKey="location"
                           sort={sort}
                           onSortChange={changeSort}
-                          className="col-xl"
+                          className="col-lg"
                         />
                         <SortHeader
                           label="Last IP"
                           sortKey="ip"
                           sort={sort}
                           onSortChange={changeSort}
-                          className="col-lg"
+                          className="col-xl"
                         />
                         <SortHeader
                           label="Sessions"
@@ -926,7 +929,7 @@ export function CustomersPage({ users: sourceUsers }: CustomersPageProps) {
                               </div>
                             </td>
                             <td
-                              className="muted col-xl customer-directory-secondary-cell cell-truncate"
+                              className="muted col-lg customer-directory-secondary-cell cell-truncate"
                               data-label="Location"
                               title={locationLabel(user)}
                               style={cellCap(LOCATION_CELL_MAX)}
@@ -934,7 +937,7 @@ export function CustomersPage({ users: sourceUsers }: CustomersPageProps) {
                               {locationLabel(user)}
                             </td>
                             <td
-                              className="muted mono col-lg customer-directory-ip-cell customer-directory-secondary-cell"
+                              className="muted mono col-xl customer-directory-ip-cell customer-directory-secondary-cell"
                               data-label="Last IP"
                               title={ipTitle(user)}
                             >

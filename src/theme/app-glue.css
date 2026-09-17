@@ -241,7 +241,6 @@ body::after {
   flex: 1;
 }
 
-
 /* Live: session row highlighted by show-on-map focus
    (scrollIntoView target) */
 .data-table tbody tr.row-focused {
@@ -1284,21 +1283,26 @@ select.glass-input {
    that configuration's min-content width: the width below which the table
    would scroll, with the name column — the one wrappable cell — at its 190px
    floor. Above it the name column is the only give (its 190–280px range,
-   .person-cell). Last IP is a col-lg column of exactly 168px (20ch of the
+   .person-cell). Last IP is a col-xl column of exactly 168px (20ch of the
    12px mono cell plus the 12px cell padding each side, customer-directory.css)
-   whatever the address, so it adds 168 to the two thresholds it is part of;
-   below the col-md threshold it is already gone, so that number stands. A
-   1,920px window with the rail expanded (1,610px) keeps every column but
-   Location, and every column once the rail is collapsed (1,790px); a 1,440px
-   one (1,130px) keeps Contact. The max-content widths, where nothing wraps,
-   are 107px higher: 1835 / 1645 / 1164, and 1014 with every tier hidden
-   (floor 907, TableFrame minWidth). */
+   whatever the address, so it adds 168 to the col-xl threshold only; Location
+   is the col-lg column in its place, 22px wider at its 190px cap. Re-measured
+   on the harness fixture (s5-tier-sweep.mjs): with Location the set's
+   min-content is 1,561px — at a 1,560px frame it overflows by 1px, from 1,561
+   it fits — so the tier fires at 1,560 (the IP set needed 1,539 there).
+   Below the col-md threshold both are already gone, so that number stands. A
+   1,920px window with the rail expanded (1,610px) keeps every column but Last
+   IP — the row says where the customer is; the card, the export and Customer
+   360 carry the address — and every column once the rail is collapsed
+   (1,790px); a 1,440px one (1,130px) keeps Contact. The max-content widths,
+   where nothing wraps, are 107px higher: 1835 / 1667 / 1164, and 1014 with
+   every tier hidden (floor 907, TableFrame minWidth). */
 @container tablefit (max-width: 1727px) {
   .customer-directory-table .col-xl {
     display: none;
   }
 }
-@container tablefit (max-width: 1537px) {
+@container tablefit (max-width: 1560px) {
   .customer-directory-table .col-lg {
     display: none;
   }

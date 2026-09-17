@@ -659,3 +659,25 @@ Aufrufpfad, Unterdrückung auf die Discord-Pipe eingegrenzt). Vor dem Release wi
 zehnmal hintereinander beim Neuzeichnen fehlschlägt, aktualisiert sich für den Rest der Sitzung nicht mehr
 (nicht gegen eine echte BlazorWebView verifiziert). **Erst Runde 3 des Panels ausliefern (Summe der
 `occurrences` statt Zeilen zählen), dann den Client.**
+
+### Runde 3 (16.09.2026): Panel versteht den neuen Client, live mit `fea1cce`
+
+- **Melde-Vertrag v2** (`shared/telemetry-contract.ts`, `functions/_lib/errors.ts`): `app_error`-Zeilen des
+  Clients ab 1.5.3 tragen `fault_source`, `report_kind` (`first` / `rollup` / `suppressed`), `occurrences`,
+  `top_frame`, `top_frames` und Unterdrückungszähler. „Background faults“ zählt `SUM(occurrences)` statt
+  Zeilen und gruppiert nach Herkunft und oberstem eigenen Aufrufpfad; alte Clients (eine Zeile pro Fehler)
+  werden weiterhin verstanden. Sammelzeilen erscheinen in Customer 360 und Live nicht als eigene Ereignisse.
+  **Erst dieser Stand macht den Client-Branch `fix/client-tidy` auslieferbar.**
+- **System health:** Container-Zwischenspeicher ≥ Abfragetakt; `/api/admin/health` auf die Sonde gekürzt,
+  die tatsächlich gelesen wird.
+- **Kunden am Handy:** Der Kartenkopf (Avatar/Name, echter Button mit `aria-label`) öffnet Customer 360,
+  Zurück landet auf der Verzeichnisposition. Lizenztabelle passt bei 1440 (Dauer/Nutzung wandern unter
+  „Device details“, wenn der Rahmen zu schmal ist).
+- **Backup:** `deploy/nas/backup/backup.sh` prüft die Kopie (gzip, Mindestgröße 1 MB, `app_sessions`-Zeilen)
+  und schreibt `/backups/.last-success`; der Backup-Container hat einen Healthcheck (Marke < 36 h,
+  `start_period` 26 h) und System health zeigt das Alter der letzten *geprüften* Sicherung.
+- Ausgeliefert mit `-Service backup,rr-api,admin` (`index-Btr2bESu.js` / `index-BKKesyo0.css`).
+
+**In Arbeit (Wunsch des Besitzers vom 16.09.):** IP-Adresse pro Kunde im Verzeichnis, in Customer 360 und in
+einem Excel-Export des Verzeichnisses (die Daten liegen in `app_sessions.client_ip`, die Kundenzusammenfassung
+hatte sie nie); die Statusspalte des Verzeichnisses wird kompakt neu gebaut (Badges nur bei Auffälligkeit).

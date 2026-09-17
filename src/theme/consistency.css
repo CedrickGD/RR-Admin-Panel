@@ -1217,6 +1217,43 @@ html[data-theme]
     background: transparent;
     box-shadow: none;
   }
+  /* The permission matrix (TeamPage) is the one stacked table whose last
+     column holds a value, not actions: "Effective now" is a label/value row
+     like Rule above it, so the footer treatment comes back off. Same (0,5,4)
+     as the footer rule; it wins on source order. */
+  html[data-theme]
+    .data-table-wrap
+    .table-frame--stack.permission-table
+    > tbody
+    > tr
+    > td:last-child {
+    justify-content: space-between;
+    margin-top: 0;
+    padding: 5px 0;
+    border-top: 0;
+  }
+  /* A datetime-local value needs ~270px at the 16px phone font size; beside
+     its label the input shrank to 164px at 390 and hid the time half. It takes
+     its own line under the label at the card's full width, the way the Access
+     expires field above the matrix renders (ds/Field: label, 6px, control). */
+  html[data-theme]
+    .data-table-wrap
+    .table-frame--stack.permission-table
+    > tbody
+    > tr
+    > td[data-label="Override expires"] {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  html[data-theme]
+    .data-table-wrap
+    .table-frame--stack.permission-table
+    > tbody
+    > tr
+    > td[data-label="Override expires"]
+    > input {
+    flex-basis: 100%;
+  }
   /* A row with three actions (Members: Manage / End sessions / Remove access)
      does not fit one 390px card footer — a second line keeps every button at
      its normal size instead of overflowing the card. */

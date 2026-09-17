@@ -6,7 +6,9 @@ import {
   activitySegmentLabelFits,
   activitySegmentPlacement,
   addCalendarDays,
+  buildActivityIntervalDays,
   buildActivityTimelineRows,
+  formatActivityClock,
   formatActivityDate,
   localDateStartEpoch,
 } from "../src/utils/activityTimeline";
@@ -103,6 +105,68 @@ describe("exact activity timeline", () => {
     expect(firstPage.items).toHaveLength(30);
     expect(lastPage.items.length).toBeLessThanOrEqual(30);
     expect(lastPage.page).toBe(lastPage.pageCount);
+  });
+});
+
+describe("exact interval list", () => {
+  const rows = buildActivityTimelineRows(
+    [
+      { date: "2026-08-30", seconds: 2_700, sessions: 1 },
+      { date: "2026-08-29", seconds: 3_240, sessions: 2 },
+      { date: "2026-08-28", seconds: 0, sessions: 0 },
+    ],
+    [
+      // 23:30 local, crosses midnight, last heartbeat end.
+      {
+        startedAt: "2026-08-29T21:30:00.000Z",
+        endedAt: "2026-08-29T22:45:00.000Z",
+        approximateEnd: true,
+      },
+      // 09:00–09:24 local, listed after the earlier run even though it comes first in the payload.
+      {
+        startedAt: "2026-08-29T07:00:00.000Z",
+        endedAt: "2026-08-29T07:24:00.000Z",
+        approximateEnd: false,
+      },
+    ],
+    "Europe/Berlin",
+  );
+  const days = buildActivityIntervalDays(rows, "Europe/Berlin");
+
+  it("keeps the strip's page order, drops offline days and sorts a day's lines by clock", () => {
+    expect(days.map((day) => day.date)).toEqual(["2026-08-30", "2026-08-29"]);
+    expect(days[1].seconds).toBe(3_240);
+    expect(days[1].lines.map((line) => `${line.start}–${line.end}`)).toEqual([
+      "09:00–09:24",
+      "23:30–24:00",
+    ]);
+    expect(days[1].lines[0]).toMatchObject({
+      durationSeconds: 1_440,
+      approximateEnd: false,
+      fromPreviousDay: false,
+      intoNextDay: false,
+    });
+  });
+
+  it("shows a midnight-crossing run on both days and says so on each half", () => {
+    const [before] = days[1].lines.slice(-1);
+    const [after] = days[0].lines;
+    expect(before).toMatchObject({ end: "24:00", intoNextDay: true, approximateEnd: false });
+    expect(after).toMatchObject({
+      start: "00:00",
+      end: "00:45",
+      fromPreviousDay: true,
+      approximateEnd: true,
+      durationSeconds: 2_700,
+    });
+    // The line ids are the strip's segment ids, so a tapped bar finds its line.
+    expect(rows[0].segments.map((segment) => segment.id)).toContain(after.id);
+  });
+
+  it("formats local clock values with an optional seconds part", () => {
+    expect(formatActivityClock("2026-08-29T21:30:15.000Z", "Europe/Berlin")).toBe("23:30");
+    expect(formatActivityClock("2026-08-29T21:30:15.000Z", "Europe/Berlin", true)).toBe("23:30:15");
+    expect(formatActivityClock("2026-08-29T22:05:00.000Z", "America/Chicago")).toBe("17:05");
   });
 });
 

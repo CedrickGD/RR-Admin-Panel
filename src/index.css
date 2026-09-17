@@ -274,8 +274,6 @@ h6 {
   }
 }
 
-
-
 /* ═══════════════════════════════════════════════════════════════
    PANEL / SECTION CARD
    ═══════════════════════════════════════════════════════════════ */
@@ -1700,6 +1698,135 @@ h6 {
     hsl(var(--ah) var(--as) var(--al) / 0.55) 4px 7px
   );
 }
+/* Exact online intervals — the strip above, spelled out: the same page of
+   days, one line per bar with its local start, end and duration, so the owner
+   reads the times instead of guessing them off a 3px bar. A <details> so a
+   long lifetime page folds away, open by default so nobody has to hunt. Only
+   the clock values and durations are mono; the day header and notes are prose. */
+.user-activity-intervals {
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: rgba(4, 7, 14, 0.28);
+}
+.user-activity-intervals > summary {
+  display: flex;
+  align-items: center;
+  gap: 4px 12px;
+  flex-wrap: wrap;
+  min-height: 36px;
+  padding: 7px 10px;
+  cursor: pointer;
+  list-style: none;
+}
+.user-activity-intervals > summary::-webkit-details-marker {
+  display: none;
+}
+.user-activity-intervals > summary::after {
+  content: "+";
+  margin-left: auto;
+  color: var(--text-3);
+  font-size: var(--fs-small);
+  line-height: 1;
+}
+.user-activity-intervals[open] > summary::after {
+  content: "−";
+}
+.user-activity-intervals > summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: var(--r-sm);
+}
+.user-activity-intervals-count {
+  min-width: 0;
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+}
+/* On a phone the count takes its own line under the title; the +/− stays on the first. */
+.user-activity-intervals.is-compact .user-activity-intervals-count {
+  order: 3;
+  flex-basis: 100%;
+}
+.user-activity-intervals-day {
+  padding: 6px 6px 8px;
+  border-top: 1px solid var(--line);
+}
+.user-activity-intervals-dayhead {
+  display: flex;
+  align-items: baseline;
+  gap: 4px 8px;
+  flex-wrap: wrap;
+  margin: 0 4px 2px;
+  font-size: var(--fs-tiny);
+  font-weight: 500;
+  color: var(--text-1);
+}
+.user-activity-intervals-dayhead span {
+  font-weight: 400;
+  color: var(--text-3);
+}
+.user-activity-intervals-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* Start · End · Duration · what the end means. Fixed clock columns keep the
+   lines of a day in register; the note column takes what is left. At the
+   compact width the note column goes (the "≈" on the end value carries it). */
+.user-activity-interval {
+  display: grid;
+  grid-template-columns: 58px 62px 66px minmax(0, 1fr);
+  gap: 0 8px;
+  align-items: baseline;
+  padding: 3px 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.035);
+  border-radius: 4px;
+  font-size: var(--fs-tiny);
+  color: var(--text-2);
+}
+.user-activity-intervals.is-compact .user-activity-interval {
+  grid-template-columns: 58px 62px minmax(0, 1fr);
+}
+.user-activity-interval.is-header {
+  border-top: 0;
+  padding-top: 4px;
+  padding-bottom: 2px;
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-3);
+}
+.user-activity-interval.is-selected {
+  background: hsl(var(--ah) var(--as) var(--al) / 0.14);
+  box-shadow: inset 2px 0 0 var(--accent);
+  color: var(--text-1);
+}
+.user-activity-interval-clock,
+.user-activity-interval-duration {
+  white-space: nowrap;
+  font-family: var(--font-mono, "JetBrains Mono", monospace);
+  font-variant-numeric: tabular-nums;
+}
+.user-activity-interval-clock {
+  color: var(--text-1);
+}
+/* The dash, the "≈" and the midnight marks are glyphs, not values. */
+.user-activity-interval-clock i {
+  font-style: normal;
+  color: var(--text-3);
+}
+.user-activity-interval-note {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+}
+.user-activity-interval.is-approximate .user-activity-interval-note {
+  color: var(--text-2);
+}
 .user-activity-warning {
   margin: 8px 0 0;
   font-size: var(--fs-micro);
@@ -1897,7 +2024,6 @@ h6 {
   .badge {
     padding: 3px 7px;
   }
-
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -2116,7 +2242,6 @@ h6 {
   line-height: 1.6;
 }
 
-
 /* ─── Mobile: filter bar, dropdowns, KPI drill-down ───
    The dialog's own small-screen sizing is not here: a media query adds no
    specificity, so the `.dialog` rules in later layers beat this block anyway.
@@ -2171,7 +2296,7 @@ h6 {
 }
 @media (max-width: 640px) {
   .stat-grid-4,
-.stat-grid-6 {
+  .stat-grid-6 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

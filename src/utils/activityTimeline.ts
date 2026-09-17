@@ -201,3 +201,86 @@ export function formatActivityDate(date: string, compact = false): string {
       : { timeZone: "UTC", weekday: "short", day: "2-digit", month: "short", year: "numeric" },
   ).format(at);
 }
+
+/** "09:07" (or "09:07:30") of a UTC instant in the customer's local zone. */
+export function formatActivityClock(value: string, timezone: string, seconds = false): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: timezone,
+    hour: "2-digit",
+    minute: "2-digit",
+    ...(seconds ? { second: "2-digit" } : {}),
+    hourCycle: "h23",
+  }).format(new Date(value));
+}
+
+/**
+ * "1h 20m", "27m", "40s" — the list's clock values are minutes, so its
+ * durations are too; formatDuration's "27m 0s" would only add noise.
+ */
+export function formatActivityDuration(seconds: number): string {
+  const whole = Math.max(0, Math.round(seconds));
+  const hours = Math.floor(whole / 3600);
+  const minutes = Math.floor((whole % 3600) / 60);
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m`;
+  return `${whole}s`;
+}
+
+export interface ActivityIntervalLine {
+  /** The strip segment's id, so a tapped bar can find its line. */
+  id: string;
+  startedAt: string;
+  endedAt: string;
+  /** Local "HH:MM"; the end reads "24:00" where the run continues past midnight. */
+  start: string;
+  end: string;
+  approximateEnd: boolean;
+  durationSeconds: number;
+  /** Clipped at local midnight: the run began the day before / goes on into the next. */
+  fromPreviousDay: boolean;
+  intoNextDay: boolean;
+}
+
+export interface ActivityIntervalDay {
+  date: string;
+  seconds: number;
+  lines: ActivityIntervalLine[];
+}
+
+/**
+ * The exact-interval list for the day rows on one timeline page: the same
+ * clipped segments the strip draws (so the two never disagree), in clock
+ * order within each day, with days that have no online time left out.
+ * A run that crosses local midnight appears on both days, "22:40–24:00" and
+ * "00:00–01:55", and each half says so.
+ */
+export function buildActivityIntervalDays(
+  rows: ActivityTimelineRow[],
+  timezone: string,
+): ActivityIntervalDay[] {
+  const days: ActivityIntervalDay[] = [];
+  for (const row of rows) {
+    if (row.segments.length === 0) continue;
+    const dayStart = localDateStartEpoch(row.date, timezone);
+    const dayEnd = localDateStartEpoch(addCalendarDays(row.date, 1), timezone);
+    const lines = [...row.segments]
+      .sort((a, b) => Date.parse(a.startedAt) - Date.parse(b.startedAt))
+      .map((segment): ActivityIntervalLine => {
+        const fromPreviousDay = Date.parse(segment.startedAt) === dayStart;
+        const intoNextDay = Date.parse(segment.endedAt) === dayEnd;
+        return {
+          id: segment.id,
+          startedAt: segment.startedAt,
+          endedAt: segment.endedAt,
+          start: formatActivityClock(segment.startedAt, timezone),
+          end: intoNextDay ? "24:00" : formatActivityClock(segment.endedAt, timezone),
+          approximateEnd: segment.approximateEnd,
+          durationSeconds: segment.durationSeconds,
+          fromPreviousDay,
+          intoNextDay,
+        };
+      });
+    days.push({ date: row.date, seconds: row.seconds, lines });
+  }
+  return days;
+}

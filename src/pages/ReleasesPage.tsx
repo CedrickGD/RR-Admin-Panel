@@ -213,7 +213,7 @@ export const RELEASES_ACTIONS_WIDTH = 340;
  * What the Notes cell truncates at when the frame has nothing to spare. A cap on
  * `.cell-truncate` is a *floor*, not a ceiling — it is what the table counts as the column's
  * min-content, and the column still grows past it into whatever the frame has left over
- * (measured: 291px at 1440, 369px at 1920). It used to be this same number as a fixed cap
+ * (measured: 291px at 1440, 410px at 1920). It used to be this same number as a fixed cap
  * beside an action column declared 80px narrower than it drew.
  */
 export const RELEASES_NOTES_FLOOR = 280;

@@ -195,14 +195,17 @@ html[data-theme] .customer-directory-section[data-density] .customer-directory-a
     .page-toolbar-left:has(.customer-directory-density) {
     display: none;
   }
-  html[data-theme] .customer-directory-section[data-density] .page-toolbar-search {
+  /* Scoped to the workspace, not the directory section: the Restrictions tab
+     renders its own PageToolbar outside that section and kept 34px fields and
+     a 26px segmented control while the Directory next to it had 44px. */
+  html[data-theme] .customer-directory-workspace .page-toolbar-search {
     flex-basis: 100%;
     max-width: none;
   }
   html[data-theme]
-    .customer-directory-section[data-density]
+    .customer-directory-workspace
     .page-toolbar
-    :is(.btn, .gdrop-trigger, .glass-input) {
+    :is(.btn, .gdrop-trigger, .glass-input, .ds-seg-btn) {
     min-height: 44px;
     height: 44px;
   }
@@ -212,7 +215,7 @@ html[data-theme] .customer-directory-section[data-density] .customer-directory-a
     min-height: 44px;
     height: 44px;
   }
-  html[data-theme] .customer-directory-section[data-density] .page-toolbar .glass-input {
+  html[data-theme] .customer-directory-workspace .page-toolbar .glass-input {
     font-size: 16px;
   }
   html[data-theme] .customer-directory-section[data-density] .customer-directory-panel {

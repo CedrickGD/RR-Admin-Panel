@@ -394,14 +394,8 @@ html[data-theme] .dialog.license-workspace-dialog {
   html[data-theme] .license-workspace .license-lookup-card-actions .btn {
     flex: 1 1 140px;
   }
-  html[data-theme]
-    .license-workspace-dialog
-    :is(.btn, .btn-icon, .gdrop-trigger, input:not([type="checkbox"])) {
-    min-height: 44px;
-  }
-  html[data-theme] .license-workspace-dialog .btn-icon {
-    min-width: 44px;
-  }
+  /* The 44px controls come from the coarse-pointer dialog rule in
+     consistency.css now, the same for every dialog. */
   html[data-theme] .license-workspace-dialog :is(input, textarea) {
     font-size: var(--fs-body);
   }

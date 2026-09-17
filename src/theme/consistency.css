@@ -1240,6 +1240,20 @@ html[data-theme]
     min-width: 44px;
     height: 44px;
   }
+  /* Dialog controls: the buttons, selects and inputs of a form sheet are the
+     controls a phone user is about to hit next, and only the license dialog
+     used to lift them to 44px (its own scoped rule). One rule for every
+     .dialog — the close button in its head included. Checkboxes and radios
+     keep their native size; their label row is the target. */
+  html[data-theme]
+    .dialog
+    :is(.btn, .gdrop-trigger, select, input:not([type="checkbox"]):not([type="radio"])) {
+    min-height: 44px;
+  }
+  html[data-theme] .dialog .btn-icon {
+    min-width: 44px;
+    min-height: 44px;
+  }
 }
 
 /* Safari zooms the page whenever a focused input renders below 16px and never

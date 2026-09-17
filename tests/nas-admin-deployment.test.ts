@@ -15,6 +15,11 @@ describe("NAS admin deployment", () => {
     expect(dockerfile).toContain("FROM caddy:2-alpine AS runtime");
     expect(dockerfile).toContain("COPY --from=build /repo/dist /srv/admin");
     expect(dockerfile).toContain("COPY shared ./shared");
+    // PWA manifest + icons come from the Vite publicDir (top-level static/);
+    // without this COPY the image would build a panel Chrome cannot install.
+    expect(dockerfile).toContain("COPY static ./static");
+    expect(repoFile("vite.config.ts")).toContain('publicDir: path.resolve(projectRoot, "static")');
+    expect(repoFile("deploy/nas/admin/Dockerfile.dockerignore")).not.toMatch(/^static\/?$/m);
     expect(repoFile("deploy/nas/admin/Dockerfile.dockerignore")).not.toMatch(/^shared\/?$/m);
   });
 

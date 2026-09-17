@@ -6,10 +6,9 @@ import { defineConfig, type Plugin } from "vite";
 
 const projectRoot = fileURLToPath(new URL(".", import.meta.url));
 
-// Cloudflare Pages reads `_headers` from the build-output root. It cannot be a
-// static passthrough file here: `root` is "public", so Vite's publicDir resolves
-// to the non-existent "public/public" and never copies anything. Emit it as a
-// build asset instead.
+// Cloudflare Pages reads `_headers` from the build-output root. It is emitted as
+// a build asset (not dropped into `static/`) so the cache policy lives next to
+// the routes below and stays reviewable as code.
 //
 // The SPA entry (index.html) must NOT be disk-cached, or a normal reload can boot
 // a stale shell (and the old hashed bundle it names) straight from cache while a
@@ -39,6 +38,19 @@ function cloudflareHeaders(): Plugin {
           "",
           "/",
           "  Cache-Control: no-store",
+          "",
+          // The manifest is tiny and names the icons; never let a stale copy
+          // pin an old icon set or start_url on an installed WebAPK.
+          "/manifest.json",
+          "  Cache-Control: no-store",
+          "",
+          // Icons are un-hashed by design (the manifest must point at stable
+          // URLs) — a day of caching is plenty and keeps install re-fetches cheap.
+          "/icons/*",
+          "  Cache-Control: public, max-age=86400",
+          "",
+          "/apple-touch-icon.png",
+          "  Cache-Control: public, max-age=86400",
           "",
         ].join("\n"),
       });
@@ -72,6 +84,16 @@ function cloudflareRoutes(): Plugin {
 export default defineConfig({
   plugins: [react(), tailwindcss(), cloudflareHeaders(), cloudflareRoutes()],
   root: "public",
+  // PWA install files (manifest.json, icons/*, apple-touch-icon.png) must land
+  // UN-HASHED at the dist root: Chrome identifies the app by manifest `id` and
+  // re-fetches the manifest and icon URLs by name, and Caddy/Pages serve the dist
+  // root by path. Vite hashes every <link href> it processes into /assets/, and
+  // its default publicDir is resolved against `root` ("public/public" — which
+  // does not exist), so point publicDir at a dedicated top-level `static/`
+  // directory explicitly: Vite copies it verbatim to the dist root and leaves
+  // index.html references into it untouched. vite.pages-worker.config.ts keeps
+  // publicDir:false so the worker build never re-copies it.
+  publicDir: path.resolve(projectRoot, "static"),
   resolve: { alias: { "/src": path.resolve(projectRoot, "src") } },
   build: {
     outDir: path.resolve(projectRoot, "dist"),

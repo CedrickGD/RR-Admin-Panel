@@ -5,6 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <link rel="icon" type="image/x-icon" href="/favicon.ico?v=rr-logo" />
     <link rel="shortcut icon" href="/favicon.ico?v=rr-logo" />
+    <!--
+      PWA install metadata. Everything referenced here lives in ../static/ (Vite
+      publicDir) and is served un-hashed from the dist root. The manifest is
+      fetched WITHOUT cookies unless crossorigin="use-credentials" is set, and
+      admin.razorreaper.app sits behind Cloudflare Access, whose CF_Authorization
+      cookie must accompany the request or Access answers with a cross-origin
+      login redirect that Chrome rejects. theme-color mirrors the dark ground
+      token (--bg in src/theme/tokens/colors.css); no new colours.
+    -->
+    <link rel="manifest" href="/manifest.json" crossorigin="use-credentials" />
+    <meta name="theme-color" content="#050505" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

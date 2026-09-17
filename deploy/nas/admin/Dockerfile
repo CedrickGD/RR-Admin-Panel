@@ -6,6 +6,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
 
 COPY public ./public
+COPY static ./static
 COPY src ./src
 COPY shared ./shared
 COPY vite.config.ts ./vite.config.ts

@@ -135,10 +135,15 @@ CREATE TABLE IF NOT EXISTS feedback (
   app_version TEXT,
   platform TEXT,
   status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'read', 'archived')),
+  -- 'support' is the client's "report a problem" flow (carries the diagnostics snapshot);
+  -- 'feedback' is ideas and opinions. Old clients send no kind: the server derives it from
+  -- whether a diagnostics snapshot came along (functions/api/feedback/index.ts).
+  kind TEXT NOT NULL DEFAULT 'feedback' CHECK (kind IN ('feedback', 'support')),
   created_at TEXT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_feedback_status ON feedback(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_feedback_kind_status ON feedback(kind, status, created_at DESC);
 
 -- Optional structured diagnostic reports. The established feedback table remains unchanged;
 -- these one-to-one/one-to-many tables enrich a feedback row only when a modern client opts in.

@@ -88,6 +88,14 @@ export interface RuntimeEnv {
   DISCORD_GUILD_ID?: string; // target community guild
   DISCORD_VERIFIED_ROLE_ID?: string; // "Verified" role granted after a valid license link
   DISCORD_REDIRECT_URI?: string; // OAuth callback (…/api/discord/callback)
+  // Release management (functions/_lib/github-release.ts). GITHUB_RELEASE_TOKEN is the
+  // fine-grained token the panel writes with; GITHUB_TOKEN is the existing Contents read-only
+  // token the update proxy already uses and the read-only fallback. Neither is ever returned to
+  // the browser — TokenStatus carries the variable's name, not its value.
+  GITHUB_RELEASE_TOKEN?: string;
+  GITHUB_TOKEN?: string;
+  GITHUB_REPO?: string;
+  GITHUB_BRANCH?: string;
   DB?: D1Database;
   KV?: KVNamespace;
   CF_PAGES?: string;

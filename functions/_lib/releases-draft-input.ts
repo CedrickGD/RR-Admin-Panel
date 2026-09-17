@@ -3,10 +3,12 @@
  * same fields (`ReleaseDraftInput`, and the patch that is all of them optional plus
  * `expectedUpdatedAt`). Design: docs/release-management-design.md §6.
  *
- * Validation here is deliberately narrow: shapes, lengths and the two formats that have to hold
- * (a 3-part version and a tag that is a git ref). Whether the version is *newer* than the latest
- * published one is the create route's question, because only GitHub can answer it, and whether the
- * row moved under the editor is the store's, because only the row can.
+ * Validation here is deliberately narrow: shapes, lengths, the two formats that have to hold (a
+ * 3-part version and a tag that is a git ref), and the one relationship between them — `tag` is
+ * `v{version}`, so a body carrying one derives the other and a body carrying both must agree.
+ * Whether the version is *newer* than the latest published one is the route's question, because
+ * only GitHub can answer it, and whether the row moved under the editor is the store's, because
+ * only the row can.
  */
 import { isObject } from "./http";
 import {
@@ -81,6 +83,35 @@ export function readDraftInput(body: unknown, options: ReadOptions): DraftInputR
     const tag = tagForVersion(rawTag);
     if (!TAG_PATTERN.test(tag)) return { ok: false, error: "tag is not a tag name." };
     input.tag = tag;
+  }
+
+  /**
+   * `version` and `tag` are one value with two spellings, and everything downstream reads them
+   * separately: publish step 1 finds-or-creates the GitHub release for `tag` and step 2 writes the
+   * draft's title and body into it, while step 4's `manifestModelForTag` builds `<version>` from
+   * `version` and `<url>` from `tag`. A row where they name different releases therefore publishes
+   * a manifest pointing at one release with the version number of another, and rewrites the title
+   * and body of a release nobody meant to touch. So a body that carries one derives the other, and
+   * a body that carries both is refused unless they agree — here, where POST and PUT share it.
+   */
+  if (input.version !== undefined && input.tag === undefined) {
+    input.tag = tagForVersion(input.version);
+  } else if (input.tag !== undefined && input.version === undefined) {
+    const derived = versionForTag(input.tag);
+    if (!VERSION_PATTERN.test(derived)) {
+      return {
+        ok: false,
+        error: `tag ${input.tag} does not name a 3-part version such as v1.5.4.`,
+      };
+    }
+    input.version = derived;
+  } else if (input.version !== undefined && input.tag !== undefined) {
+    if (versionForTag(input.tag) !== input.version) {
+      return {
+        ok: false,
+        error: `tag ${input.tag} and version ${input.version} name different releases; the tag for ${input.version} is ${tagForVersion(input.version)}.`,
+      };
+    }
   }
 
   for (const [key, max] of [

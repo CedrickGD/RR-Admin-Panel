@@ -279,6 +279,120 @@ describe("PUT /api/admin/releases/drafts/:id", () => {
     });
     expect(response.status).toBe(404);
   });
+
+  /**
+   * An edit can move a draft exactly where POST refuses to create one. Until it ran the same two
+   * checks, a mistyped tag or version survived to publish — where step 1 finds the *already
+   * published* release for that tag and step 2 rewrites its title and body, and step 4 commits an
+   * update.xml whose `<version>` and `<url>` name two different releases.
+   */
+  describe("version and tag are one value with two spellings", () => {
+    it("refuses a tag edited onto a release that is already published", async () => {
+      const store = releasesDb({ draft: draftRow(), member: panelMemberRow(EMAIL, "owner") });
+      const response = await call(updateDraft, store, {
+        path: "/api/admin/releases/drafts/7",
+        method: "PUT",
+        json: { tag: "v1.5.3", expectedUpdatedAt: NOW },
+      });
+
+      // Refused at the edit, so publish never gets the chance to take over v1.5.3.
+      expect(response.status).toBe(400);
+      expect(((await response.json()) as { error: string }).error).toContain(
+        "not newer than the latest published release",
+      );
+      expect(store.draft()?.tag).toBe("v1.5.4");
+      expect(store.events()).toHaveLength(0);
+    });
+
+    it("refuses a version that is not newer, exactly as POST does", async () => {
+      const store = releasesDb({ draft: draftRow(), member: panelMemberRow(EMAIL, "owner") });
+      const response = await call(updateDraft, store, {
+        path: "/api/admin/releases/drafts/7",
+        method: "PUT",
+        json: { version: "1.5.3", expectedUpdatedAt: NOW },
+      });
+
+      expect(response.status).toBe(400);
+      expect(store.draft()?.version).toBe("1.5.4");
+    });
+
+    it("refuses a patch whose tag and version name different releases", async () => {
+      const store = releasesDb({ draft: draftRow(), member: panelMemberRow(EMAIL, "owner") });
+      const response = await call(updateDraft, store, {
+        path: "/api/admin/releases/drafts/7",
+        method: "PUT",
+        json: { version: "1.5.5", tag: "v1.6.0", expectedUpdatedAt: NOW },
+      });
+
+      expect(response.status).toBe(400);
+      const { error: message } = (await response.json()) as { error: string };
+      expect(message).toContain("v1.6.0");
+      expect(message).toContain("1.5.5");
+      // The message names the tag the version actually implies, so the fix is one edit away.
+      expect(message).toContain("v1.5.5");
+      expect(store.events()).toHaveLength(0);
+      // Refused before GitHub was asked anything: a contradiction needs no live state.
+      expect(github.calls).toHaveLength(0);
+    });
+
+    it("re-derives the tag when only the version moves", async () => {
+      const store = releasesDb({ draft: draftRow(), member: panelMemberRow(EMAIL, "owner") });
+      const response = await call(updateDraft, store, {
+        path: "/api/admin/releases/drafts/7",
+        method: "PUT",
+        json: { version: "1.5.5", expectedUpdatedAt: NOW },
+      });
+
+      expect(response.status).toBe(200);
+      const payload = (await response.json()) as { draft: ReleaseDraft };
+      expect(payload.draft).toMatchObject({ version: "1.5.5", tag: "v1.5.5" });
+    });
+
+    it("re-derives the version when only the tag moves", async () => {
+      const store = releasesDb({ draft: draftRow(), member: panelMemberRow(EMAIL, "owner") });
+      const response = await call(updateDraft, store, {
+        path: "/api/admin/releases/drafts/7",
+        method: "PUT",
+        json: { tag: "v1.6.0", expectedUpdatedAt: NOW },
+      });
+
+      expect(response.status).toBe(200);
+      const payload = (await response.json()) as { draft: ReleaseDraft };
+      expect(payload.draft).toMatchObject({ version: "1.6.0", tag: "v1.6.0" });
+    });
+
+    it("refuses a tag that names no 3-part version at all", async () => {
+      const store = releasesDb({ draft: draftRow(), member: panelMemberRow(EMAIL, "owner") });
+      const response = await call(updateDraft, store, {
+        path: "/api/admin/releases/drafts/7",
+        method: "PUT",
+        json: { tag: "nightly", expectedUpdatedAt: NOW },
+      });
+
+      expect(response.status).toBe(400);
+      expect(github.calls).toHaveLength(0);
+    });
+
+    it("leaves an unchanged version alone and asks GitHub nothing", async () => {
+      const store = releasesDb({ draft: draftRow(), member: panelMemberRow(EMAIL, "owner") });
+      const response = await call(updateDraft, store, {
+        path: "/api/admin/releases/drafts/7",
+        method: "PUT",
+        json: {
+          version: "1.5.4",
+          tag: "v1.5.4",
+          notesCustomer: "A calmer bullet",
+          expectedUpdatedAt: NOW,
+        },
+      });
+
+      expect(response.status).toBe(200);
+      // The editor resends both fields on every save, and a publish that failed after step 3
+      // leaves its own tag as the latest published one — so an unchanged version must stay
+      // saveable, and must not cost a GitHub read either.
+      expect(github.calls).toHaveLength(0);
+    });
+  });
 });
 
 describe("DELETE /api/admin/releases/drafts/:id", () => {

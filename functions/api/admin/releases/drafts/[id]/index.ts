@@ -39,13 +39,25 @@ import {
   refuseWithoutWriteToken,
 } from "../../../../../_lib/releases-write";
 import type { RuntimeEnv } from "../../../../../_lib/types";
-import type { ApiError } from "../../../../../../shared/releases-contract";
+import {
+  compareVersions,
+  versionForTag,
+  type ApiError,
+  type GithubRelease,
+} from "../../../../../../shared/releases-contract";
 
 type HandlerContext = {
   request: Request;
   env: RuntimeEnv;
   params: { id: string };
 };
+
+/** Same window the create route compares against: the page shows 30. */
+const RELEASE_LIMIT = 30;
+
+function latestPublished(releases: readonly GithubRelease[]): GithubRelease | null {
+  return releases.find((release) => release.state === "published") ?? null;
+}
 
 function conflict(message: string, code: ApiError["code"], payload: object = {}): Response {
   return json({ ok: false, error: message, code, ...payload }, 409);
@@ -66,7 +78,8 @@ export async function onRequestPut(context: HandlerContext): Promise<Response> {
   if (limited) return limited;
 
   try {
-    const refusal = refuseWithoutWriteToken(createGithubClient(context.env));
+    const client = createGithubClient(context.env);
+    const refusal = refuseWithoutWriteToken(client);
     if (refusal) return refusal;
 
     let body: unknown;
@@ -81,6 +94,32 @@ export async function onRequestPut(context: HandlerContext): Promise<Response> {
     if (!parsed.ok) return error(400, parsed.error);
 
     await ensureReleasesSchema(context.env);
+    const existing = await getDraft(db, id);
+    if (!existing) return error(404, "Release draft not found.");
+
+    /**
+     * §6 gives `POST …/drafts` "version required and > the latest published version". An edit can
+     * move a draft to exactly the same place, so it has to answer the same question — otherwise a
+     * mistyped version, or a tag edited onto a tag that is already out, survives until publish,
+     * where step 1 finds that *already published* release and step 2 overwrites its title and
+     * body. `readDraftInput` keeps `version` and `tag` in step, so the version is the whole check.
+     *
+     * Only when the version actually moves: an unchanged version must stay saveable, not least
+     * because a publish that failed after step 3 leaves its own tag as the latest published one,
+     * and the draft still has to be editable while it is resumed.
+     */
+    if (parsed.input.version !== undefined && parsed.input.version !== existing.version) {
+      const previous = latestPublished(
+        await client.listReleases({ limit: RELEASE_LIMIT, essential: true }),
+      );
+      if (previous && compareVersions(parsed.input.version, versionForTag(previous.tag)) <= 0) {
+        return error(
+          400,
+          `${parsed.input.version} is not newer than the latest published release, ${versionForTag(previous.tag)}.`,
+        );
+      }
+    }
+
     const result = await updateDraft(db, id, parsed.input);
     if (!result.ok) {
       if (result.reason === "not-found") return error(404, "Release draft not found.");

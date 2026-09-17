@@ -122,9 +122,20 @@ function VersionBoundField({
   onChange: (next: string) => void;
 }) {
   const selectId = useId();
-  // Mount-time only, and the dialog unmounts its content when it closes, so every open re-derives
-  // it: a stored bound the releases list does not carry is free text and shows as free text.
-  const [custom, setCustom] = useState(() => value.trim() !== "" && !versions.includes(value));
+  /**
+   * Free text unless the releases list carries this exact bound — derived on every render, not
+   * frozen at mount. `versions` arrives from `useReleaseVersions()`'s fetch, which can resolve
+   * *after* the editor is already open; deciding once at mount would read an empty list, call a
+   * stored bound unknown, and leave the field stuck in free text for the whole editing session
+   * even though the value names a real release.
+   *
+   * `pickedCustom` is the one thing that outranks the list: choosing "Other version…" is the
+   * user's own decision, so typing a bound that happens to match a release must not yank the
+   * text field away mid-keystroke. It resets with the component, and the dialog unmounts its
+   * content when it closes, so every open starts from the list again.
+   */
+  const [pickedCustom, setPickedCustom] = useState(false);
+  const custom = pickedCustom || (value.trim() !== "" && !versions.includes(value));
 
   return (
     <Field label={label} hint="optional" help={help} htmlFor={selectId}>
@@ -133,10 +144,10 @@ function VersionBoundField({
         value={custom ? CUSTOM_VERSION : value}
         onValueChange={(next) => {
           if (next === CUSTOM_VERSION) {
-            setCustom(true);
+            setPickedCustom(true);
             return;
           }
-          setCustom(false);
+          setPickedCustom(false);
           onChange(next);
         }}
       >

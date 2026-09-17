@@ -360,4 +360,64 @@ describe("Announcements editor — version targeting", () => {
     expect(text("Range")).toContain("Versions: 1.4.0 – 1.4.8");
     expect(text("Pinned")).toContain("Versions: 1.4.7 only");
   });
+
+  /**
+   * `useReleaseVersions()` fetches, so on a cold cache the list is empty for the first paint and
+   * the editor can be opened before it lands. Deciding free-text-or-dropdown once, at mount, read
+   * that empty list and called every stored bound unknown — leaving a bound that names a real
+   * release stuck as free text for the rest of the editing session.
+   */
+  it("moves a stored bound from free text to the dropdown when the list arrives late", async () => {
+    let deliver: () => void = () => {};
+    const pending = new Promise<Response>((resolve) => {
+      deliver = () => resolve(json(VERSIONS));
+    });
+    api.mockImplementation(async (input, init) => {
+      const { pathname } = new URL(String(input), window.location.origin);
+      const method = init?.method ?? "GET";
+      if (pathname === "/api/admin/releases/versions") return pending;
+      if (pathname.startsWith("/api/admin/announcements")) {
+        if (method === "GET") return json({ ok: true, announcements: rows });
+        writes.push({
+          method,
+          pathname,
+          body: JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>,
+        });
+        return json({ ok: true, id: 3 });
+      }
+      throw new Error(`Unexpected mocked request: ${method} ${pathname}`);
+    });
+
+    rows = [announcement({ id: 6, title: "Modern only", max_version: "1.5.0" })];
+    await mount();
+    await openEditor("Modern only");
+
+    // The list has not answered yet, so 1.5.0 looks unknown and opens as free text.
+    expect(typedInput("Maximum version")?.value).toBe("1.5.0");
+
+    deliver();
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    // 1.5.0 is a real release after all: the same field is a dropdown sitting on it.
+    expect(typedInput("Maximum version")).toBeNull();
+    expect(field("Maximum version").control.textContent).toContain("1.5.0");
+    await save();
+    expect(writes[0].body).toMatchObject({ max_version: "1.5.0" });
+  });
+
+  it("keeps an explicit Other version… free text even once the list carries that value", async () => {
+    await mount();
+    await openEditor(EVERYONE.title);
+
+    // The user chose free text themselves. Typing a bound that happens to name a release must
+    // not yank the input away mid-keystroke, so the pick outranks the list.
+    await chooseOption("Maximum version", "Other version…");
+    await setValue(typedInput("Maximum version")!, "1.5.0");
+    expect(typedInput("Maximum version")?.value).toBe("1.5.0");
+
+    await save();
+    expect(writes[0].body).toMatchObject({ max_version: "1.5.0" });
+  });
 });

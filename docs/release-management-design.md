@@ -177,11 +177,11 @@ in `shared/releases-contract.ts`; only behaviour is described here.
 | `POST …/drafts/:id/build`                                              | Needs `confirmToken`. (1) commits the version bump — five `csproj` fields + `MyAppVersion` in the `.iss` — via `commitFiles` with the draft's `commit_message`, unless master already carries that version; (2) dispatches `build-installer.yml` with `version`, `notes`, `prerelease`; (3) resolves the new run id (poll `GET …/actions/runs?event=workflow_dispatch&branch=master` for ≤15 s); status → `building`. |
 | `GET …/drafts/:id/run`                                                 | `RunDetailResponse`: run, jobs, last ~200 log lines. Sets `built` on success (recording `asset_name`/`asset_size`) or `failed`. `pollAfterSeconds` 10 while running, 0 when finished.                                                                                                                                                                                                                                 |
 | `POST …/drafts/:id/publish`                                            | Needs `confirmToken` + `expectedStatus`. See below.                                                                                                                                                                                                                                                                                                                                                                   |
-| `POST …/releases/:id/make-current`                                     | **Rollback and roll-forward.** See below.                                                                                                                                                                                                                                                                                                                                                                             |
-| `POST …/releases/:id/unpublish-to-draft`                               | `PATCH …/releases/{id}` with `draft: true`; GitHub keeps tag and assets, so it is reversible. Refused while `update.xml` pins that tag — see below.                                                                                                                                                                                                                                                                   |
+| `POST …/:id/make-current`                                     | **Rollback and roll-forward.** See below.                                                                                                                                                                                                                                                                                                                                                                             |
+| `POST …/:id/unpublish-to-draft`                               | `PATCH …/releases/{id}` with `draft: true`; GitHub keeps tag and assets, so it is reversible. Refused while `update.xml` pins that tag — see below.                                                                                                                                                                                                                                                                   |
 | `GET` / `PUT …/files`                                                  | A blob (`RepoFile`) or a directory listing (`RepoTreeResponse`), `ref` = master. `PUT` takes a `FilePutRequest`: denylist (§11), `baseSha` must match, commits via `commitFiles`; `.github/workflows` additionally needs `workflowsConfirm: true` and a live Workflows scope, else `403 { code: "denied-path" }`.                                                                                                     |
 | `GET …/workflows`, `…/workflows/runs`, `POST …/workflows/:id/dispatch` | `WorkflowSummary[]` (`inputs` parsed from each `workflow_dispatch` block), `WorkflowRunSummary[]`, and a `WorkflowDispatchRequest` rate-limited to 10 / hour / actor.                                                                                                                                                                                                                                                 |
-| `GET …/releases/versions`                                              | `VersionsResponse` for the Versions page — `monitoring.read`, cached 15 min.                                                                                                                                                                                                                                                                                                                                          |
+| `GET …/versions`                                              | `VersionsResponse` for the Versions page — `monitoring.read`, cached 15 min.                                                                                                                                                                                                                                                                                                                                          |
 | `POST …/confirm`                                                       | `ConfirmTokenRequest` → `ConfirmTokenResponse`. Token = `HMAC-SHA256(JWT_SECRET, action + subject + actor + issuedAt)`, TTL 120 s, single-use (in-memory burnt-token set, re-mintable).                                                                                                                                                                                                                               |
 
 **Confirm effects are server-generated, always.** `ConfirmTokenResponse.effects` is a
@@ -218,7 +218,7 @@ before the next begins, so a retry with the same confirm token resumes at `faile
    for a prerelease** (decision 4); `skipManifest` covers the deliberate case otherwise.
 5. `recorded` — `status = 'published'`, `published_at`, `auditPanel(…, "release.publish", …)`.
 
-**`POST …/releases/:id/make-current`** — the governed rollback. `:id` is the GitHub release id, so
+**`POST …/:id/make-current`** — the governed rollback. `:id` is the GitHub release id, so
 it works for any published release, with or without a draft row. It needs a `make-current`
 `confirmToken` and an editable `commitMessage` (default `release: point update.xml at {tag}`).
 **Validated before anything is written**: the target release exists, is **published** (not a draft),
@@ -229,7 +229,7 @@ _"829 installs are on 1.5.4; they are not downgraded, but every new check now re
 the Discord line. Then one `commitFiles` commit rewriting `update.xml` to the target tag's
 `<version>`, `<url>`, `<changelog>`, `<mandatory>` and `<notes>` — same github.com shapes as step 4
 — with the operator's message, recording `manifest_committed` + `auditPanel`.
-**`POST …/releases/:id/unpublish-to-draft`** does _not_ rewrite the manifest, and is refused while
+**`POST …/:id/unpublish-to-draft`** does _not_ rewrite the manifest, and is refused while
 `update.xml` pins that tag — unpublishing the release customers are being offered strands every
 client mid-download. The refusal is not a dead end: it returns `409 { ok: false, code:
 "manifest-pinned", blockedBy: "manifest", makeCurrentCandidates: [...] }`, each candidate a
@@ -263,7 +263,11 @@ a local build still lands on the Desktop.
 - signtool ships with the Windows SDK already on `windows-latest`. Use the parameters `rr_sign.bat`
   uses locally: `sign /f <pfx> /p <password> /fd SHA256 /tr http://timestamp.digicert.com /td SHA256
 /v <target>`, falling back to the same command without `/tr` and `/td` when the timestamp server
-  fails, then `verify /pa /v <target>`.
+  fails. Before `verify /pa /v <target>` the runner must trust the self-signed certificate the way
+  `rr_sign.bat` does: export the public `.cer` from the decoded pfx (`Get-PfxCertificate` +
+  `Export-Certificate`) and `Import-Certificate` it into `Cert:ocalmachineroot` and
+  `cert:ocalmachinetrustedpublisher`. a failed `sign` fails the job; a failed `verify` only warns
+  (`continue-on-error: true` on that step), so a runner-side trust quirk cannot block a release.
 - When either secret is absent the step is skipped with a visible `::warning::` and a
   `$GITHUB_STEP_SUMMARY` line: _"Unsigned build — RR_SIGN_PFX_BASE64 / RR_SIGN_PFX_PASSWORD not
   set."_ A missing signature never fails the build; a _silently_ unsigned one is what we prevent.
@@ -376,8 +380,11 @@ horizontal page scroll at 1440 or 390.
 through the panel's normal fetch helper, keeping their return shapes (`string`, `string[]`) and
 their `localStorage` caches, so `VersionsPage.tsx` and `matchReleaseVersion` need no change. This is
 the last GitHub call in the browser — after it the repo can go private.
-`announcements` gains `min_version TEXT` / `max_version TEXT` (nullable, added by
-`ensureAnnouncementsSchema` and `tools/migrations/2026-09-18-announcement-version-range.sql`), the
+`announcements` gains `min_version TEXT` / `max_version TEXT` (nullable). The table already exists on
+the live database, so `CREATE TABLE IF NOT EXISTS` cannot add them: `ensureAnnouncementsSchema` gets
+the `feedback.kind` idiom (`functions/_lib/content.ts:102-137`) — `ALTER TABLE announcements ADD
+COLUMN …` guarded by the `isDuplicateColumn` try/catch plus a `schema_markers` row — mirrored step for
+step in `tools/migrations/2026-09-18-announcement-version-range.sql`; the
 Announcements page two optional `ds/Select` fields populated from `VersionsResponse.releases`.
 `GET /api/announcements/active?v=1.5.3` filters with `versionInRange`; a client that sends no `v` —
 every build up to 1.5.3 — matches everything as today, so nothing regresses for the 272 installs on
@@ -426,7 +433,7 @@ verbatim, no horizontal scroll; plus `releases-contract` for the pure helpers.
 ## 13. Rollout order, and the private-flip checklist
 
 1. Contract + policy + schema + `github-release.ts` behind a read-only token. Nothing writes yet.
-2. `GET /api/admin/releases` and `GET …/releases/versions`; switch the two browser hooks. **After
+2. `GET /api/admin/releases` and `GET …/versions`; switch the two browser hooks. **After
    this step the browser no longer talks to GitHub.**
 3. `/release-notes/:tag` on rr-api, `<changelog>` rewriting in `/update/update.xml`, and the two new
    Caddy `handle` blocks (§8). **Owner step:** that Caddyfile change needs a `caddy reload`, and the

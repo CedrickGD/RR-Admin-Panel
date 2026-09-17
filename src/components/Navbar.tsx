@@ -22,6 +22,7 @@ import {
   MessageSquare,
   Moon,
   Radio,
+  Rocket,
   Settings2,
   Server,
   ShieldCheck,
@@ -84,6 +85,7 @@ const GROUPS: Array<{
     label: "Administration",
     icon: <ShieldCheck />,
     items: [
+      ["releases", <Rocket />],
       ["team", <ShieldCheck />],
       ["system", <Server />],
       ["settings", <Settings2 />],

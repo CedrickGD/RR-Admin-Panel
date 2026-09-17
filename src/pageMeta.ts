@@ -47,6 +47,7 @@ export const PAGE_META: Record<PageKey, PageMeta> = {
   // Two inboxes (Feedback | Support, ds/Tabs sections) behind one rail item; the name covers both.
   feedback: { group: "Communication", label: "Feedback & support" },
   errors: { group: "Diagnostics", label: "Errors" },
+  releases: { group: "Administration", label: "Releases" },
   team: { group: "Administration", label: "Panel access" },
   system: { group: "Administration", label: "System health" },
   settings: { group: "Administration", label: "Settings" },

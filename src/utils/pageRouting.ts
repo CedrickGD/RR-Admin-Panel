@@ -23,6 +23,7 @@ export const PAGE_KEYS: readonly PageKey[] = [
   "licenses",
   "feedback",
   "announcements",
+  "releases",
   "system",
   "settings",
 ];

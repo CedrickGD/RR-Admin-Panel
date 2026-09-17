@@ -70,6 +70,9 @@ const LivePage = lazy(() =>
 const OverviewPage = lazy(() =>
   import("./pages/OverviewPage").then((module) => ({ default: module.OverviewPage })),
 );
+const ReleasesPage = lazy(() =>
+  import("./pages/ReleasesPage").then((module) => ({ default: module.ReleasesPage })),
+);
 const SettingsPage = lazy(() =>
   import("./pages/SettingsPage").then((module) => ({ default: module.SettingsPage })),
 );
@@ -476,6 +479,7 @@ export default function App() {
                   ) : null}
                   {page === "announcements" ? <AnnouncementsPage /> : null}
                   {page === "feedback" ? <FeedbackPage summary={summary} /> : null}
+                  {page === "releases" ? <ReleasesPage /> : null}
                   {page === "settings" ? (
                     <SettingsPage user={user} authMode={authMode} onLogout={() => void logout()} />
                   ) : null}

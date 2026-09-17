@@ -20,6 +20,7 @@ export type PageKey =
   | "settings"
   | "licenses"
   | "announcements"
+  | "releases"
   | "feedback";
 
 export interface TelemetryEvent {

@@ -20,8 +20,8 @@
   /* Aurora ambience hues (background only — separate from accent).
      Only css/base.css's html::before/::after read these, and workspace.css
      removes those pseudos, so they are inert until an aurora ships again. */
-  --aur-1: 263;   /* @kind other */ /* violet drift blob */
-  --aur-2: 191;   /* @kind other */ /* cyan drift blob */
+  --aur-1: 263; /* @kind other */ /* violet drift blob */
+  --aur-2: 191; /* @kind other */ /* cyan drift blob */
 
   /* Surface ladder — opaque neutrals: panel, raised/hover, inset/active */
   --surface-1: #09090b;
@@ -30,8 +30,8 @@
 
   /* Floating surfaces (menus, modals) — opaque as well: the backdrop-filter
      that used to hide the page behind them is banned for perf (app-glue.css). */
-  --surface-float:  #0c0c0f;
-  --shadow-float:   0 18px 44px -14px rgba(2, 4, 12, 0.85);
+  --surface-float: #0c0c0f;
+  --shadow-float: 0 18px 44px -14px rgba(2, 4, 12, 0.85);
   --shadow-overlay: 0 40px 80px -20px rgba(2, 4, 12, 0.65);
   /* Frost strength. 0 = off (see header); the blur(var(--glass-blur)) call sites
      in css/components.css, css/shell.css and app-glue.css therefore compose to a
@@ -44,7 +44,7 @@
      #666 is 3.47:1 on the #09090b panels, 3.38:1 on --surface-2 and 3.11:1 on
      --surface-3. #484848 was 2.18:1. */
   --line-hi: #666;
-  --line-row: #292929;   /* table row divider */
+  --line-row: #292929; /* table row divider */
   --table-pin-shadow: rgb(0 0 0 / 60%);
 
   /* Text ladder — 1 primary, 2 secondary, 3 meta, 4 placeholder/disabled.
@@ -62,10 +62,10 @@
   --sidebar-bg: rgb(0 0 0 / var(--sidebar-opacity, 0.75));
   /* --sidebar-opacity is written inline on <html> by src/hooks/useAppearance
      (1 - sidebarTransparency/100). This is the default-setting fallback. */
-  --sidebar-opacity: 0.75;   /* @kind other */
+  --sidebar-opacity: 0.75; /* @kind other */
   --header-bg: #000;
   --scroll-thumb: #777;
-  --map-space: #090b10;   /* world map ocean/void */
+  --map-space: #090b10; /* world map ocean/void */
 
   /* Workspace surfaces — used when a non-plain background is active, so the
      panels let a little of the canvas through (consistency.css picks them up). */
@@ -95,37 +95,37 @@
 
   /* Status / semantic — fixed, NOT themeable.
      The -sub tints are alpha fills and are deliberately shared by both themes. */
-  --success:     hsl(142 71% 45%);
+  --success: hsl(142 71% 45%);
   --success-sub: hsl(142 71% 45% / 0.14);
   --success-text: hsl(142 60% 62%);
-  --warning:     hsl(37 91% 55%);    /* #f5a524 */
+  --warning: hsl(37 91% 55%); /* #f5a524 */
   --warning-sub: hsl(37 91% 55% / 0.14);
   --warning-text: hsl(37 91% 72%);
-  --danger:      hsl(4 86% 58%);     /* #f04438 */
-  --danger-sub:  hsl(4 86% 58% / 0.14);
+  --danger: hsl(4 86% 58%); /* #f04438 */
+  --danger-sub: hsl(4 86% 58% / 0.14);
   --danger-text: hsl(4 86% 75%);
   /* --info has no reader today. It stays: --success/--warning/--danger are live
      and a status family missing a rung is worse than an unused token. */
-  --info:        hsl(207 90% 60%);
-  --info-sub:    hsl(207 90% 60% / 0.14);
-  --info-text:   hsl(207 90% 75%);
+  --info: hsl(207 90% 60%);
+  --info-sub: hsl(207 90% 60% / 0.14);
+  --info-text: hsl(207 90% 75%);
 
   /* Categorical UI hues — the KPI tile ladder and the tone-* variants. Not the
      accent: these have to stay distinguishable from each other at any hue. */
   --ui-violet: #a78bfa;
-  --ui-blue:   #60a5fa;
-  --ui-green:  #34d399;
-  --ui-amber:  #fbbf24;
-  --ui-rose:   #fb7185;
+  --ui-blue: #60a5fa;
+  --ui-green: #34d399;
+  --ui-amber: #fbbf24;
+  --ui-rose: #fb7185;
 
   /* Chart palette — defaults; useChartColors rewrites the three series inline on
      <html> from the accent once it mounts, so these are the pre-hydration frame
      and the ChartLegend swatch fallback. */
-  --chart-users:    #5fd6f2;
+  --chart-users: #5fd6f2;
   --chart-sessions: rgba(95, 214, 242, 0.55);
-  --chart-errors:   #e06b6b;
-  --chart-grid:     #ffffff0c;
-  --chart-axis:     #a1a1aa;
+  --chart-errors: #e06b6b;
+  --chart-grid: #ffffff0c;
+  --chart-axis: #a1a1aa;
   --chart-axis-soft: #81818c;
 
   /* Legacy glass vocabulary → neutral ladder. index.css still references these
@@ -197,10 +197,10 @@ html[data-theme="light"] {
   --info-text: #176cba;
 
   --ui-violet: #7540d8;
-  --ui-blue:   #176bd1;
-  --ui-green:  #07865a;
-  --ui-amber:  #a76300;
-  --ui-rose:   #d52950;
+  --ui-blue: #176bd1;
+  --ui-green: #07865a;
+  --ui-amber: #a76300;
+  --ui-rose: #d52950;
 
   /* Series defaults above are dark-theme tints (#5fd6f2 is 1.70:1 on a white
      panel) so the pre-hydration frame and the ChartLegend swatches would be

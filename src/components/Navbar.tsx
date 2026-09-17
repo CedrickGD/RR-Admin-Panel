@@ -29,12 +29,7 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
-import {
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { AuthUser, PageKey } from "../types/telemetry";
 import { canVisit } from "../../shared/panel-policy";
 import { PAGE_META, pageHeading, type PageGroup } from "../pageMeta";
@@ -428,11 +423,7 @@ export function Navbar({ page, onNavigate, user, onLogout }: NavbarProps) {
                   navigate(breadcrumbGroupTarget);
                 }}
               >
-                <ChevronLeft
-                  size={14}
-                  className="workspace-breadcrumb-back"
-                  aria-hidden="true"
-                />
+                <ChevronLeft size={14} className="workspace-breadcrumb-back" aria-hidden="true" />
                 <span className="workspace-breadcrumb-group-label">{meta.group}</span>
               </a>
               <ChevronRight size={13} className="workspace-breadcrumb-sep" aria-hidden="true" />

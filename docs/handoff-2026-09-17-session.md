@@ -277,3 +277,48 @@ kein LAN** — deshalb kein Deploy und kein Lauf auf dem echten Handy. Alles unt
   Bot-Repo, Bot-Neustart ~3 s); (6) Serverseitige Drosselung erst nach dem Client-Release entscheiden;
   (7) Caddy-/Cloudflared-Healthchecks nur mit Okay und Zeitfenster; (8) Arne-Session-Dauer im Zero-Trust-Dashboard
   (nur Besitzer). Client-Release (`fix/client-tidy`) bleibt der Knopf des Besitzers.
+
+## 10. Nachtrag 2: Abschnitt-5-Punkte und Voll-Audit (Cloud-Session, `main` bis `9e6b727`)
+
+Der Besitzer hat den Branch-Umweg aufgehoben („arbeite einfach in production“; Handy-Test „egal, nur
+anschaulich“) — seitdem geht alles direkt auf `main`. Pages baut automatisch; das NAS bekommt es erst mit
+`npm run deploy:nas -- -Service admin,rr-api` (Dockerfile/Dockerignore geändert → Image-Rebuild).
+Erwartete Hashes nach dem Deploy: `index-CKb6aeqR.js` / `index-DtfKblXr.css`.
+
+- **Abschnitt 5 erledigt** (`64bf15c`, `164fb45`, `d9c7782`, `89e8630`): 1920 mit offener Leiste zeigt
+  **Ort statt IP** (beide zusammen bräuchten 1722 px bei 1610 px Rahmen — gemessen; `col-lg`-Schwelle
+  1537 → 1560 px, 1440 unverändert); Restrictions-Namenszelle ist jetzt `RecordOpen` wie im Verzeichnis
+  (Kartenkopf = Tippziel, 44 px); `RuntimeEnv.CF_PAGES_BRANCH` entfernt (kein Leser).
+- **Voll-Audit** (Fixtures erweitert: 44 Kunden, Feedback/Announcements/Team/System/Errors gefüllt; 14 Seiten ×
+  1440/1920/390/412, Light-Theme, Touch, statische Design-Regeln, Code-Review des Diffs seit `7f0826f`,
+  Deploy-Konfiguration): 47 Rohbefunde → 44 gegengeprüft (Repro-Linse je Gruppe + Besitzer-Linse), 41 bestätigt,
+  **28 Commits** (`02bac58`…`9e6b727`), Gate grün (Typecheck, 107 Dateien / 1289 Tests, Build, Prettier),
+  Design-Review „ship“; Korrektheits-Review hat alle 26 Fixes nachgemessen (14 Seiten ohne Regression), aber
+  seinen Abschlussbericht nicht abgesetzt (Transkript liegt im Workflow-Ordner der Session).
+  Wichtigste Fixes: Issue-license-Dialog deckend statt halbtransparent; 44-px-Dialogknöpfe/-Eingaben bei
+  grobem Zeiger; Restrictions-Toolbar 44 px; Errors-Tabelle passte bei 1440 nicht in den Rahmen (jetzt
+  1130/1130), Fehler-Chips brechen am Handy unter die Meldung; Announcement-Karten schnitten das
+  „Until“-Datum ab; Berechtigungsmatrix im Mitglieder-Dialog scrollte 450 px seitlich (jetzt gestapelte
+  Karten, Eingabe volle Breite); Karten-Zoom-Icons im Light-Theme weiß auf weiß; „offline“-Label 2,3:1 →
+  5,8:1; 76 ungeschützte `:hover`-Regeln unter `@media (hover: hover)` (Karten/Kacheln/Buttons blieben nach
+  Tipp „angefasst“); Scrollbar-Farbe aus dem Token; Fokus-Rückgabe nach „Back“ am Handy; Light-Theme-Flächen
+  der Fehlergruppen und Achsenbeschriftungen (≥ 4,5:1); Session-history-Pager bleibt in der Karte.
+- **Deploy-Änderungen, die man kennen sollte:** `tools/deploy-nas.ps1` holt vor der Origin-Prüfung `git fetch`,
+  prüft Exit-Codes, räumt nach dem Build **nur dangling Images** (`docker image prune -f`) und scheitert nicht
+  mehr am Status-`grep`; Root-`.dockerignore` ist jetzt für beide Images ein brauchbarer Fallback (behält
+  `public/`, `src/`; schließt `.local/`, `.superdesign/` aus); Admin-Caddyfile cached `/icons/*` und das
+  Apple-Icon einen Tag; Pages-`_headers` sendet dieselben Security-Header wie der Admin-Host; alles in
+  `tests/nas-admin-deployment.test.ts` festgenagelt. **cloudflared/caddy unangetastet.**
+- **Entscheidungen des Besitzers (aus der Besitzer-Linse, nicht umgesetzt):** Admin-only-Deploy ohne
+  rr-api-Neustart (`--no-deps`)? · Customer-360-Leiste am Handy im Stuck-Zustand ohne die drei Aktionsknöpfe? ·
+  Traffic: fünfte KPI-Kachel am Handy volle Breite (heute so) oder gleiche Anatomie? · Accent-Swatches in
+  Settings 29 px — Trefferfläche vergrößern? · Segment-Beschriftung `--on-accent` statt Weiß (ändert die
+  Balken bei dunklem Akzent)? · Einheitliches `<details>`-Idiom (Chevron-Mehrheit) statt vier Varianten? ·
+  Eine Liste grober-Zeiger-Größen in consistency.css statt verstreuter Regeln · Customer-360-Tabs auf
+  `ds/Tabs`? · Vier `btn`-klassige Roh-Buttons auf `ds/Button`? · exakte Token-Duplikate mechanisch
+  ersetzen? · Achsen-Ticks an DST-Tagen (2 % Drift) · Healthchecks für `docker-gateway`/`docker-proxy`
+  (ohne Tunnel-Neustart möglich) — Caddy/Cloudflared weiterhin nur mit Okay.
+- **Nits (nur notiert):** Verzeichnis-Ellipsen bei 1920 (Device/OS, Ort) und 1440 (Kontakt); Versions-KPI-
+  Unterzeile bricht bei 1440; Weltkarten-Menü überragt das Regional-load-Panel am Handy; Lizenztabelle
+  reflowt beim Öffnen von Details; Karten-Basemap-Palette und Settings-Vorschauen mit Hex-Literalen;
+  Fehler-Occurrence-Zeile 11 px über dem Chip bei 390 (vorbestehend).

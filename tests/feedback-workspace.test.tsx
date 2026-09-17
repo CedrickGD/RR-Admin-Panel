@@ -280,8 +280,8 @@ describe("feedback workspace", () => {
         }
       }
     }
-    expect(button("Delete report", visible)).toBeNull();
-    expect(button("Delete report", details!)).not.toBeNull();
+    expect(button("Delete feedback", visible)).toBeNull();
+    expect(button("Delete feedback", details!)).not.toBeNull();
   });
 
   it("allows read-only support to inspect and reply-view without mutation controls", async () => {
@@ -289,10 +289,10 @@ describe("feedback workspace", () => {
     expect(button("Replies", report(1)!)).not.toBeNull();
     expect(button("Mark read", report(1)!)).toBeNull();
     expect(button("Archive", report(1)!)).toBeNull();
-    expect(button("Delete report", report(1)!)).toBeNull();
+    expect(button("Delete feedback", report(1)!)).toBeNull();
     await click(filter("Archived"));
     expect(button("Move to inbox", report(3)!)).toBeNull();
-    expect(button("Delete report", report(3)!)).toBeNull();
+    expect(button("Delete feedback", report(3)!)).toBeNull();
     expect(requests("PUT")).toHaveLength(0);
     expect(requests("DELETE")).toHaveLength(0);
   });
@@ -418,7 +418,7 @@ describe("feedback workspace", () => {
     await loaded();
     const details = report(1)!.querySelector("details")!;
     await click(details.querySelector("summary"));
-    await click(button("Delete report", details));
+    await click(button("Delete feedback", details));
     await waitFor(
       () => document.querySelector('[role="dialog"]') !== null,
       "the delete confirmation",
@@ -443,7 +443,7 @@ describe("feedback workspace", () => {
     expect(reportIds()).toEqual([1, 2, 4]);
     expect(container.querySelector("h2#support-inbox-title")?.textContent).toBe("Feedback inbox");
     expect(container.querySelector(".support-result-count")?.textContent).toBe(
-      "3 of 4 loaded reports",
+      "3 of 4 loaded entries",
     );
     expect(new URLSearchParams(window.location.search).get("section")).toBeNull();
 
@@ -580,6 +580,58 @@ describe("feedback workspace", () => {
         expect(sectionTab("Support").textContent).toBe("Support");
         expect(reportIds()).toEqual([]);
       }
+    },
+  );
+
+  it.each([
+    [
+      "Feedback",
+      1,
+      "3 of 3 loaded entries",
+      "Delete feedback",
+      "No matching feedback",
+      "No archived feedback",
+      "The feedback could not be deleted.",
+    ],
+    [
+      "Support",
+      5,
+      "1 of 1 loaded reports",
+      "Delete report",
+      "No matching reports",
+      "No archived reports",
+      "The report could not be deleted.",
+    ],
+  ] as const)(
+    "names %s rows by their own noun: count line, delete button, empty states, delete error",
+    async (section, id, countLine, deleteLabel, noMatch, noArchived, deleteError) => {
+      // Nothing archived in either section, so the Archived filter shows its own empty title.
+      reports = REPORTS.filter((item) => item.status !== "archived");
+      await mount();
+      await waitFor(() => container.querySelector(".support-result-count") !== null, "the load");
+      if (section === "Support") await click(sectionTab("Support"));
+      expect(container.querySelector(".support-result-count")?.textContent).toBe(countLine);
+      expect(button(deleteLabel, report(id)!.querySelector("details")!)).not.toBeNull();
+
+      await search("nothing like this");
+      expect(container.textContent).toContain(noMatch);
+      await search("");
+      await click(filter("Archived"));
+      expect(container.textContent).toContain(noArchived);
+      await click(filter("Inbox"));
+
+      const details = report(id)!.querySelector("details")!;
+      await click(details.querySelector("summary"));
+      await click(button(deleteLabel, details));
+      await waitFor(
+        () => document.querySelector('[data-modal-root="true"] [role="dialog"]') !== null,
+        "the delete confirmation",
+      );
+      const dialog = document.querySelector('[data-modal-root="true"] [role="dialog"]')!;
+      api.mockResolvedValueOnce(json({ ok: false, error: "Delete rejected" }, 500));
+      await click(button(deleteLabel, dialog));
+      await waitFor(() => dialog.textContent?.includes(deleteError) === true, "the delete error");
+      expect(report(id)).not.toBeNull();
     },
   );
 

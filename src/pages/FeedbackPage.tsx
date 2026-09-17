@@ -115,17 +115,23 @@ const SECTION_COPY: Record<
   FeedbackSection,
   {
     label: string;
+    /** What the count line counts: "3 of 4 loaded entries" / "... reports". */
+    countNoun: string;
     titles: Record<FeedbackTab, string>;
     inboxHint: string;
     archivedHint: string;
     emptyTitle: string;
     emptyBody: string;
+    noMatchTitle: string;
+    noArchivedTitle: string;
     deleteTitle: string;
     deleteSub: string;
+    deleteError: string;
   }
 > = {
   feedback: {
     label: "Feedback",
+    countNoun: "entries",
     titles: {
       all: "Feedback inbox",
       new: "New feedback",
@@ -136,11 +142,15 @@ const SECTION_COPY: Record<
     archivedHint: "Archived separately. Move an entry to Inbox when it needs attention again.",
     emptyTitle: "No feedback yet",
     emptyBody: "Ideas and opinions sent from the app will show up here.",
+    noMatchTitle: "No matching feedback",
+    noArchivedTitle: "No archived feedback",
     deleteTitle: "Delete feedback",
     deleteSub: "This permanently removes this feedback entry. It cannot be recovered.",
+    deleteError: "The feedback could not be deleted. Please try again.",
   },
   support: {
     label: "Support",
+    countNoun: "reports",
     titles: {
       all: "Support inbox",
       new: "New reports",
@@ -151,8 +161,11 @@ const SECTION_COPY: Record<
     archivedHint: "Archived separately. Move a report to Inbox when it needs attention again.",
     emptyTitle: "No support reports yet",
     emptyBody: "Problem reports sent from the app, with their diagnostics, will show up here.",
+    noMatchTitle: "No matching reports",
+    noArchivedTitle: "No archived reports",
     deleteTitle: "Delete report",
     deleteSub: "This permanently removes this support report. It cannot be recovered.",
+    deleteError: "The report could not be deleted. Please try again.",
   },
 };
 
@@ -291,7 +304,7 @@ export function FeedbackPage({ summary }: FeedbackPageProps) {
       setDeleteCandidate(null);
       emitRefresh();
     } catch {
-      setDeleteError("The feedback could not be deleted. Please try again.");
+      setDeleteError(SECTION_COPY[deleteCandidate.kind].deleteError);
     } finally {
       setIsDeleting(false);
     }
@@ -416,7 +429,7 @@ export function FeedbackPage({ summary }: FeedbackPageProps) {
             </div>
             {hasLoaded && (
               <span className="support-result-count" role="status">
-                {filtered.length} of {sectionRows.length} loaded reports
+                {filtered.length} of {sectionRows.length} loaded {copy.countNoun}
               </span>
             )}
           </div>
@@ -464,9 +477,9 @@ export function FeedbackPage({ summary }: FeedbackPageProps) {
                 sectionRows.length === 0
                   ? copy.emptyTitle
                   : searchQuery.trim()
-                    ? "No matching reports"
+                    ? copy.noMatchTitle
                     : tab === "archived"
-                      ? "No archived reports"
+                      ? copy.noArchivedTitle
                       : "Nothing in the inbox"
               }
             >
@@ -653,7 +666,7 @@ export function FeedbackPage({ summary }: FeedbackPageProps) {
                           setDeleteCandidate(f);
                         }}
                       >
-                        Delete report
+                        {SECTION_COPY[f.kind].deleteTitle}
                       </Button>
                     </details>
                   </article>

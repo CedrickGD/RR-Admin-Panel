@@ -6,153 +6,156 @@ import * as m0 from "../../../../functions/api/admin/releases/drafts/[id]/build"
 import * as m1 from "../../../../functions/api/admin/releases/drafts/[id]/events";
 import * as m2 from "../../../../functions/api/admin/releases/drafts/[id]/publish";
 import * as m3 from "../../../../functions/api/admin/releases/drafts/[id]/run";
-import * as m4 from "../../../../functions/api/admin/releases/workflows/runs";
-import * as m5 from "../../../../functions/api/admin/releases/drafts/[id]/index";
-import * as m6 from "../../../../functions/api/admin/feedback/[id]/replies";
-import * as m7 from "../../../../functions/api/admin/installs/[id]/revoke";
-import * as m8 from "../../../../functions/api/admin/licenses/[key]/activate";
-import * as m9 from "../../../../functions/api/admin/licenses/[key]/bind";
-import * as m10 from "../../../../functions/api/admin/licenses/[key]/revoke";
-import * as m11 from "../../../../functions/api/admin/releases/[id]/make-current";
-import * as m12 from "../../../../functions/api/admin/releases/[id]/unpublish-to-draft";
-import * as m13 from "../../../../functions/api/admin/access/lift";
-import * as m14 from "../../../../functions/api/admin/access/suspend";
-import * as m15 from "../../../../functions/api/admin/licenses/issue";
-import * as m16 from "../../../../functions/api/admin/licenses/search";
-import * as m17 from "../../../../functions/api/admin/releases/commits";
-import * as m18 from "../../../../functions/api/admin/releases/confirm";
-import * as m19 from "../../../../functions/api/admin/releases/drafts/index";
-import * as m20 from "../../../../functions/api/admin/releases/files";
-import * as m21 from "../../../../functions/api/admin/releases/versions";
-import * as m22 from "../../../../functions/api/admin/releases/workflows/index";
-import * as m23 from "../../../../functions/api/discord/account/authorize";
-import * as m24 from "../../../../functions/api/admin/announcements/[id]/index";
-import * as m25 from "../../../../functions/api/admin/feedback/[id]/index";
-import * as m26 from "../../../../functions/api/admin/licenses/[key]/index";
-import * as m27 from "../../../../functions/api/discord/account/[action]";
-import * as m28 from "../../../../functions/api/access/status";
-import * as m29 from "../../../../functions/api/admin/access/index";
-import * as m30 from "../../../../functions/api/admin/announcements/index";
-import * as m31 from "../../../../functions/api/admin/customer-360";
-import * as m32 from "../../../../functions/api/admin/customer-avatar";
-import * as m33 from "../../../../functions/api/admin/customer-profiles";
-import * as m34 from "../../../../functions/api/admin/feedback/index";
-import * as m35 from "../../../../functions/api/admin/installs/index";
-import * as m36 from "../../../../functions/api/admin/licenses/index";
-import * as m37 from "../../../../functions/api/admin/releases/index";
-import * as m38 from "../../../../functions/api/announcements/active";
-import * as m39 from "../../../../functions/api/discord/callback";
-import * as m40 from "../../../../functions/api/discord/oauth-start";
-import * as m41 from "../../../../functions/api/discord/status";
-import * as m42 from "../../../../functions/api/discord/verify";
-import * as m43 from "../../../../functions/api/feedback/inbox";
-import * as m44 from "../../../../functions/api/license/activate";
-import * as m45 from "../../../../functions/api/license/validate";
-import * as m46 from "../../../../functions/api/store/generate-key";
-import * as m47 from "../../../../functions/api/usage/consume";
-import * as m48 from "../../../../functions/api/usage/status";
-import * as m49 from "../../../../functions/api/admin/data";
-import * as m50 from "../../../../functions/api/admin/errors";
-import * as m51 from "../../../../functions/api/admin/health";
-import * as m52 from "../../../../functions/api/admin/sessions-export";
-import * as m53 from "../../../../functions/api/admin/stats";
-import * as m54 from "../../../../functions/api/admin/system";
-import * as m55 from "../../../../functions/api/admin/team";
-import * as m56 from "../../../../functions/api/admin/user-activity";
-import * as m57 from "../../../../functions/api/admin/users";
-import * as m58 from "../../../../functions/api/admin/verify";
-import * as m59 from "../../../../functions/api/auth/appearance";
-import * as m60 from "../../../../functions/api/auth/bootstrap";
-import * as m61 from "../../../../functions/api/auth/change-password";
-import * as m62 from "../../../../functions/api/auth/login";
-import * as m63 from "../../../../functions/api/auth/logout";
-import * as m64 from "../../../../functions/api/auth/session";
-import * as m65 from "../../../../functions/api/auth/watch";
-import * as m66 from "../../../../functions/v1/telemetry/event";
-import * as m67 from "../../../../functions/api/feedback/index";
-import * as m68 from "../../../../functions/api/health";
-import * as m69 from "../../../../functions/api/ingest";
-import * as m70 from "../../../../functions/api/summary";
+import * as m4 from "../../../../functions/api/admin/releases/workflows/[id]/dispatch";
+import * as m5 from "../../../../functions/api/admin/releases/workflows/runs";
+import * as m6 from "../../../../functions/api/admin/releases/drafts/[id]/index";
+import * as m7 from "../../../../functions/api/admin/feedback/[id]/replies";
+import * as m8 from "../../../../functions/api/admin/installs/[id]/revoke";
+import * as m9 from "../../../../functions/api/admin/licenses/[key]/activate";
+import * as m10 from "../../../../functions/api/admin/licenses/[key]/bind";
+import * as m11 from "../../../../functions/api/admin/licenses/[key]/revoke";
+import * as m12 from "../../../../functions/api/admin/releases/[id]/make-current";
+import * as m13 from "../../../../functions/api/admin/releases/[id]/unpublish-to-draft";
+import * as m14 from "../../../../functions/api/admin/access/lift";
+import * as m15 from "../../../../functions/api/admin/access/suspend";
+import * as m16 from "../../../../functions/api/admin/licenses/issue";
+import * as m17 from "../../../../functions/api/admin/licenses/search";
+import * as m18 from "../../../../functions/api/admin/releases/commits";
+import * as m19 from "../../../../functions/api/admin/releases/confirm";
+import * as m20 from "../../../../functions/api/admin/releases/drafts/index";
+import * as m21 from "../../../../functions/api/admin/releases/files";
+import * as m22 from "../../../../functions/api/admin/releases/versions";
+import * as m23 from "../../../../functions/api/admin/releases/workflows/index";
+import * as m24 from "../../../../functions/api/discord/account/authorize";
+import * as m25 from "../../../../functions/api/admin/announcements/[id]/index";
+import * as m26 from "../../../../functions/api/admin/feedback/[id]/index";
+import * as m27 from "../../../../functions/api/admin/licenses/[key]/index";
+import * as m28 from "../../../../functions/api/discord/account/[action]";
+import * as m29 from "../../../../functions/api/access/status";
+import * as m30 from "../../../../functions/api/admin/access/index";
+import * as m31 from "../../../../functions/api/admin/announcements/index";
+import * as m32 from "../../../../functions/api/admin/customer-360";
+import * as m33 from "../../../../functions/api/admin/customer-avatar";
+import * as m34 from "../../../../functions/api/admin/customer-profiles";
+import * as m35 from "../../../../functions/api/admin/feedback/index";
+import * as m36 from "../../../../functions/api/admin/installs/index";
+import * as m37 from "../../../../functions/api/admin/licenses/index";
+import * as m38 from "../../../../functions/api/admin/releases/index";
+import * as m39 from "../../../../functions/api/announcements/active";
+import * as m40 from "../../../../functions/api/discord/callback";
+import * as m41 from "../../../../functions/api/discord/oauth-start";
+import * as m42 from "../../../../functions/api/discord/status";
+import * as m43 from "../../../../functions/api/discord/verify";
+import * as m44 from "../../../../functions/api/feedback/inbox";
+import * as m45 from "../../../../functions/api/license/activate";
+import * as m46 from "../../../../functions/api/license/validate";
+import * as m47 from "../../../../functions/api/store/generate-key";
+import * as m48 from "../../../../functions/api/usage/consume";
+import * as m49 from "../../../../functions/api/usage/status";
+import * as m50 from "../../../../functions/api/admin/data";
+import * as m51 from "../../../../functions/api/admin/errors";
+import * as m52 from "../../../../functions/api/admin/health";
+import * as m53 from "../../../../functions/api/admin/sessions-export";
+import * as m54 from "../../../../functions/api/admin/stats";
+import * as m55 from "../../../../functions/api/admin/system";
+import * as m56 from "../../../../functions/api/admin/team";
+import * as m57 from "../../../../functions/api/admin/user-activity";
+import * as m58 from "../../../../functions/api/admin/users";
+import * as m59 from "../../../../functions/api/admin/verify";
+import * as m60 from "../../../../functions/api/auth/appearance";
+import * as m61 from "../../../../functions/api/auth/bootstrap";
+import * as m62 from "../../../../functions/api/auth/change-password";
+import * as m63 from "../../../../functions/api/auth/login";
+import * as m64 from "../../../../functions/api/auth/logout";
+import * as m65 from "../../../../functions/api/auth/session";
+import * as m66 from "../../../../functions/api/auth/watch";
+import * as m67 from "../../../../functions/v1/telemetry/event";
+import * as m68 from "../../../../functions/api/feedback/index";
+import * as m69 from "../../../../functions/api/health";
+import * as m70 from "../../../../functions/api/ingest";
+import * as m71 from "../../../../functions/api/summary";
 
 export const routes: GeneratedRoute[] = [
   { method: "POST", pattern: "/api/admin/releases/drafts/:id/build", handler: m0.onRequestPost },
   { method: "GET", pattern: "/api/admin/releases/drafts/:id/events", handler: m1.onRequestGet },
   { method: "POST", pattern: "/api/admin/releases/drafts/:id/publish", handler: m2.onRequestPost },
   { method: "GET", pattern: "/api/admin/releases/drafts/:id/run", handler: m3.onRequestGet },
-  { method: "GET", pattern: "/api/admin/releases/workflows/runs", handler: m4.onRequestGet },
-  { method: "DELETE", pattern: "/api/admin/releases/drafts/:id", handler: m5.onRequestDelete },
-  { method: "PUT", pattern: "/api/admin/releases/drafts/:id", handler: m5.onRequestPut },
-  { method: "GET", pattern: "/api/admin/feedback/:id/replies", handler: m6.onRequestGet },
-  { method: "POST", pattern: "/api/admin/feedback/:id/replies", handler: m6.onRequestPost },
-  { method: "POST", pattern: "/api/admin/installs/:id/revoke", handler: m7.onRequestPost },
-  { method: "POST", pattern: "/api/admin/licenses/:key/activate", handler: m8.onRequestPost },
-  { method: "POST", pattern: "/api/admin/licenses/:key/bind", handler: m9.onRequestPost },
-  { method: "POST", pattern: "/api/admin/licenses/:key/revoke", handler: m10.onRequestPost },
-  { method: "POST", pattern: "/api/admin/releases/:id/make-current", handler: m11.onRequestPost },
-  { method: "POST", pattern: "/api/admin/releases/:id/unpublish-to-draft", handler: m12.onRequestPost },
-  { method: "POST", pattern: "/api/admin/access/lift", handler: m13.onRequestPost },
-  { method: "POST", pattern: "/api/admin/access/suspend", handler: m14.onRequestPost },
-  { method: "POST", pattern: "/api/admin/licenses/issue", handler: m15.onRequestPost },
-  { method: "GET", pattern: "/api/admin/licenses/search", handler: m16.onRequestGet },
-  { method: "GET", pattern: "/api/admin/releases/commits", handler: m17.onRequestGet },
-  { method: "POST", pattern: "/api/admin/releases/confirm", handler: m18.onRequestPost },
-  { method: "POST", pattern: "/api/admin/releases/drafts", handler: m19.onRequestPost },
-  { method: "GET", pattern: "/api/admin/releases/files", handler: m20.onRequestGet },
-  { method: "GET", pattern: "/api/admin/releases/versions", handler: m21.onRequestGet },
-  { method: "GET", pattern: "/api/admin/releases/workflows", handler: m22.onRequestGet },
-  { method: null, pattern: "/api/discord/account/authorize", handler: m23.onRequest },
-  { method: "DELETE", pattern: "/api/admin/announcements/:id", handler: m24.onRequestDelete },
-  { method: "PUT", pattern: "/api/admin/announcements/:id", handler: m24.onRequestPut },
-  { method: "DELETE", pattern: "/api/admin/feedback/:id", handler: m25.onRequestDelete },
-  { method: "PUT", pattern: "/api/admin/feedback/:id", handler: m25.onRequestPut },
-  { method: "DELETE", pattern: "/api/admin/licenses/:key", handler: m26.onRequestDelete },
-  { method: "PATCH", pattern: "/api/admin/licenses/:key", handler: m26.onRequestPatch },
-  { method: null, pattern: "/api/discord/account/:action", handler: m27.onRequest },
-  { method: "POST", pattern: "/api/access/status", handler: m28.onRequestPost },
-  { method: "GET", pattern: "/api/admin/access", handler: m29.onRequestGet },
-  { method: "GET", pattern: "/api/admin/announcements", handler: m30.onRequestGet },
-  { method: "POST", pattern: "/api/admin/announcements", handler: m30.onRequestPost },
-  { method: "GET", pattern: "/api/admin/customer-360", handler: m31.onRequestGet },
-  { method: "GET", pattern: "/api/admin/customer-avatar", handler: m32.onRequestGet },
-  { method: "GET", pattern: "/api/admin/customer-profiles", handler: m33.onRequestGet },
-  { method: "GET", pattern: "/api/admin/feedback", handler: m34.onRequestGet },
-  { method: "GET", pattern: "/api/admin/installs", handler: m35.onRequestGet },
-  { method: "GET", pattern: "/api/admin/licenses", handler: m36.onRequestGet },
-  { method: "POST", pattern: "/api/admin/licenses", handler: m36.onRequestPost },
-  { method: "GET", pattern: "/api/admin/releases", handler: m37.onRequestGet },
-  { method: "GET", pattern: "/api/announcements/active", handler: m38.onRequestGet },
-  { method: "GET", pattern: "/api/discord/callback", handler: m39.onRequestGet },
-  { method: "GET", pattern: "/api/discord/oauth-start", handler: m40.onRequestGet },
-  { method: "POST", pattern: "/api/discord/status", handler: m41.onRequestPost },
-  { method: "POST", pattern: "/api/discord/verify", handler: m42.onRequestPost },
-  { method: "POST", pattern: "/api/feedback/inbox", handler: m43.onRequestPost },
-  { method: "POST", pattern: "/api/license/activate", handler: m44.onRequestPost },
-  { method: "POST", pattern: "/api/license/validate", handler: m45.onRequestPost },
-  { method: "GET", pattern: "/api/store/generate-key", handler: m46.onRequestGet },
-  { method: "POST", pattern: "/api/store/generate-key", handler: m46.onRequestPost },
-  { method: "POST", pattern: "/api/usage/consume", handler: m47.onRequestPost },
-  { method: "GET", pattern: "/api/usage/status", handler: m48.onRequestGet },
-  { method: null, pattern: "/api/access/status", handler: m28.onRequest },
-  { method: null, pattern: "/api/admin/data", handler: m49.onRequest },
-  { method: null, pattern: "/api/admin/errors", handler: m50.onRequest },
-  { method: null, pattern: "/api/admin/health", handler: m51.onRequest },
-  { method: null, pattern: "/api/admin/sessions-export", handler: m52.onRequest },
-  { method: null, pattern: "/api/admin/stats", handler: m53.onRequest },
-  { method: null, pattern: "/api/admin/system", handler: m54.onRequest },
-  { method: null, pattern: "/api/admin/team", handler: m55.onRequest },
-  { method: null, pattern: "/api/admin/user-activity", handler: m56.onRequest },
-  { method: null, pattern: "/api/admin/users", handler: m57.onRequest },
-  { method: null, pattern: "/api/admin/verify", handler: m58.onRequest },
-  { method: null, pattern: "/api/auth/appearance", handler: m59.onRequest },
-  { method: null, pattern: "/api/auth/bootstrap", handler: m60.onRequest },
-  { method: null, pattern: "/api/auth/change-password", handler: m61.onRequest },
-  { method: null, pattern: "/api/auth/login", handler: m62.onRequest },
-  { method: null, pattern: "/api/auth/logout", handler: m63.onRequest },
-  { method: null, pattern: "/api/auth/session", handler: m64.onRequest },
-  { method: null, pattern: "/api/auth/watch", handler: m65.onRequest },
-  { method: null, pattern: "/v1/telemetry/event", handler: m66.onRequest },
-  { method: "POST", pattern: "/api/feedback", handler: m67.onRequestPost },
-  { method: null, pattern: "/api/health", handler: m68.onRequest },
-  { method: null, pattern: "/api/ingest", handler: m69.onRequest },
-  { method: null, pattern: "/api/summary", handler: m70.onRequest },
+  { method: "POST", pattern: "/api/admin/releases/workflows/:id/dispatch", handler: m4.onRequestPost },
+  { method: "GET", pattern: "/api/admin/releases/workflows/runs", handler: m5.onRequestGet },
+  { method: "DELETE", pattern: "/api/admin/releases/drafts/:id", handler: m6.onRequestDelete },
+  { method: "PUT", pattern: "/api/admin/releases/drafts/:id", handler: m6.onRequestPut },
+  { method: "GET", pattern: "/api/admin/feedback/:id/replies", handler: m7.onRequestGet },
+  { method: "POST", pattern: "/api/admin/feedback/:id/replies", handler: m7.onRequestPost },
+  { method: "POST", pattern: "/api/admin/installs/:id/revoke", handler: m8.onRequestPost },
+  { method: "POST", pattern: "/api/admin/licenses/:key/activate", handler: m9.onRequestPost },
+  { method: "POST", pattern: "/api/admin/licenses/:key/bind", handler: m10.onRequestPost },
+  { method: "POST", pattern: "/api/admin/licenses/:key/revoke", handler: m11.onRequestPost },
+  { method: "POST", pattern: "/api/admin/releases/:id/make-current", handler: m12.onRequestPost },
+  { method: "POST", pattern: "/api/admin/releases/:id/unpublish-to-draft", handler: m13.onRequestPost },
+  { method: "POST", pattern: "/api/admin/access/lift", handler: m14.onRequestPost },
+  { method: "POST", pattern: "/api/admin/access/suspend", handler: m15.onRequestPost },
+  { method: "POST", pattern: "/api/admin/licenses/issue", handler: m16.onRequestPost },
+  { method: "GET", pattern: "/api/admin/licenses/search", handler: m17.onRequestGet },
+  { method: "GET", pattern: "/api/admin/releases/commits", handler: m18.onRequestGet },
+  { method: "POST", pattern: "/api/admin/releases/confirm", handler: m19.onRequestPost },
+  { method: "POST", pattern: "/api/admin/releases/drafts", handler: m20.onRequestPost },
+  { method: "GET", pattern: "/api/admin/releases/files", handler: m21.onRequestGet },
+  { method: "PUT", pattern: "/api/admin/releases/files", handler: m21.onRequestPut },
+  { method: "GET", pattern: "/api/admin/releases/versions", handler: m22.onRequestGet },
+  { method: "GET", pattern: "/api/admin/releases/workflows", handler: m23.onRequestGet },
+  { method: null, pattern: "/api/discord/account/authorize", handler: m24.onRequest },
+  { method: "DELETE", pattern: "/api/admin/announcements/:id", handler: m25.onRequestDelete },
+  { method: "PUT", pattern: "/api/admin/announcements/:id", handler: m25.onRequestPut },
+  { method: "DELETE", pattern: "/api/admin/feedback/:id", handler: m26.onRequestDelete },
+  { method: "PUT", pattern: "/api/admin/feedback/:id", handler: m26.onRequestPut },
+  { method: "DELETE", pattern: "/api/admin/licenses/:key", handler: m27.onRequestDelete },
+  { method: "PATCH", pattern: "/api/admin/licenses/:key", handler: m27.onRequestPatch },
+  { method: null, pattern: "/api/discord/account/:action", handler: m28.onRequest },
+  { method: "POST", pattern: "/api/access/status", handler: m29.onRequestPost },
+  { method: "GET", pattern: "/api/admin/access", handler: m30.onRequestGet },
+  { method: "GET", pattern: "/api/admin/announcements", handler: m31.onRequestGet },
+  { method: "POST", pattern: "/api/admin/announcements", handler: m31.onRequestPost },
+  { method: "GET", pattern: "/api/admin/customer-360", handler: m32.onRequestGet },
+  { method: "GET", pattern: "/api/admin/customer-avatar", handler: m33.onRequestGet },
+  { method: "GET", pattern: "/api/admin/customer-profiles", handler: m34.onRequestGet },
+  { method: "GET", pattern: "/api/admin/feedback", handler: m35.onRequestGet },
+  { method: "GET", pattern: "/api/admin/installs", handler: m36.onRequestGet },
+  { method: "GET", pattern: "/api/admin/licenses", handler: m37.onRequestGet },
+  { method: "POST", pattern: "/api/admin/licenses", handler: m37.onRequestPost },
+  { method: "GET", pattern: "/api/admin/releases", handler: m38.onRequestGet },
+  { method: "GET", pattern: "/api/announcements/active", handler: m39.onRequestGet },
+  { method: "GET", pattern: "/api/discord/callback", handler: m40.onRequestGet },
+  { method: "GET", pattern: "/api/discord/oauth-start", handler: m41.onRequestGet },
+  { method: "POST", pattern: "/api/discord/status", handler: m42.onRequestPost },
+  { method: "POST", pattern: "/api/discord/verify", handler: m43.onRequestPost },
+  { method: "POST", pattern: "/api/feedback/inbox", handler: m44.onRequestPost },
+  { method: "POST", pattern: "/api/license/activate", handler: m45.onRequestPost },
+  { method: "POST", pattern: "/api/license/validate", handler: m46.onRequestPost },
+  { method: "GET", pattern: "/api/store/generate-key", handler: m47.onRequestGet },
+  { method: "POST", pattern: "/api/store/generate-key", handler: m47.onRequestPost },
+  { method: "POST", pattern: "/api/usage/consume", handler: m48.onRequestPost },
+  { method: "GET", pattern: "/api/usage/status", handler: m49.onRequestGet },
+  { method: null, pattern: "/api/access/status", handler: m29.onRequest },
+  { method: null, pattern: "/api/admin/data", handler: m50.onRequest },
+  { method: null, pattern: "/api/admin/errors", handler: m51.onRequest },
+  { method: null, pattern: "/api/admin/health", handler: m52.onRequest },
+  { method: null, pattern: "/api/admin/sessions-export", handler: m53.onRequest },
+  { method: null, pattern: "/api/admin/stats", handler: m54.onRequest },
+  { method: null, pattern: "/api/admin/system", handler: m55.onRequest },
+  { method: null, pattern: "/api/admin/team", handler: m56.onRequest },
+  { method: null, pattern: "/api/admin/user-activity", handler: m57.onRequest },
+  { method: null, pattern: "/api/admin/users", handler: m58.onRequest },
+  { method: null, pattern: "/api/admin/verify", handler: m59.onRequest },
+  { method: null, pattern: "/api/auth/appearance", handler: m60.onRequest },
+  { method: null, pattern: "/api/auth/bootstrap", handler: m61.onRequest },
+  { method: null, pattern: "/api/auth/change-password", handler: m62.onRequest },
+  { method: null, pattern: "/api/auth/login", handler: m63.onRequest },
+  { method: null, pattern: "/api/auth/logout", handler: m64.onRequest },
+  { method: null, pattern: "/api/auth/session", handler: m65.onRequest },
+  { method: null, pattern: "/api/auth/watch", handler: m66.onRequest },
+  { method: null, pattern: "/v1/telemetry/event", handler: m67.onRequest },
+  { method: "POST", pattern: "/api/feedback", handler: m68.onRequestPost },
+  { method: null, pattern: "/api/health", handler: m69.onRequest },
+  { method: null, pattern: "/api/ingest", handler: m70.onRequest },
+  { method: null, pattern: "/api/summary", handler: m71.onRequest },
 ];

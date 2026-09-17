@@ -38,6 +38,17 @@
 		file_server
 	}
 
+	# Un-hashed PWA icons (the manifest must point at stable URLs): a day of
+	# caching, the same policy the Pages _headers gives them, so a WebAPK's
+	# manifest check does not re-download ~470 KB of icons on every launch.
+	# The manifest itself stays no-store with the shell below.
+	@pwaIcons path /icons/* /apple-touch-icon.png
+	handle @pwaIcons {
+		root * /srv/admin
+		header Cache-Control "public, max-age=86400"
+		file_server
+	}
+
 	# Hash routing means every non-asset navigation is the current SPA shell.
 	# Never cache it: a normal reload must pick up the newest hashed assets.
 	handle {

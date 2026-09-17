@@ -64,6 +64,23 @@ describe("NAS admin deployment", () => {
     expect(caddyfile).toContain('header Cache-Control "no-store"');
   });
 
+  it("caches the un-hashed PWA icons for a day, like the Pages _headers", () => {
+    const caddyfile = repoFile("deploy/nas/admin/Caddyfile");
+    const viteConfig = repoFile("vite.config.ts");
+
+    expect(caddyfile).toContain("@pwaIcons path /icons/* /apple-touch-icon.png");
+    expect(caddyfile).toMatch(
+      /handle @pwaIcons \{[^}]*header Cache-Control "public, max-age=86400"[^}]*file_server/,
+    );
+    // The manifest names the icons and must not be pinned by a stale copy.
+    expect(caddyfile).not.toMatch(/@pwaIcons path[^\n]*manifest/);
+    expect(viteConfig).toMatch(/"\/icons\/\*",\s*"  Cache-Control: public, max-age=86400"/);
+    expect(viteConfig).toMatch(
+      /"\/apple-touch-icon\.png",\s*"  Cache-Control: public, max-age=86400"/,
+    );
+    expect(viteConfig).toMatch(/"\/manifest\.json",\s*"  Cache-Control: no-store"/);
+  });
+
   it("wires the service and tunnel hostname without publishing a NAS port", () => {
     const compose = repoFile("deploy/nas/compose.yml");
     const tunnel = repoFile("deploy/nas/cloudflared/config.yml");

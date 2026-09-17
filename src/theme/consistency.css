@@ -1264,6 +1264,20 @@ html[data-theme]
     min-width: 44px;
     height: 44px;
   }
+  /* Four 44px buttons, three 5px gaps and the 92px page label are 288px, more
+     than the 238px a pager has under an expanded Session-history row at 390,
+     so the last button hung out of its card. The label takes its own line
+     above the buttons (4 × 44 + 3 × 5 = 191px). */
+  html[data-theme] .table-pagination-actions {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  html[data-theme] .table-pagination-actions .table-pagination-page {
+    flex-basis: 100%;
+    min-width: 0;
+    order: -1;
+    text-align: left;
+  }
   /* Dialog controls: the buttons, selects and inputs of a form sheet are the
      controls a phone user is about to hit next, and only the license dialog
      used to lift them to 44px (its own scoped rule). One rule for every

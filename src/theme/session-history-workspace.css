@@ -253,16 +253,32 @@ html[data-theme] .session-history-workspace .session-history-id-tail {
     position: relative;
   }
 
-  .session-history-workspace .session-history-table .session-history-customer {
+  /* html[data-theme] .data-table-wrap-prefixed: consistency.css makes the
+     last cell of every stacked card a static footer under a rule (0,5,4) and
+     zeroes the title cell's right padding (0,3,4), which is the right shape
+     for the other tables and put this chevron alone at the bottom-left of a
+     340px card. It belongs beside the name; the name keeps clear of it. */
+  html[data-theme]
+    .data-table-wrap
+    .table-frame--stack
+    > tbody
+    > tr
+    > td.session-history-customer:first-child {
     grid-column: 1 / -1;
     min-width: 0;
     padding-right: 66px;
   }
 
-  .session-history-workspace .session-history-table .session-history-row-actions {
+  html[data-theme]
+    .data-table-wrap
+    .table-frame--stack
+    > tbody
+    > tr
+    > td.session-history-row-actions:last-child:not([colspan]) {
     position: absolute;
     inset: 10px 12px auto auto;
     width: 44px;
+    margin-top: 0;
     padding: 0;
     border: 0;
     background: transparent;

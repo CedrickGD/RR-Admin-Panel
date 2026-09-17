@@ -1,10 +1,18 @@
 import { Select } from "./ds/Select";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { UserActivityDay, UserActivityPayload } from "../types/telemetry";
-import { buildActivityTimelineRows, type ActivityTimelineSegment } from "../utils/activityTimeline";
+import {
+  activityAxisTicks,
+  activityGridStep,
+  activitySegmentLabelFits,
+  buildActivityTimelineRows,
+  formatActivityDate,
+  type ActivityTimelineSegment,
+} from "../utils/activityTimeline";
 import { fetchUserActivity } from "../utils/api";
 import { formatDuration, formatNumber } from "../utils/format";
 import { paginate } from "../utils/pagination";
+import { useMediaQuery } from "../hooks/useMediaQuery";
 import { TablePagination } from "./ds/TablePagination";
 
 type ActivityRange = "today" | "7d" | "30d" | "all";
@@ -16,7 +24,9 @@ const RANGE_OPTIONS: Array<{ key: ActivityRange; label: string }> = [
   { key: "all", label: "Lifetime" },
 ];
 const TIMELINE_PAGE_SIZE = 30;
-const HOUR_TICKS = Array.from({ length: 13 }, (_, index) => index * 2);
+/* Below this content width the date column drops to "Thu 17" so the 24-hour
+   track keeps the room; a 390px phone lands at ~250px, a tablet well above. */
+const COMPACT_TIMELINE_PX = 520;
 const CACHE_TTL_MS = 60_000;
 const CACHE_MAX_ENTRIES = 16;
 const activityCache = new Map<string, { payload: UserActivityPayload; cachedAt: number }>();
@@ -53,17 +63,6 @@ interface SelectedSegment extends ActivityTimelineSegment {
   date: string;
 }
 
-function formatDateKey(date: string): string {
-  const [year, month, day] = date.split("-").map(Number);
-  return new Intl.DateTimeFormat("en-GB", {
-    timeZone: "UTC",
-    weekday: "short",
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(Date.UTC(year, month - 1, day, 12)));
-}
-
 function localDateKey(value: string, timezone: string): string {
   const values: Record<string, string> = {};
   const formatter = new Intl.DateTimeFormat("en-CA", {
@@ -90,7 +89,62 @@ function formatClock(value: string, timezone: string): string {
 
 function segmentLabel(segment: SelectedSegment, timezone: string): string {
   const prefix = segment.approximateEnd ? "≈ " : "";
-  return `${formatDateKey(segment.date)} · ${formatClock(segment.startedAt, timezone)}–${prefix}${formatClock(segment.endedAt, timezone)} · ${formatDuration(segment.durationSeconds)} · ${timezone}`;
+  return `${formatActivityDate(segment.date)} · ${formatClock(segment.startedAt, timezone)}–${prefix}${formatClock(segment.endedAt, timezone)} · ${formatDuration(segment.durationSeconds)} · ${timezone}`;
+}
+
+interface MeasuredWidths {
+  /** Content width of the timeline box, or null until it has been laid out. */
+  timeline: number | null;
+  /** Width of the hour track (the axis shares its grid column), or null. */
+  track: number | null;
+}
+
+/**
+ * The timeline used to be drawn at a fixed 760px and scrolled on anything
+ * narrower, which on a phone showed 00:00–02:00 of every day. It scales to
+ * its container now, and the container is measured rather than assumed: a
+ * ResizeObserver on the box and on the axis feeds the tick set, the date
+ * format and the bar labels, and follows every later resize (drawer, rotate).
+ * Sizes are read in a layout effect so the first paint already has them.
+ */
+function useMeasuredWidths(enabled: boolean) {
+  const timelineRef = useRef<HTMLDivElement>(null);
+  const axisRef = useRef<HTMLDivElement>(null);
+  const [widths, setWidths] = useState<MeasuredWidths>({ timeline: null, track: null });
+  useLayoutEffect(() => {
+    const timeline = timelineRef.current;
+    const axis = axisRef.current;
+    if (!enabled || !timeline || !axis || typeof ResizeObserver === "undefined") return;
+    // jsdom and a display:none ancestor both report 0 — that is "unmeasured", not "narrow".
+    const px = (width: number) => (width > 0 ? Math.round(width) : null);
+    const apply = (next: MeasuredWidths) =>
+      setWidths((prev) =>
+        prev.timeline === next.timeline && prev.track === next.track ? prev : next,
+      );
+    const current = { current: { timeline: null, track: null } as MeasuredWidths };
+    const observer = new ResizeObserver((entries) => {
+      const next = { ...current.current };
+      for (const entry of entries) {
+        if (entry.target === timeline) next.timeline = px(entry.contentRect.width);
+        else if (entry.target === axis) next.track = px(entry.contentRect.width);
+      }
+      current.current = next;
+      apply(next);
+    });
+    observer.observe(timeline);
+    observer.observe(axis);
+    // Content box, like the observer's contentRect: the box's 8px paddings are not track.
+    const style = getComputedStyle(timeline);
+    current.current = {
+      timeline: px(
+        timeline.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
+      ),
+      track: px(axis.getBoundingClientRect().width),
+    };
+    apply(current.current);
+    return () => observer.disconnect();
+  }, [enabled]);
+  return { timelineRef, axisRef, widths };
 }
 
 /** Exact, lightweight date-row timeline for one user's recorded app-online time. */
@@ -102,6 +156,8 @@ export function UserActivityPanel({ identity }: UserActivityPanelProps) {
   const [timelinePage, setTimelinePage] = useState(1);
   const [selectedSegment, setSelectedSegment] = useState<SelectedSegment | null>(null);
   const requestSeq = useRef(0);
+  // A screen with no hover (a phone, a tablet) gets told to tap, not to hover.
+  const touch = useMediaQuery("(hover: none)");
 
   useEffect(() => {
     const cacheKey = `${identity}\u0000${range}`;
@@ -159,6 +215,14 @@ export function UserActivityPanel({ identity }: UserActivityPanelProps) {
     if (dayPage.page !== timelinePage) setTimelinePage(dayPage.page);
   }, [dayPage.page, timelinePage]);
 
+  const showTimeline = Boolean(
+    !loading && !error && activity && !activity.legacyOnly && activity.totalSeconds > 0,
+  );
+  const { timelineRef, axisRef, widths } = useMeasuredWidths(showTimeline);
+  const compact = widths.timeline !== null && widths.timeline < COMPACT_TIMELINE_PX;
+  const ticks = useMemo(() => activityAxisTicks(widths.track), [widths.track]);
+  const timelineStyle = { "--activity-grid-step": activityGridStep(ticks) } as CSSProperties;
+
   function selectRange(nextRange: ActivityRange) {
     setRange(nextRange);
     setTimelinePage(1);
@@ -187,7 +251,7 @@ export function UserActivityPanel({ identity }: UserActivityPanelProps) {
         {
           label: "First seen",
           value: activity.firstSeen
-            ? formatDateKey(localDateKey(activity.firstSeen, activity.timezone))
+            ? formatActivityDate(localDateKey(activity.firstSeen, activity.timezone))
             : "—",
         },
         { label: "Timezone", value: activity.timezone },
@@ -237,19 +301,19 @@ export function UserActivityPanel({ identity }: UserActivityPanelProps) {
         <p className="user-activity-note">No recorded app-online activity in this range.</p>
       ) : activity ? (
         <>
-          <div className="user-activity-stats">
+          <dl className="user-activity-stats">
             {stats.map((entry) => (
               <div key={entry.label} className="user-activity-stat">
-                <span className="user-activity-stat-label">{entry.label}</span>
-                <span className="user-activity-stat-value">{entry.value}</span>
+                <dt className="user-activity-stat-label">{entry.label}</dt>
+                <dd className="user-activity-stat-value">{entry.value}</dd>
               </div>
             ))}
-          </div>
+          </dl>
 
           <div className="user-activity-selection" role="status" aria-live="polite">
             {selectedSegment ? (
               <>
-                <strong>{formatDateKey(selectedSegment.date)}</strong>
+                <strong>{formatActivityDate(selectedSegment.date)}</strong>
                 <span>
                   {formatClock(selectedSegment.startedAt, activity.timezone)}–
                   {selectedSegment.approximateEnd ? "≈ " : ""}
@@ -258,18 +322,26 @@ export function UserActivityPanel({ identity }: UserActivityPanelProps) {
                 </span>
               </>
             ) : (
-              <span>Hover, focus, or select a segment to read its exact start and end time.</span>
+              <span>
+                {touch
+                  ? "Tap a segment for its exact start and end time."
+                  : "Hover or select a segment for its exact start and end time."}
+              </span>
             )}
           </div>
 
           <div className="user-activity-timeline-scroll">
-            <div className="user-activity-timeline">
+            <div
+              ref={timelineRef}
+              className={`user-activity-timeline${compact ? " is-compact" : ""}`}
+              style={timelineStyle}
+            >
               <div className="user-activity-timeline-axis-row" aria-hidden="true">
                 <span>Date</span>
-                <div className="user-activity-timeline-axis">
-                  {HOUR_TICKS.map((hour) => (
-                    <span key={hour} style={{ left: `${(hour / 24) * 100}%` }}>
-                      {String(hour).padStart(2, "0")}:00
+                <div ref={axisRef} className="user-activity-timeline-axis">
+                  {ticks.map((tick) => (
+                    <span key={tick.hour} style={{ left: `${(tick.hour / 24) * 100}%` }}>
+                      {tick.label}
                     </span>
                   ))}
                 </div>
@@ -278,10 +350,15 @@ export function UserActivityPanel({ identity }: UserActivityPanelProps) {
 
               {visibleRows.map((row) => (
                 <div key={row.date} className="user-activity-timeline-row">
-                  <span className="user-activity-timeline-date">{formatDateKey(row.date)}</span>
+                  <span
+                    className="user-activity-timeline-date"
+                    title={compact ? formatActivityDate(row.date) : undefined}
+                  >
+                    {formatActivityDate(row.date, compact)}
+                  </span>
                   <div
                     className="user-activity-timeline-track"
-                    aria-label={`${formatDateKey(row.date)} app-online intervals`}
+                    aria-label={`${formatActivityDate(row.date)} app-online intervals`}
                   >
                     {row.segments.length === 0 ? (
                       <span className="user-activity-timeline-offline">offline</span>
@@ -307,7 +384,7 @@ export function UserActivityPanel({ identity }: UserActivityPanelProps) {
                             onFocus={() => setSelectedSegment(selected)}
                             onClick={() => setSelectedSegment(selected)}
                           >
-                            {segment.widthPercent >= 9
+                            {activitySegmentLabelFits(segment.widthPercent, widths.track)
                               ? formatClock(segment.startedAt, activity.timezone).slice(0, 5)
                               : null}
                           </button>

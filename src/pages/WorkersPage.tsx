@@ -8,9 +8,11 @@ import {
 } from "../components/CustomerProfiles";
 import {
   ArrowUpRight,
+  Check,
   ChevronDown,
   ChevronUp,
   Clock3,
+  Copy,
   Download,
   Globe2,
   History,
@@ -18,7 +20,16 @@ import {
   Search,
   UsersRound,
 } from "lucide-react";
-import { Fragment, lazy, Suspense, useDeferredValue, useEffect, useMemo, useState } from "react";
+import {
+  Fragment,
+  lazy,
+  Suspense,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { PageToolbar } from "../components/ds/PageToolbar";
 import { versionLabel } from "../utils/versionLabel";
 import { SearchInput } from "../components/ds/SearchInput";
@@ -68,10 +79,61 @@ const SCOPES: TabItem<Scope>[] = [
   { key: "all", label: "All customers" },
   { key: "online", label: "Online", icon: <Radio /> },
   { key: "offline", label: "Offline" },
-  { key: "errors", label: "With errors" },
+  // "Errors", not "With errors": the four pills then fit a 390px phone on one row
+  // (the Errors page names the same scope the same way).
+  { key: "errors", label: "Errors" },
 ];
 /** Column count of the history table — keeps the loading skeleton in step with the head. */
 const HISTORY_COLUMNS = 8;
+/** Characters of an identifier that stay visible when the rest ellipsises. */
+const ID_TAIL = 6;
+/** The identity is the hardware id itself for every customer that reports one. */
+const sameIdentifier = (user: UserRollupRecord) =>
+  Boolean(user.hwid && user.hwid.trim().toLowerCase() === user.identity.trim().toLowerCase());
+
+interface IdentifierFactProps {
+  label: string;
+  /** What the copy control names, e.g. "hardware ID". */
+  kind: string;
+  value: string | null;
+  copied: boolean;
+  onCopy: (value: string) => void;
+}
+
+/**
+ * One identifier in the device details: a single line that ellipsises in the
+ * middle instead of wrapping a 32-character id over three, plus the copy
+ * control Licenses and Customer 360 use (check mark for 1.8 s on success).
+ */
+function IdentifierFact({ label, kind, value, copied, onCopy }: IdentifierFactProps) {
+  if (!value) {
+    return (
+      <div>
+        <span>{label}</span>
+        <code>Not reported</code>
+      </div>
+    );
+  }
+  const split = Math.max(0, value.length - ID_TAIL);
+  return (
+    <div>
+      <span>{label}</span>
+      <span className="session-history-id">
+        <code title={value}>
+          <span className="session-history-id-head">{value.slice(0, split)}</span>
+          <span className="session-history-id-tail">{value.slice(split)}</span>
+        </code>
+        <IconButton
+          icon={copied ? <Check /> : <Copy />}
+          size={12}
+          title={copied ? "Copied" : `Copy ${kind}`}
+          aria-label={copied ? `${kind} ${value} copied` : `Copy ${kind} ${value}`}
+          onClick={() => onCopy(value)}
+        />
+      </span>
+    </div>
+  );
+}
 async function exportHistory(users: UserRollupRecord[]) {
   const XLSX = await import("xlsx");
   const rows = users.map((u) => ({
@@ -122,6 +184,20 @@ export function WorkersPage({
     const timer = window.setInterval(() => setNow(Date.now()), 15000);
     return () => window.clearInterval(timer);
   }, []);
+  // Which identifier was copied last — one flag, because only one confirmation shows at a time.
+  const [copiedValue, setCopiedValue] = useState<string | null>(null);
+  const copyTimer = useRef<number | null>(null);
+  useEffect(() => () => window.clearTimeout(copyTimer.current ?? undefined), []);
+  async function copyValue(value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedValue(value);
+      window.clearTimeout(copyTimer.current ?? undefined);
+      copyTimer.current = window.setTimeout(() => setCopiedValue(null), 1800);
+    } catch {
+      setCopiedValue(null);
+    }
+  }
   useEffect(() => {
     if (focusedWorkerId) {
       setQuery(focusedWorkerId);
@@ -498,10 +574,17 @@ export function WorkersPage({
                                   <span>First seen</span>
                                   <strong>{formatDate(user.firstSeen)}</strong>
                                 </div>
-                                <div>
-                                  <span>Hardware ID</span>
-                                  <code>{user.hwid || "Not reported"}</code>
-                                </div>
+                                {/* One id when the identity is the hardware id — the phone
+                                    showed the same 32 characters twice, six lines of mono. */}
+                                <IdentifierFact
+                                  label={
+                                    sameIdentifier(user) ? "Hardware ID · identity" : "Hardware ID"
+                                  }
+                                  kind="hardware ID"
+                                  value={user.hwid}
+                                  copied={copiedValue === user.hwid}
+                                  onCopy={(value) => void copyValue(value)}
+                                />
                                 <div>
                                   <span>Version</span>
                                   <strong>{versionOf(user)}</strong>
@@ -516,10 +599,15 @@ export function WorkersPage({
                                         : "Not reported"}
                                   </strong>
                                 </div>
-                                <div>
-                                  <span>Identity</span>
-                                  <code>{user.identity}</code>
-                                </div>
+                                {!sameIdentifier(user) && (
+                                  <IdentifierFact
+                                    label="Identity"
+                                    kind="identity"
+                                    value={user.identity}
+                                    copied={copiedValue === user.identity}
+                                    onCopy={(value) => void copyValue(value)}
+                                  />
+                                )}
                               </div>
                               <InstallsPanel hwid={user.hwid} />
                             </details>

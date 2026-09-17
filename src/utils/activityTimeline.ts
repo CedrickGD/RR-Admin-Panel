@@ -106,3 +106,69 @@ export function buildActivityTimelineRows(
     return { ...day, segments };
   });
 }
+
+export interface ActivityAxisTick {
+  hour: number;
+  /** "06:00" where the track has room for it, "06" where it does not. */
+  label: string;
+}
+
+/* An 11px monospace digit is ~6.6px wide; a full "06:00" label is five of them,
+   a short "06" two. The gap keeps neighbouring labels from reading as one. */
+const TICK_CHAR_PX = 6.6;
+const TICK_MIN_GAP_PX = 8;
+const FULL_TICK_PX = 5 * TICK_CHAR_PX + TICK_MIN_GAP_PX;
+const SHORT_TICK_PX = 2 * TICK_CHAR_PX + TICK_MIN_GAP_PX;
+
+const hourLabel = (hour: number, short: boolean) =>
+  `${String(hour).padStart(2, "0")}${short ? "" : ":00"}`;
+
+/**
+ * Hour ticks for the day-row axis, chosen from the measured track width so the
+ * labels never collide: every 2 h on a wide track (13 ticks), every 4 h on a
+ * tablet-wide one (7), every 6 h on a phone (00, 06, 12, 18, 24) — with the
+ * ":00" dropped once even those five would touch. `null` (not measured yet, or
+ * no layout engine) keeps the full 2-hour axis.
+ */
+export function activityAxisTicks(trackWidth: number | null): ActivityAxisTick[] {
+  const build = (stepHours: number, short: boolean) =>
+    Array.from({ length: 24 / stepHours + 1 }, (_, index) => {
+      const hour = index * stepHours;
+      return { hour, label: hourLabel(hour, short) };
+    });
+  if (trackWidth === null) return build(2, false);
+  for (const stepHours of [2, 4, 6]) {
+    if (trackWidth / (24 / stepHours) >= FULL_TICK_PX) return build(stepHours, false);
+  }
+  return build(6, trackWidth / 4 >= SHORT_TICK_PX);
+}
+
+/** Grid-line spacing for the track background, in step with the axis ticks. */
+export function activityGridStep(ticks: readonly ActivityAxisTick[]): string {
+  return `${100 / Math.max(1, ticks.length - 1)}%`;
+}
+
+/**
+ * Whether a bar is wide enough to carry its "HH:MM" start label. Percent alone
+ * (the old `>= 9%` rule) let a 10px bar on a phone clip the digits; the pixel
+ * width decides once the track is measured.
+ */
+export function activitySegmentLabelFits(widthPercent: number, trackWidth: number | null): boolean {
+  if (trackWidth === null) return widthPercent >= 9;
+  return (widthPercent / 100) * trackWidth >= 5 * TICK_CHAR_PX + 6;
+}
+
+/**
+ * Row label for a local calendar date: "Thu, 17 Sept 2026", or "Thu 17" where
+ * the date column has to stay narrow (the full date goes on the title).
+ */
+export function formatActivityDate(date: string, compact = false): string {
+  const [year, month, day] = parseDate(date);
+  const at = new Date(Date.UTC(year, month - 1, day, 12));
+  return new Intl.DateTimeFormat(
+    "en-GB",
+    compact
+      ? { timeZone: "UTC", weekday: "short", day: "2-digit" }
+      : { timeZone: "UTC", weekday: "short", day: "2-digit", month: "short", year: "numeric" },
+  ).format(at);
+}

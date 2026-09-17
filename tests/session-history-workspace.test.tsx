@@ -245,7 +245,7 @@ describe("Session history workspace", () => {
     expect(names()).toEqual(["Avery"]);
     await click(button("Offline"));
     expect(names()).toEqual(["Noah", "Mara"]);
-    await click(button("With errors"));
+    await click(button("Errors"));
     expect(names()).toEqual(["Avery", "Noah"]);
     await click(button("Reset"));
     expect(names()).toEqual(["Avery", "Noah", "Mara"]);
@@ -291,6 +291,20 @@ describe("Session history workspace", () => {
     expect(details.textContent).toContain("HW-PRIVATE-AVERY");
     expect(details.textContent).toContain("Discord RPC");
     expect(details.textContent).toContain("Enabled");
+    // Avery's identity is not her hardware id, so both are listed, each with its own copy control.
+    const factLabels = Array.from(
+      details.querySelectorAll(".detail-facts > div > span:first-child"),
+    ).map((label) => label.textContent);
+    expect(factLabels).toEqual([
+      "Device",
+      "First seen",
+      "Hardware ID",
+      "Version",
+      "Discord RPC",
+      "Identity",
+    ]);
+    expect(button("Copy hardware ID HW-PRIVATE-AVERY")).toBeDefined();
+    expect(button("Copy identity customer-avery")).toBeDefined();
     expect(button("Hide session history for Avery")?.getAttribute("aria-controls")).toBe(
       timeline?.id,
     );
@@ -304,6 +318,47 @@ describe("Session history workspace", () => {
     });
     await click(button("Hide session history for Avery"));
     expect(container.querySelector('[aria-label="Session timeline for Avery"]')).toBeNull();
+  });
+
+  it("prints a hardware id that is also the identity once, on one line, with a copy control", async () => {
+    const hwid = "4047727712F1B48A375F27290005E42B";
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    await render([customer({ identity: hwid.toLowerCase(), userLabel: "Lena", hwid })]);
+    await click(button("Show session history for Lena"));
+    const details = container.querySelector(".history-device-details");
+    if (!details) throw new Error("Missing device disclosure");
+    const codes = Array.from(details.querySelectorAll("code"));
+    expect(codes).toHaveLength(1);
+    expect(codes[0].getAttribute("title")).toBe(hwid);
+    expect(codes[0].textContent).toBe(hwid);
+    // The head ellipsises, the last characters stay visible.
+    expect(codes[0].querySelector(".session-history-id-head")?.textContent).toBe(
+      "4047727712F1B48A375F272900",
+    );
+    expect(codes[0].querySelector(".session-history-id-tail")?.textContent).toBe("05E42B");
+    const labels = Array.from(
+      details.querySelectorAll(".detail-facts > div > span:first-child"),
+    ).map((label) => label.textContent);
+    expect(labels).toEqual([
+      "Device",
+      "First seen",
+      "Hardware ID · identity",
+      "Version",
+      "Discord RPC",
+    ]);
+    expect(labels).not.toContain("Identity");
+    await click(button(`Copy hardware ID ${hwid}`));
+    expect(writeText).toHaveBeenCalledWith(hwid);
+    await waitFor(() => button(`hardware ID ${hwid} copied`) !== undefined);
+  });
+
+  it("keeps the four scope pills short enough for one row", async () => {
+    await render();
+    const pills = Array.from(
+      container.querySelectorAll('[aria-label="Activity filter"] [role="radio"]'),
+    ).map((pill) => pill.textContent?.trim());
+    expect(pills).toEqual(["All customers", "Online", "Offline", "Errors"]);
   });
 
   it("honors export and customer permissions while keeping monitoring usable", async () => {

@@ -30,9 +30,11 @@ export async function onRequestGet(context: HandlerContext): Promise<Response> {
     if (!db) return error(500, "Database not available");
 
     // ?kind=feedback|support narrows the list to one inbox; omitted = both. The unread summary
-    // below always counts both inboxes, so the section tabs stay right whatever is listed.
-    const requestedKind = new URL(context.request.url).searchParams.get("kind");
-    if (requestedKind !== null && !isFeedbackKind(requestedKind)) {
+    // below always counts both inboxes, so the section tabs stay right whatever is listed. A
+    // repeated kind (?kind=feedback&kind=support) is malformed like any other unknown value.
+    const kinds = new URL(context.request.url).searchParams.getAll("kind");
+    const requestedKind = kinds.length === 1 && isFeedbackKind(kinds[0]) ? kinds[0] : null;
+    if (kinds.length > 0 && !requestedKind) {
       return error(400, "kind must be one of: feedback, support.");
     }
 

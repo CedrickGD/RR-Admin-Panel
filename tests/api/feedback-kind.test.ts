@@ -196,6 +196,19 @@ describe("GET /api/admin/feedback kind", () => {
     expect((await list("?kind=bug")).status).toBe(400);
   });
 
+  it("rejects a malformed ?kind, a repeated one included", async () => {
+    await submit({});
+    for (const query of [
+      "?kind=bug",
+      "?kind=",
+      "?kind=feedback&kind=support",
+      "?kind=support&kind=support",
+    ]) {
+      expect((await list(query)).status, query).toBe(400);
+    }
+    expect((await list("?kind=feedback")).status).toBe(200);
+  });
+
   it("changes status and deletes reports of either kind", async () => {
     const support = await submit({ diagnostics: diagnostics() });
     const feedback = await submit({});

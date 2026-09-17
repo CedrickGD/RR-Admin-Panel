@@ -270,7 +270,42 @@ html[data-theme] .session-history-workspace .session-history-id-tail {
     > td.session-history-customer:first-child {
     grid-column: 1 / -1;
     min-width: 0;
-    padding-right: 66px;
+  }
+
+  /* The chevron only occupies the card's first 44px, so only the lines in
+     that band keep clear of it: a right float the chevron's height (its 42px
+     into the cell plus a gap) shortens those line boxes and no others. A
+     66px padding on the whole cell narrowed every line, and the longest
+     handle broke mid-word at 390px. The copy is block here, not grid — a
+     float does not reach into grid items. */
+  .session-history-workspace
+    .table-frame--stack
+    td.session-history-customer
+    .session-history-identity-copy {
+    display: block;
+  }
+  .session-history-workspace
+    .table-frame--stack
+    td.session-history-customer
+    .session-history-identity-copy::before {
+    content: "";
+    float: right;
+    width: 52px;
+    height: 40px;
+  }
+  .session-history-workspace
+    .table-frame--stack
+    td.session-history-customer
+    .session-history-identity-copy
+    :is(strong, small) {
+    display: block;
+  }
+  .session-history-workspace
+    .table-frame--stack
+    td.session-history-customer
+    .session-history-identity-copy
+    small {
+    margin-top: 3px;
   }
 
   html[data-theme]

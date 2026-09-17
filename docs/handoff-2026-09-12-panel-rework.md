@@ -678,6 +678,19 @@ zehnmal hintereinander beim Neuzeichnen fehlschlägt, aktualisiert sich für den
   `start_period` 26 h) und System health zeigt das Alter der letzten *geprüften* Sicherung.
 - Ausgeliefert mit `-Service backup,rr-api,admin` (`index-Btr2bESu.js` / `index-BKKesyo0.css`).
 
-**In Arbeit (Wunsch des Besitzers vom 16.09.):** IP-Adresse pro Kunde im Verzeichnis, in Customer 360 und in
-einem Excel-Export des Verzeichnisses (die Daten liegen in `app_sessions.client_ip`, die Kundenzusammenfassung
-hatte sie nie); die Statusspalte des Verzeichnisses wird kompakt neu gebaut (Badges nur bei Auffälligkeit).
+### Kundenverzeichnis (17.09.2026), live mit `5e18004`
+
+Wunsch des Besitzers vom 16.09.: IP-Adressen zurück und die Statusspalte lesbar machen.
+- **Last IP:** Die Kundenzusammenfassung (`functions/_lib/stats.ts`) trägt jetzt die IP der neuesten
+  Sitzung und die Zahl der gesehenen Adressen (die Daten lagen immer in `app_sessions.client_ip`). Eigene
+  Spalte im Verzeichnis (mono, sortierbar, über die Suche findbar, IPv6 zweizeilig), in Customer 360 mit Ort
+  und Adresszahl, im neuen **Excel-Export des Verzeichnisses** (Knopf in der Kopfzeile, exportiert die
+  gefilterte Liste über alle Seiten) und als „Client IP“ im Export der Session history.
+  Breite: bei 1920 (Leiste offen) zeigt die Tabelle IP statt Ort, bei 1440 ist IP wie die anderen
+  Nebenspalten ausgeblendet (Karte, Export, Customer 360 haben sie).
+- **Statusspalte:** Die gestapelten Zeilen „App access / Support“ sind durch eine Spalte ersetzt, die nur
+  bei Auffälligkeit ein Badge zeigt (Banned, Suspended until …, N errors, Down, Degraded), sonst „—“; volle
+  Wortlaute im Tooltip und in der Handy-Karte. „Needs attention“ und die Spalte teilen eine Regel
+  (`directoryStatus` in `src/utils/userDirectory.ts`). Geometrie bei 1920/1440/390 gemessen, keine
+  Zelle läuft mehr in die Nachbarspalte.
+

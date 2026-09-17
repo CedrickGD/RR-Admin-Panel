@@ -10,10 +10,7 @@ import { CustomerWorkspaceRouter } from "./components/CustomerWorkspaceRouter";
 import { canVisit } from "../shared/panel-policy";
 import { PanelIdentity } from "./hooks/usePanelPermission";
 import { CustomerProfilesProvider } from "./components/CustomerProfiles";
-import {
-  clearWorkspaceSearchesExcept,
-  setWorkspaceSearch,
-} from "./hooks/useWorkspaceSearch";
+import { clearWorkspaceSearchesExcept, setWorkspaceSearch } from "./hooks/useWorkspaceSearch";
 import type { MapFocusTarget } from "./pages/HeatmapPage";
 import type { PageKey } from "./types/telemetry";
 import { pageHeading } from "./pageMeta";
@@ -302,7 +299,9 @@ export default function App() {
           <p className="kicker" style={{ marginBottom: 8 }}>
             Session check unavailable
           </p>
-          <h1 style={{ fontSize: "var(--fs-page)", marginBottom: 8 }}>Still checking your sign-in</h1>
+          <h1 style={{ fontSize: "var(--fs-page)", marginBottom: 8 }}>
+            Still checking your sign-in
+          </h1>
           <p style={{ fontSize: "var(--fs-body)", color: "var(--text-2)", lineHeight: 1.7 }}>
             {sessionError}
           </p>
@@ -371,10 +370,18 @@ export default function App() {
                     >
                       Load error
                     </p>
-                    <p style={{ fontSize: "var(--fs-small)", color: "var(--text-1)", marginBottom: 4 }}>
+                    <p
+                      style={{
+                        fontSize: "var(--fs-small)",
+                        color: "var(--text-1)",
+                        marginBottom: 4,
+                      }}
+                    >
                       The dashboard could not refresh.
                     </p>
-                    <p style={{ fontSize: "var(--fs-small)", color: "hsl(4 86% 68%)" }}>{loadError}</p>
+                    <p style={{ fontSize: "var(--fs-small)", color: "hsl(4 86% 68%)" }}>
+                      {loadError}
+                    </p>
                   </div>
                   <button type="button" className="btn btn-ghost btn-sm" onClick={refresh}>
                     Retry
@@ -452,9 +459,7 @@ export default function App() {
                       onOpenMapUser={handleOpenMapUser}
                     />
                   ) : null}
-                  {page === "customers" ? (
-                    <CustomersPage users={users} />
-                  ) : null}
+                  {page === "customers" ? <CustomersPage users={users} /> : null}
                   {page === "errors" ? <ErrorsPage /> : null}
                   {page === "licenses" ? (
                     <LicensesPage
@@ -463,18 +468,10 @@ export default function App() {
                       onOpenWorker={handleOpenWorker}
                     />
                   ) : null}
-                  {page === "announcements" ? (
-                    <AnnouncementsPage />
-                  ) : null}
-                  {page === "feedback" ? (
-                    <FeedbackPage summary={summary} />
-                  ) : null}
+                  {page === "announcements" ? <AnnouncementsPage /> : null}
+                  {page === "feedback" ? <FeedbackPage summary={summary} /> : null}
                   {page === "settings" ? (
-                    <SettingsPage
-                      user={user}
-                      authMode={authMode}
-                      onLogout={() => void logout()}
-                    />
+                    <SettingsPage user={user} authMode={authMode} onLogout={() => void logout()} />
                   ) : null}
                   {page === "team" ? <TeamPage /> : null}
                 </Suspense>
@@ -494,8 +491,12 @@ export default function App() {
                   <p className="kicker" style={{ marginBottom: 8 }}>
                     Loading
                   </p>
-                  <h2 style={{ fontSize: "var(--fs-figure)", marginBottom: 8 }}>Fetching dashboard data</h2>
-                  <p style={{ fontSize: "var(--fs-small)", color: "var(--text-2)", lineHeight: 1.7 }}>
+                  <h2 style={{ fontSize: "var(--fs-figure)", marginBottom: 8 }}>
+                    Fetching dashboard data
+                  </h2>
+                  <p
+                    style={{ fontSize: "var(--fs-small)", color: "var(--text-2)", lineHeight: 1.7 }}
+                  >
                     Loading session summary and telemetry…
                   </p>
                 </div>

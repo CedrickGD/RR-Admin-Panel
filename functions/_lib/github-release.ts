@@ -823,6 +823,13 @@ export class GithubReleaseClient {
 
   /* ── Contents and the Git Data API ── */
 
+  /**
+   * One blob off the Contents API. `essential` **defaults to true** because the readers that
+   * matter run inside a write sequence — `verifyAgainstHead`, publish's manifest read,
+   * `discordEffectForPublish` — and a half-written release is worse than a spent rate limit. A
+   * browsing call site (the Workflows tab's per-file input read) passes `essential: false` so the
+   * §5 floor still applies to it.
+   */
   async getContent(
     path: string,
     options: ReadOptions & { ref?: string } = {},
@@ -1052,7 +1059,10 @@ export class GithubReleaseClient {
     for (const summary of summaries) {
       // One extra Contents read per workflow: the dispatch inputs are declared in the file, not
       // in the Actions API. A failed read leaves `inputs` empty rather than failing the list.
-      const blob = await this.getContent(summary.path).catch(() => null);
+      // `essential: false` is load-bearing — `getContent` defaults to essential because publish
+      // and make-current read through it mid-sequence, but N reads fired by a browser parked on
+      // the Workflows tab are exactly the browsing the §5 floor exists to stop.
+      const blob = await this.getContent(summary.path, { essential: false }).catch(() => null);
       if (blob?.content) summary.inputs = parseWorkflowDispatchInputs(blob.content);
     }
     return summaries;

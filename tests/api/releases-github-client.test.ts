@@ -263,6 +263,236 @@ describe("rate limits and stale fallback", () => {
     expect(failure.status).toBe(502);
     expect(failure.message).toBe("GitHub is unreachable.");
   });
+
+  // The Workflows tab reads every workflow file to learn its dispatch inputs. `getContent`
+  // defaults to essential (publish reads through it mid-sequence), so this call site has to opt
+  // out explicitly — otherwise a browser parked on that tab spends the hour a publish needs,
+  // which is the exact scenario §5's floor exists to stop.
+  it("throttles the Workflows tab's per-file reads below the floor", async () => {
+    const workflowsKey = `GET /repos/${REPO}/actions/workflows`;
+    const buildKey = `GET /repos/${REPO}/contents/.github/workflows/build-installer.yml`;
+    const yaml = "on:\n  workflow_dispatch:\n    inputs:\n      version:\n        required: true\n";
+    const listBody = {
+      workflows: [
+        { id: 1, name: "Build", path: ".github/workflows/build-installer.yml", state: "active" },
+      ],
+    };
+    const healthy = { "x-ratelimit-remaining": "5000", "x-ratelimit-reset": "1780000000" };
+    const exhausted = { "x-ratelimit-remaining": "3", "x-ratelimit-reset": "1780000000" };
+    github.once(workflowsKey, { body: listBody, headers: healthy });
+    github.on(workflowsKey, { body: listBody, headers: exhausted });
+    github.on(buildKey, {
+      body: { path: "x", sha: "s", size: 10, encoding: "base64", content: base64(yaml) },
+      headers: healthy,
+    });
+    const api = client({ GITHUB_TOKEN: READ_TOKEN }, github, () => 1_000);
+
+    // First pass, budget healthy: the file is read and cached, inputs come back parsed.
+    const first = await api.listWorkflows({ withInputs: true });
+    expect(first[0]?.inputs.map((input) => input.name)).toContain("version");
+    expect(github.callsFor(buildKey)).toHaveLength(1);
+    expect(api.stale).toBe(false);
+
+    // Second pass: the list read reports the exhausted budget, so the per-file read must serve
+    // the cached copy instead of spending another call — the throttling a browser parked on the
+    // Workflows tab has to be subject to.
+    const second = await api.listWorkflows({ withInputs: true });
+    expect(second).toEqual(first);
+    expect(github.callsFor(buildKey)).toHaveLength(1);
+    expect(api.stale).toBe(true);
+  });
+
+  it("does not spend the floor on workflow files it has never read", async () => {
+    const workflowsKey = `GET /repos/${REPO}/actions/workflows`;
+    const discordKey = `GET /repos/${REPO}/contents/.github/workflows/discord-release.yml`;
+    github.on(workflowsKey, {
+      body: {
+        workflows: [
+          {
+            id: 2,
+            name: "Discord",
+            path: ".github/workflows/discord-release.yml",
+            state: "active",
+          },
+        ],
+      },
+      headers: { "x-ratelimit-remaining": "3", "x-ratelimit-reset": "1780000000" },
+    });
+    github.on(discordKey, { body: {} });
+    const api = client({ GITHUB_TOKEN: READ_TOKEN }, github, () => 1_000);
+
+    // The list read reports the exhausted budget; nothing is cached for the file, so the
+    // per-workflow read is refused outright and the workflow keeps an empty input list.
+    const workflows = await api.listWorkflows({ withInputs: true });
+    expect(workflows[0]?.inputs).toEqual([]);
+    expect(github.callsFor(discordKey)).toHaveLength(0);
+  });
+});
+
+describe("release mutations", () => {
+  const WRITE_ENV: RuntimeEnv = { GITHUB_RELEASE_TOKEN: WRITE_TOKEN };
+
+  it("creates a draft release and defaults tag_name, name, body, draft and prerelease", async () => {
+    const key = `POST /repos/${REPO}/releases`;
+    github.on(key, (call) => ({
+      body: release({
+        id: 501,
+        tag_name: (call.body as { tag_name: string }).tag_name,
+        draft: true,
+      }),
+    }));
+    const created = await client(WRITE_ENV, github).createRelease({ tag: "v1.5.4" });
+
+    // draft: true is the load-bearing default — publishing is its own recorded step, and it is
+    // the step that fires the Discord post.
+    expect(github.callsFor(key)[0]?.body).toEqual({
+      tag_name: "v1.5.4",
+      name: "v1.5.4",
+      body: "",
+      draft: true,
+      prerelease: false,
+    });
+    expect(created).toMatchObject({ id: 501, tag: "v1.5.4", state: "draft" });
+  });
+
+  it("sends the title, body and prerelease it was given, and never publishes on create", async () => {
+    const key = `POST /repos/${REPO}/releases`;
+    github.on(key, {
+      body: release({ id: 502, tag_name: "v1.6.0", draft: true, prerelease: true }),
+    });
+    await client(WRITE_ENV, github).createRelease({
+      tag: "v1.6.0",
+      name: "RazorReaper 1.6.0",
+      body: "## Notes\n- one\n",
+      prerelease: true,
+    });
+    expect(github.callsFor(key)[0]?.body).toEqual({
+      tag_name: "v1.6.0",
+      name: "RazorReaper 1.6.0",
+      body: "## Notes\n- one\n",
+      draft: true,
+      prerelease: true,
+    });
+  });
+
+  it("honours an explicit draft: false on create rather than silently overriding it", async () => {
+    const key = `POST /repos/${REPO}/releases`;
+    github.on(key, { body: release({ id: 503, tag_name: "v1.6.1" }) });
+    await client(WRITE_ENV, github).createRelease({ tag: "v1.6.1", draft: false });
+    expect((github.callsFor(key)[0]?.body as { draft: boolean }).draft).toBe(false);
+  });
+
+  it("PATCHes only the fields the patch names, and maps them to GitHub's spelling", async () => {
+    const key = `PATCH /repos/${REPO}/releases/77`;
+    github.on(key, { body: release({ id: 77, tag_name: "v1.5.4" }) });
+    const api = client(WRITE_ENV, github);
+
+    // Publish step 2: the body write. `draft` is deliberately absent — it is step 3's job.
+    await api.updateRelease(77, { name: "RazorReaper 1.5.4", body: "notes", prerelease: false });
+    expect(github.callsFor(key)[0]?.body).toEqual({
+      name: "RazorReaper 1.5.4",
+      body: "notes",
+      prerelease: false,
+    });
+
+    await api.updateRelease(77, { tag: "v1.5.5" });
+    expect(github.callsFor(key)[1]?.body).toEqual({ tag_name: "v1.5.5" });
+
+    // An empty patch sends an empty object: nothing is invented and no field is defaulted in.
+    await api.updateRelease(77, {});
+    expect(github.callsFor(key)[2]?.body).toEqual({});
+  });
+
+  it("publishes with a body of exactly { draft: false } and nothing else", async () => {
+    const key = `PATCH /repos/${REPO}/releases/77`;
+    github.on(key, { body: release({ id: 77, tag_name: "v1.5.4" }) });
+    const published = await client(WRITE_ENV, github).publishRelease(77);
+
+    // This is the one call in the panel that fires a GitHub release event, and so the Discord
+    // post. Any extra key here — a body, a name, a prerelease flip — would be an unreviewed
+    // rewrite riding along with the publish the owner actually confirmed.
+    expect(github.keys()).toEqual([key]);
+    expect(github.callsFor(key)[0]?.body).toEqual({ draft: false });
+    expect(Object.keys(github.callsFor(key)[0]?.body as object)).toEqual(["draft"]);
+    expect(published).toMatchObject({ id: 77, state: "published" });
+  });
+
+  it("unpublishes back to a draft with { draft: true }, keeping tag and assets", async () => {
+    const key = `PATCH /repos/${REPO}/releases/77`;
+    github.on(key, { body: release({ id: 77, tag_name: "v1.5.4", draft: true }) });
+    const back = await client(WRITE_ENV, github).updateRelease(77, { draft: true });
+    expect(github.callsFor(key)[0]?.body).toEqual({ draft: true });
+    expect(back.state).toBe("draft");
+    expect(back.assets.map((asset) => asset.name)).toEqual(["RazorReaper-Setup.exe"]);
+  });
+
+  it("lists a release's assets off the assets endpoint", async () => {
+    const key = `GET /repos/${REPO}/releases/77/assets`;
+    github.on(key, {
+      body: [
+        {
+          id: 42,
+          name: "RazorReaper-Setup.exe",
+          size: 76_000,
+          content_type: "application/octet-stream",
+          download_count: 7,
+          updated_at: "2026-09-01T10:04:00Z",
+        },
+        { id: 43, name: "notes.txt", size: 12 },
+      ],
+    });
+    const assets = await client(WRITE_ENV, github).listAssets(77);
+    expect(github.keys()).toEqual([key]);
+    expect(assets[0]).toEqual({
+      id: 42,
+      name: "RazorReaper-Setup.exe",
+      size: 76_000,
+      contentType: "application/octet-stream",
+      downloadCount: 7,
+      updatedAt: "2026-09-01T10:04:00Z",
+    });
+    // A reply missing the optional fields still maps, so a thin asset never breaks the page.
+    expect(assets[1]).toMatchObject({ contentType: "application/octet-stream", downloadCount: 0 });
+  });
+
+  it("deletes one asset by id and tolerates the 204 GitHub answers with", async () => {
+    const key = `DELETE /repos/${REPO}/releases/assets/42`;
+    github.on(key, { status: 204 });
+    await expect(client(WRITE_ENV, github).deleteAsset(42)).resolves.toBeUndefined();
+    expect(github.keys()).toEqual([key]);
+    expect(github.callsFor(key)[0]?.body).toBeUndefined();
+  });
+
+  it("refuses every one of these mutations without a write token, before any request", async () => {
+    const api = client({ GITHUB_TOKEN: READ_TOKEN }, github);
+    const attempts: Array<[string, () => Promise<unknown>]> = [
+      ["createRelease", () => api.createRelease({ tag: "v1.5.4" })],
+      ["updateRelease", () => api.updateRelease(77, { body: "x" })],
+      ["publishRelease", () => api.publishRelease(77)],
+      ["deleteAsset", () => api.deleteAsset(42)],
+    ];
+    for (const [name, attempt] of attempts) {
+      const refusal = (await attempt().catch((e: unknown) => e)) as GithubApiError;
+      expect(isGithubApiError(refusal), name).toBe(true);
+      expect(refusal.status, name).toBe(409);
+      expect(refusal.code, name).toBe("no-write-token");
+    }
+    expect(github.calls).toHaveLength(0);
+  });
+
+  it("maps a failed publish onto the panel's own error, never GitHub's prose", async () => {
+    github.on(`PATCH /repos/${REPO}/releases/77`, {
+      status: 422,
+      body: { message: `Validation Failed for ${WRITE_TOKEN}` },
+    });
+    const failure = (await client(WRITE_ENV, github)
+      .publishRelease(77)
+      .catch((e: unknown) => e)) as GithubApiError;
+    expect(failure.status).toBe(422);
+    expect(failure.message).toBe("GitHub refused the request as invalid.");
+    expect(failure.message).not.toContain(WRITE_TOKEN);
+    expect(failure.message).not.toContain("Validation Failed");
+  });
 });
 
 describe("error mapping", () => {

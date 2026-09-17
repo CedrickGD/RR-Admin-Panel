@@ -1,7 +1,7 @@
 import { TableFrame } from "../components/ds/TableFrame";
 import { Select } from "../components/ds/Select";
 import { Megaphone, Plus, Trash2, Pencil } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
 import { Badge } from "../components/ds/Badge";
 import { Button, IconButton } from "../components/ds/Button";
 import { EmptyState } from "../components/ds/EmptyState";
@@ -13,6 +13,7 @@ import { SkeletonRows } from "../components/ds/Skeleton";
 import { formatDate } from "../utils/format";
 import { apiUrl, fetchApi } from "../utils/api";
 import { useRefreshSignal } from "../utils/refreshBus";
+import { useReleaseVersions } from "../hooks/useReleaseVersions";
 
 type AnnouncementLevel = "info" | "warning" | "critical";
 
@@ -24,6 +25,9 @@ interface AnnouncementRecord {
   is_active: number;
   starts_at: string | null;
   expires_at: string | null;
+  /** Inclusive app-version bounds; null on both = every install, the behaviour before targeting. */
+  min_version: string | null;
+  max_version: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -35,6 +39,8 @@ interface FormState {
   is_active: boolean;
   starts_at: string;
   expires_at: string;
+  min_version: string;
+  max_version: string;
 }
 
 const EMPTY_FORM: FormState = {
@@ -44,7 +50,16 @@ const EMPTY_FORM: FormState = {
   is_active: true,
   starts_at: "",
   expires_at: "",
+  min_version: "",
+  max_version: "",
 };
+
+/**
+ * The `ds/Select` value that swaps the bound to free text. A published release is one click, but a
+ * bound is not always one: the 272 stranded installs are pinned at 1.4.8 (design decision 5), and a
+ * tag that old has long dropped off the list the versions endpoint returns.
+ */
+const CUSTOM_VERSION = "__custom__";
 
 const LEVEL_TONE: Record<AnnouncementLevel, "info" | "warning" | "danger"> = {
   info: "info",
@@ -75,6 +90,75 @@ function localInputToIso(local: string): string | null {
   const ts = Date.parse(local);
   if (!Number.isFinite(ts)) return null;
   return new Date(ts).toISOString();
+}
+
+/** The targeting summary for the list, or null while the row is for everyone. */
+function versionTargetLabel(a: AnnouncementRecord): string | null {
+  const min = a.min_version?.trim() || "";
+  const max = a.max_version?.trim() || "";
+  if (!min && !max) return null;
+  if (min && max) return min === max ? `Versions: ${min} only` : `Versions: ${min} – ${max}`;
+  return min ? `Versions: ${min} and up` : `Versions: ${max} and below`;
+}
+
+/**
+ * One inclusive bound of the announcement's version range (design §10). The list comes from
+ * `GET /api/admin/releases/versions`, so the common case — "everything from 1.5.0 on" — is one
+ * click; "Other version…" swaps the same field to free text, because the bound that matters most
+ * (1.4.8 and below, decision 5) names a release too old to still be in that list. Picking anything
+ * else from the dropdown leaves free text again, so the two are one control, not a mode to escape.
+ */
+function VersionBoundField({
+  label,
+  help,
+  value,
+  versions,
+  onChange,
+}: {
+  label: string;
+  help: string;
+  value: string;
+  versions: string[];
+  onChange: (next: string) => void;
+}) {
+  const selectId = useId();
+  // Mount-time only, and the dialog unmounts its content when it closes, so every open re-derives
+  // it: a stored bound the releases list does not carry is free text and shows as free text.
+  const [custom, setCustom] = useState(() => value.trim() !== "" && !versions.includes(value));
+
+  return (
+    <Field label={label} hint="optional" help={help} htmlFor={selectId}>
+      <Select
+        id={selectId}
+        value={custom ? CUSTOM_VERSION : value}
+        onValueChange={(next) => {
+          if (next === CUSTOM_VERSION) {
+            setCustom(true);
+            return;
+          }
+          setCustom(false);
+          onChange(next);
+        }}
+      >
+        <option value="">Any version</option>
+        {versions.map((version) => (
+          <option key={version} value={version}>
+            {version}
+          </option>
+        ))}
+        <option value={CUSTOM_VERSION}>Other version…</option>
+      </Select>
+      {custom ? (
+        <Input
+          aria-label={`${label} (typed)`}
+          placeholder="e.g. 1.4.8"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          maxLength={24}
+        />
+      ) : null}
+    </Field>
+  );
 }
 
 /** Live display state derived from the active flag + schedule window. */
@@ -112,6 +196,9 @@ export function AnnouncementsPage() {
 
   const [deleteCandidate, setDeleteCandidate] = useState<AnnouncementRecord | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  // Published release versions from GET /api/admin/releases/versions — the same hook the Versions
+  // page uses, so the dropdowns cost nothing extra on a page that already has its cache.
+  const releaseVersions = useReleaseVersions();
 
   const fetchAnnouncements = async (silent = false) => {
     try {
@@ -151,6 +238,8 @@ export function AnnouncementsPage() {
       is_active: a.is_active === 1,
       starts_at: isoToLocalInput(a.starts_at),
       expires_at: isoToLocalInput(a.expires_at),
+      min_version: a.min_version ?? "",
+      max_version: a.max_version ?? "",
     };
     setForm(loaded);
     editorBaseline.current = loaded;
@@ -174,6 +263,9 @@ export function AnnouncementsPage() {
         is_active: form.is_active,
         starts_at: localInputToIso(form.starts_at),
         expires_at: localInputToIso(form.expires_at),
+        // Always sent, so clearing a bound back to "Any version" actually clears it on the row.
+        min_version: form.min_version.trim(),
+        max_version: form.max_version.trim(),
       };
       const path =
         editingId === null ? "/api/admin/announcements" : `/api/admin/announcements/${editingId}`;
@@ -374,6 +466,9 @@ export function AnnouncementsPage() {
                       <div>
                         <div>From: {a.starts_at ? formatDate(a.starts_at) : "immediately"}</div>
                         <div>Until: {a.expires_at ? formatDate(a.expires_at) : "no end"}</div>
+                        {/* Only when the row is targeted: an untargeted announcement reaching
+                            everyone is the norm and does not need a line saying so. */}
+                        {versionTargetLabel(a) ? <div>{versionTargetLabel(a)}</div> : null}
                       </div>
                     </td>
                     <td>
@@ -488,6 +583,25 @@ export function AnnouncementsPage() {
                 onChange={(e) => setForm({ ...form, expires_at: e.target.value })}
               />
             </Field>
+          </div>
+
+          {/* App-version targeting. Both bounds are inclusive; leaving both on "Any version" is
+              what every announcement written so far means — everyone sees it. */}
+          <div className="announcement-form-grid">
+            <VersionBoundField
+              label="Minimum version"
+              help="Installs older than this are not shown the announcement."
+              value={form.min_version}
+              versions={releaseVersions}
+              onChange={(min_version) => setForm({ ...form, min_version })}
+            />
+            <VersionBoundField
+              label="Maximum version"
+              help="Installs newer than this are not shown it either."
+              value={form.max_version}
+              versions={releaseVersions}
+              onChange={(max_version) => setForm({ ...form, max_version })}
+            />
           </div>
 
           <FormError message={saveError} />

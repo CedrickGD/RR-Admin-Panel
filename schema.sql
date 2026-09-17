@@ -116,6 +116,8 @@ CREATE TABLE IF NOT EXISTS announcements (
   is_active INTEGER NOT NULL DEFAULT 1,
   starts_at TEXT,          -- null = show immediately
   expires_at TEXT,         -- null = show until manually deactivated/deleted
+  min_version TEXT,        -- null = no lower bound; inclusive, compared by versionInRange
+  max_version TEXT,        -- null = no upper bound; both null = every client, as before targeting
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );

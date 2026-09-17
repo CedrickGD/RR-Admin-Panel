@@ -3,6 +3,7 @@ import {
   type FeedbackKind,
   type FeedbackUnread,
 } from "../../shared/feedback-contract";
+import { compareVersions } from "../../shared/releases-contract";
 import type { D1Database, RuntimeEnv } from "./types";
 
 /**
@@ -30,6 +31,10 @@ export interface AnnouncementRow {
   is_active: number;
   starts_at: string | null;
   expires_at: string | null;
+  /** Inclusive lower bound of the app versions this row targets; null = open-ended. */
+  min_version: string | null;
+  /** Inclusive upper bound; null = open-ended. Both null is "everyone", the historic behaviour. */
+  max_version: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -58,11 +63,38 @@ const ANNOUNCEMENTS_SCHEMA_STATEMENTS = [
     is_active INTEGER NOT NULL DEFAULT 1,
     starts_at TEXT,
     expires_at TEXT,
+    min_version TEXT,
+    max_version TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   )`,
   `CREATE INDEX IF NOT EXISTS idx_announcements_active ON announcements(is_active, expires_at)`,
+  // Also in FEEDBACK_SCHEMA_STATEMENTS and schema.sql: either ensure can be the first to run on a
+  // database, and the version-range marker below needs the table to exist.
+  `CREATE TABLE IF NOT EXISTS schema_markers (
+    key TEXT PRIMARY KEY,
+    applied_at TEXT NOT NULL
+  )`,
 ];
+
+/**
+ * Version targeting shipped long after the announcements table, and every live database already
+ * has that table — so `CREATE TABLE IF NOT EXISTS` above can never add the two columns to it.
+ * Same idiom as FEEDBACK_KIND_COLUMN: SQLite has no `ADD COLUMN IF NOT EXISTS`, so on a database
+ * that already carries them the ALTER fails with "duplicate column name", which is the success
+ * case. The marker row is what lets an already-migrated database skip the two throwing calls on
+ * every cold start; it is written only after both ALTERs got through, so a half-applied first
+ * attempt (column added, second call dropped) leaves the marker absent and the next call finishes
+ * the job. Both columns are nullable and mean "open-ended", so there is nothing to backfill: an
+ * existing row keeps matching every client, which is exactly the pre-targeting behaviour.
+ * The same statements live in tools/migrations/2026-09-18-announcement-version-range.sql for a
+ * database the app never touches.
+ */
+const ANNOUNCEMENT_VERSION_RANGE_COLUMNS = [
+  `ALTER TABLE announcements ADD COLUMN min_version TEXT`,
+  `ALTER TABLE announcements ADD COLUMN max_version TEXT`,
+];
+const ANNOUNCEMENT_VERSION_RANGE_MARKER = "2026-09-18-announcement-version-range";
 
 const FEEDBACK_SCHEMA_STATEMENTS = [
   `CREATE TABLE IF NOT EXISTS feedback (
@@ -110,6 +142,7 @@ const FEEDBACK_KIND_BACKFILL = `UPDATE feedback SET kind = 'support'
 // Per database, not per module: one process can talk to more than one DB (the tests open a fresh
 // in-memory database per case), and a module-wide flag would skip the DDL for every DB after the first.
 const feedbackSchemaReady = new WeakMap<object, Promise<void>>();
+const announcementsSchemaReady = new WeakMap<object, Promise<void>>();
 
 function isDuplicateColumn(err: unknown): boolean {
   const message = err instanceof Error ? err.message.toLowerCase() : "";
@@ -154,11 +187,33 @@ async function hasFeedbackDiagnosticsTable(db: D1Database): Promise<boolean> {
   }
 }
 
-export async function ensureAnnouncementsSchema(env: RuntimeEnv): Promise<void> {
-  const db = requireDb(env);
+async function prepareAnnouncementsSchema(db: D1Database): Promise<void> {
   for (const query of ANNOUNCEMENTS_SCHEMA_STATEMENTS) {
     await db.prepare(query).run();
   }
+  if (await hasSchemaMarker(db, ANNOUNCEMENT_VERSION_RANGE_MARKER)) return;
+  for (const query of ANNOUNCEMENT_VERSION_RANGE_COLUMNS) {
+    try {
+      await db.prepare(query).run();
+    } catch (err) {
+      if (!isDuplicateColumn(err)) throw err;
+    }
+  }
+  await db
+    .prepare(`INSERT OR IGNORE INTO schema_markers (key, applied_at) VALUES (?, ?)`)
+    .bind(ANNOUNCEMENT_VERSION_RANGE_MARKER, new Date().toISOString())
+    .run();
+}
+
+export async function ensureAnnouncementsSchema(env: RuntimeEnv): Promise<void> {
+  const db = requireDb(env);
+  let ready = announcementsSchemaReady.get(db);
+  if (!ready) {
+    ready = prepareAnnouncementsSchema(db);
+    announcementsSchemaReady.set(db, ready);
+    ready.catch(() => announcementsSchemaReady.delete(db));
+  }
+  await ready;
 }
 
 export async function ensureFeedbackSchema(env: RuntimeEnv): Promise<void> {
@@ -184,6 +239,43 @@ export async function loadFeedbackUnread(db: D1Database): Promise<FeedbackUnread
     unread.total += count;
   }
   return unread;
+}
+
+/**
+ * One to four numeric parts, each at most five digits: "1", "1.5", "1.5.3" and the 4-part
+ * "1.5.3.0" the desktop app's AppVersionInfo reports are all version bounds someone may type.
+ */
+const VERSION_BOUND = /^\d{1,5}(\.\d{1,5}){0,3}$/;
+
+/**
+ * Normalizes an announcement's version bound: trimmed, without a leading "v", empty → null
+ * (open-ended). The shape is *not* checked here — `isVersionBound` does that, so a typo gets a
+ * 400 naming the field instead of silently becoming null and widening who sees the row.
+ */
+export function toVersionBoundOrNull(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim().replace(/^v/i, "");
+  return trimmed ? trimmed : null;
+}
+
+/** True for an open-ended bound (null) and for anything `compareVersions` can order. */
+export function isVersionBound(value: string | null): boolean {
+  return value === null || VERSION_BOUND.test(value);
+}
+
+/**
+ * The announcement's targeting rule, as one message or null. A bound decides who is shown the
+ * banner, so a value `compareVersions` cannot order is refused rather than quietly nulled: "1.5.x"
+ * parses as 1.5.0, and the row would reach a different audience than the one that was typed. An
+ * inverted range matches nobody at all, which is never what anyone meant, so it is refused too.
+ */
+export function versionRangeError(min: string | null, max: string | null): string | null {
+  if (!isVersionBound(min)) return "Minimum version must be a version number, e.g. 1.4.8.";
+  if (!isVersionBound(max)) return "Maximum version must be a version number, e.g. 1.5.3.";
+  if (min && max && compareVersions(min, max) > 0) {
+    return "Minimum version must not be higher than maximum version.";
+  }
+  return null;
 }
 
 /** Normalizes a client-supplied datetime string to ISO-8601, or null if empty/invalid. */

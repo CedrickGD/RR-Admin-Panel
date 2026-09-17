@@ -2,6 +2,8 @@ import { requireDashboardAccess } from "../../../../_lib/admin";
 import {
   ensureAnnouncementsSchema,
   toIsoOrNull,
+  toVersionBoundOrNull,
+  versionRangeError,
   type AnnouncementLevel,
   type AnnouncementRow,
 } from "../../../../_lib/content";
@@ -52,6 +54,8 @@ export async function onRequestPut(context: HandlerContext): Promise<Response> {
       is_active?: boolean | number;
       starts_at?: string | null;
       expires_at?: string | null;
+      min_version?: string | null;
+      max_version?: string | null;
     }>(context.request);
 
     // Partial update: only overwrite fields the caller actually sent (a bare active toggle
@@ -79,14 +83,27 @@ export async function onRequestPut(context: HandlerContext): Promise<Response> {
       body.starts_at !== undefined ? toIsoOrNull(body.starts_at) : existing.starts_at;
     const expiresAt =
       body.expires_at !== undefined ? toIsoOrNull(body.expires_at) : existing.expires_at;
+    // The merged range is what gets validated, not only the bound this request happened to send:
+    // raising min_version alone can invert a range whose max_version was stored long before.
+    const minVersion =
+      body.min_version !== undefined
+        ? toVersionBoundOrNull(body.min_version)
+        : (existing.min_version ?? null);
+    const maxVersion =
+      body.max_version !== undefined
+        ? toVersionBoundOrNull(body.max_version)
+        : (existing.max_version ?? null);
+    const rangeError = versionRangeError(minVersion, maxVersion);
+    if (rangeError) return error(400, rangeError);
 
     await db
       .prepare(
         `UPDATE announcements
-         SET title = ?, body = ?, level = ?, is_active = ?, starts_at = ?, expires_at = ?, updated_at = ?
+         SET title = ?, body = ?, level = ?, is_active = ?, starts_at = ?, expires_at = ?,
+             min_version = ?, max_version = ?, updated_at = ?
          WHERE id = ?`,
       )
-      .bind(title, text, level, isActive, startsAt, expiresAt, nowIso(), id)
+      .bind(title, text, level, isActive, startsAt, expiresAt, minVersion, maxVersion, nowIso(), id)
       .run();
 
     return json({ ok: true });

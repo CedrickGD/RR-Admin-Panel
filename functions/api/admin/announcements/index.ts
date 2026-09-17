@@ -2,6 +2,8 @@ import { requireDashboardAccess } from "../../../_lib/admin";
 import {
   ensureAnnouncementsSchema,
   toIsoOrNull,
+  toVersionBoundOrNull,
+  versionRangeError,
   type AnnouncementLevel,
   type AnnouncementRow,
 } from "../../../_lib/content";
@@ -61,6 +63,8 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
       is_active?: boolean | number;
       starts_at?: string | null;
       expires_at?: string | null;
+      min_version?: string | null;
+      max_version?: string | null;
     }>(context.request);
 
     const title = body.title?.trim() ?? "";
@@ -76,14 +80,19 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
     const isActive = body.is_active === false || body.is_active === 0 ? 0 : 1;
     const startsAt = toIsoOrNull(body.starts_at);
     const expiresAt = toIsoOrNull(body.expires_at);
+    const minVersion = toVersionBoundOrNull(body.min_version);
+    const maxVersion = toVersionBoundOrNull(body.max_version);
+    const rangeError = versionRangeError(minVersion, maxVersion);
+    if (rangeError) return error(400, rangeError);
     const now = nowIso();
 
     const result = await db
       .prepare(
-        `INSERT INTO announcements (title, body, level, is_active, starts_at, expires_at, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO announcements (title, body, level, is_active, starts_at, expires_at,
+                                    min_version, max_version, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .bind(title, text, level, isActive, startsAt, expiresAt, now, now)
+      .bind(title, text, level, isActive, startsAt, expiresAt, minVersion, maxVersion, now, now)
       .run();
 
     return json({ ok: true, id: result.meta?.last_row_id ?? null });

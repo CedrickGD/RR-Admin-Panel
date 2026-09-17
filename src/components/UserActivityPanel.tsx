@@ -119,13 +119,18 @@ function lineMidnightNote(line: ActivityIntervalLine): string | null {
   return notes.length > 0 ? notes.join(" · ") : null;
 }
 
-/** Opens a folded day section and scrolls an element into view where the DOM can (jsdom cannot). */
+/** Opens every folded <details> around an element (its day section and the box itself) and
+ *  scrolls it into view where the DOM can (jsdom cannot). */
 function reveal(id: string, block: ScrollLogicalPosition): void {
   const element = document.getElementById(id);
   if (!element) return;
-  const section = element.closest("details");
-  if (section && element !== section) section.open = true;
-  else if (element instanceof HTMLDetailsElement) element.open = true;
+  for (
+    let section = element instanceof HTMLDetailsElement ? element : element.closest("details");
+    section;
+    section = section.parentElement?.closest("details") ?? null
+  ) {
+    section.open = true;
+  }
   if (typeof element.scrollIntoView === "function") {
     element.scrollIntoView({ block, behavior: "smooth" });
   }

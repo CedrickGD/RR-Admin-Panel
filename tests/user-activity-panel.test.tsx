@@ -300,8 +300,12 @@ describe("UserActivityPanel", () => {
       days[1].id,
       days[1].id,
     ]);
+    // With the day and the whole box folded, a tap opens both.
+    const box = container.querySelector<HTMLDetailsElement>(".user-activity-intervals")!;
+    box.open = false;
     days[1].open = false;
     await act(async () => cells[3].click());
+    expect(box.open).toBe(true);
     expect(days[1].open).toBe(true);
     expect(days[1].className).toContain("is-flash");
     expect(days[0].className).not.toContain("is-flash");

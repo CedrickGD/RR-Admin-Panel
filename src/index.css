@@ -1563,7 +1563,10 @@ h6 {
 }
 .user-activity-timeline.is-compact .user-activity-timeline-axis-row,
 .user-activity-timeline.is-compact .user-activity-timeline-row {
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  /* Fixed side columns: every row is its own grid, so `auto` would size the date and duration
+     columns per row and stagger the 24 h tracks against each other and against the hour axis.
+     44px holds the widest compact date ("Wed 16"), 50px the "Online" header and a 7-char duration. */
+  grid-template-columns: 44px minmax(0, 1fr) 50px;
 }
 .user-activity-timeline-axis-row {
   padding-bottom: 5px;

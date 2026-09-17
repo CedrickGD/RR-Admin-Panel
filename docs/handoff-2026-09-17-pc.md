@@ -111,3 +111,46 @@ Paket-Historie in `docs/handoff-2026-09-12-panel-rework.md`. Hashes sind Kurzfor
 > Danach Abschnitt 4: frag mich die zwei Release-Fragen und schlag die Reihenfolge der offenen Punkte vor.
 > Hands-on in Subagenten/Workflows mit unabhängiger Gegenprüfung, pro Runde Gate + Screenshots 1440 und 390,
 > Bilder zeitnah, kurz und auf Deutsch.
+
+## 7. Stand nach der PC-Session (17.09. abends)
+
+- **Panel-Deploy:** `main` = `a1abe99`, NAS serviert `index-CGY-Pw0I.js` / `index-Ckexgfaj.css`
+  (BUILD_SHA `a1abe99`). Backup vor der Migration: `rr-pre-feedback-kind-20260917T1714Z.sqlite`;
+  `feedback.kind` ist befüllt.
+- **Client `master`, heute (chronologisch):** `629ab3e` „Update now" vom Renderer weg ·
+  `309f961` „Open support inbox"-Knopf raus · `a095c83` Fokus-Fix nach dem Lizenz-Overlay
+  (`FocusOnPageChange`) · `8f8f85b` Version → 1.5.3 · `48433da` „Manage license" öffnet jetzt
+  das Overlay statt `/home`, plus echte Not-found-Seite. Hybride Update-UX ist in Arbeit.
+  **Push-Stand bei Schreiben unklar — lokal, Push folgt.**
+- **Klick-Checkliste:** Client 23/24, nach Fixes 9/9. Panel „Feedback | Support" 10/10 bei 1440
+  und 390; zwei 390-Nits offen: Filterzeile abgeschnitten, Löschen-Sheet nimmt die volle Höhe.
+- **Audit-Kurzfassung (verifiziert 17.09., critic-geprüft):**
+  - Update-Weg: Worker (`backend.rr-admin-panel.workers.dev/update/update.xml`) zuerst,
+    Fallback `raw.githubusercontent.com` nur solange das Repo öffentlich ist.
+  - Installer 73 MB, nicht 750 MB. `GITHUB_TOKEN` muss auf dem Worker (`wrangler secret`,
+    ungeprüft) UND in der NAS-`rr-api.env` (gesetzt) stehen.
+  - `/update/download` liefert immer das *neueste* GitHub-Release, nicht zwingend die in
+    `update.xml` genannte Version; `<changelog>` wird vom Worker nicht umgeschrieben.
+  - Panel-Versions-Seite liest GitHub ungeauthentifiziert aus dem Browser, Fallback `"1.4.2"`.
+  - Adoption, 30 Tage, 829 Installs: 1.5.2=397, 1.4.8=253, 1.4.9=110, 1.4.10=41, 1.5.0=9,
+    älter=7, legacy=12 — 1.4.8 und älter = 272 Installs, bleiben für immer hängen, wenn das
+    Repo ohne Token privat wird.
+  - 1.4.8 installiert praktisch nie selbst (X minimiert in den Tray statt zu schließen,
+    `CleanupStaleInstaller` löscht den gestagten Installer beim nächsten Start). Ab 1.4.9
+    (`1eee8f5`) erzwungener Neustart, funktioniert (13/10/15 Installs hängen auf
+    1.4.9/1.4.10/1.5.0).
+  - Aktueller 1.5.3-Flow: Start-Check + alle 30 min, „Update now" prüft nur erneut, Download
+    automatisch, 4-s-Warnung, Neustart erzwungen — keine Wahl für die Nutzerin.
+  - `<mandatory>` wird geparst, aber nicht ausgewertet; kein Gate gegen laufendes ARK/Makro,
+    obwohl `IsArkRunning`/`AutoClickerRuntime.IsRunning` existieren.
+  - Nur `update_check`-Telemetrie; kein Download-/Install-/Fehler-Event.
+  - Home-Banner „mind. 1.4.9" ist Zeile 7 der Announcements, ohne Versions-Targeting.
+- **Besitzer-Entscheidungen:** Token ja (beide Stellen); Installer bleibt GitHub-Release-Asset
+  hinter Token; Adoptions-Schwelle für den Privat-Flip später; `<notes>`-Fallback bleibt;
+  hybride Update-UX (still + „Restart & update") freigegeben; Panel bekommt später eine
+  Release-Management-Seite; danach App-Mehrwert für zahlende Kunden: Lifetime-only
+  Dino-Level-Seite, Crosshair, AMD, Sprachen.
+- **Tooling:** Comet läuft für den Headless-Harness über `RR_BROWSER`-Env + `connectPipe`; die
+  Fixture stürzt bei `//`-URLs ab. WebView2-CDP-Trick für echte App-Checks:
+  `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9223`. Branch-/Worktree-
+  Aufräumen erledigt.

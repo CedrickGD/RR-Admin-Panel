@@ -181,4 +181,33 @@ describe("NAS admin deployment", () => {
     expect(caddyfile).toContain("rewrite * /update/download/free");
     expect(caddyfile).toContain("reverse_proxy rr-api:8787");
   });
+
+  it("opens /update/* and /release-notes/* on the download host before the 404 catch-all", () => {
+    const caddyfile = repoFile("deploy/nas/caddy/Caddyfile");
+
+    for (const [matcher, path] of [
+      ["@updateProxy", "/update/*"],
+      ["@releaseNotes", "/release-notes/*"],
+    ]) {
+      expect(caddyfile).toMatch(
+        new RegExp(
+          `${matcher} \\{[\\s\\S]*?host dl\\.razorreaper\\.app[\\s\\S]*?method GET HEAD[\\s\\S]*?path ${path.replace(/[/*]/g, "\\$&")}[\\s\\S]*?\\}`,
+        ),
+      );
+      expect(caddyfile).toMatch(
+        new RegExp(`handle ${matcher} \\{\\s*reverse_proxy rr-api:8787\\s*\\}`),
+      );
+    }
+
+    // handle blocks are evaluated in written order: both must precede the host-wide 404, and
+    // neither may set Cache-Control — rr-api sends the right one per route (design §8).
+    const updateAt = caddyfile.indexOf("handle @updateProxy");
+    const notesAt = caddyfile.indexOf("handle @releaseNotes");
+    const downloadAt = caddyfile.indexOf("handle @download {");
+    const notFoundAt = caddyfile.indexOf("@downloadNotFound");
+    expect(downloadAt).toBeLessThan(updateAt);
+    expect(updateAt).toBeLessThan(notesAt);
+    expect(notesAt).toBeLessThan(notFoundAt);
+    expect(caddyfile.slice(updateAt, notFoundAt)).not.toContain("header Cache-Control");
+  });
 });

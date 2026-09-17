@@ -198,12 +198,41 @@ single SQLite file instead of D1/Pages/Workers:
 - `scripts/generate-routes.mjs` — build-time Pages file-routing table (`src/routes.generated.ts`,
   committed; `npm run routes` regenerates it, a test fails when it is stale).
 - `src/app.ts` — Hono: `GET /health` -> `{ ok: true, service: "rr-api" }`; `/api/ingest`,
-  `/v1/telemetry/event`, `/api/install/register`, `/api/health`, `/healthz`, `/media/*`, `/update/*`
-  go to the worker (`worker.fetch`), everything else through the Pages route table; unknown -> 404.
+  `/v1/telemetry/event`, `/api/install/register`, `/api/health`, `/healthz`, `/media/*`, `/update/*`,
+  `/release-notes/*` go to the worker (`worker.fetch`), everything else through the Pages route
+  table; unknown -> 404.
 - `src/cf-request.ts` — rebuilds `request.cf` (country/city/region/lat/lon/timezone/continent/ray)
   from the `cf-*` headers the tunnel forwards; `cf-connecting-ip` is read from the header as before.
 - `src/server.ts` — opens `DB_PATH`, listens on `PORT`, runs `worker.scheduled` (expired-license
   cleanup) via node-cron (`CRON_LICENSE_CLEANUP`, default `30 3 * * *`), graceful SIGTERM/SIGINT.
+
+### Public routes on `dl.razorreaper.app`
+
+| Route                  | Served by                                   | Cache-Control           |
+| ---------------------- | ------------------------------------------- | ----------------------- |
+| `/`                    | caddy -> rr-api `/update/download/free`     | `no-store` (from caddy) |
+| `/update/update.xml`   | caddy -> rr-api (worker `/update/*`)        | `public, max-age=120`   |
+| `/update/download`     | caddy -> rr-api (worker `/update/*`)        | `no-store`              |
+| `/release-notes/<tag>` | caddy -> rr-api (worker `/release-notes/*`) | `public, max-age=600`   |
+
+rr-api serves the manifest with both customer-facing elements rewritten to this host: `<url>` ->
+`/update/download` and `<changelog>` -> `/release-notes/<tag>`, the tag taken from the committed
+`<url>`. The repo keeps its github.com URLs so the RazorReaper release-readiness tests keep passing;
+the rewrite happens on the way out (`docs/release-management-design.md` §8). `/update/download`
+resolves the asset of exactly that tag and falls back to `releases/latest` when it cannot, logging
+`update_download_resolved` with the path it took; `/update/download/latest` stays latest-wins.
+`/release-notes/<tag>` is public, carries no customer data and runs no scripts.
+
+Caddy sets **no** `Cache-Control` on the two new `handle` blocks — rr-api already sends the right one
+per route, and a blanket `no-store` (as `@download` rightly uses for the installer) would defeat all
+three. The blocks sit after `@download` and before the `@downloadNotFound` catch-all, which still
+closes the host to everything else.
+
+> **Owner step:** a `deploy/nas/caddy/Caddyfile` change only takes effect after a **reload**:
+> `docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile`. That re-reads the config in
+> place without dropping connections. **Never restart the caddy container** (and never
+> `docker compose up -d` it) just to pick this up — that takes the media origin and the public
+> installer URL down with it. The reload is the owner's call, not part of an automated deploy.
 
 ### Environment
 

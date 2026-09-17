@@ -15,6 +15,29 @@
 		reverse_proxy rr-api:8787
 	}
 
+	# The desktop updater fetches its manifest and installer here; rr-api rewrites the manifest's
+	# <url> and <changelog> to this host on the way out. No Cache-Control from Caddy: rr-api already
+	# sends public, max-age=120 for the manifest and no-store for the download redirect.
+	@updateProxy {
+		host dl.razorreaper.app
+		method GET HEAD
+		path /update/*
+	}
+	handle @updateProxy {
+		reverse_proxy rr-api:8787
+	}
+
+	# Public release notes (the <changelog> target and the Discord post link), so a customer never
+	# needs repo access. rr-api sends public, max-age=600 itself.
+	@releaseNotes {
+		host dl.razorreaper.app
+		method GET HEAD
+		path /release-notes/*
+	}
+	handle @releaseNotes {
+		reverse_proxy rr-api:8787
+	}
+
 	# Do not expose the media origin through arbitrary paths or methods on the download host.
 	@downloadNotFound host dl.razorreaper.app
 	handle @downloadNotFound {

@@ -34,6 +34,27 @@
   min-width: 0;
 }
 
+/* The pinned action cell (DataTable `stickyActions`) is laid over the columns to its left as
+   soon as the table outgrows its frame, so its width is a layout promise, not a detail: four
+   worded buttons measured 449px and put 67px of pinned cell over the Notes column at 1440 with
+   the rail open. The two reading actions drop to the icon square the licence table already
+   uses — same 30px box, same hidden label, the word itself back in the stacked card — and the
+   two governed actions keep their words. Measured after: 333px of content, a 1088px minimum
+   inside the 1130px frame, so the table fills it without scrolling and covers nothing. */
+@media (min-width: 901px) {
+  html[data-theme] .releases-workspace .releases-row-actions .releases-action-icon {
+    width: 30px;
+    min-width: 30px;
+    height: 30px;
+    padding: 6px;
+    border-radius: var(--r-sm);
+  }
+}
+
+.releases-action-label {
+  display: none;
+}
+
 /* The blocked-unpublish band: the 409's reason with its make-current candidates inline, so the
    explicit second action (§6) is one click from the refusal that named it. */
 .releases-blocked {
@@ -390,6 +411,11 @@
   .releases-notes-split,
   .releases-editor-row {
     grid-template-columns: minmax(0, 1fr);
+  }
+  /* The stacked card has the room a table row does not, and it is where a first-time reader
+     meets these controls: every action reads as a word again, at the DS's own button size. */
+  .releases-action-label {
+    display: inline;
   }
 }
 

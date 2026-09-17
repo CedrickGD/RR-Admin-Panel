@@ -35,6 +35,7 @@ import {
   Info,
   MessageCircle,
   Package,
+  Pencil,
   PlayCircle,
   Plus,
   RefreshCw,
@@ -188,6 +189,36 @@ function unpublishRefusal(release: GithubRelease): string | null {
 function guard(reason: string | null): { disabled: boolean; title: string | undefined } {
   return { disabled: reason !== null, title: reason ?? undefined };
 }
+
+/* ── The Releases table's width budget (measured, not estimated) ──
+ * A 1440px window with the rail open leaves the frame 1130px. The four leading columns render
+ * on their declared floors, so what is left has to cover the Notes cell and the pinned action
+ * cell together. The action cell is the one that must be honest about its size: DataTable pins
+ * it (`stickyActions`), so anything it renders beyond its share is laid over the Notes column
+ * instead of widening the table on screen.
+ *
+ *   LEADING (468) + NOTES_FLOOR (280) + ACTIONS_WIDTH (340) = 1088 ≤ FRAME_AT_1440 (1130)
+ *
+ * The 42px of headroom absorbs a wider font or a zoomed window; the table's auto layout scales
+ * every column by the same factor, so at 1440 the columns render at 1.039× the numbers above —
+ * Notes 291px, all of it visible. tests/releases-page.test.tsx pins the arithmetic.
+ */
+/** The frame a 1440px window leaves beside the open rail (measured). */
+export const RELEASES_FRAME_AT_1440 = 1130;
+/** Tag + State + Assets + Published: each renders on its declared floor at 1440 (measured). */
+export const RELEASES_LEADING_COLUMNS = 150 + 104 + 86 + 128;
+/** The pinned action cell's real content: two 30px icon squares, two worded buttons, padding. */
+export const RELEASES_ACTIONS_WIDTH = 340;
+/**
+ * What the Notes cell truncates at when the frame has nothing to spare. A cap on
+ * `.cell-truncate` is a *floor*, not a ceiling — it is what the table counts as the column's
+ * min-content, and the column still grows past it into whatever the frame has left over
+ * (measured: 291px at 1440, 369px at 1920). It used to be this same number as a fixed cap
+ * beside an action column declared 80px narrower than it drew.
+ */
+export const RELEASES_NOTES_FLOOR = 280;
+/** The Notes column's declared minimum — the table's own scroll floor sums these. */
+export const RELEASES_NOTES_MIN = 180;
 
 /** First customer bullet, or the first line of the release body — one line, never a commit log. */
 function notesPreview(release: GithubRelease): string {
@@ -532,8 +563,8 @@ function ReleasesSection({
       key: "notes",
       header: "Notes",
       muted: true,
-      minWidth: 180,
-      maxWidth: 280,
+      minWidth: RELEASES_NOTES_MIN,
+      maxWidth: RELEASES_NOTES_FLOOR,
       render: (release) => (
         <span title={notesPreview(release)}>{notesPreview(release) || "—"}</span>
       ),
@@ -542,19 +573,41 @@ function ReleasesSection({
       key: "actions",
       header: "",
       label: "Actions",
-      minWidth: 260,
+      // Declared at what this column really renders, because DataTable pins it
+      // (`stickyActions`): once the table outgrows its frame the pinned cell is laid over
+      // the columns to its left. Four worded buttons measured 449px against a 260px
+      // declaration, which put the table at 1197px inside the 1130px a 1440px window leaves
+      // beside the open rail and covered 67px of the Notes cell — the note's ellipsis with
+      // it. The two reading actions are icon squares now (the licence table's pattern: a
+      // 30px square with a title, an accessible name, and the word back in the stacked
+      // card), which measures 333px of content.
+      minWidth: RELEASES_ACTIONS_WIDTH,
       render: (release) => {
         const draft = draftByTag.get(release.tag);
         const current = makeCurrentRefusal(release, pinnedTag);
         const unpublish = unpublishRefusal(release);
         return (
-          <div className="row-actions">
-            <Button size="sm" icon={<FileText />} onClick={() => setOpenNotes(release)}>
-              Notes
+          <div className="row-actions releases-row-actions">
+            <Button
+              size="sm"
+              className="releases-action-icon"
+              icon={<FileText />}
+              title="Read this release's notes"
+              aria-label={`Notes for ${release.tag}`}
+              onClick={() => setOpenNotes(release)}
+            >
+              <span className="releases-action-label">Notes</span>
             </Button>
             {draft ? (
-              <Button size="sm" onClick={() => onEditNotes(draft)}>
-                Edit notes
+              <Button
+                size="sm"
+                className="releases-action-icon"
+                icon={<Pencil />}
+                title="Edit the draft notes behind this release"
+                aria-label={`Edit notes for ${release.tag}`}
+                onClick={() => onEditNotes(draft)}
+              >
+                <span className="releases-action-label">Edit notes</span>
               </Button>
             ) : null}
             <Button

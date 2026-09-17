@@ -20,7 +20,14 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { PanelIdentity } from "../src/hooks/usePanelPermission";
 import { resetHistoryLayers } from "../src/hooks/useHistoryLayer";
-import { ReleasesPage } from "../src/pages/ReleasesPage";
+import {
+  RELEASES_ACTIONS_WIDTH,
+  RELEASES_FRAME_AT_1440,
+  RELEASES_LEADING_COLUMNS,
+  RELEASES_NOTES_FLOOR,
+  RELEASES_NOTES_MIN,
+  ReleasesPage,
+} from "../src/pages/ReleasesPage";
 import type { Permission } from "../shared/panel-policy";
 import type { AuthUser } from "../src/types/telemetry";
 import { fetchApi } from "../src/utils/api";
@@ -786,6 +793,73 @@ describe("the page carries no effect copy of its own", () => {
       expect(JSON.parse(String(mints[0]?.[1]?.body))).toEqual({ action, subject });
     },
   );
+});
+
+describe("the pinned action column leaves the Notes cell alone", () => {
+  /*
+   * DataTable pins this column (`stickyActions`), so the cell is laid over the columns to its
+   * left the moment the table outgrows its frame — its declared width is a layout promise, not
+   * a hint. It declared 260px while drawing four worded buttons at 449px, so a 1440px window
+   * with the rail open (a 1130px frame, measured) stood the table at 1197px and put 67px of
+   * pinned cell over the Notes column, the note's own ellipsis included.
+   *
+   * Measured after, at 1440 with the rail open: the table is 1130px and the frame does not
+   * scroll; Notes runs 763→1054 and the action cell 1054→1407, so the gap between them is 0.
+   * At 1920: 969→1384 and 1384→1887, gap 0. At 390 the table stacks into cards and the page's
+   * scrollWidth is 390.
+   */
+  const css = source("../src/theme/releases-workspace.css");
+
+  it("budgets every column inside the frame a 1440px window leaves beside the rail", () => {
+    expect(RELEASES_LEADING_COLUMNS).toBe(468);
+    expect(RELEASES_ACTIONS_WIDTH).toBe(340);
+    expect(RELEASES_NOTES_FLOOR).toBe(280);
+    expect(RELEASES_FRAME_AT_1440).toBe(1130);
+    expect(
+      RELEASES_LEADING_COLUMNS + RELEASES_NOTES_FLOOR + RELEASES_ACTIONS_WIDTH,
+    ).toBeLessThanOrEqual(RELEASES_FRAME_AT_1440);
+    // And the table's own scroll floor — DataTable sums the declared minimums — stays under it
+    // too, so the frame has nothing to scroll at that width.
+    expect(RELEASES_LEADING_COLUMNS + RELEASES_NOTES_MIN + RELEASES_ACTIONS_WIDTH).toBeLessThan(
+      RELEASES_FRAME_AT_1440,
+    );
+  });
+
+  it("declares the action column at the width it renders, not under it", async () => {
+    await mount(OWNER);
+    const header = [
+      ...document.querySelectorAll<HTMLTableCellElement>("#releases-panel-releases thead th"),
+    ].at(-1)!;
+    expect(header.style.minWidth).toBe(`${RELEASES_ACTIONS_WIDTH}px`);
+  });
+
+  it("spends the row on two icon squares and keeps the words on the governed actions", async () => {
+    await mount(OWNER);
+    const row = tagRow(UNPUBLISHED.tag); // the one release with a draft behind it
+    const icons = [...row.querySelectorAll<HTMLButtonElement>("button.releases-action-icon")];
+    expect(icons.map((button) => button.getAttribute("aria-label"))).toEqual([
+      `Notes for ${UNPUBLISHED.tag}`,
+      `Edit notes for ${UNPUBLISHED.tag}`,
+    ]);
+    for (const button of icons) {
+      // A tooltip on hover, and the word still in the markup: the stacked card prints it.
+      expect(button.getAttribute("title")).toBeTruthy();
+      const label = button.querySelector(".releases-action-label")?.textContent ?? "";
+      expect(button.getAttribute("aria-label")).toContain(label);
+    }
+    expect(buttons("Make current", row)).toHaveLength(1);
+    expect(buttons("Unpublish", row)).toHaveLength(1);
+  });
+
+  it("squares the icon buttons on desktop only and gives the word back below 900px", () => {
+    const desktop = css.slice(css.indexOf("@media (min-width: 901px)"));
+    expect(desktop).toContain(".releases-row-actions .releases-action-icon");
+    expect(desktop.slice(0, desktop.indexOf("}"))).toContain("width: 30px");
+    expect(css).toMatch(/\.releases-action-label \{\s*display: none;/);
+    const narrow = css.slice(css.indexOf("@media (max-width: 900px)"));
+    expect(narrow).toContain(".releases-action-label");
+    expect(narrow.slice(narrow.indexOf(".releases-action-label"))).toContain("display: inline");
+  });
 });
 
 describe("nothing scrolls sideways", () => {

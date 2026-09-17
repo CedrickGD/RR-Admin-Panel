@@ -265,8 +265,8 @@ a local build still lands on the Desktop.
 /v <target>`, falling back to the same command without `/tr` and `/td` when the timestamp server
   fails. Before `verify /pa /v <target>` the runner must trust the self-signed certificate the way
   `rr_sign.bat` does: export the public `.cer` from the decoded pfx (`Get-PfxCertificate` +
-  `Export-Certificate`) and `Import-Certificate` it into `Cert:ocalmachineroot` and
-  `cert:ocalmachinetrustedpublisher`. a failed `sign` fails the job; a failed `verify` only warns
+  `Export-Certificate`) and `Import-Certificate` it into `Cert:\LocalMachine\Root` and
+  `Cert:\LocalMachine\TrustedPublisher`. A failed `sign` fails the job; a failed `verify` only warns
   (`continue-on-error: true` on that step), so a runner-side trust quirk cannot block a release.
 - When either secret is absent the step is skipped with a visible `::warning::` and a
   `$GITHUB_STEP_SUMMARY` line: _"Unsigned build — RR_SIGN_PFX_BASE64 / RR_SIGN_PFX_PASSWORD not

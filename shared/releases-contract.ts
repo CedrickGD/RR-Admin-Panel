@@ -15,8 +15,33 @@
  */
 
 /** Bumped whenever a field changes meaning. The panel sends it as `x-releases-api`; a mismatch
- *  is a soft warning in the UI ("reload the panel"), never a hard 400. */
-export const RELEASES_API_VERSION = 1;
+ *  is a soft warning in the UI ("reload the panel"), never a hard 400.
+ *  2 — make-current, server-generated ConfirmEffect[], "placeholder" token mode. */
+export const RELEASES_API_VERSION = 2;
+
+/**
+ * Permission keys this feature adds to shared/panel-policy.ts, which stays the source of truth.
+ * `releases.files` is owner-only (design decision 2): it gates repository file reads and writes
+ * and any free-form workflow dispatch. It ends in neither ".read" nor ".write", so
+ * `effectivePermissions`' write-implies-read filter does not apply to it — the file routes
+ * require `releases.read` alongside it.
+ */
+export type ReleasesPermission = "releases.read" | "releases.write" | "releases.files";
+
+/**
+ * Repository paths the Files tab must refuse even for an owner, because a governed action owns
+ * them. `update.xml` is written only by publish and make-current, which validate the target tag,
+ * check the installer asset exists and mint an effect list first.
+ */
+export const GOVERNED_FILE_PATHS: readonly string[] = ["update.xml"];
+
+export function isGovernedFilePath(path: string): boolean {
+  const normalised = path
+    .trim()
+    .replace(/^\.?\//, "")
+    .toLowerCase();
+  return GOVERNED_FILE_PATHS.some((p) => p.toLowerCase() === normalised);
+}
 
 /* ─────────────────────────── Versions and the update manifest ─────────────────────────── */
 
@@ -43,19 +68,49 @@ export function nextPatch(version: string): string {
   return `${major}.${minor}.${Number(patch) + 1}`;
 }
 
-/** The five fields update.xml carries, plus the notes bullet list. Model, not XML. */
+/**
+ * The five fields update.xml carries, plus the notes bullet list. Model, not XML.
+ *
+ * `url` and `changelog` are the values **as committed to the repo**: github.com URLs, exactly the
+ * shapes RazorReaper/tests/RazorReaper.UnitTests/ReleaseReadinessTests.cs asserts against the file
+ * (`/releases/download/<tag>/RazorReaper-Setup.exe` and `/releases/tag/<tag>`). Committing NAS URLs
+ * here would fail that test on every future build. rr-api rewrites **both** elements to NAS URLs
+ * when it serves GET /update/update.xml, so the customer never sees a github.com link.
+ */
 export interface UpdateXmlModel {
-  /** 4-part, e.g. "1.5.3.0". */
+  /** 4-part, e.g. "1.5.3.0". Must be <= ApplicationDisplayVersion + ".0". */
   version: string;
-  /** Installer URL. Written as the rr-api /update/download URL, never a github.com URL. */
+  /** Committed installer URL: github.com/…/releases/download/<tag>/RazorReaper-Setup.exe. */
   url: string;
-  /** Public notes page, e.g. "https://dl.razorreaper.app/release-notes/v1.5.3". */
+  /** Committed changelog URL: github.com/…/releases/tag/<tag>. */
   changelog: string;
   mandatory: boolean;
   /** Inno Setup silent-install switches. */
   args: string;
   /** One customer-facing bullet per entry, already stripped of its "- " prefix. */
   notes: string[];
+}
+
+/** Default repo for the committed manifest URLs. */
+export const MANIFEST_REPO = "CedrickGD/RazorReaper";
+export const INSTALLER_ASSET_NAME = "RazorReaper-Setup.exe";
+
+/** The exact `<url>` / `<changelog>` pair publish and make-current must commit for `tag`. */
+export function manifestUrlsForTag(
+  tag: string,
+  repo: string = MANIFEST_REPO,
+): { url: string; changelog: string } {
+  const normalised = tagForVersion(tag);
+  return {
+    url: `https://github.com/${repo}/releases/download/${normalised}/${INSTALLER_ASSET_NAME}`,
+    changelog: `https://github.com/${repo}/releases/tag/${normalised}`,
+  };
+}
+
+/** The tag a committed `<url>` pins, for the worker's rewrite and `UpdateXmlState.pinnedTag`. */
+export function tagFromManifestUrl(url: string): string | null {
+  const match = /\/releases\/download\/([^/]+)\//.exec(url);
+  return match?.[1] ? match[1] : null;
 }
 
 /** What the panel shows about the live manifest on master. */
@@ -268,13 +323,7 @@ export interface CommitsSinceResponse {
 
 export type RunStatus = "queued" | "in_progress" | "completed" | "unknown";
 export type RunConclusion =
-  | "success"
-  | "failure"
-  | "cancelled"
-  | "skipped"
-  | "timed_out"
-  | "action_required"
-  | null;
+  "success" | "failure" | "cancelled" | "skipped" | "timed_out" | "action_required" | null;
 
 export interface WorkflowSummary {
   id: number;
@@ -408,11 +457,7 @@ export interface BuildResponse {
  * repeating work. A retry sends the same `confirmToken` until it expires.
  */
 export type PublishStep =
-  | "release_upserted"
-  | "body_written"
-  | "release_published"
-  | "manifest_committed"
-  | "recorded";
+  "release_upserted" | "body_written" | "release_published" | "manifest_committed" | "recorded";
 
 export const PUBLISH_STEPS: readonly PublishStep[] = [
   "release_upserted",
@@ -442,30 +487,126 @@ export interface PublishResponse {
 }
 
 /** A confirm token is minted per action and burnt on use. */
-export type ConfirmAction = "publish" | "unpublish" | "build" | "commit" | "dispatch";
+export type ConfirmAction =
+  "publish" | "make-current" | "unpublish" | "build" | "commit" | "dispatch";
 
 export interface ConfirmTokenRequest {
   action: ConfirmAction;
-  /** Draft id, file path or workflow id — whatever the action names. */
+  /** Draft id, release id, file path or workflow id — whatever the action names. */
   subject: string;
+}
+
+/**
+ * What kind of consequence a line describes, so the modal can group and icon them. `note` is the
+ * catch-all; it never carries something that belongs in one of the others.
+ */
+export type ConfirmEffectKind = "github" | "manifest" | "installs" | "discord" | "note";
+
+/**
+ * One line the confirm modal prints. **Always server-generated from live state** — the current
+ * manifest, the target release, the adoption query and the workflow files. The client renders
+ * `text` verbatim and in order; it never composes, reorders or supplements a line, and no
+ * illustrative or hard-coded effect copy exists in the page.
+ */
+export interface ConfirmEffect {
+  kind: ConfirmEffectKind;
+  text: string;
 }
 
 export interface ConfirmTokenResponse {
   ok: true;
   token: string;
   expiresAt: string;
-  /** Plain-English list the confirm modal shows, one line per thing that will happen. */
-  effects: string[];
+  /**
+   * The exact list the modal shows. Invariant: a `publish` (prerelease included) always carries
+   * exactly one `kind: "discord"` line while .github/workflows/discord-release.yml is wired to
+   * `release: { types: [published, prereleased] }` — and, when that workflow cannot be read, the
+   * line is emitted anyway. `make-current` carries a `discord` line saying nothing is posted.
+   */
+  effects: ConfirmEffect[];
 }
+
+/** Guard the publish/make-current handlers assert before minting a token. */
+export function hasDiscordEffect(effects: readonly ConfirmEffect[]): boolean {
+  return effects.some((effect) => effect.kind === "discord");
+}
+
+/* ─────────────────── Make current (rollback) and unpublish ─────────────────── */
+
+/**
+ * POST /api/admin/releases/:id/make-current — the governed way to repoint update.xml at another
+ * published tag. `:id` is the GitHub release id, so it works with or without a draft row. The
+ * handler refuses a draft, a prerelease (design decision 4) and any release that does not carry
+ * RazorReaper-Setup.exe, then commits update.xml through the Git Data helper.
+ */
+export interface MakeCurrentRequest {
+  confirmToken: string;
+  /** Editable, defaulted to `release: point update.xml at {tag}`. */
+  commitMessage: string;
+  /** The tag the operator believes is current. Mismatch → 409 { code: "stale" }. */
+  expectedCurrentTag?: string | null;
+}
+
+export interface MakeCurrentResponse {
+  ok: true;
+  /** The tag update.xml now pins. */
+  tag: string;
+  /** The tag it pinned before, for the confirmation toast and the audit line. */
+  previousTag: string | null;
+  commitSha: string;
+  manifest: UpdateXmlModel;
+}
+
+/** A release the panel may offer as the next `make-current` target. */
+export interface MakeCurrentCandidate {
+  /** GitHub release id — the `:id` of the make-current call. */
+  releaseId: number;
+  tag: string;
+  version: string;
+  publishedAt: string | null;
+  /** Always true for a candidate; the server filters asset-less releases out. */
+  hasInstallerAsset: boolean;
+}
+
+export interface UnpublishResponse {
+  ok: true;
+  release: GithubRelease;
+}
+
+/**
+ * Refusal of unpublish-to-draft while update.xml still pins that tag. The "explicit second action"
+ * the design refers to is exactly make-current: the page renders these candidates inline with a
+ * Make-current button each, and the unpublish succeeds on a second click. There is no override.
+ */
+export interface UnpublishBlockedResponse {
+  ok: false;
+  error: string;
+  code: "manifest-pinned";
+  blockedBy: "manifest";
+  makeCurrentCandidates: MakeCurrentCandidate[];
+}
+
+export type UnpublishResult = UnpublishResponse | UnpublishBlockedResponse | ApiError;
 
 /* ─────────────────────────────────── Overview ─────────────────────────────────── */
 
-export type TokenMode = "write" | "read-only" | "missing";
+/**
+ * "placeholder" is `GITHUB_RELEASE_TOKEN` set to something that is not a token — today the NAS env
+ * carries the literal "xxx". Any value whose trimmed form does not start with `github_pat_` or
+ * `ghp_` is treated as absent, so the panel shows one clear status line instead of 401-ing on
+ * every click. It behaves exactly like "missing" for authorisation.
+ */
+export type TokenMode = "write" | "read-only" | "placeholder" | "missing";
+
+export function isUsableTokenValue(value: string | null | undefined): boolean {
+  const trimmed = (value ?? "").trim();
+  return trimmed.startsWith("github_pat_") || trimmed.startsWith("ghp_");
+}
 
 /** What the panel needs to decide which buttons are live. Never carries the token itself. */
 export interface TokenStatus {
   mode: TokenMode;
-  /** Name of the env var in play, for the status line: "GITHUB_RELEASE_TOKEN". */
+  /** Name of the env var in play, for the status line: "GITHUB_RELEASE_TOKEN". Never its value. */
   source: string | null;
   canWrite: boolean;
   /** One sentence for the persistent status line when `canWrite` is false. */
@@ -559,7 +700,13 @@ export interface ApiError {
   ok: false;
   error: string;
   /** Present on the conflicts the editor must handle: "stale", "status-mismatch", "no-write-token". */
-  code?: "stale" | "status-mismatch" | "no-write-token" | "denied-path" | "rate-limited";
+  code?:
+    | "stale"
+    | "status-mismatch"
+    | "no-write-token"
+    | "denied-path"
+    | "manifest-pinned"
+    | "rate-limited";
   requestId?: string;
 }
 

@@ -247,10 +247,11 @@ html[data-theme] .license-workspace .license-lookup-card-actions {
   padding-top: 12px;
   border-top: 1px solid var(--line-row);
 }
+/* The fill stays the opaque --workspace-dialog every .dialog gets (consistency.css):
+   --workspace-surface-strong is the 55% panel tone for surfaces over the canvas,
+   and with backdrop-filter banned it let the table read through the form. */
 html[data-theme] .dialog.license-workspace-dialog {
-  background: var(--workspace-surface-strong);
   border-color: var(--line);
-  backdrop-filter: none;
 }
 .license-workspace-dialog :is(.section-sub, .license-edit-facts, .license-workflow-note) {
   overflow-wrap: anywhere;

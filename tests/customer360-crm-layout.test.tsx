@@ -91,6 +91,31 @@ describe("Customer360 CRM overview", () => {
     expect(html).toContain("Settings need attention");
     expect(html).toContain("Open support history");
   });
+  it("names the inbox of each report in the recent history", () => {
+    const record = customer();
+    record.feedback = [
+      {
+        id: 1,
+        kind: "support",
+        status: "new",
+        message: "Overlay crashes",
+        created_at: "2026-09-13T12:00:00Z",
+      },
+      {
+        id: 2,
+        kind: "feedback",
+        status: "read",
+        message: "Pin the kill feed",
+        created_at: "2026-09-12T12:00:00Z",
+      },
+      { id: 3, status: "read", message: "From an old client", created_at: "2026-09-11T12:00:00Z" },
+    ];
+    const html = render(record);
+    expect(html).toContain("Support report received");
+    expect(html).toContain("Problem report");
+    expect(html).toContain("Feedback received");
+    expect(html.match(/Feedback received/g)).toHaveLength(2);
+  });
   it("never turns incomplete access or feedback into an all-clear state", () => {
     const record = customer();
     record.section_errors = { access: "Unavailable", feedback: "Unavailable" };

@@ -41,10 +41,12 @@ function record(
   machine_name: string,
   message: string,
   contact: string,
+  kind: "feedback" | "support" = "feedback",
 ) {
   return {
     id,
     status,
+    kind,
     machine_name,
     message,
     contact,
@@ -62,7 +64,11 @@ const REPORTS = [
   record(2, "read", "Mara Laptop", "The screenshot shortcut needs an option.", "mara@example.test"),
   record(3, "archived", "Noah Desktop", "Resolved installation question.", "noah@example.test"),
   record(4, "new", "Jules Desktop", "The keyboard shortcut resets.", "jules@example.test"),
+  record(5, "new", "Kim Desktop", "The overlay crashes on alt-tab.", "kim@example.test", "support"),
+  record(6, "archived", "Lee Laptop", "Resolved: login loop.", "lee@example.test", "support"),
 ];
+const SUPPORT_ONLY = REPORTS.filter((item) => item.kind === "support");
+const FEEDBACK_ONLY = REPORTS.filter((item) => item.kind === "feedback");
 
 let container: HTMLDivElement;
 let root: Root;
@@ -75,8 +81,11 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
+let reports: typeof REPORTS = REPORTS;
+
 beforeEach(() => {
   resetHistoryLayers();
+  reports = REPORTS;
   history.replaceState(null, "", "http://localhost:3000/#/feedback");
   container = document.createElement("div");
   document.body.appendChild(container);
@@ -88,7 +97,7 @@ beforeEach(() => {
     const pathname = new URL(String(input), window.location.origin).pathname;
     const method = init?.method ?? "GET";
     if (method === "GET" && pathname === "/api/admin/feedback") {
-      return json({ ok: true, feedback: REPORTS });
+      return json({ ok: true, feedback: reports, unread: { feedback: 2, support: 1, total: 3 } });
     }
     if (
       (method === "PUT" || method === "DELETE") &&
@@ -102,6 +111,11 @@ beforeEach(() => {
 
 afterEach(async () => {
   await act(async () => root.unmount());
+  // A closed dialog's history.back() lands asynchronously (useHistoryLayer); let its popstate
+  // arrive now, on the unmounted page, instead of during the next case's mount.
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
   container.remove();
   document.body.innerHTML = "";
   document.documentElement.style.overflow = "";
@@ -154,6 +168,15 @@ function filter(name: string): HTMLButtonElement {
     (candidate) => new RegExp(`^${name}(?:\\s*\\d+)?$`).test(controlName(candidate)),
   );
   expect(item, `${name} status filter`).toBeDefined();
+  return item!;
+}
+
+function sectionTab(name: "Feedback" | "Support"): HTMLButtonElement {
+  const list = container.querySelector('[role="tablist"][aria-label="Feedback sections"]');
+  const item = [...(list?.querySelectorAll<HTMLButtonElement>('[role="tab"]') ?? [])].find(
+    (candidate) => new RegExp(`^${name}(?:\\s*·\\s*\\d+)?$`).test(controlName(candidate)),
+  );
+  expect(item, `${name} section tab`).toBeDefined();
   return item!;
 }
 
@@ -350,5 +373,133 @@ describe("feedback workspace", () => {
     await click(confirm ?? null);
     expect(requests("DELETE")).toHaveLength(1);
     expect(reportIds()).toEqual([2, 4]);
+  });
+
+  it("splits the page into Feedback and Support sections with per-inbox unread counts", async () => {
+    await loaded();
+    // Feedback opens first: the four feedback rows, none of the support ones.
+    expect(sectionTab("Feedback").getAttribute("aria-selected")).toBe("true");
+    expect(sectionTab("Feedback").textContent).toBe("Feedback · 2");
+    expect(sectionTab("Support").textContent).toBe("Support · 1");
+    expect(reportIds()).toEqual([1, 2, 4]);
+    expect(container.querySelector("h2#support-inbox-title")?.textContent).toBe("Feedback inbox");
+    expect(container.querySelector(".support-result-count")?.textContent).toBe(
+      "3 of 4 loaded reports",
+    );
+    expect(new URLSearchParams(window.location.search).get("section")).toBeNull();
+
+    await click(sectionTab("Support"));
+    expect(sectionTab("Support").getAttribute("aria-selected")).toBe("true");
+    expect(reportIds()).toEqual([5]);
+    expect(container.querySelector("h2#support-inbox-title")?.textContent).toBe("Support inbox");
+    expect(container.querySelector(".support-result-count")?.textContent).toBe(
+      "1 of 2 loaded reports",
+    );
+    expect(filter("Inbox").textContent).toMatch(/Inbox\s*1$/);
+    expect(filter("New").textContent).toMatch(/New\s*1$/);
+    expect(filter("Archived").textContent).toMatch(/Archived\s*1$/);
+    expect(new URLSearchParams(window.location.search).get("section")).toBe("support");
+    expect(window.location.hash).toBe("#/feedback");
+    await click(filter("Archived"));
+    expect(reportIds()).toEqual([6]);
+
+    // The status filter belongs to the page, not the section; the list re-scopes.
+    await click(sectionTab("Feedback"));
+    expect(reportIds()).toEqual([3]);
+    expect(new URLSearchParams(window.location.search).get("section")).toBeNull();
+  });
+
+  it("opens the Support section from a deep link and leaves the parameter behind on unmount", async () => {
+    history.replaceState(null, "", "http://localhost:3000/?section=support#/feedback");
+    await mount();
+    await waitFor(() => report(5) !== null, "the support inbox");
+    expect(sectionTab("Support").getAttribute("aria-selected")).toBe("true");
+    expect(reportIds()).toEqual([5]);
+    await act(async () => root.unmount());
+    expect(new URLSearchParams(window.location.search).get("section")).toBeNull();
+    root = createRoot(container);
+  });
+
+  it("keeps every row action in the Support section, including the delete confirmation", async () => {
+    await loaded();
+    await click(sectionTab("Support"));
+    const item = report(5)!;
+    expect(button("Mark read", item)).not.toBeNull();
+    expect(button("Archive", item)).not.toBeNull();
+    expect(button("Replies", item)).not.toBeNull();
+
+    await click(button("Mark read", item));
+    expect(JSON.parse(String(requests("PUT")[0][1]?.body))).toEqual({ status: "read" });
+    expect(button("Mark read", report(5)!)).toBeNull();
+    expect(sectionTab("Support").textContent).toBe("Support");
+    expect(sectionTab("Feedback").textContent).toBe("Feedback · 2");
+
+    await click(button("Replies", report(5)!));
+    expect(
+      container.querySelector('[role="dialog"][aria-label="Replies for report 5"]'),
+    ).not.toBeNull();
+
+    const details = report(5)!.querySelector("details")!;
+    await click(details.querySelector("summary"));
+    await click(button("Delete report", details));
+    await waitFor(
+      () => document.querySelector('[data-modal-root="true"] [role="dialog"]') !== null,
+      "the delete confirmation",
+    );
+    const dialog = document.querySelector('[data-modal-root="true"] [role="dialog"]')!;
+    expect(dialog.textContent).toContain("Delete report");
+    expect(dialog.textContent).toContain("support report");
+    expect(requests("DELETE")).toHaveLength(0);
+    const confirm = [...dialog.querySelectorAll<HTMLButtonElement>("button")].find((entry) =>
+      /^Delete report$/.test(controlName(entry)),
+    );
+    await click(confirm ?? null);
+    expect(requests("DELETE")).toHaveLength(1);
+    expect(String(requests("DELETE")[0][0])).toContain("/api/admin/feedback/5");
+    expect(reportIds()).toEqual([]);
+    expect(container.textContent).toContain("Everything in this section is archived.");
+  });
+
+  it("shows a read-only Support section without mutation controls", async () => {
+    await loaded(READER);
+    await click(sectionTab("Support"));
+    expect(button("Replies", report(5)!)).not.toBeNull();
+    expect(button("Mark read", report(5)!)).toBeNull();
+    expect(button("Archive", report(5)!)).toBeNull();
+    expect(button("Delete report", report(5)!)).toBeNull();
+  });
+
+  it.each([
+    ["support", SUPPORT_ONLY, "Feedback", "No feedback yet", [5]],
+    ["feedback", FEEDBACK_ONLY, "Support", "No support reports yet", [1, 2, 4]],
+  ] as const)(
+    "has its own empty state per section when only %s rows exist",
+    async (_kind, rows, emptySection, title, otherIds) => {
+      reports = rows;
+      await mount();
+      await waitFor(() => container.querySelector(".support-result-count") !== null, "the load");
+      if (emptySection === "Feedback") {
+        expect(container.textContent).toContain(title);
+        expect(sectionTab("Feedback").textContent).toBe("Feedback");
+        await click(sectionTab("Support"));
+        expect(reportIds()).toEqual(otherIds);
+      } else {
+        expect(reportIds()).toEqual(otherIds);
+        await click(sectionTab("Support"));
+        expect(container.textContent).toContain(title);
+        expect(sectionTab("Support").textContent).toBe("Support");
+        expect(reportIds()).toEqual([]);
+      }
+    },
+  );
+
+  it("treats a row without a kind as feedback", async () => {
+    reports = [
+      { ...record(9, "new", "Old Client", "Sent by 1.5.2.", "old@example.test"), kind: undefined },
+    ] as unknown as typeof REPORTS;
+    await mount();
+    await waitFor(() => report(9) !== null, "the legacy row");
+    expect(sectionTab("Feedback").textContent).toBe("Feedback · 1");
+    expect(sectionTab("Support").textContent).toBe("Support");
   });
 });

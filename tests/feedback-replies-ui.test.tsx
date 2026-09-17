@@ -83,7 +83,8 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 
-async function mount(user = WRITER, report = REPORT) {
+type ReportProp = Parameters<typeof FeedbackReplies>[0]["report"];
+async function mount(user = WRITER, report: ReportProp = REPORT) {
   await act(async () =>
     root.render(
       <PanelIdentity.Provider value={user}>
@@ -348,5 +349,29 @@ describe("feedback reply dialog", () => {
     expect(button("Show full report")?.getAttribute("aria-expanded")).toBe("false");
     expect(source.classList.contains("support-source-clamped")).toBe(true);
     expect(postCalls()).toHaveLength(0);
+  });
+});
+
+describe("report kind in the reply dialog", () => {
+  it("labels a support report and a feedback entry, and stays silent without a kind", async () => {
+    await mount(WRITER, { ...REPORT, kind: "support" });
+    await waitFor(() => openDialog() !== null, "the dialog");
+    const label = dialog().querySelector(".support-conversation-label")!;
+    expect(label.querySelector(".badge")?.textContent).toBe("Support");
+    expect(label.querySelector(".badge")?.className).toContain("badge-info");
+
+    await act(async () => root.unmount());
+    root = createRoot(container);
+    await mount(WRITER, { ...REPORT, kind: "feedback" });
+    await waitFor(() => openDialog() !== null, "the dialog again");
+    expect(dialog().querySelector(".support-conversation-label .badge")?.textContent).toBe(
+      "Feedback",
+    );
+
+    await act(async () => root.unmount());
+    root = createRoot(container);
+    await mount(WRITER, REPORT);
+    await waitFor(() => openDialog() !== null, "the dialog once more");
+    expect(dialog().querySelector(".support-conversation-label .badge")).toBeNull();
   });
 });

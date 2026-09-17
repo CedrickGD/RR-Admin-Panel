@@ -89,8 +89,10 @@ describe("exact activity timeline", () => {
 
     expect(rows[0].segments[0].durationSeconds).toBe(1_800);
     expect(rows[0].segments[0].approximateEnd).toBe(false);
+    expect(rows[0].segments[0]).toMatchObject({ clippedStart: false, clippedEnd: true });
     expect(rows[1].segments[0].durationSeconds).toBe(2_700);
     expect(rows[1].segments[0].approximateEnd).toBe(true);
+    expect(rows[1].segments[0]).toMatchObject({ clippedStart: true, clippedEnd: false });
   });
 
   it("keeps lifetime detail bounded to 30 mounted date rows", () => {
@@ -163,6 +165,46 @@ describe("exact interval list", () => {
     });
     // The line ids are the strip's segment ids, so a tapped bar finds its line.
     expect(rows[0].segments.map((segment) => segment.id)).toContain(after.id);
+  });
+
+  it("does not call a run that really starts or ends on local midnight clipped", () => {
+    const onTheStroke = buildActivityTimelineRows(
+      [
+        { date: "2026-08-30", seconds: 900, sessions: 1 },
+        { date: "2026-08-29", seconds: 1_800, sessions: 1 },
+      ],
+      [
+        // 23:30–00:00 local, the last heartbeat exactly on midnight: this day's ≈24:00, no next-day half.
+        {
+          startedAt: "2026-08-29T21:30:00.000Z",
+          endedAt: "2026-08-29T22:00:00.000Z",
+          approximateEnd: true,
+        },
+        // 00:00–00:15 local, a genuine midnight start.
+        {
+          startedAt: "2026-08-29T22:00:00.000Z",
+          endedAt: "2026-08-29T22:15:00.000Z",
+          approximateEnd: false,
+        },
+      ],
+      "Europe/Berlin",
+    );
+    const [after, before] = buildActivityIntervalDays(onTheStroke, "Europe/Berlin");
+    expect(before.lines).toHaveLength(1);
+    expect(before.lines[0]).toMatchObject({
+      start: "23:30",
+      end: "24:00",
+      approximateEnd: true,
+      fromPreviousDay: false,
+      intoNextDay: false,
+    });
+    expect(after.lines).toHaveLength(1);
+    expect(after.lines[0]).toMatchObject({
+      start: "00:00",
+      end: "00:15",
+      fromPreviousDay: false,
+      intoNextDay: false,
+    });
   });
 
   it("formats local clock values with an optional seconds part", () => {

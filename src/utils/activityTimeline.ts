@@ -8,6 +8,9 @@ export interface ActivityTimelineSegment {
   durationSeconds: number;
   leftPercent: number;
   widthPercent: number;
+  /** Local midnight cut this half off a run that began the day before / goes on into the next. */
+  clippedStart: boolean;
+  clippedEnd: boolean;
 }
 
 export interface ActivityTimelineRow extends UserActivityDay {
@@ -100,6 +103,8 @@ export function buildActivityTimelineRows(
         durationSeconds: Math.round((endMs - startMs) / 1000),
         leftPercent,
         widthPercent,
+        clippedStart: startMs > interval.startMs,
+        clippedEnd: endMs < interval.endMs,
       });
     }
 
@@ -275,25 +280,27 @@ export function buildActivityIntervalDays(
   const days: ActivityIntervalDay[] = [];
   for (const row of rows) {
     if (row.segments.length === 0) continue;
-    const dayStart = localDateStartEpoch(row.date, timezone);
     const dayEnd = localDateStartEpoch(addCalendarDays(row.date, 1), timezone);
     const lines = [...row.segments]
       .sort((a, b) => Date.parse(a.startedAt) - Date.parse(b.startedAt))
-      .map((segment): ActivityIntervalLine => {
-        const fromPreviousDay = Date.parse(segment.startedAt) === dayStart;
-        const intoNextDay = Date.parse(segment.endedAt) === dayEnd;
-        return {
+      .map(
+        (segment): ActivityIntervalLine => ({
           id: segment.id,
           startedAt: segment.startedAt,
           endedAt: segment.endedAt,
           start: formatActivityClock(segment.startedAt, timezone),
-          end: intoNextDay ? "24:00" : formatActivityClock(segment.endedAt, timezone),
+          // An end on the stroke of midnight is this day's "24:00" whether or
+          // not the run goes on; only the strip's clipping says that it does.
+          end:
+            Date.parse(segment.endedAt) === dayEnd
+              ? "24:00"
+              : formatActivityClock(segment.endedAt, timezone),
           approximateEnd: segment.approximateEnd,
           durationSeconds: segment.durationSeconds,
-          fromPreviousDay,
-          intoNextDay,
-        };
-      });
+          fromPreviousDay: segment.clippedStart,
+          intoNextDay: segment.clippedEnd,
+        }),
+      );
     const last = lines[lines.length - 1];
     days.push({
       date: row.date,

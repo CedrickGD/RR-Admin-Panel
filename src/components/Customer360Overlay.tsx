@@ -659,7 +659,7 @@ function IdentityCard({
   linkedAccount: string | null;
   onRawData: () => void;
 }) {
-  const { profile, anchor } = customer;
+  const { profile, anchor, summary } = customer;
   const contactFacts = [
     { label: "Email", value: profile.email },
     { label: "Discord", value: profile.verified_discord || profile.discord || linkedAccount },
@@ -668,6 +668,19 @@ function IdentityCard({
     (fact, index, facts) =>
       Boolean(fact.value) && facts.findIndex((other) => other.value === fact.value) === index,
   );
+  // Where the newest session came from: the address the owner looks up first, and under
+  // it the place that session resolved to and how many addresses the identity was seen
+  // from. The place repeats the Location card on purpose — it belongs next to the IP.
+  const lastIp = summary.last_ip?.trim() || null;
+  const ipCount = summary.ip_count ?? 0;
+  const ipMeta = [
+    [summary.city, resolveCountry(summary.country)?.label ?? summary.country]
+      .filter((value) => Boolean(value?.trim()))
+      .join(", "),
+    ipCount > 1 ? `${formatNumber(ipCount)} addresses seen` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
   const requestedBy = String(anchor.requested_by ?? "");
   return (
     <section className="customer360-card customer360-identity">
@@ -675,7 +688,10 @@ function IdentityCard({
       <div className="customer360-badges">
         <Badge tone={confidenceTone(anchor.confidence)}>{confidenceLabel(anchor.confidence)}</Badge>
       </div>
-      {contactFacts.length ? (
+      {contactFacts.length ? null : (
+        <p className="customer360-caption">No contact details have been linked to this identity.</p>
+      )}
+      {contactFacts.length || lastIp ? (
         <dl className="customer360-facts">
           {contactFacts.map((fact) => (
             <div key={fact.label}>
@@ -683,10 +699,17 @@ function IdentityCard({
               <dd>{displayValue(fact.value)}</dd>
             </div>
           ))}
+          {lastIp ? (
+            <div className="customer360-last-ip">
+              <dt>Last IP</dt>
+              <dd>
+                <span className="customer360-mono">{lastIp}</span>
+                {ipMeta ? <small>{ipMeta}</small> : null}
+              </dd>
+            </div>
+          ) : null}
         </dl>
-      ) : (
-        <p className="customer360-caption">No contact details have been linked to this identity.</p>
-      )}
+      ) : null}
       <details className="customer360-contact-details">
         <summary>
           <span>Identity &amp; technical details</span>

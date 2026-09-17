@@ -141,6 +141,10 @@ export interface Customer360Customer {
     city: string | null;
     region: string | null;
     timezone: string | null;
+    /** client_ip of the newest session; absent from responses older than this field. */
+    last_ip?: string | null;
+    /** Distinct client_ip values across the loaded sessions. */
+    ip_count?: number;
     first_seen: string | null;
     last_seen: string | null;
     total_sessions: number;

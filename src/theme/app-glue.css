@@ -1208,8 +1208,9 @@ select.glass-input {
 /* No width floor for the directory here: a 1040px one used to sit at this spot
    and never shipped, because consistency.css sets min-width on the same table
    at higher specificity. Two files naming different floors for one table was
-   the defect; CustomersPage passes the real one (960px, its measured width with
-   every optional tier hidden) through TableFrame's minWidth prop. */
+   the defect; CustomersPage passes the real one (907px, its measured
+   min-content width with every optional tier hidden) through TableFrame's
+   minWidth prop. */
 /* The directory's own sortable-header styles are gone: the table now uses the
    shared ds SortHeader, styled once by `.table-sort` in operations.css. */
 .customer-directory-table .btn {
@@ -1220,12 +1221,6 @@ select.glass-input {
   min-width: 0;
   flex-direction: column;
   gap: 3px;
-}
-.customer-directory-support {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px;
 }
 .customer-directory-stacked small {
   color: var(--text-3);
@@ -1279,21 +1274,36 @@ select.glass-input {
 .data-table-wrap {
   container: tablefit / inline-size;
 }
-/* Customer directory — 11 columns. Contact / Device+OS / Location / Total time
-   are not one expansion away when they go (this table has no expanded row);
-   they are in the Customer 360 workspace. See the header comment in
-   CustomersPage.tsx. */
-@container tablefit (max-width: 1510px) {
+/* Customer directory — 12 columns. Contact / Device+OS / Location / Last IP /
+   Total time are not one expansion away when they go (this table has no
+   expanded row); they are in the phone card, the export and the Customer 360
+   workspace. See the column caps in CustomersPage.tsx.
+   Measured on the owner's data shape (1,359 rows, 37-character device
+   strings, Argentine city names, 32-character handles, the widest status
+   badge on the page) with every free-text cell at its cap. Each threshold is
+   that configuration's min-content width: the width below which the table
+   would scroll, with the name column — the one wrappable cell — at its 190px
+   floor. Above it the name column is the only give (its 190–280px range,
+   .person-cell). Last IP is a col-lg column of exactly 168px (20ch of the
+   12px mono cell plus the 12px cell padding each side, customer-directory.css)
+   whatever the address, so it adds 168 to the two thresholds it is part of;
+   below the col-md threshold it is already gone, so that number stands. A
+   1,920px window with the rail expanded (1,610px) keeps every column but
+   Location, and every column once the rail is collapsed (1,790px); a 1,440px
+   one (1,130px) keeps Contact. The max-content widths, where nothing wraps,
+   are 107px higher: 1835 / 1645 / 1164, and 1014 with every tier hidden
+   (floor 907, TableFrame minWidth). */
+@container tablefit (max-width: 1727px) {
   .customer-directory-table .col-xl {
     display: none;
   }
 }
-@container tablefit (max-width: 1330px) {
+@container tablefit (max-width: 1537px) {
   .customer-directory-table .col-lg {
     display: none;
   }
 }
-@container tablefit (max-width: 1072px) {
+@container tablefit (max-width: 1056px) {
   .customer-directory-table .col-md {
     display: none;
   }

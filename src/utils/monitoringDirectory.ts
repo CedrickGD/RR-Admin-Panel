@@ -56,6 +56,7 @@ export function buildMonitoringDirectory(
               appVersion: session.appVersion || user.appVersion,
               discordUser: session.discordUser || user.discordUser,
               rpcEnabled: session.rpcEnabled ?? user.rpcEnabled,
+              lastIp: session.clientIp || user.lastIp || null,
               lastEvent: session.lastEvent,
             }
           : {}),
@@ -82,6 +83,8 @@ export function buildMonitoringDirectory(
         country: session.clientCountry,
         city: session.clientCity ?? null,
         timezone: session.clientTimezone ?? null,
+        lastIp: session.clientIp ?? null,
+        ipCount: session.clientIp ? 1 : 0,
         rpcEnabled: session.rpcEnabled ?? null,
         discordUser: session.discordUser ?? null,
         latitude: session.clientLatitude ?? null,

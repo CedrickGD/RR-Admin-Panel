@@ -116,6 +116,8 @@ const CUSTOMERS = [
     lastSeen: "2026-09-12T12:00:00.000Z",
     country: "US",
     city: "Austin",
+    lastIp: "198.51.100.7",
+    ipCount: 2,
     appVersion: "2.8.0",
     rpcEnabled: null,
   }),
@@ -321,7 +323,12 @@ describe("Session history workspace", () => {
     await click(button("Export"));
     await waitFor(() => vi.mocked(writeFile).mock.calls.length === 1);
     expect(utils.json_to_sheet).toHaveBeenLastCalledWith([
-      expect.objectContaining({ Customer: "Mara", Status: "Offline", Sessions: 3 }),
+      expect.objectContaining({
+        Customer: "Mara",
+        Status: "Offline",
+        Sessions: 3,
+        "Client IP": "198.51.100.7",
+      }),
     ]);
     vi.mocked(writeFile).mockImplementationOnce(() => {
       throw new Error("Download failed");

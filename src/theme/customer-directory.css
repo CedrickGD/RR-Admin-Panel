@@ -127,29 +127,51 @@ html[data-theme] .customer-directory-section[data-density] .record-secondary {
 .customer-directory-presence.is-online::before {
   background: var(--success);
 }
-.customer-directory-status-group {
-  display: grid;
-  grid-template-columns: 68px minmax(0, 1fr);
-  align-items: baseline;
-  gap: 8px;
-}
-.customer-directory-status-group + .customer-directory-status-group {
-  margin-top: 3px;
-}
-.customer-directory-status-label,
-.customer-directory-neutral {
-  color: var(--text-3);
-  font-size: var(--fs-small);
-}
-html[data-theme] .customer-directory-section[data-density] .customer-directory-support,
-html[data-theme] .customer-directory-section[data-density] .customer-directory-access {
+/* ── Status column ──
+   A badge only when something is wrong, a muted dash otherwise; the full wording is the cell's
+   title and, on the stacked phone card, the two labelled lines below (the card shows those in
+   place of the badge row). The badge row caps its own width so a second badge wraps inside the
+   cell instead of widening the column; the column caps in CustomersPage.tsx bound the rest of
+   the row. The badges are the ds size, the same as the Version badge two columns over. */
+.customer-directory-status-flags {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
-  min-width: 0;
+  gap: 4px 6px;
+  max-width: 196px;
 }
-html[data-theme] .customer-directory-section[data-density] .customer-directory-status-cell .badge {
-  font-size: var(--fs-small);
+.customer-directory-status-clear {
+  color: var(--text-3);
+}
+.customer-directory-status-lines {
+  display: none;
+}
+/* The two lines of a capped Device / OS cell ellipsise on their own: the cell's clamp
+   (.cell-truncate) reaches inline content only, and these are blocks. */
+html[data-theme] .customer-directory-section[data-density] .customer-directory-stacked > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Last IP: the whole address, mono. An IPv4 is one line. An IPv6 — half of the recent
+   sessions — is up to 39 characters, too long for a column, so the cell lifts the
+   record-table nowrap and lets the address break at the one opportunity the markup gives
+   it (a <wbr> after the fourth group): two lines of at most 20 characters, which the row
+   height carries at either density. The column costs 20ch whatever the address. */
+html[data-theme]
+  .customer-directory-section[data-density]
+  .customer-directory-table
+  > tbody
+  > tr
+  > td.customer-directory-ip-cell {
+  font-size: var(--fs-tiny);
+  line-height: 1.35;
+  white-space: normal;
+}
+.customer-directory-ip {
+  display: inline-block;
+  max-width: 20ch;
+  vertical-align: middle;
 }
 html[data-theme] .customer-directory-section[data-density] .customer-directory-table .row-actions {
   gap: 6px;
@@ -288,14 +310,40 @@ html[data-theme] .customer-directory-section[data-density] .customer-directory-a
     > td.customer-directory-status-cell::before {
     content: none;
   }
-  .customer-directory-status-group {
-    grid-template-columns: 84px minmax(0, 1fr);
+  /* The card reads the status as two labelled lines — App access, Support — in the badge
+     row's place, so a clean row says in words what the desktop dash stands for. */
+  .customer-directory-status-flags {
+    display: none;
   }
-  .customer-directory-status-group + .customer-directory-status-group {
+  .customer-directory-status-lines {
+    display: block;
+    margin: 0;
+  }
+  .customer-directory-status-lines > div {
+    display: grid;
+    grid-template-columns: 84px minmax(0, 1fr);
+    align-items: baseline;
+    gap: 8px;
+  }
+  .customer-directory-status-lines > div + div {
     margin-top: 8px;
   }
-  .customer-directory-status-group .badge,
-  .customer-directory-neutral {
+  .customer-directory-status-lines dt,
+  .customer-directory-status-lines dd {
+    margin: 0;
+    color: var(--text-3);
+    font-size: var(--fs-small);
+    font-weight: 400;
+  }
+  .customer-directory-status-lines dd {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .customer-directory-status-lines .badge {
     white-space: normal;
     overflow-wrap: anywhere;
   }

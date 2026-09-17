@@ -435,6 +435,8 @@ interface UserRollupRow {
   platform: string | null;
   os_version: string | null;
   device_model: string | null;
+  client_ip: string | null;
+  ip_count: number | string | null;
   client_country: string | null;
   client_city: string | null;
   client_timezone: string | null;
@@ -467,7 +469,7 @@ export async function loadUsersRollup(
         `WITH base AS (
            SELECT *, ${IDENTITY_SQL} AS identity FROM app_sessions ${dim.sql}
          ), ranked AS (
-           SELECT identity, user_label, app_version, display_version, platform, os_version, device_model, hwid,
+           SELECT identity, user_label, app_version, display_version, platform, os_version, device_model, hwid, client_ip,
              client_country, client_city, client_timezone, client_latitude, client_longitude, rpc_enabled, discord_user, last_status, last_event,
              ROW_NUMBER() OVER (PARTITION BY identity ORDER BY last_seen_at DESC) AS rn
            FROM base
@@ -479,11 +481,12 @@ export async function loadUsersRollup(
              SUM(CASE WHEN session_id NOT LIKE 'install:%' AND duration_seconds BETWEEN 1 AND ${MAX_PLAUSIBLE_DURATION_SECONDS}
                  THEN duration_seconds ELSE 0 END) AS total_duration_seconds,
              SUM(error_count) AS errors,
-             MAX(is_active) AS is_active
+             MAX(is_active) AS is_active,
+             COUNT(DISTINCT NULLIF(client_ip, '')) AS ip_count
            FROM base GROUP BY identity
          )
-         SELECT agg.identity, agg.first_seen, agg.last_seen, agg.sessions, agg.total_duration_seconds, agg.errors, agg.is_active,
-           r.user_label, r.app_version, r.display_version, r.platform, r.os_version, r.device_model, r.hwid,
+         SELECT agg.identity, agg.first_seen, agg.last_seen, agg.sessions, agg.total_duration_seconds, agg.errors, agg.is_active, agg.ip_count,
+           r.user_label, r.app_version, r.display_version, r.platform, r.os_version, r.device_model, r.hwid, r.client_ip,
            r.client_country, r.client_city, r.client_timezone, r.client_latitude, r.client_longitude, r.rpc_enabled, r.discord_user, r.last_status, r.last_event
          FROM agg JOIN ranked r ON r.identity = agg.identity AND r.rn = 1
          ORDER BY agg.last_seen DESC`,
@@ -629,6 +632,8 @@ export async function loadUsersRollup(
       country: row.client_country ?? null,
       city: row.client_city ?? null,
       timezone: row.client_timezone ?? null,
+      lastIp: row.client_ip?.trim() || null,
+      ipCount: toNumber(row.ip_count),
       rpcEnabled:
         row.rpc_enabled === null || row.rpc_enabled === undefined
           ? null

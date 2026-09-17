@@ -173,6 +173,17 @@ html[data-theme] .customer-glass .customer360-environment .customer360-info-grid
   grid-template-columns: 62px minmax(0, 1fr);
   gap: 10px;
 }
+/* Last IP in the identity rail: the address, and under it where that session resolved
+   to and how many addresses the identity was seen from. */
+.customer-glass .customer360-last-ip dd {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.customer-glass .customer360-last-ip small {
+  color: var(--text-3);
+  font-size: var(--fs-tiny);
+}
 .customer360-contact-details {
   margin-top: 14px;
   border-top: 1px solid var(--line-row);

@@ -1,8 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { UserRollupRecord } from "../src/types/telemetry";
+import { formatDate, formatDay } from "../src/utils/format";
 import { paginate } from "../src/utils/pagination";
-import { buildUserDirectoryOptions, filterAndSortUsers } from "../src/utils/userDirectory";
+import {
+  buildUserDirectoryOptions,
+  defaultUserSortDirection,
+  directoryStatus,
+  filterAndSortUsers,
+  lastIpAddress,
+  needsAttention,
+  statusSeverity,
+} from "../src/utils/userDirectory";
 
 const NO_FILTERS = { version: null, continent: null, country: null };
 
@@ -138,6 +147,39 @@ describe("user directory filters and sorting", () => {
     }
   });
 
+  it("searches the last IP and sorts addresses by octet, unknown ones last", () => {
+    const users = [
+      user("ten", { lastIp: "10.0.0.10" }),
+      user("two", { lastIp: "10.0.0.2" }),
+      user("none", { lastIp: null }),
+      user("blank", { lastIp: "  " }),
+      user("v6", { lastIp: "2001:db8:85a3::8a2e:370:7334" }),
+    ];
+
+    expect(lastIpAddress(users[3])).toBeNull();
+    expect(
+      filterAndSortUsers(users, "10.0.0.1", NO_FILTERS, "user", "asc").map((u) => u.identity),
+    ).toEqual(["ten"]);
+    expect(
+      filterAndSortUsers(users, "2001:DB8", NO_FILTERS, "user", "asc").map((u) => u.identity),
+    ).toEqual(["v6"]);
+    expect(defaultUserSortDirection("ip")).toBe("asc");
+    expect(filterAndSortUsers(users, "", NO_FILTERS, "ip", "asc").map((u) => u.identity)).toEqual([
+      "two",
+      "ten",
+      "v6",
+      "blank",
+      "none",
+    ]);
+    expect(filterAndSortUsers(users, "", NO_FILTERS, "ip", "desc").map((u) => u.identity)).toEqual([
+      "v6",
+      "ten",
+      "two",
+      "blank",
+      "none",
+    ]);
+  });
+
   it("matches uppercase-I machine names regardless of the browser casing locale", () => {
     const users = [user("device-1", { userLabel: "MSI-CG-MAIN" })];
     const originalToLocaleLowerCase = String.prototype.toLocaleLowerCase;
@@ -154,5 +196,111 @@ describe("user directory filters and sorting", () => {
     } finally {
       localeLowerCase.mockRestore();
     }
+  });
+});
+
+/** The rollup's suspension summary, as the directory row carries it. */
+function suspension(
+  mode: "ban" | "suspend",
+  bannedUntil: string | null,
+): NonNullable<UserRollupRecord["suspension"]> {
+  return {
+    mode,
+    reason: null,
+    bannedUntil,
+    hadPaidLicense: false,
+    createdAt: "2026-09-01T00:00:00Z",
+  };
+}
+
+const UNTIL = "2026-10-01T00:00:00Z";
+
+describe("directory Status column", () => {
+  it("sorts by severity: ban, suspension, down, errors, degraded, then nothing wrong", () => {
+    const users = [
+      user("clear"),
+      user("degraded", { lastStatus: "degraded" }),
+      user("two-errors", { errors: 2 }),
+      user("nine-errors", { errors: 9, lastStatus: "degraded" }),
+      user("down", { lastStatus: "down" }),
+      user("suspended", { suspension: suspension("suspend", UNTIL) }),
+      user("banned", { suspension: suspension("ban", null) }),
+    ];
+    const order = (direction: "asc" | "desc") =>
+      filterAndSortUsers(users, "", NO_FILTERS, "status", direction).map((entry) => entry.identity);
+
+    // Worst first is the default, as for every other non-text column.
+    expect(defaultUserSortDirection("status")).toBe("desc");
+    expect(order("desc")).toEqual([
+      "banned",
+      "suspended",
+      "down",
+      "nine-errors",
+      "two-errors",
+      "degraded",
+      "clear",
+    ]);
+    expect(order("asc")).toEqual([
+      "clear",
+      "degraded",
+      "two-errors",
+      "nine-errors",
+      "down",
+      "suspended",
+      "banned",
+    ]);
+    // One ranking on the page: "Needs attention" is exactly what the column would badge.
+    expect(users.map(needsAttention)).toEqual([false, true, true, true, true, true, true]);
+    expect(users.map((entry) => statusSeverity(entry) > 0)).toEqual(users.map(needsAttention));
+    // A ban outranks any error count; within a rank the count decides.
+    expect(statusSeverity(user("b", { suspension: suspension("ban", null) }))).toBeGreaterThan(
+      statusSeverity(user("e", { errors: 5_000_000 })),
+    );
+    // The count is capped so no error count can climb into the next rank.
+    expect(statusSeverity(user("e", { errors: 5_000_000 }))).toBe(
+      statusSeverity(user("e", { errors: 999_999 })),
+    );
+    expect(statusSeverity(user("e", { errors: 999_999 }))).toBeLessThan(
+      statusSeverity(user("d", { lastStatus: "down" })),
+    );
+  });
+
+  it("words the cell: a badge for what is wrong, the two full lines behind it", () => {
+    expect(directoryStatus(user("clear"))).toMatchObject({
+      flags: [],
+      access: "No restriction reported",
+      support: "No errors reported",
+      summary: "App access: No restriction reported\nSupport: No errors reported",
+      severity: 0,
+    });
+    // No access information in the rollup at all is not "no restriction".
+    expect(directoryStatus(user("unknown", { suspension: undefined })).access).toBe("Not reported");
+
+    const banned = directoryStatus(
+      user("banned", { suspension: suspension("ban", null), errors: 1, lastStatus: "down" }),
+    );
+    expect(banned.flags).toEqual([
+      { line: "access", label: "Banned", tone: "danger", title: null },
+      { line: "support", label: "1 error", tone: "warning", title: "Last status down" },
+    ]);
+    expect(banned.summary).toBe("App access: Banned\nSupport: 1 error, last status down");
+
+    const timed = directoryStatus(
+      user("timed", { suspension: suspension("suspend", UNTIL), lastStatus: "degraded" }),
+    );
+    expect(timed.flags.map((flag) => [flag.label, flag.tone])).toEqual([
+      [`Suspended until ${formatDay(UNTIL)}`, "warning"],
+      ["Degraded", "warning"],
+    ]);
+    expect(timed.flags[0]?.title).toBe(`Lifts automatically on ${formatDate(UNTIL)}`);
+    expect(timed.support).toBe("Last status degraded");
+
+    expect(
+      directoryStatus(user("open", { suspension: suspension("suspend", null) })).flags,
+    ).toEqual([{ line: "access", label: "Suspended", tone: "warning", title: null }]);
+    expect(directoryStatus(user("down", { lastStatus: "down" })).flags).toEqual([
+      { line: "support", label: "Down", tone: "danger", title: null },
+    ]);
+    expect(directoryStatus(user("many", { errors: 1234 })).flags[0]?.label).toBe("1,234 errors");
   });
 });

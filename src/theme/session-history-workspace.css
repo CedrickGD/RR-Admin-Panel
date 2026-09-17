@@ -105,8 +105,12 @@ html[data-background]:not([data-background="plain"])
   overflow-wrap: anywhere;
 }
 
-.session-history-workspace .session-history-identity:hover strong {
-  color: var(--accent-text);
+/* Hover only where there is a pointer that hovers: on a touch screen the tapped
+   label kept the accent until the next tap. */
+@media (hover: hover) {
+  .session-history-workspace .session-history-identity:hover strong {
+    color: var(--accent-text);
+  }
 }
 
 .session-history-workspace .session-history-identity-copy small,

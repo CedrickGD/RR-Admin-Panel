@@ -8,7 +8,7 @@ import type {
   SummaryPayload,
 } from "../types/telemetry";
 import { apiUrl, fetchAdminData, fetchSession, postAuth, postLogout } from "../utils/api";
-import { emitRefresh } from "../utils/refreshBus";
+import { emitRefresh, useRefreshSignal } from "../utils/refreshBus";
 
 const DEFAULT_REFRESH_MS = 15_000;
 const LIVE_REFRESH_MS = 5_000;
@@ -163,6 +163,13 @@ export function useDashboard(activePage: PageKey) {
     };
   }, [user?.email, loadDashboard]);
 
+  // A page that changed data the summary reports on (Feedback's Mark read or Delete moves the
+  // rail's unread count; an access change moves the overview) emits on the bus: the summary
+  // re-pulls silently, as the poll does. The hook's own emits below join the request in flight.
+  useRefreshSignal(() => {
+    if (user) void loadDashboard(true);
+  });
+
   useEffect(() => {
     if (!user) return;
 
@@ -280,15 +287,17 @@ export function useDashboard(activePage: PageKey) {
     if (refreshing) return;
     setRefreshing(true);
     const startedAt = Date.now();
+    // Surface the full-page load error ONLY when there's nothing already on screen.
+    // The click still gives feedback (spinner + a data update on success), but a
+    // transient refresh blip must not throw a load-error banner over good data we're
+    // already showing — the next background poll self-heals it anyway. Started before
+    // the bus fires, so the subscriber above joins this request instead of a silent one.
+    const load = loadDashboard(summary !== null);
     // Every mounted page-level data source (licenses, feedback, announcements,
     // suspensions, stats…) re-pulls from the worker too — the one button
     // refreshes the whole page in place, never via a browser reload.
     emitRefresh();
-    // Surface the full-page load error ONLY when there's nothing already on screen.
-    // The click still gives feedback (spinner + a data update on success), but a
-    // transient refresh blip must not throw a load-error banner over good data we're
-    // already showing — the next background poll self-heals it anyway.
-    await loadDashboard(summary !== null);
+    await load;
     const elapsed = Date.now() - startedAt;
     const minVisibleMs = 550;
     if (elapsed < minVisibleMs) {

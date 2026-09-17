@@ -1,4 +1,4 @@
-import { act } from "react";
+import { act, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FeedbackPage } from "../src/pages/FeedbackPage";
@@ -7,6 +7,7 @@ import { resetHistoryLayers } from "../src/hooks/useHistoryLayer";
 import type { AuthUser } from "../src/types/telemetry";
 import { fetchApi } from "../src/utils/api";
 import { navigateCustomerUrl } from "../src/utils/customerNavigation";
+import { useRefreshSignal } from "../src/utils/refreshBus";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -99,10 +100,17 @@ beforeEach(() => {
     if (method === "GET" && pathname === "/api/admin/feedback") {
       return json({ ok: true, feedback: reports, unread: { feedback: 2, support: 1, total: 3 } });
     }
-    if (
-      (method === "PUT" || method === "DELETE") &&
-      /^\/api\/admin\/feedback\/\d+$/.test(pathname)
-    ) {
+    // The page re-pulls the list on the refresh bus after a change, so the mock keeps state.
+    const target = /^\/api\/admin\/feedback\/(\d+)$/.exec(pathname);
+    if (method === "PUT" && target) {
+      const { status } = JSON.parse(String(init?.body)) as {
+        status: (typeof REPORTS)[0]["status"];
+      };
+      reports = reports.map((item) => (item.id === Number(target[1]) ? { ...item, status } : item));
+      return json({ ok: true });
+    }
+    if (method === "DELETE" && target) {
+      reports = reports.filter((item) => item.id !== Number(target[1]));
       return json({ ok: true });
     }
     throw new Error(`Unexpected mocked request: ${method} ${pathname}`);
@@ -123,16 +131,23 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 
-async function mount(user = WRITER) {
+async function mount(user = WRITER, beside: ReactNode = null) {
   await act(async () =>
     root.render(
       <PanelIdentity.Provider value={user}>
         <main>
           <FeedbackPage summary={null} />
         </main>
+        {beside}
       </PanelIdentity.Provider>,
     ),
   );
+}
+
+/** Stands in for the dashboard (useDashboard listens the same way) and any other mounted list. */
+function RefreshProbe({ onRefresh }: { onRefresh: () => void }) {
+  useRefreshSignal(onRefresh);
+  return null;
 }
 
 async function waitFor(check: () => boolean, description: string) {
@@ -299,6 +314,50 @@ describe("feedback workspace", () => {
     expect(reportIds()).toEqual([3]);
     await click(filter("Inbox"));
     expect(reportIds()).toEqual([1, 2, 4]);
+  });
+
+  it("signals the refresh bus after a status change or a delete, never after a failed one", async () => {
+    const refreshed = vi.fn();
+    await mount(WRITER, <RefreshProbe onRefresh={refreshed} />);
+    await waitFor(() => report(1) !== null, "the feedback inbox");
+    expect(refreshed).not.toHaveBeenCalled();
+    expect(requests("GET")).toHaveLength(1);
+
+    // The dashboard summary (the rail's unread count) and this list re-pull right away.
+    await click(button("Mark read", report(1)!));
+    expect(refreshed).toHaveBeenCalledTimes(1);
+    expect(requests("GET")).toHaveLength(2);
+    await waitFor(() => button("Mark read", report(1)!) === null, "the re-pulled list");
+    expect(filter("New").textContent).toMatch(/New\s*1/);
+
+    api.mockResolvedValueOnce(json({ ok: false, error: "Update rejected" }, 500));
+    await click(button("Mark read", report(4)!));
+    await waitFor(
+      () => Boolean(container.querySelector('[role="alert"]')?.textContent?.trim()),
+      "the action error",
+    );
+    expect(refreshed).toHaveBeenCalledTimes(1);
+    expect(requests("GET")).toHaveLength(2);
+
+    const details = report(2)!.querySelector("details")!;
+    await click(details.querySelector("summary"));
+    await click(
+      [...details.querySelectorAll<HTMLButtonElement>("button")].find((item) =>
+        /^Delete (report|feedback)$/.test(controlName(item)),
+      ) ?? null,
+    );
+    await waitFor(() => document.querySelector('[role="dialog"]') !== null, "the confirmation");
+    const dialog = document.querySelector('[role="dialog"]')!;
+    await click(
+      [...dialog.querySelectorAll<HTMLButtonElement>("button")].find((item) =>
+        /^Delete (report|feedback)$/.test(controlName(item)),
+      ) ?? null,
+    );
+    expect(requests("DELETE")).toHaveLength(1);
+    expect(refreshed).toHaveBeenCalledTimes(2);
+    expect(requests("GET")).toHaveLength(3);
+    await waitFor(() => report(2) === null, "the re-pulled list without the deleted row");
+    expect(reportIds()).toEqual([1, 4]);
   });
 
   it("opens replies for the selected report and preserves the Customer 360 feedback lookup", async () => {

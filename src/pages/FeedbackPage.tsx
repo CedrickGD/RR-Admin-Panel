@@ -31,7 +31,7 @@ import type {
   SummaryPayload,
 } from "../types/telemetry";
 import { apiUrl, fetchApi } from "../utils/api";
-import { useRefreshSignal } from "../utils/refreshBus";
+import { emitRefresh, useRefreshSignal } from "../utils/refreshBus";
 import { navigateCustomerUrl } from "../utils/customerNavigation";
 import { usePanelPermission } from "../hooks/usePanelPermission";
 import { FeedbackReplies } from "../components/FeedbackReplies";
@@ -241,6 +241,9 @@ export function FeedbackPage({ summary }: FeedbackPageProps) {
       if (!res.ok || !data.ok) throw new Error("Status update failed.");
       ++requestVersion.current;
       setFeedback((prev) => prev.map((f) => (f.id === item.id ? { ...f, status } : f)));
+      // The rail's unread count comes from the dashboard summary: it, and this list, re-pull now
+      // rather than on the next poll.
+      emitRefresh();
     } catch {
       setListError("The status could not be updated. The report has not been moved.");
     } finally {
@@ -267,6 +270,7 @@ export function FeedbackPage({ summary }: FeedbackPageProps) {
       setFeedback((prev) => prev.filter((f) => f.id !== deleteCandidate.id));
       ++requestVersion.current;
       setDeleteCandidate(null);
+      emitRefresh();
     } catch {
       setDeleteError("The feedback could not be deleted. Please try again.");
     } finally {

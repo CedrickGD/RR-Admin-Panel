@@ -1,4 +1,9 @@
-import { ensureFeedbackSchema } from "../../_lib/content";
+import {
+  defaultFeedbackKind,
+  ensureFeedbackSchema,
+  isFeedbackKind,
+  type FeedbackKind,
+} from "../../_lib/content";
 import { error, json, nowIso } from "../../_lib/http";
 import { internalError } from "../../_lib/responses";
 import { parseJsonObject, requireInstallAuth } from "../../_lib/install-auth";
@@ -37,6 +42,11 @@ function trimField(value: unknown): string | null {
  * clients until REQUIRE_INSTALL_SIGNATURE=true. Identity fields are best-effort context supplied
  * by the client so the admin can follow up; only `message` is required. The per-IP rate limit
  * and the middleware byte cap are the basic abuse guards.
+ *
+ * Body (shared/feedback-contract.ts): `kind` ("feedback" | "support") is optional. When it is
+ * missing or invalid the report is filed as "support" if it carries a diagnostics snapshot and as
+ * "feedback" otherwise, so clients from before the field (1.5.2 and below) land in the right
+ * inbox. Everything else about the request and the 201 response is unchanged.
  */
 export async function onRequestPost(context: HandlerContext): Promise<Response> {
   const limited = enforceRateLimit(context.request, {
@@ -73,6 +83,9 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
   if (diagnosticsResult.value && !auth.installId) {
     return error(401, "Install signature required for diagnostics.");
   }
+  const kind: FeedbackKind = isFeedbackKind(body.kind)
+    ? body.kind
+    : defaultFeedbackKind(diagnosticsResult.value !== null);
 
   try {
     await ensureFeedbackSchema(context.env);
@@ -82,8 +95,8 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
     const insert = await db
       .prepare(
         `INSERT INTO feedback
-          (message, contact, hwid, install_id, license_key, machine_name, app_version, platform, status, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', ?)`,
+          (message, contact, hwid, install_id, license_key, machine_name, app_version, platform, status, kind, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?)`,
       )
       .bind(
         message.slice(0, MAX_MESSAGE_LENGTH),
@@ -94,6 +107,7 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
         trimField(body.machine_name),
         trimField(body.app_version),
         trimField(body.platform),
+        kind,
         createdAt,
       )
       .run<D1RunResult>();

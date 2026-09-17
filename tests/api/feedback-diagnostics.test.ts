@@ -235,8 +235,10 @@ describe("POST /api/feedback diagnostics compatibility", () => {
       operation.normalizedSql.startsWith("INSERT INTO feedback "),
     );
     expect(insert?.normalizedSql).toContain(
-      "(message, contact, hwid, install_id, license_key, machine_name, app_version, platform, status, created_at)",
+      "(message, contact, hwid, install_id, license_key, machine_name, app_version, platform, status, kind, created_at)",
     );
+    // No kind on the wire: a report with a diagnostics snapshot is the "report a problem" flow.
+    expect(insert?.values[8]).toBe("support");
     expect(
       mock.operations.filter((operation) =>
         operation.normalizedSql.startsWith("INSERT INTO feedback_diagnostic_providers"),

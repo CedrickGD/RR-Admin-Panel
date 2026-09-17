@@ -1,3 +1,8 @@
+import {
+  normalizeFeedbackKind,
+  type FeedbackKind,
+  type FeedbackUnread,
+} from "../../shared/feedback-contract";
 import type { D1Database, RuntimeEnv } from "./types";
 
 /**
@@ -9,35 +14,13 @@ import type { D1Database, RuntimeEnv } from "./types";
 
 export type AnnouncementLevel = "info" | "warning" | "critical";
 export type FeedbackStatus = "new" | "read" | "archived";
-/**
- * Which inbox a feedback row belongs to. "support" is the client's "report a problem" flow (the
- * submission that carries the diagnostics snapshot); "feedback" is ideas and opinions. The wire
- * field is optional on POST /api/feedback: a missing or invalid value falls back to
- * defaultFeedbackKind, so clients that predate the field (1.5.2 and below) land in the right inbox.
- */
-export type FeedbackKind = "feedback" | "support";
-export const FEEDBACK_KINDS: readonly FeedbackKind[] = ["feedback", "support"];
-
-export function isFeedbackKind(value: unknown): value is FeedbackKind {
-  return value === "feedback" || value === "support";
-}
-
-/** The server default when the client sent no (valid) kind: diagnostics attached → support. */
-export function defaultFeedbackKind(hasDiagnostics: boolean): FeedbackKind {
-  return hasDiagnostics ? "support" : "feedback";
-}
-
-/** A stored row's kind; anything unexpected (a row read before the column existed) is feedback. */
-export function normalizeFeedbackKind(value: unknown): FeedbackKind {
-  return value === "support" ? "support" : "feedback";
-}
-
-/** Unread (status = new) reports per inbox, plus the total the rail badge shows. */
-export interface FeedbackUnread {
-  feedback: number;
-  support: number;
-  total: number;
-}
+export type { FeedbackKind, FeedbackUnread } from "../../shared/feedback-contract";
+export {
+  FEEDBACK_KINDS,
+  defaultFeedbackKind,
+  isFeedbackKind,
+  normalizeFeedbackKind,
+} from "../../shared/feedback-contract";
 
 export interface AnnouncementRow {
   id: number;

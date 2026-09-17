@@ -9,13 +9,20 @@ import { Modal, ModalActions } from "./ds/Modal";
 import { apiUrl, fetchApi } from "../utils/api";
 import { formatDate } from "../utils/format";
 import { usePanelPermission } from "../hooks/usePanelPermission";
+import type { FeedbackKind } from "../types/telemetry";
 
 type Reply = { id: number; message: string; created_at: string; read_at: string | null };
+/** Inbox badge — the fixed info tone for a problem report, muted for an idea; no new colours. */
+export const FEEDBACK_KIND_BADGE: Record<FeedbackKind, { label: string; tone: "info" | "muted" }> =
+  {
+    support: { label: "Support", tone: "info" },
+    feedback: { label: "Feedback", tone: "muted" },
+  };
 export function FeedbackReplies({
   report,
   onClose,
 }: {
-  report: { id: number; message: string; machine_name: string | null };
+  report: { id: number; message: string; machine_name: string | null; kind?: FeedbackKind };
   onClose: () => void;
 }) {
   const [replies, setReplies] = useState<Reply[]>([]);
@@ -110,6 +117,11 @@ export function FeedbackReplies({
           <div className="support-conversation-label">
             <MessageSquare aria-hidden="true" />
             <strong>Customer's report</strong>
+            {report.kind ? (
+              <Badge tone={FEEDBACK_KIND_BADGE[report.kind].tone}>
+                {FEEDBACK_KIND_BADGE[report.kind].label}
+              </Badge>
+            ) : null}
           </div>
           <p
             id={`reply-source-${report.id}`}

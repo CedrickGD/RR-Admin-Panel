@@ -122,8 +122,13 @@ export interface NavbarProps {
   onNavigate: (p: PageKey) => void;
   user: AuthUser;
   onLogout: () => void;
+  /**
+   * Small count next to a rail item, e.g. unread feedback (both inboxes) on "Feedback & support".
+   * Hidden when 0 or absent, and in the collapsed rail together with the label.
+   */
+  counts?: Partial<Record<PageKey, number>>;
 }
-export function Navbar({ page, onNavigate, user, onLogout }: NavbarProps) {
+export function Navbar({ page, onNavigate, user, onLogout, counts }: NavbarProps) {
   useChartColors();
   const [mobile, setMobile] = useState(false);
   const signOut = useSignOut(onLogout);
@@ -349,6 +354,11 @@ export function Navbar({ page, onNavigate, user, onLogout }: NavbarProps) {
                       >
                         {icon}
                         <span>{PAGE_META[key].label}</span>
+                        {counts?.[key] ? (
+                          <span className="sb-count" title={`${counts[key]} unread`}>
+                            {counts[key]}
+                          </span>
+                        ) : null}
                       </button>
                     ))}
                   </div>

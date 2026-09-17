@@ -337,7 +337,13 @@ export default function App() {
       <CustomerProfilesProvider key={user.email}>
         <div className="app-shell v2-shell">
           <PanelBackground />
-          <Navbar page={page} onNavigate={setPage} user={user} onLogout={() => void logout()} />
+          <Navbar
+            page={page}
+            onNavigate={setPage}
+            user={user}
+            onLogout={() => void logout()}
+            counts={{ feedback: summary?.feedbackUnread?.total }}
+          />
 
           <main className="main-area v2-main">
             {loadError ? (

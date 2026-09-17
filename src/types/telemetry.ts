@@ -1,4 +1,7 @@
+import type { FeedbackKind, FeedbackUnread } from "../../shared/feedback-contract";
 import type { BackgroundFaultReport } from "../../shared/telemetry-contract";
+
+export type { FeedbackKind, FeedbackUnread };
 
 export type TelemetryStatus = "ok" | "degraded" | "down";
 export type AuthMode = "app" | "access";
@@ -406,6 +409,30 @@ export interface SummaryPayload {
     errorsLast24Hours: number;
     lastIngestAt: string | null;
   };
+  /** Unread feedback per inbox for the rail badge; absent without support.read or on a DB failure. */
+  feedbackUnread?: FeedbackUnread;
+}
+
+export type FeedbackStatus = "new" | "read" | "archived";
+
+/**
+ * One row of GET /api/admin/feedback (functions/_lib/content.ts FeedbackRow plus the report id
+ * the admin route merges in). `kind` says which inbox it belongs to (shared/feedback-contract.ts).
+ */
+export interface FeedbackRecord {
+  id: number;
+  message: string;
+  contact: string | null;
+  hwid: string | null;
+  install_id: string | null;
+  license_key: string | null;
+  machine_name: string | null;
+  app_version: string | null;
+  platform: string | null;
+  status: FeedbackStatus;
+  kind: FeedbackKind;
+  created_at: string;
+  report_id?: string;
 }
 
 /** Mirror of functions/_lib/types.ts HealthPayload. The dashboard only checks that it arrived. */

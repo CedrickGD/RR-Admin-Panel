@@ -1580,6 +1580,14 @@
   gap: 12px;
   margin-bottom: 12px;
 }
+/* Inbox + status badges on a report card: one row on the right, wrapping on a phone. */
+.customer360-card-badges {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
 .customer360-card-title > div:first-child {
   min-width: 0;
   display: flex;

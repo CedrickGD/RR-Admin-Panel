@@ -97,6 +97,8 @@ export interface Customer360Usage {
 export interface Customer360Feedback {
   id?: number | string;
   report_id?: string | null;
+  /** Which inbox the report sits in (shared/feedback-contract.ts); older payloads have none. */
+  kind?: "feedback" | "support" | null;
   message?: string | null;
   category?: string | null;
   status?: string | null;

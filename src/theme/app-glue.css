@@ -717,6 +717,22 @@ svg * {
   opacity: 1;
   color: var(--accent);
 }
+/* Unread count on a rail item — the .ds-tab-count recipe. A span, so the
+   collapsed rail hides it with the label. */
+.sb-item .sb-count {
+  margin-left: auto;
+  padding: 1px 6px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  color: var(--text-2);
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.sb-item.active .sb-count {
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+}
 
 .sb-foot {
   margin-top: auto;

@@ -47,6 +47,7 @@ import { RelativeTime } from "./ds/RelativeTime";
 import { usePanelPermission } from "../hooks/usePanelPermission";
 import { PanelBackground } from "./PanelBackground";
 import { CustomerAvatar, useCustomerProfiles } from "./CustomerProfiles";
+import { FEEDBACK_KIND_BADGE } from "./FeedbackReplies";
 import { resolveCountry } from "../utils/geography";
 import { setWorkspaceSearch } from "../hooks/useWorkspaceSearch";
 import { CustomerAccessDialog } from "./CustomerAccessDialog";
@@ -430,8 +431,12 @@ export function Customer360Overview({
     ...(canReadSupport
       ? customer.feedback.map((item, index) => ({
           id: `feedback-${item.report_id ?? item.id ?? index}`,
-          label: "In-app report received",
-          detail: item.category ? humanKey(item.category) : "Customer feedback",
+          label: item.kind === "support" ? "Support report received" : "Feedback received",
+          detail: item.category
+            ? humanKey(item.category)
+            : item.kind === "support"
+              ? "Problem report"
+              : "Customer feedback",
           at: item.created_at ?? "",
           tab: "activity" as const,
         }))
@@ -923,7 +928,14 @@ function FeedbackReport({ item, index }: { item: Customer360Feedback; index: num
           <strong>{item.report_id ?? `Feedback ${index + 1}`}</strong>
           <small>{item.created_at ? formatDate(item.created_at) : "Time unknown"}</small>
         </div>
-        <Badge tone={statusTone(item.status)}>{item.status ?? "Unknown status"}</Badge>
+        <div className="customer360-card-badges">
+          {item.kind ? (
+            <Badge tone={FEEDBACK_KIND_BADGE[item.kind].tone}>
+              {FEEDBACK_KIND_BADGE[item.kind].label}
+            </Badge>
+          ) : null}
+          <Badge tone={statusTone(item.status)}>{item.status ?? "Unknown status"}</Badge>
+        </div>
       </div>
       <p>{item.message ?? "No message body."}</p>
       <div className="customer360-priority-meta">

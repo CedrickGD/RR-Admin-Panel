@@ -44,7 +44,8 @@ export const PAGE_META: Record<PageKey, PageMeta> = {
   versions: { group: "Monitoring", label: "Versions" },
   heatmap: { group: "Monitoring", label: "World map" },
   announcements: { group: "Communication", label: "Announcements" },
-  feedback: { group: "Communication", label: "Feedback" },
+  // Two inboxes (Feedback | Support, ds/Tabs sections) behind one rail item; the name covers both.
+  feedback: { group: "Communication", label: "Feedback & support" },
   errors: { group: "Diagnostics", label: "Errors" },
   team: { group: "Administration", label: "Panel access" },
   system: { group: "Administration", label: "System health" },

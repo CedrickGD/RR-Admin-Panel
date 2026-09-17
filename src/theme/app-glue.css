@@ -1313,8 +1313,11 @@ select.glass-input {
   }
 }
 /* Errors — 10 columns, and the narrowest of the three. Discord, Platform,
-   Location and First error all read back in the row's expanded detail grid. */
-@container tablefit (max-width: 1096px) {
+   Location and First error all read back in the row's expanded detail grid.
+   The first tier is the table's measured natural width with all ten columns
+   (1174px): at 1096px it fired 44px too late and the 1130px frame of the
+   1440 rail-open layout scrolled, with Last error under the pinned actions. */
+@container tablefit (max-width: 1174px) {
   .error-users-table .col-xl {
     display: none;
   }

@@ -131,16 +131,16 @@ container turns unhealthy and the page shows it; the next run, or the manual one
 
 The page's container table is fed through two hops, `rr-api -> docker-gateway -> docker-proxy`,
 on two `internal` networks; rr-api has no route to the socket proxy itself.
-`docker-socket-proxy` can only gate whole API *sections* — `CONTAINERS=1` allows every non-POST
+`docker-socket-proxy` can only gate whole API _sections_ — `CONTAINERS=1` allows every non-POST
 call under `/containers`, for **every** container on the host, which includes reading another
 container's `Config.Env` and pulling arbitrary files out of it via `/archive`.
 `docker-gateway` (`caddy:2-alpine`, config in `docker-gateway/Caddyfile`) is the path allowlist
 that the socket proxy cannot be. It permits exactly two `GET` shapes:
 
-| Request rr-api may make | Forwarded as |
-| --- | --- |
-| `GET /containers/json` | `/containers/json?all=1&filters={"label":["com.docker.compose.project=razorreaper"]}` |
-| `GET /containers/razorreaper-<service>-<n>/stats` | same path, `?stream=false` |
+| Request rr-api may make                           | Forwarded as                                                                          |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `GET /containers/json`                            | `/containers/json?all=1&filters={"label":["com.docker.compose.project=razorreaper"]}` |
+| `GET /containers/razorreaper-<service>-<n>/stats` | same path, `?stream=false`                                                            |
 
 Everything else gets `403` from the gateway without the socket proxy being touched: `/archive`,
 `/logs`, `/export`, `/top`, `/changes`, any container outside this compose project, any non-GET
@@ -210,23 +210,23 @@ single SQLite file instead of D1/Pages/Workers:
 Copy `rr-api/.env.example` to `rr-api/.env` (git-ignored) and fill it. Every variable from the
 repo README's env table is passed through 1:1; rr-api adds:
 
-| Variable | Default | Meaning |
-| --- | --- | --- |
-| `PORT` | `8787` | listen port inside the container |
-| `DB_PATH` | `/data/db/rr.sqlite` | SQLite file (volume `${DATA_DIR}/db`) |
-| `DB_BOOTSTRAP_SCHEMA` | `false` | `true` = run `schema.sql` once when the DB has no tables |
-| `SCHEMA_PATH` | `/app/schema.sql` | where `schema.sql` lives in the image |
-| `CRON_LICENSE_CLEANUP` | `30 3 * * *` | cron for the nightly license cleanup |
-| `RL_INGEST_PER_MINUTE` / `RL_REGISTER_PER_MINUTE` | `60` / `5` | in-process rate limiters that replace the `RL_*` bindings |
-| `APP_SHARED_KEY` | – | legacy ingest key for the worker routes (falls back to `INGEST_TOKEN`) |
-| `MEDIA_ORIGIN` | `https://media.razorreaper.app` | `/media/*` upstream (legacy route) |
-| `GITHUB_TOKEN` / `GITHUB_REPO` / `GITHUB_BRANCH` / `UPDATE_ASSET_NAME` | worker defaults | `/update/*` proxy |
-| `ORIGIN_KEY` | – | shared secret of the proxy shells (`X-RR-Origin-Key`); the same value is the worker's + Pages' `ORIGIN_KEY` secret. Empty = trusted forwarding disabled (`X-RR-*` headers are ignored and stripped) |
-| `ORIGIN_HOST` | – | e.g. `origin.razorreaper.app`; requests on that `Host` without a valid key -> `401 Unauthorized origin request.` (`/health` exempt) |
-| `WORKER_HOST` | – | hostname(s) of the standalone worker shell, comma-separated (`backend.rr-admin-panel.workers.dev`); trusted requests forwarded from there are answered by the embedded worker only (its routes; 410/404 for the rest), never by the Pages routes |
-| `ORIGIN_BASE` | – | **ignored** on rr-api (dropped by `buildRuntimeEnv`): rr-api is the origin and must never proxy to itself |
+| Variable                                                               | Default                         | Meaning                                                                                                                                                                                                                                          |
+| ---------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `PORT`                                                                 | `8787`                          | listen port inside the container                                                                                                                                                                                                                 |
+| `DB_PATH`                                                              | `/data/db/rr.sqlite`            | SQLite file (volume `${DATA_DIR}/db`)                                                                                                                                                                                                            |
+| `DB_BOOTSTRAP_SCHEMA`                                                  | `false`                         | `true` = run `schema.sql` once when the DB has no tables                                                                                                                                                                                         |
+| `SCHEMA_PATH`                                                          | `/app/schema.sql`               | where `schema.sql` lives in the image                                                                                                                                                                                                            |
+| `CRON_LICENSE_CLEANUP`                                                 | `30 3 * * *`                    | cron for the nightly license cleanup                                                                                                                                                                                                             |
+| `RL_INGEST_PER_MINUTE` / `RL_REGISTER_PER_MINUTE`                      | `60` / `5`                      | in-process rate limiters that replace the `RL_*` bindings                                                                                                                                                                                        |
+| `APP_SHARED_KEY`                                                       | –                               | legacy ingest key for the worker routes (falls back to `INGEST_TOKEN`)                                                                                                                                                                           |
+| `MEDIA_ORIGIN`                                                         | `https://media.razorreaper.app` | `/media/*` upstream (legacy route)                                                                                                                                                                                                               |
+| `GITHUB_TOKEN` / `GITHUB_REPO` / `GITHUB_BRANCH` / `UPDATE_ASSET_NAME` | worker defaults                 | `/update/*` proxy                                                                                                                                                                                                                                |
+| `ORIGIN_KEY`                                                           | –                               | shared secret of the proxy shells (`X-RR-Origin-Key`); the same value is the worker's + Pages' `ORIGIN_KEY` secret. Empty = trusted forwarding disabled (`X-RR-*` headers are ignored and stripped)                                              |
+| `ORIGIN_HOST`                                                          | –                               | e.g. `origin.razorreaper.app`; requests on that `Host` without a valid key -> `401 Unauthorized origin request.` (`/health` exempt)                                                                                                              |
+| `WORKER_HOST`                                                          | –                               | hostname(s) of the standalone worker shell, comma-separated (`backend.rr-admin-panel.workers.dev`); trusted requests forwarded from there are answered by the embedded worker only (its routes; 410/404 for the rest), never by the Pages routes |
+| `ORIGIN_BASE`                                                          | –                               | **ignored** on rr-api (dropped by `buildRuntimeEnv`): rr-api is the origin and must never proxy to itself                                                                                                                                        |
 
-With a valid `ORIGIN_KEY` the request is *trusted*: `cf-connecting-ip` becomes the forwarded
+With a valid `ORIGIN_KEY` the request is _trusted_: `cf-connecting-ip` becomes the forwarded
 `X-RR-Client-IP` (when it is a valid IP literal), `request.cf` is the tunnel's geo overlaid by
 the forwarded `X-RR-Client-CF`, and `request.url` is rebuilt on the forwarded
 `X-RR-Forwarded-Proto://X-RR-Forwarded-Host` (when it is a plain hostname[:port]) so the
@@ -286,11 +286,11 @@ switch is configuration only, and every step is reversible by unsetting `ORIGIN_
 
 1. **rr-api up with a full copy (T0).** Export D1 and import it into the NAS database
    (`npx wrangler d1 export rr-admin-panel --remote --output export-T0.sql`, then on the NAS
-   `sqlite3 /volume1/docker/razorreaper/data/db/rr.sqlite < export-T0.sql` — see *Database*
+   `sqlite3 /volume1/docker/razorreaper/data/db/rr.sqlite < export-T0.sql` — see _Database_
    above). `ORIGIN_KEY` (random >= 32 chars, e.g. `openssl rand -base64 48`),
    `ORIGIN_HOST=origin.<domain>` and `WORKER_HOST=backend.rr-admin-panel.workers.dev` are set in
    `${DATA_DIR}/env/rr-api.env` (never `ORIGIN_BASE` — that is a shell-side variable, and never
-   `BUILD_SHA` — see *Deploy / update*);
+   `BUILD_SHA` — see _Deploy / update_);
    `BUILD_SHA=$(git rev-parse --short HEAD) docker compose up -d --build rr-api`.
    `origin.<domain>` and `api.<domain>` both answer `/health`
    (`curl -s https://origin.<domain>/health` -> `{"ok":true,"service":"rr-api"}`, and
@@ -300,10 +300,10 @@ switch is configuration only, and every step is reversible by unsetting `ORIGIN_
 2. **Flip the shells (T1).** Worker: `cd backend-worker && npx wrangler secret put ORIGIN_KEY`
    (paste the same value), set `ORIGIN_BASE = "https://origin.<domain>"` in the real
    `wrangler.toml` `[vars]`, `npx wrangler deploy`. Pages: `npx wrangler pages secret put
-   ORIGIN_KEY --project-name rr-admin-panel`, set `ORIGIN_BASE` in the Pages project variables
+ORIGIN_KEY --project-name rr-admin-panel`, set `ORIGIN_BASE` in the Pages project variables
    (or `wrangler.toml` `[vars]`), push `main`. From T1 every write lands on the NAS; verify with
    a heartbeat from a test install and `sqlite3 rr.sqlite "SELECT MAX(received_at) FROM
-   telemetry_events;"` on the NAS.
+telemetry_events;"` on the NAS.
 3. **Delta (T0 -> T1).** Export D1 once more (`export-T1.sql`). Rewrite the dump so it only adds
    rows that are missing on the NAS: drop every `CREATE ...` statement and turn `INSERT INTO`
    into `INSERT OR IGNORE INTO`

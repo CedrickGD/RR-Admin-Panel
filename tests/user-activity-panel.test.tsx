@@ -184,10 +184,10 @@ describe("UserActivityPanel", () => {
       { label: "24", left: "100%" },
     ]);
     // A little more room keeps the five ticks and gives the minutes back.
-    await resize({ track: 220 });
+    await resize({ track: 240 });
     expect(ticks().map((t) => t.label)).toEqual(["00:00", "06:00", "12:00", "18:00", "24:00"]);
     // Tablet: every four hours. Desktop: back to every two.
-    await resize({ track: 320 });
+    await resize({ track: 360 });
     expect(ticks().map((t) => t.label)).toEqual([
       "00:00",
       "04:00",

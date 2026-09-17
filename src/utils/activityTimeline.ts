@@ -114,11 +114,17 @@ export interface ActivityAxisTick {
 }
 
 /* An 11px monospace digit is ~6.6px wide; a full "06:00" label is five of them,
-   a short "06" two. The gap keeps neighbouring labels from reading as one. */
+   a short "06" two. The gap keeps neighbouring labels from reading as one.
+   The first and last labels sit flush with the track's ends instead of centred
+   on their tick (index.css), so the step beside them has to hold a whole edge
+   label, the gap and half of its centred neighbour — one and a half labels,
+   not one. That edge step is the tightest of the set, so it sets the budget:
+   at 164px five "HH:00" labels centred would fit, anchored they overlap. */
 const TICK_CHAR_PX = 6.6;
 const TICK_MIN_GAP_PX = 8;
-const FULL_TICK_PX = 5 * TICK_CHAR_PX + TICK_MIN_GAP_PX;
-const SHORT_TICK_PX = 2 * TICK_CHAR_PX + TICK_MIN_GAP_PX;
+const EDGE_LABELS = 1.5;
+const FULL_TICK_PX = EDGE_LABELS * 5 * TICK_CHAR_PX + TICK_MIN_GAP_PX;
+const SHORT_TICK_PX = EDGE_LABELS * 2 * TICK_CHAR_PX + TICK_MIN_GAP_PX;
 
 const hourLabel = (hour: number, short: boolean) =>
   `${String(hour).padStart(2, "0")}${short ? "" : ":00"}`;

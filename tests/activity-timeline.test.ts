@@ -112,8 +112,20 @@ describe("timeline axis for a measured track", () => {
     expect(labels(null)).toHaveLength(13);
     expect(labels(null)[0]).toBe("00:00");
     expect(labels(900)).toHaveLength(13);
-    expect(labels(300)).toEqual(["00:00", "04:00", "08:00", "12:00", "16:00", "20:00", "24:00"]);
-    expect(labels(200)).toEqual(["00:00", "06:00", "12:00", "18:00", "24:00"]);
+    // A 1440px desktop with the rail open: every two hours, still 13.
+    expect(labels(822)).toHaveLength(13);
+    expect(labels(822)[12]).toBe("24:00");
+    expect(labels(360)).toEqual(["00:00", "04:00", "08:00", "12:00", "16:00", "20:00", "24:00"]);
+    // The first and last labels are anchored to the track's ends, not centred on
+    // their tick, so a step has to hold one and a half labels plus the gap: at
+    // 300px the four-hour step (50px) is too tight for "HH:00" and the axis
+    // falls back to six hours; 240px still carries the minutes, 200px does not.
+    expect(labels(300)).toEqual(["00:00", "06:00", "12:00", "18:00", "24:00"]);
+    expect(labels(240)).toEqual(["00:00", "06:00", "12:00", "18:00", "24:00"]);
+    expect(labels(200)).toEqual(["00", "06", "12", "18", "24"]);
+    // A 412px phone leaves the track 164px: five full labels would overlap by
+    // 8px at the ends ("00:006:00"), so the short form it is.
+    expect(labels(164)).toEqual(["00", "06", "12", "18", "24"]);
     expect(labels(150)).toEqual(["00", "06", "12", "18", "24"]);
     expect(activityAxisTicks(150).map((tick) => tick.hour)).toEqual([0, 6, 12, 18, 24]);
     // The track's guide lines follow the ticks.

@@ -18,6 +18,11 @@ const projectRoot = fileURLToPath(new URL(".", import.meta.url));
 // so only ~1 KB of HTML is refetched, not the app. Client-side navigation lives in
 // the URL FRAGMENT (#/live) which never reaches the server, so "/" and "/index.html"
 // still cover every HTML response without a "/*" catch-all that could shadow /assets/*.
+//
+// The "/*" block below carries ONLY the security headers the admin host sends
+// (deploy/nas/admin/Caddyfile): Pages merges the headers of every matching rule,
+// so a "/*" rule without Cache-Control cannot shadow the immutable /assets/* one.
+// The legacy Pages host still serves the full bundle until main.tsx redirects.
 function cloudflareHeaders(): Plugin {
   return {
     name: "emit-cf-headers",
@@ -27,6 +32,13 @@ function cloudflareHeaders(): Plugin {
         type: "asset",
         fileName: "_headers",
         source: [
+          "/*",
+          "  X-Content-Type-Options: nosniff",
+          "  X-Frame-Options: DENY",
+          "  Content-Security-Policy: frame-ancestors 'none'",
+          "  Referrer-Policy: strict-origin-when-cross-origin",
+          "  Permissions-Policy: camera=(), microphone=(), geolocation=()",
+          "",
           "/api/*",
           "  Cache-Control: no-store",
           "",

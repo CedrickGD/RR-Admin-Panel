@@ -83,6 +83,33 @@ describe("NAS admin deployment", () => {
     );
   });
 
+  it("gives the Pages shell the same security headers as the admin host", () => {
+    const caddyfile = repoFile("deploy/nas/admin/Caddyfile");
+    const viteConfig = repoFile("vite.config.ts");
+    const pagesHeaders = viteConfig.slice(
+      viteConfig.indexOf('"/*",'),
+      viteConfig.indexOf('"/api/*",'),
+    );
+
+    // Every `header Name "value"` the Caddyfile sets (not the -Server removal, not
+    // the per-handle Cache-Control) must be in the _headers "/*" block verbatim.
+    const caddyHeaders = [...caddyfile.matchAll(/^\theader ([A-Z][\w-]+) "([^"]+)"$/gm)]
+      .map(([, name, value]) => ({ name, value }))
+      .filter(({ name }) => name !== "Cache-Control");
+    expect(caddyHeaders.map(({ name }) => name)).toEqual([
+      "X-Content-Type-Options",
+      "X-Frame-Options",
+      "Content-Security-Policy",
+      "Referrer-Policy",
+      "Permissions-Policy",
+    ]);
+    for (const { name, value } of caddyHeaders) {
+      expect(pagesHeaders, name).toContain(`"  ${name}: ${value}"`);
+    }
+    // No Cache-Control on "/*": it would merge into the immutable /assets/* rule.
+    expect(pagesHeaders).not.toContain("Cache-Control");
+  });
+
   it("health-checks the admin container on its Caddy port in both the image and compose", () => {
     const dockerfile = repoFile("deploy/nas/admin/Dockerfile");
 

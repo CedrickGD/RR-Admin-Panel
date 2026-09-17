@@ -219,6 +219,10 @@ export interface UserRollupRecord {
   country: string | null;
   city: string | null;
   timezone: string | null;
+  /** client_ip of the newest session. Optional like the other later rollup fields. */
+  lastIp?: string | null;
+  /** Distinct client_ip values across every session of the identity. */
+  ipCount?: number;
   rpcEnabled: boolean | null;
   discordUser: string | null;
   latitude: number | null;

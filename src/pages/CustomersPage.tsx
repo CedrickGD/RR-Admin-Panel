@@ -8,6 +8,7 @@ import {
 import {
   AlertTriangle,
   Crown,
+  Download,
   Radio,
   ScanSearch,
   Search,
@@ -163,6 +164,46 @@ function ipLines(ip: string | null, absent: string): ReactNode {
   );
 }
 
+/** The directory's restriction wording, shared by the Support cell and the export. */
+function restrictionLabel(user: UserRollupRecord): string {
+  const suspension = user.suspension;
+  if (!suspension) return "";
+  if (suspension.mode === "ban") return "Banned";
+  return suspension.bannedUntil
+    ? `Suspended until ${formatDay(suspension.bannedUntil)}`
+    : "Suspended";
+}
+
+/**
+ * The currently filtered directory as a sheet — every page, in the table's order. Same
+ * lazy chunk and wording as the Session history export; the columns follow the table.
+ */
+async function exportCustomers(users: UserRollupRecord[]) {
+  const XLSX = await import("xlsx");
+  const rows = users.map((user) => ({
+    Customer: displayName(user),
+    Contact: user.discordUser?.trim().replace(/^@/, "") || "",
+    Plan: user.licenseTier === "premium" ? "Premium" : "Free",
+    Status: user.isActive ? "Online" : "Offline",
+    Version: userVersionLabel(user),
+    Device: user.deviceModel?.trim() || user.platform?.trim() || "",
+    OS: user.osVersion?.trim() || "",
+    Location: locationLabel(user) === "—" ? "" : locationLabel(user),
+    "Last IP": lastIpAddress(user) ?? "",
+    Sessions: user.sessions,
+    "Total time": user.totalDurationSeconds > 0 ? formatDuration(user.totalDurationSeconds) : "",
+    Errors: user.errors,
+    "First seen": user.firstSeen,
+    "Last seen": user.lastSeen,
+    Restriction: restrictionLabel(user),
+  }));
+  const sheet = XLSX.utils.json_to_sheet(rows);
+  sheet["!cols"] = Object.keys(rows[0] ?? {}).map(() => ({ wch: 22 }));
+  const book = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(book, sheet, "Customers");
+  XLSX.writeFile(book, `rr-customers-${new Date().toISOString().slice(0, 10)}.xlsx`);
+}
+
 function matchesScope(user: UserRollupRecord, scope: CustomerScope | null): boolean {
   switch (scope) {
     case "premium":
@@ -294,6 +335,8 @@ export function CustomersPage({ users: sourceUsers }: CustomersPageProps) {
   const [page, setPage] = useState(1);
   const [selectedUser, setSelectedUser] = useState<UserRollupRecord | null>(null);
   const [accessTarget, setAccessTarget] = useState<CustomerAccessTarget | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
 
   /*
    * ── Sections ──────────────────────────────────────────────────────────────
@@ -438,6 +481,20 @@ export function CustomersPage({ users: sourceUsers }: CustomersPageProps) {
 
   const sort: SortState = { key: sortKey, direction: sortDirection };
 
+  /** Writes what the directory shows right now — every page of the filtered list. */
+  async function download() {
+    if (!directoryUsers?.length) return;
+    setExporting(true);
+    setExportError("");
+    try {
+      await exportCustomers(directoryUsers);
+    } catch {
+      setExportError("Export failed. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   // With one section there is no tab row, so the panel must not claim to be a tab panel.
   const panelProps = (key: CustomerSection) =>
     canReadAccess
@@ -450,7 +507,22 @@ export function CustomersPage({ users: sourceUsers }: CustomersPageProps) {
 
   return (
     <div className="page-content page-stack-lg customer-glass customer-directory-workspace">
-      <PageHeader kicker="Customer support" page="customers" />
+      <PageHeader
+        kicker="Customer support"
+        page="customers"
+        right={
+          section === "directory" ? (
+            <Button
+              permission="exports.read"
+              icon={<Download />}
+              onClick={() => void download()}
+              disabled={exporting || !directoryUsers?.length}
+            >
+              {exporting ? "Exporting…" : "Export"}
+            </Button>
+          ) : null
+        }
+      />
 
       {canReadAccess ? (
         <Tabs
@@ -590,6 +662,12 @@ export function CustomersPage({ users: sourceUsers }: CustomersPageProps) {
               </>
             }
           />
+
+          {exportError ? (
+            <p className="inline-notice danger" role="alert">
+              {exportError}
+            </p>
+          ) : null}
 
           <CollapsiblePanel
             className="customer-directory-panel"

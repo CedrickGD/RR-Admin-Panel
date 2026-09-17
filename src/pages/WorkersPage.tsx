@@ -81,6 +81,7 @@ async function exportHistory(users: UserRollupRecord[]) {
     Version: versionOf(u),
     Country: u.country || "",
     City: u.city || "",
+    "Client IP": u.lastIp || "",
     Sessions: u.sessions,
     "Total seconds": u.totalDurationSeconds,
     Errors: u.errors,

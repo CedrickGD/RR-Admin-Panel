@@ -90,7 +90,6 @@ export interface RuntimeEnv {
   DB?: D1Database;
   KV?: KVNamespace;
   CF_PAGES?: string;
-  CF_PAGES_BRANCH?: string;
   CF_PAGES_COMMIT_SHA?: string;
   // System health sources, rr-api only (GET /api/admin/system). DB_PATH is the SQLite file,
   // BACKUP_DIR the read-only backup mount; BOT_URL and DOCKER_PROXY_URL default to the compose

@@ -1,17 +1,17 @@
 import { useEffect, useState } from "react";
+import type { VersionsResponse } from "../../shared/releases-contract";
+import { apiUrl, fetchApi } from "../utils/api";
 
-const RELEASES_URL = "https://api.github.com/repos/CedrickGD/RazorReaper/releases";
-// v2: cache may contain date-style tags from before the semantic-version filter.
-const CACHE_KEY = "rr-release-versions-v2";
+// v3: reads GET /api/admin/releases/versions through the panel's own API instead of listing
+// releases straight from GitHub (design §10) — the cache key changed because the data source did.
+// The server already normalizes tags to 3-part semantic versions and drops date-style ones (§6),
+// so the client no longer needs to.
+const CACHE_KEY = "rr-release-versions-v3";
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 
 interface CachedReleases {
   versions: string[];
   fetchedAt: number;
-}
-
-function normalizeTag(tag: string): string {
-  return tag.replace(/^v/i, "").trim();
 }
 
 /** Strip trailing .0 segments: "1.4.1.0" → "1.4.1" */
@@ -29,49 +29,61 @@ function loadCached(): string[] | null {
     if (!raw) return null;
     const cached: CachedReleases = JSON.parse(raw);
     if (Date.now() - cached.fetchedAt < CACHE_TTL) return cached.versions;
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return null;
 }
 
 function saveCache(versions: string[]) {
   try {
     localStorage.setItem(CACHE_KEY, JSON.stringify({ versions, fetchedAt: Date.now() }));
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
-/** Returns all known release versions from GitHub (normalized, e.g. "1.4.1") */
+/** Returns all known release versions from the panel API (normalized, e.g. "1.4.1") */
 export function useReleaseVersions(): string[] {
   const [versions, setVersions] = useState<string[]>(() => loadCached() ?? []);
 
   useEffect(() => {
     if (loadCached()) return;
 
-    const controller = new AbortController();
+    let cancelled = false;
 
-    fetch(RELEASES_URL, { signal: controller.signal })
+    fetchApi(apiUrl("/api/admin/releases/versions"), {
+      method: "GET",
+      cache: "no-store",
+      credentials: "include",
+    })
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
+        return res.json() as Promise<VersionsResponse>;
       })
-      .then((releases: Array<{ tag_name: string; draft: boolean; prerelease: boolean }>) => {
-        const parsed = releases
-          .filter((r) => !r.draft)
-          .map((r) => stripTrailingZeros(normalizeTag(r.tag_name)))
-          // Semantic versions only — rejects date-style tags like "26.12.2025".
-          .filter((v) => /^\d+\.\d+(\.\d+)?$/.test(v) && v.split(".").every((part) => part.length <= 3));
+      .then((body) => {
+        if (cancelled) return;
+        const parsed = Array.isArray(body?.releases) ? body.releases : [];
         setVersions(parsed);
         saveCache(parsed);
       })
-      .catch(() => { /* fallback stays */ });
+      .catch(() => {
+        /* fallback stays */
+      });
 
-    return () => controller.abort();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return versions;
 }
 
 /** Check if a session-reported version matches any known GitHub release */
-export function matchReleaseVersion(sessionVersion: string, knownVersions: string[]): string | null {
+export function matchReleaseVersion(
+  sessionVersion: string,
+  knownVersions: string[],
+): string | null {
   const stripped = stripTrailingZeros(sessionVersion);
   // Direct match
   if (knownVersions.includes(stripped)) return stripped;

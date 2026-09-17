@@ -38,14 +38,15 @@ export interface RelativeTimeProps {
  * date-time: as a tooltip for the mouse, and as visually hidden text for
  * keyboard and screen-reader users — <time> is not focusable, so a title
  * alone is mouse-only, and dateTime is never announced. Re-renders on a
- * shared 60 s tick so "just now" does not freeze.
+ * shared 60 s tick so "just now" does not freeze. The class is the hook a
+ * layout places the element by (the Customer 360 history grid).
  */
 export function RelativeTime({ iso }: RelativeTimeProps) {
   useSyncExternalStore(subscribe, getTick, getTick);
   if (!iso || !Number.isFinite(Date.parse(iso))) return <>{timeAgo(iso)}</>;
   const absolute = formatDate(iso);
   return (
-    <time dateTime={iso} title={absolute}>
+    <time className="relative-time" dateTime={iso} title={absolute}>
       {timeAgo(iso)}
       <span className="sr-only"> ({absolute})</span>
     </time>

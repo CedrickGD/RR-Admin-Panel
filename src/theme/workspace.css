@@ -918,8 +918,14 @@ td {
   font-size: var(--fs-micro);
   color: var(--text-3);
 }
-.permission-table td {
-  padding: 12px 14px;
+/* Desktop only, at the record-table cell rule's own specificity: as a plain
+   `.permission-table td` this never applied (consistency.css's 12px 16px won),
+   and at 16px sides the four columns summed to 713px in the 704px dialog wrap
+   and scrolled 9px. Under 900px the stacked-card cell padding must keep winning. */
+@media (min-width: 901px) {
+  html[data-theme] .record-table.permission-table > tbody > tr > td {
+    padding: 12px 14px;
+  }
 }
 /* Narrow enough that the matrix fits the 760px dialog without a second
    horizontal scrollbar inside the form. */
@@ -1110,13 +1116,16 @@ html[data-theme="light"] .recharts-default-tooltip {
     max-width: 320px;
     height: 100%;
     height: 100dvh;
-    padding: calc(env(safe-area-inset-top, 0px) + 14px) 12px calc(env(safe-area-inset-bottom, 0px) + 14px);
+    padding: calc(env(safe-area-inset-top, 0px) + 14px) 12px
+      calc(env(safe-area-inset-bottom, 0px) + 14px);
     background: #0d0e15;
     background: var(--surface-1, #0d0e15);
     border-right: 1px solid var(--line-hi, rgba(255, 255, 255, 0.12));
     box-shadow: 6px 0 36px rgba(0, 0, 0, 0.9);
     transform: translateX(-102%);
-    transition: transform 0.25s var(--ease-smooth), visibility 0.25s;
+    transition:
+      transform 0.25s var(--ease-smooth),
+      visibility 0.25s;
     visibility: hidden;
     pointer-events: none;
     display: flex;

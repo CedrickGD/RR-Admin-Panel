@@ -709,81 +709,86 @@ export function TeamPage() {
                 Inherit the role, explicitly allow, or deny. Optional expiry applies to the
                 override; the role applies again afterward.
               </p>
-              <div className="table-scroll">
-                <TableFrame className="clean-table permission-table" minWidth="auto">
-                  <caption className="table-caption">
-                    Permissions for this member, with any override and its effect
-                  </caption>
-                  <thead>
-                    <tr>
-                      <th scope="col">Permission</th>
-                      <th scope="col">Rule</th>
-                      <th scope="col">Override expires</th>
-                      <th scope="col">Effective now</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {PERMISSIONS.map((p) => (
-                      <tr key={p.key}>
-                        <td>
-                          {p.label}
-                          <small>{p.group}</small>
-                        </td>
-                        <td data-label="Rule">
-                          <Select
-                            aria-label={`Rule for ${p.label}`}
-                            value={editor.overrides[p.key]?.effect ?? "inherit"}
-                            onValueChange={(value) => {
-                              const overrides = { ...editor.overrides };
-                              if (value === "inherit") delete overrides[p.key];
-                              else
-                                overrides[p.key] = {
-                                  effect: value as "allow" | "deny",
-                                  expiresAt: overrides[p.key]?.expiresAt ?? null,
-                                };
-                              setEditor({ ...editor, overrides });
-                            }}
-                          >
-                            <option value="inherit">Inherit role</option>
-                            <option value="allow">Allow</option>
-                            <option value="deny">Deny</option>
-                          </Select>
-                        </td>
-                        <td data-label="Override expires">
-                          <input
-                            aria-label={`Expiry for ${p.label}`}
-                            type="datetime-local"
-                            disabled={!editor.overrides[p.key]}
-                            value={localDate(editor.overrides[p.key]?.expiresAt ?? null)}
-                            onChange={(e) =>
-                              setEditor({
-                                ...editor,
-                                overrides: {
-                                  ...editor.overrides,
-                                  [p.key]: {
-                                    effect: editor.overrides[p.key]!.effect,
-                                    expiresAt: e.target.value
-                                      ? new Date(e.target.value).toISOString()
-                                      : null,
-                                  },
+              {/* Stacked on phones like the members table: the matrix used to be the
+                  one TableFrame that scrolled sideways inside a form. TableFrame is the
+                  scroll container, so it needs no .table-scroll wrapper. */}
+              <TableFrame
+                className="clean-table permission-table"
+                minWidth="auto"
+                mobileLayout="stack"
+              >
+                <caption className="table-caption">
+                  Permissions for this member, with any override and its effect
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Permission</th>
+                    <th scope="col">Rule</th>
+                    <th scope="col">Override expires</th>
+                    <th scope="col">Effective now</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {PERMISSIONS.map((p) => (
+                    <tr key={p.key}>
+                      <td data-label="Permission">
+                        {p.label}
+                        <small>{p.group}</small>
+                      </td>
+                      <td data-label="Rule">
+                        <Select
+                          aria-label={`Rule for ${p.label}`}
+                          value={editor.overrides[p.key]?.effect ?? "inherit"}
+                          onValueChange={(value) => {
+                            const overrides = { ...editor.overrides };
+                            if (value === "inherit") delete overrides[p.key];
+                            else
+                              overrides[p.key] = {
+                                effect: value as "allow" | "deny",
+                                expiresAt: overrides[p.key]?.expiresAt ?? null,
+                              };
+                            setEditor({ ...editor, overrides });
+                          }}
+                        >
+                          <option value="inherit">Inherit role</option>
+                          <option value="allow">Allow</option>
+                          <option value="deny">Deny</option>
+                        </Select>
+                      </td>
+                      <td data-label="Override expires">
+                        <input
+                          aria-label={`Expiry for ${p.label}`}
+                          type="datetime-local"
+                          disabled={!editor.overrides[p.key]}
+                          value={localDate(editor.overrides[p.key]?.expiresAt ?? null)}
+                          onChange={(e) =>
+                            setEditor({
+                              ...editor,
+                              overrides: {
+                                ...editor.overrides,
+                                [p.key]: {
+                                  effect: editor.overrides[p.key]!.effect,
+                                  expiresAt: e.target.value
+                                    ? new Date(e.target.value).toISOString()
+                                    : null,
                                 },
-                              })
-                            }
-                          />
-                        </td>
-                        <td data-label="Effective now">
-                          <span
-                            className={`status-text ${allowed.includes(p.key) ? "success" : "muted"}`}
-                          >
-                            {allowed.includes(p.key) ? <Check size={14} /> : <X size={14} />}{" "}
-                            {allowed.includes(p.key) ? "Allowed" : "Denied"}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </TableFrame>
-              </div>
+                              },
+                            })
+                          }
+                        />
+                      </td>
+                      <td data-label="Effective now">
+                        <span
+                          className={`status-text ${allowed.includes(p.key) ? "success" : "muted"}`}
+                        >
+                          {allowed.includes(p.key) ? <Check size={14} /> : <X size={14} />}{" "}
+                          {allowed.includes(p.key) ? "Allowed" : "Denied"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </TableFrame>
             </details>
             <ModalActions>
               <Button variant="ghost" disabled={busy} onClick={() => setEditor(null)}>

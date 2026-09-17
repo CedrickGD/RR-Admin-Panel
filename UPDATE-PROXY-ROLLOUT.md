@@ -20,7 +20,7 @@ go private.
   - The GitHub token is **optional**: while the repo is public these work unauthenticated. Set
     `GITHUB_TOKEN` before flipping to private.
   - The same `backend-worker/index.js` code is also what runs as `rr-api` on the NAS, serving
-    `dl.razorreaper.app` / `api.razorreaper.app` — see "Two places for the token" below.
+    `dl.razorreaper.app` / `api.razorreaper.app` — see step 4's "Set it in both places" below.
 - **App** (`UpdateService.cs`): manifest URL now points at
   `https://backend.rr-admin-panel.workers.dev/update/update.xml` instead of raw.githubusercontent.
   `AutoUpdateManager` downloads from the manifest's `<url>`, which the worker rewrites — so no other

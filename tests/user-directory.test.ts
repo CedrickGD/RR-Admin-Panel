@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { UserRollupRecord } from "../src/types/telemetry";
 import { paginate } from "../src/utils/pagination";
-import { buildUserDirectoryOptions, filterAndSortUsers } from "../src/utils/userDirectory";
+import {
+  buildUserDirectoryOptions,
+  defaultUserSortDirection,
+  filterAndSortUsers,
+  lastIpAddress,
+} from "../src/utils/userDirectory";
 
 const NO_FILTERS = { version: null, continent: null, country: null };
 
@@ -136,6 +141,39 @@ describe("user directory filters and sorting", () => {
     for (const query of ["rpg_01", "germany", "europe", "abc-123"]) {
       expect(filterAndSortUsers(users, query, NO_FILTERS, "user", "asc")).toHaveLength(1);
     }
+  });
+
+  it("searches the last IP and sorts addresses by octet, unknown ones last", () => {
+    const users = [
+      user("ten", { lastIp: "10.0.0.10" }),
+      user("two", { lastIp: "10.0.0.2" }),
+      user("none", { lastIp: null }),
+      user("blank", { lastIp: "  " }),
+      user("v6", { lastIp: "2001:db8:85a3::8a2e:370:7334" }),
+    ];
+
+    expect(lastIpAddress(users[3])).toBeNull();
+    expect(
+      filterAndSortUsers(users, "10.0.0.1", NO_FILTERS, "user", "asc").map((u) => u.identity),
+    ).toEqual(["ten"]);
+    expect(
+      filterAndSortUsers(users, "2001:DB8", NO_FILTERS, "user", "asc").map((u) => u.identity),
+    ).toEqual(["v6"]);
+    expect(defaultUserSortDirection("ip")).toBe("asc");
+    expect(filterAndSortUsers(users, "", NO_FILTERS, "ip", "asc").map((u) => u.identity)).toEqual([
+      "two",
+      "ten",
+      "v6",
+      "blank",
+      "none",
+    ]);
+    expect(filterAndSortUsers(users, "", NO_FILTERS, "ip", "desc").map((u) => u.identity)).toEqual([
+      "v6",
+      "ten",
+      "two",
+      "blank",
+      "none",
+    ]);
   });
 
   it("matches uppercase-I machine names regardless of the browser casing locale", () => {

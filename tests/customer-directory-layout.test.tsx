@@ -108,6 +108,55 @@ describe("Customer directory record presentation", () => {
     }
   });
 
+  it("lists the last IP as a muted mono column whose IPv6 breaks once, after the fourth group", () => {
+    const ip = "2001:db8:85a3:8d3:1319:8a2e:370:7348";
+    const host = renderCustomer({ lastIp: ip, ipCount: 3 });
+    const header = [...host.querySelectorAll("thead th")].find((th) =>
+      th.textContent?.includes("Last IP"),
+    );
+    // Same tier treatment as the other secondary columns: it bows out with col-lg.
+    expect(header?.className).toContain("col-lg");
+    const cell = host.querySelector("td.customer-directory-ip-cell");
+    for (const className of ["muted", "mono", "col-lg", "customer-directory-secondary-cell"]) {
+      expect(cell?.classList.contains(className)).toBe(true);
+    }
+    expect(cell?.getAttribute("data-label")).toBe("Last IP");
+    const address = cell?.querySelector(".customer-directory-ip");
+    expect(address?.textContent).toBe(ip);
+    // The one break opportunity sits at the /64 boundary: both halves stay under 20 characters.
+    expect(address?.innerHTML).toBe("2001:db8:85a3:8d3:<wbr>1319:8a2e:370:7348");
+    // How many addresses the customer was seen from lives in the tooltip.
+    expect(cell?.getAttribute("title")).toBe("3 addresses seen");
+    // The head and the skeleton agree on the column count.
+    expect(host.querySelectorAll("thead th")).toHaveLength(12);
+    // The phone card carries the whole address as a labelled line.
+    const details = host.querySelector("details.customer-directory-mobile-details");
+    const term = [...(details?.querySelectorAll("dt") ?? [])].find(
+      (dt) => dt.textContent === "Last IP",
+    );
+    expect(term?.nextElementSibling?.textContent).toBe(ip);
+    expect(term?.nextElementSibling?.classList.contains("mono")).toBe(true);
+  });
+
+  it("keeps an IPv4 on one line and says no more than a dash without an address", () => {
+    const host = renderCustomer({ lastIp: null, ipCount: 0 });
+    const cell = host.querySelector("td.customer-directory-ip-cell");
+    expect(cell?.textContent).toBe("—");
+    expect(cell?.hasAttribute("title")).toBe(false);
+    const details = host.querySelector("details.customer-directory-mobile-details");
+    expect(details?.textContent).toContain("Not reported");
+    const single = renderCustomer({ lastIp: "203.0.113.10", ipCount: 1 });
+    const address = single.querySelector("td.customer-directory-ip-cell .customer-directory-ip");
+    expect(address?.innerHTML).toBe("203.0.113.10");
+    // One address seen: nothing to add in a tooltip.
+    expect(single.querySelector("td.customer-directory-ip-cell")?.hasAttribute("title")).toBe(
+      false,
+    );
+    // A compressed IPv6 short enough for one line is left alone.
+    const short = renderCustomer({ lastIp: "::ffff:203.0.113.10", ipCount: 1 });
+    expect(short.querySelector(".customer-directory-ip")?.innerHTML).toBe("::ffff:203.0.113.10");
+  });
+
   it("opens Customer 360 from the whole card head without nesting controls", () => {
     const host = renderCustomer();
     const head = host.querySelector<HTMLElement>(".customer-directory-open");

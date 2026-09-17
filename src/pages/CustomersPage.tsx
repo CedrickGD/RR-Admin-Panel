@@ -15,7 +15,7 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
-import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useState, type ReactNode } from "react";
 import { CollapsiblePanel } from "../components/CollapsiblePanel";
 import { Customer360Overlay, type Customer360Anchor } from "../components/Customer360Overlay";
 import {
@@ -51,6 +51,7 @@ import {
   buildUserDirectoryOptions,
   defaultUserSortDirection,
   filterAndSortUsers,
+  lastIpAddress,
   needsAttention,
   type DirectorySortDirection,
   type UserDirectoryFilters,
@@ -137,6 +138,31 @@ function locationLabel(user: UserRollupRecord): string {
   );
 }
 
+/** Tooltip for the IP cell: how many distinct addresses the customer was seen from, if several. */
+function ipTitle(user: UserRollupRecord): string | undefined {
+  const count = lastIpAddress(user) ? (user.ipCount ?? 0) : 0;
+  return count > 1 ? `${formatNumber(count)} addresses seen` : undefined;
+}
+
+/**
+ * An IPv4 address stays on one line. An IPv6 address — half of the recent sessions — runs
+ * to 39 characters, so it may break once, after its fourth group (the /64 prefix
+ * boundary), into two lines of at most 20 characters, and nowhere else: the address has
+ * no other break opportunity and the cell's max-width does the rest.
+ */
+function ipLines(ip: string | null, absent: string): ReactNode {
+  if (!ip) return absent;
+  const groups = ip.split(":");
+  if (groups.length < 6) return ip;
+  return (
+    <>
+      {`${groups.slice(0, 4).join(":")}:`}
+      <wbr />
+      {groups.slice(4).join(":")}
+    </>
+  );
+}
+
 function matchesScope(user: UserRollupRecord, scope: CustomerScope | null): boolean {
   switch (scope) {
     case "premium":
@@ -197,6 +223,12 @@ function CustomerDirectoryDetails({ user }: { user: UserRollupRecord }) {
           <dd>{locationLabel(user)}</dd>
         </div>
         <div>
+          <dt>Last IP</dt>
+          <dd className="mono" title={ipTitle(user)}>
+            {ipLines(lastIpAddress(user), "Not reported")}
+          </dd>
+        </div>
+        <div>
           <dt>Sessions</dt>
           <dd>{formatNumber(user.sessions)}</dd>
         </div>
@@ -237,6 +269,7 @@ const DIRECTORY_SKELETON_COLUMNS: SkeletonColumn[] = [
   { className: "customer-directory-secondary-cell" }, // Version
   { className: "col-lg customer-directory-secondary-cell" }, // Device / OS
   { className: "col-xl customer-directory-secondary-cell" }, // Location
+  { className: "col-lg customer-directory-secondary-cell" }, // Last IP
   { className: "customer-directory-secondary-cell" }, // Sessions
   { className: "col-lg customer-directory-secondary-cell" }, // Total time
   {}, // Support
@@ -614,6 +647,13 @@ export function CustomersPage({ users: sourceUsers }: CustomersPageProps) {
                           className="col-xl"
                         />
                         <SortHeader
+                          label="Last IP"
+                          sortKey="ip"
+                          sort={sort}
+                          onSortChange={changeSort}
+                          className="col-lg"
+                        />
+                        <SortHeader
                           label="Sessions"
                           sortKey="sessions"
                           sort={sort}
@@ -723,6 +763,16 @@ export function CustomersPage({ users: sourceUsers }: CustomersPageProps) {
                               title={locationLabel(user)}
                             >
                               {locationLabel(user)}
+                            </td>
+                            <td
+                              className="muted mono col-lg customer-directory-ip-cell customer-directory-secondary-cell"
+                              data-label="Last IP"
+                              title={ipTitle(user)}
+                            >
+                              {/* The whole address, on one line or — IPv6 — two. */}
+                              <span className="customer-directory-ip">
+                                {ipLines(lastIpAddress(user), "—")}
+                              </span>
                             </td>
                             <td
                               className="muted numeric customer-directory-secondary-cell"

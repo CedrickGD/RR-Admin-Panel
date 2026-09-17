@@ -6,6 +6,7 @@ export type UserDirectorySortKey =
   | "discord"
   | "version"
   | "location"
+  | "ip"
   | "lastSeen"
   | "firstSeen"
   | "sessions"
@@ -61,6 +62,11 @@ function locationName(user: UserRollupRecord): string | null {
   return [city, country].filter(Boolean).join(" · ");
 }
 
+/** The newest session's client IP, or null for records that never carried one. */
+export function lastIpAddress(user: UserRollupRecord): string | null {
+  return user.lastIp?.trim() || null;
+}
+
 function compareOptionalText(
   left: string | null,
   right: string | null,
@@ -95,6 +101,9 @@ function sortValue(user: UserRollupRecord, key: UserDirectorySortKey): string | 
       return versionName(user);
     case "location":
       return locationName(user);
+    case "ip":
+      // The numeric collator orders dotted quads by octet ("10.0.0.2" before "10.0.0.10").
+      return lastIpAddress(user);
     case "lastSeen":
       return parseTimestamp(user.lastSeen);
     case "firstSeen":
@@ -109,7 +118,7 @@ function sortValue(user: UserRollupRecord, key: UserDirectorySortKey): string | 
 }
 
 export function defaultUserSortDirection(key: UserDirectorySortKey): DirectorySortDirection {
-  return ["user", "discord", "version", "location"].includes(key) ? "asc" : "desc";
+  return ["user", "discord", "version", "location", "ip"].includes(key) ? "asc" : "desc";
 }
 
 export function buildUserDirectoryOptions(
@@ -193,6 +202,7 @@ export function filterAndSortUsers(
       userName(user),
       user.identity,
       user.hwid ?? "",
+      lastIpAddress(user) ?? "",
       discordName(user) ?? "",
       versionName(user) ?? "",
       user.city ?? "",

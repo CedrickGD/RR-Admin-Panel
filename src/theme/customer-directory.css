@@ -151,6 +151,26 @@ html[data-theme] .customer-directory-section[data-density] .customer-directory-a
 html[data-theme] .customer-directory-section[data-density] .customer-directory-status-cell .badge {
   font-size: var(--fs-small);
 }
+/* Last IP: the whole address, mono. An IPv4 is one line. An IPv6 — half of the recent
+   sessions — is up to 39 characters, too long for a column, so the cell lifts the
+   record-table nowrap and lets the address break at the one opportunity the markup gives
+   it (a <wbr> after the fourth group): two lines of at most 20 characters, which the row
+   height carries at either density. The column costs 20ch whatever the address. */
+html[data-theme]
+  .customer-directory-section[data-density]
+  .customer-directory-table
+  > tbody
+  > tr
+  > td.customer-directory-ip-cell {
+  font-size: var(--fs-tiny);
+  line-height: 1.35;
+  white-space: normal;
+}
+.customer-directory-ip {
+  display: inline-block;
+  max-width: 20ch;
+  vertical-align: middle;
+}
 html[data-theme] .customer-directory-section[data-density] .customer-directory-table .row-actions {
   gap: 6px;
 }

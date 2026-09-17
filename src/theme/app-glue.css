@@ -1279,16 +1279,23 @@ select.glass-input {
 .data-table-wrap {
   container: tablefit / inline-size;
 }
-/* Customer directory — 11 columns. Contact / Device+OS / Location / Total time
-   are not one expansion away when they go (this table has no expanded row);
-   they are in the Customer 360 workspace. See the header comment in
-   CustomersPage.tsx. */
-@container tablefit (max-width: 1510px) {
+/* Customer directory — 12 columns. Contact / Device+OS / Location / Last IP /
+   Total time are not one expansion away when they go (this table has no
+   expanded row); they are in the phone card, the export and the Customer 360
+   workspace. See the header comment in CustomersPage.tsx.
+   Last IP is a col-lg column of exactly 168px (20ch of the 12px mono cell plus
+   the 12px cell padding each side — customer-directory.css), measured with the
+   column shown and hidden at the same wrap width, so the two thresholds it is
+   part of are the earlier measurements plus 168: 1510 + 168 and 1330 + 168.
+   Below 1072 it is already gone, so that number stands. A 1920 window shows it
+   next to the expanded rail (1610px) at the cost of Location, and shows both
+   once the rail is collapsed (1790px). */
+@container tablefit (max-width: 1678px) {
   .customer-directory-table .col-xl {
     display: none;
   }
 }
-@container tablefit (max-width: 1330px) {
+@container tablefit (max-width: 1498px) {
   .customer-directory-table .col-lg {
     display: none;
   }

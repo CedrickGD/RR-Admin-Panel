@@ -323,7 +323,13 @@ export interface CommitsSinceResponse {
 
 export type RunStatus = "queued" | "in_progress" | "completed" | "unknown";
 export type RunConclusion =
-  "success" | "failure" | "cancelled" | "skipped" | "timed_out" | "action_required" | null;
+  | "success"
+  | "failure"
+  | "cancelled"
+  | "skipped"
+  | "timed_out"
+  | "action_required"
+  | null;
 
 export interface WorkflowSummary {
   id: number;
@@ -457,7 +463,11 @@ export interface BuildResponse {
  * repeating work. A retry sends the same `confirmToken` until it expires.
  */
 export type PublishStep =
-  "release_upserted" | "body_written" | "release_published" | "manifest_committed" | "recorded";
+  | "release_upserted"
+  | "body_written"
+  | "release_published"
+  | "manifest_committed"
+  | "recorded";
 
 export const PUBLISH_STEPS: readonly PublishStep[] = [
   "release_upserted",
@@ -488,7 +498,12 @@ export interface PublishResponse {
 
 /** A confirm token is minted per action and burnt on use. */
 export type ConfirmAction =
-  "publish" | "make-current" | "unpublish" | "build" | "commit" | "dispatch";
+  | "publish"
+  | "make-current"
+  | "unpublish"
+  | "build"
+  | "commit"
+  | "dispatch";
 
 export interface ConfirmTokenRequest {
   action: ConfirmAction;

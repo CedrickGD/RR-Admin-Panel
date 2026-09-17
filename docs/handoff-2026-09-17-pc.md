@@ -154,3 +154,28 @@ Paket-Historie in `docs/handoff-2026-09-12-panel-rework.md`. Hashes sind Kurzfor
   Fixture stürzt bei `//`-URLs ab. WebView2-CDP-Trick für echte App-Checks:
   `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9223`. Branch-/Worktree-
   Aufräumen erledigt.
+
+## 8. Runde B: Release-Verwaltung (18.09. nachts, `main` bis `b250558`, live)
+
+- **Live:** NAS serviert `index-eZYK276k.js` / `index-Ckexgfaj.css` (`ReleasesPage-D429HtAj.js`), `BUILD_SHA=b250558`,
+  rr-api mit 82 Routen. Backup davor `rr-pre-releases-20260917T2312Z.sqlite`; Rollback-Tags
+  `razorreaper-admin:pre-releases-20260918` / `razorreaper-rr-api:pre-releases-20260918`. Gate: 136 Dateien / 1777 Tests.
+- **Was drin ist** (Design: `docs/release-management-design.md`, Vertrag `shared/releases-contract.ts`): Rechte
+  `releases.read/.write/.files` (Files/Workflows nur Owner), Tabellen `release_drafts`/`release_events` (lazy ensure),
+  GitHub-Client mit Token-Modi (`GITHUB_RELEASE_TOKEN`, Platzhalter → lesend), atomare Multi-File-Commits (Git Data API),
+  HMAC-Bestätigungs-Tokens mit serverseitiger Wirkungsliste (immer mit Discord-Zeile), Admin-API lesend/schreibend
+  (Entwürfe, Versions-Bump + Build-Dispatch, fünfstufiges wiederaufnehmbares Publish, Make current = Rollback,
+  Unpublish nur wenn update.xml nicht darauf zeigt, Dateien auf master mit Denylist, Workflow-Dispatch), Seite `#/releases`
+  (KPI-Zeile, Tabs Releases | Drafts | Workflows | Files), Versions-Seite liest GitHub nur noch über rr-api,
+  Ankündigungen mit `min_version`/`max_version`, Worker: `<changelog>` → Notes-Seite, Download auf den Tag aus update.xml
+  gepinnt, `GET /release-notes/:tag`, Caddyfile-Routen für `dl.razorreaper.app/update/*` und `/release-notes/*`.
+- **Client `master` `e9e6518`:** `build-installer.yml` (workflow_dispatch, Windows-Runner, Draft-Release, Signierung
+  optional über `RR_SIGN_PFX_BASE64`/`RR_SIGN_PFX_PASSWORD`), `update-manifest.yml` nur noch manuell, Discord-Link auf
+  die Notes-Seite, `?v=` bei Ankündigungen. Davor `343acb6`: Hybrid-Update-UX, Account-Knöpfe, Doku.
+- **Offene Besitzer-Schritte:** (1) `docker exec razorreaper-caddy-1 caddy reload --config /etc/caddy/Caddyfile`
+  (validiert, nicht geladen; kein Neustart). (2) Erster Build von 1.5.3 über die Releases-Seite (Draft → Build installer),
+  dann Notes prüfen und Publish — das erste CI-Release muss den ffmpeg-Hinweis tragen. (3) Optional die Signier-Secrets
+  im Client-Repo anlegen. (4) Ankündigung Nr. 7 mit `max_version = 1.4.8` eingrenzen und Text anpassen.
+  (5) Privatschalten erst nach Token-Prüfung auf beiden Flächen und Adoption-Schwelle.
+- **Bekannt:** `BuildResponse.runId` kann null sein, wenn der Run nach 15 s noch nicht sichtbar ist (dann Refresh);
+  `<args>` in update.xml ist über das Panel nicht änderbar; die Release-Tabellen entstehen beim ersten Aufruf der Seite.

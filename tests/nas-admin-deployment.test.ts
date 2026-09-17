@@ -3,6 +3,8 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { composeService } from "./helpers/nas-compose";
+
 function repoFile(path: string): string {
   return readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), "utf8");
 }
@@ -59,9 +61,38 @@ describe("NAS admin deployment", () => {
     const caddyfile = repoFile("deploy/nas/admin/Caddyfile");
 
     expect(caddyfile).toContain("encode zstd gzip");
-    expect(caddyfile).toContain('header Cache-Control "public, max-age=31536000, immutable"');
+    expect(caddyfile).toContain("@assets path /assets/*");
+    // The immutable header belongs to the hashed-asset handle, never to the shell's.
+    expect(caddyfile).toMatch(
+      /handle @assets \{[^}]*header Cache-Control "public, max-age=31536000, immutable"[^}]*file_server/,
+    );
     expect(caddyfile).toContain("try_files {path} /index.html");
     expect(caddyfile).toContain('header Cache-Control "no-store"');
+  });
+
+  it("sends the security headers on every admin response", () => {
+    const caddyfile = repoFile("deploy/nas/admin/Caddyfile");
+
+    expect(caddyfile).toContain("header -Server");
+    expect(caddyfile).toContain('header X-Content-Type-Options "nosniff"');
+    expect(caddyfile).toContain('header X-Frame-Options "DENY"');
+    expect(caddyfile).toContain(`header Content-Security-Policy "frame-ancestors 'none'"`);
+    expect(caddyfile).toContain('header Referrer-Policy "strict-origin-when-cross-origin"');
+    expect(caddyfile).toContain(
+      'header Permissions-Policy "camera=(), microphone=(), geolocation=()"',
+    );
+  });
+
+  it("health-checks the admin container on its Caddy port in both the image and compose", () => {
+    const dockerfile = repoFile("deploy/nas/admin/Dockerfile");
+
+    expect(dockerfile).toMatch(/HEALTHCHECK[^\n]*\n\s+CMD wget -qO- http:\/\/127\.0\.0\.1:8080\//);
+    expect(composeService("admin")).toMatch(
+      /healthcheck:\n\s+test: \["CMD", "wget", "-qO-", "http:\/\/127\.0\.0\.1:8080\/"\]/,
+    );
+    expect(composeService("admin")).toMatch(
+      /depends_on:\n\s+rr-api:\n\s+condition: service_healthy/,
+    );
   });
 
   it("caches the un-hashed PWA icons for a day, like the Pages _headers", () => {

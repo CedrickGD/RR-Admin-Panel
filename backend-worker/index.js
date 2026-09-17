@@ -47,6 +47,12 @@ const KNOWN_COUNTER_SERVICES = new Set([
   "process_start",
   "process_kill",
   "update_check",
+  // The updater's own funnel, emitted by the client from 1.5.4 on: the manifest said an update
+  // was available, the installer ran, the new build came up. Keep in step with the same set in
+  // functions/_lib/storage.ts — a name known to one side only is counted as "other" on the other.
+  "update_download",
+  "update_install",
+  "update_applied",
   "ini_preset_add",
   "ini_preset_remove",
   "ini_preset_image_set",

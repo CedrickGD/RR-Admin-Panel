@@ -1,4 +1,5 @@
 import { requireDashboardAccess } from "../../_lib/admin";
+import { ensureFeedbackSchema, loadFeedbackUnread } from "../../_lib/content";
 import { error, json } from "../../_lib/http";
 import { internalError } from "../../_lib/responses";
 import { loadHealth, loadSummary } from "../../_lib/storage";
@@ -47,6 +48,19 @@ export async function onRequest(context: HandlerContext): Promise<Response> {
           errorsLast24Hours: 0,
           lastIngestAt: null,
         };
+      }
+    }
+
+    if (!permissions || permissions.includes("support.read")) {
+      // The rail badge is a convenience: the dashboard must load even if the feedback tables
+      // cannot be reached, so a failure here just leaves the count out.
+      try {
+        if (context.env.DB) {
+          await ensureFeedbackSchema(context.env);
+          summary.feedbackUnread = await loadFeedbackUnread(context.env.DB);
+        }
+      } catch {
+        // No count rather than no dashboard.
       }
     }
 

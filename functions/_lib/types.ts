@@ -1,3 +1,4 @@
+import type { FeedbackUnread } from "../../shared/feedback-contract";
 import type { BackgroundFaultReport } from "../../shared/telemetry-contract";
 
 export type TelemetryStatus = "ok" | "degraded" | "down";
@@ -407,6 +408,11 @@ export interface SummaryPayload {
     errorsLast24Hours: number;
     lastIngestAt: string | null;
   };
+  /**
+   * Unread (status = new) feedback per inbox, for the rail badge. Added by GET /api/admin/data for
+   * a user with support.read; absent when the feedback tables are unavailable, never a failure.
+   */
+  feedbackUnread?: FeedbackUnread;
 }
 
 /**

@@ -1,7 +1,7 @@
 import { ensureAccessSchema } from "../../_lib/access";
 import { loadUserActivity, type UserActivityPayload } from "../../_lib/activity";
 import { requireAdminRole, requireDashboardAccess } from "../../_lib/admin";
-import { ensureFeedbackSchema, type FeedbackRow } from "../../_lib/content";
+import { ensureFeedbackSchema, normalizeFeedbackKind, type FeedbackRow } from "../../_lib/content";
 import {
   ensureFeedbackDiagnosticsSchema,
   fallbackFeedbackReportId,
@@ -618,6 +618,7 @@ async function loadFeedback(
     const diagnostic = diagnostics.get(Number(row.id));
     return {
       ...row,
+      kind: normalizeFeedbackKind(row.kind),
       report_id: reportId,
       auth_mode: asString(row.auth_mode),
       verified_install_id: verifiedInstallId,

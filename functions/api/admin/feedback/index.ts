@@ -1,5 +1,11 @@
 import { requireDashboardAccess } from "../../../_lib/admin";
-import { ensureFeedbackSchema, type FeedbackRow } from "../../../_lib/content";
+import {
+  ensureFeedbackSchema,
+  isFeedbackKind,
+  loadFeedbackUnread,
+  normalizeFeedbackKind,
+  type FeedbackRow,
+} from "../../../_lib/content";
 import { error, json } from "../../../_lib/http";
 import { internalError } from "../../../_lib/responses";
 import {
@@ -23,12 +29,20 @@ export async function onRequestGet(context: HandlerContext): Promise<Response> {
     const db = context.env.DB;
     if (!db) return error(500, "Database not available");
 
-    await ensureFeedbackSchema(context.env);
-    const { results } = await db
-      .prepare(`SELECT * FROM feedback ORDER BY id DESC`)
-      .all<FeedbackRow>();
+    // ?kind=feedback|support narrows the list to one inbox; omitted = both. The unread summary
+    // below always counts both inboxes, so the section tabs stay right whatever is listed.
+    const requestedKind = new URL(context.request.url).searchParams.get("kind");
+    if (requestedKind !== null && !isFeedbackKind(requestedKind)) {
+      return error(400, "kind must be one of: feedback, support.");
+    }
 
-    const unread = results.filter((row) => row.status === "new").length;
+    await ensureFeedbackSchema(context.env);
+    const list = requestedKind
+      ? db.prepare(`SELECT * FROM feedback WHERE kind = ? ORDER BY id DESC`).bind(requestedKind)
+      : db.prepare(`SELECT * FROM feedback ORDER BY id DESC`);
+    const { results } = await list.all<FeedbackRow>();
+
+    const unread = await loadFeedbackUnread(db);
     let diagnostics = new Map();
     let metadata = new Map();
     try {
@@ -48,6 +62,7 @@ export async function onRequestGet(context: HandlerContext): Promise<Response> {
     }
     const enriched = results.map((row) => ({
       ...row,
+      kind: normalizeFeedbackKind(row.kind),
       report_id: metadata.get(row.id)?.report_id ?? fallbackFeedbackReportId(row.id),
       auth_mode: metadata.get(row.id)?.auth_mode ?? null,
       verified_install_id: metadata.get(row.id)?.verified_install_id ?? null,

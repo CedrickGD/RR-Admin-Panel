@@ -1281,6 +1281,18 @@ html[data-theme]
     min-width: 44px;
     min-height: 44px;
   }
+  /* Under the 24px WCAG minimum on a phone: the summary that unfolds the
+     permission matrix (17px), the "Panel access enabled" row (20px) and the
+     header's breadcrumb group link (18.6px). The row is the target, so the
+     checkbox keeps its size; the link gets the height of the icon buttons
+     beside it in the 53px bar. */
+  summary.permissions-heading,
+  .toggle-row.member-toggle {
+    min-height: 44px;
+  }
+  .workspace-breadcrumb-group {
+    min-height: 36px;
+  }
 }
 
 /* Safari zooms the page whenever a focused input renders below 16px and never

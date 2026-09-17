@@ -207,6 +207,12 @@ html[data-theme] .customer-directory-section[data-density] .customer-directory-a
     min-height: 44px;
     height: 44px;
   }
+  /* The header's Export sits outside the section; it was the one 34px control
+     on the phone. Same 44px as the toolbar (and as Session history's header). */
+  html[data-theme] .customer-directory-workspace > .page-header .btn {
+    min-height: 44px;
+    height: 44px;
+  }
   html[data-theme] .customer-directory-section[data-density] .page-toolbar .glass-input {
     font-size: 16px;
   }
@@ -279,10 +285,7 @@ html[data-theme] .customer-directory-section[data-density] .customer-directory-a
   /* Touch has no hover: on the stacked card the name rests in the paint a record link takes on
      hover (.record-link:hover, consistency.css) so the head reads as tappable — the same two
      tokens, nothing added. On desktop the hover paint is cue enough, as on the other rows. */
-  html[data-theme]
-    .customer-directory-section[data-density]
-    .customer-directory-open
-    .record-link {
+  html[data-theme] .customer-directory-section[data-density] .customer-directory-open .record-link {
     color: var(--accent-text);
     text-decoration: underline;
     text-underline-offset: 4px;

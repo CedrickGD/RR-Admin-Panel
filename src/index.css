@@ -1804,7 +1804,7 @@ html[data-theme] .record-link.user-activity-timeline-total:hover {
   align-items: baseline;
   gap: 2px 5px;
   flex-wrap: wrap;
-  padding: 7px 8px;
+  padding: 7px 10px;
   font-size: var(--fs-micro);
   color: var(--text-3);
   transition:

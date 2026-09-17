@@ -33,6 +33,7 @@ import {
   mintConfirmToken,
 } from "../../../_lib/release-confirm";
 import { fileEditRefusal, isWorkflowPath, normaliseRepoPath } from "../../../_lib/release-files";
+import { CSPROJ_PATH, ISS_PATH } from "../../../_lib/release-version";
 import { adoptionForVersion } from "../../../_lib/releases-adoption";
 import { releaseFailure } from "../../../_lib/releases-route";
 import { ensureReleasesSchema, getDraft } from "../../../_lib/releases-store";
@@ -65,10 +66,6 @@ const ACTIONS: readonly ConfirmAction[] = [
 ];
 
 const MAX_SUBJECT_LENGTH = 256;
-
-/** The two files §7 says the panel bumps before a build. */
-const CSPROJ_PATH = "RazorReaper/RazorReaper.csproj";
-const ISS_PATH = "installer/RazorReaper.iss";
 
 function isConfirmAction(value: unknown): value is ConfirmAction {
   return typeof value === "string" && (ACTIONS as readonly string[]).includes(value);

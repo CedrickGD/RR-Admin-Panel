@@ -322,3 +322,32 @@ Erwartete Hashes nach dem Deploy: `index-CKb6aeqR.js` / `index-DtfKblXr.css`.
   Unterzeile bricht bei 1440; Weltkarten-Menü überragt das Regional-load-Panel am Handy; Lizenztabelle
   reflowt beim Öffnen von Details; Karten-Basemap-Palette und Settings-Vorschauen mit Hex-Literalen;
   Fehler-Occurrence-Zeile 11 px über dem Chip bei 390 (vorbestehend).
+
+## 11. Nachtrag 3: Feedback | Support, Client-Overlays, Release-Vorschlag (Panel `main` bis `deef024`, Client `fix/client-tidy` bis `629ab3e`)
+
+- **Vertrag `kind`** (`shared/feedback-contract.ts`): `POST /api/feedback` nimmt optional `"kind": "feedback" | "support"`;
+  fehlt/ungültig → `support`, wenn ein Diagnose-Snapshot dabei ist, sonst `feedback` (alte Clients landen richtig).
+  `GET /api/admin/feedback[?kind=…]` liefert `kind` je Datensatz und `unread: { feedback, support, total }`;
+  `PUT …/:id { status }` und `DELETE …/:id` für beide Arten. Spalte `feedback.kind` kommt beim ersten Aufruf
+  per Ensure (Backfill Diagnose-Zeilen → support, Marker in `schema_markers`); Migration
+  `tools/migrations/2026-09-17-feedback-kind.sql` optional. Rail-Eintrag „Feedback & support“, Tabs Feedback | Support
+  (`?section=support`), je Bereich Inbox/New/Read/Archived, Mark read, Archive, Replies, Delete; Customer 360 zeigt die Art.
+  Gate: 111 Dateien / 1330 Tests. **Deploy:** `npm run deploy:nas -- -Service admin,rr-api` (Hashes danach
+  `index-CGY-Pw0I.js` / `index-Ckexgfaj.css`).
+- **Client (`fix/client-tidy`, 15 Commits über `e572c90`, nichts veröffentlicht):** Lizenz-Widget und Support-Karte
+  von Home entfernt; Sidebar-Statuszeile (Premium/Freemium) ist ein Button → `LicenseOverlay` (Vollfenster, rotes X,
+  Esc, Fokusfalle, Aktivierung nur noch dort, keine Bewegungsanimation; Freemium rot wie die Statuszeile);
+  `/feedback` = „Feedback & Support“ mit zwei Bereichen (Pflichttext), `?section=support` als Deep-Link,
+  `SendDiagnosticsButton` navigiert dorthin; Payload trägt `kind`; Postbox-Link entfernt, stattdessen
+  `NotificationIndicator` (Glocke neben der Statuszeile: Punkt bei ungelesener Antwort oder neuer Version, endlicher
+  Puls, `inbox-plop.wav` bei neuer Antwort unter „Enable UI sounds“) → `WhatsNewOverlay` (Notes aus `update.xml`,
+  „Update now“ über den AutoUpdateManager, Inbox-Vorschau, `rr.whatsnew.lastseenrelease`). **Kein dotnet in der
+  Cloud-Session:** alles nur per Inspektion und statischen HTML-Mocks mit dem echten CSS geprüft — vor dem Anfassen
+  `dotnet build RazorReaper/RazorReaper.csproj` und `dotnet test tests/RazorReaper.UnitTests`; Checkliste in den
+  Commit-Texten. Reihenfolge bleibt: Panel deployen, dann Client-Release (Version/`update.xml`/Installer = Besitzer).
+- **Release-Seite im Panel (vorgeschlagen, wartet auf zwei Antworten):** (1) Installer künftig auf einem
+  GitHub-Windows-Runner bauen (dotnet 10 preview + MAUI-Workload + Inno Setup) statt lokal — hängt Lokales am Build?
+  (2) Fine-grained GitHub-Token (Actions + Contents read/write auf `CedrickGD/RazorReaper`) in `rr-api.env`.
+  Plan: `workflow_dispatch` mit `version` + `notes` schreibt csproj/iss/`update.xml`, baut, legt den Release an;
+  `update-manifest.yml` und Discord-Notify laufen wie heute weiter. Panel: Notes-Entwurf, freie Versionswahl,
+  „Release auslösen“, Lauf-Status, Historie.

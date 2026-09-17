@@ -21,6 +21,8 @@ tests
 tools
 README.md
 *.md
+.local
+.superdesign
 deploy/nas/backup
 deploy/nas/bot.env.example
 deploy/nas/caddy

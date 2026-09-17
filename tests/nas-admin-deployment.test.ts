@@ -18,9 +18,23 @@ describe("NAS admin deployment", () => {
     // PWA manifest + icons come from the Vite publicDir (top-level static/);
     // without this COPY the image would build a panel Chrome cannot install.
     expect(dockerfile).toContain("COPY static ./static");
+    expect(dockerfile).toContain("COPY public ./public");
+    expect(dockerfile).toContain("COPY src ./src");
     expect(repoFile("vite.config.ts")).toContain('publicDir: path.resolve(projectRoot, "static")');
-    expect(repoFile("deploy/nas/admin/Dockerfile.dockerignore")).not.toMatch(/^static\/?$/m);
-    expect(repoFile("deploy/nas/admin/Dockerfile.dockerignore")).not.toMatch(/^shared\/?$/m);
+    // BuildKit reads the ignore next to the Dockerfile; the legacy builder falls back to the
+    // root one. Neither may exclude a directory the admin Dockerfile copies, and none of the
+    // three may drag the local harness output into the build context.
+    for (const ignore of ["deploy/nas/admin/Dockerfile.dockerignore", ".dockerignore"]) {
+      expect(repoFile(ignore), ignore).not.toMatch(/^(public|src|static|shared)\/?$/m);
+    }
+    for (const ignore of [
+      "deploy/nas/admin/Dockerfile.dockerignore",
+      "deploy/nas/rr-api/Dockerfile.dockerignore",
+      ".dockerignore",
+    ]) {
+      expect(repoFile(ignore), ignore).toMatch(/^\.local$/m);
+      expect(repoFile(ignore), ignore).toMatch(/^\.superdesign$/m);
+    }
   });
 
   it("keeps APIs same-origin and forwards Access and CSRF identity headers", () => {

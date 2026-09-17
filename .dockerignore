@@ -1,5 +1,7 @@
-# BuildKit picks this file up for `docker build -f deploy/nas/rr-api/Dockerfile .` (context = repo root);
-# the identical root .dockerignore covers the legacy builder. Keep both in sync.
+# Fallback for BOTH deploy/nas/*/Dockerfile under the legacy builder (DOCKER_BUILDKIT=0). BuildKit
+# reads the Dockerfile.dockerignore next to each Dockerfile instead. So this is the union both
+# images tolerate: it keeps public/ and src/ (the admin image copies them; rr-api copies named
+# directories only, so they cost it nothing). Keep the three in sync.
 .git
 .github
 .claude
@@ -17,9 +19,10 @@
 **/*.log
 docs
 plans
-public
-src
 tests
 tools
 README.md
 *.md
+# Local harness output and design scratch (untracked, hundreds of MB): never build context.
+.local
+.superdesign

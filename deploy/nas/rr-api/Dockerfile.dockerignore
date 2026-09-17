@@ -1,5 +1,6 @@
-# BuildKit picks this file up for `docker build -f deploy/nas/rr-api/Dockerfile .` (context = repo root);
-# the identical root .dockerignore covers the legacy builder. Keep both in sync.
+# BuildKit picks this file up for `docker build -f deploy/nas/rr-api/Dockerfile .` (context = repo root).
+# The root .dockerignore is the legacy-builder fallback for both images, so it keeps public/ and
+# src/ (the admin image copies them); everything else is the same. Keep the three in sync.
 .git
 .github
 .claude
@@ -23,3 +24,5 @@ tests
 tools
 README.md
 *.md
+.local
+.superdesign

@@ -306,9 +306,15 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
 
     // Files and workflows are owner-only in both directions (§4). A seat that could never make
     // the commit or the dispatch must not learn from a minted effect list what is on master.
+    //
+    // This fails **closed**: `permissions` is undefined for a seat with no `panel_members` row,
+    // and `requireDashboardAccess` lets one such seat through to here — an AppUserRole-only
+    // admin, whose `!member` branch skips the `.write` denial because it exempts admins. Absent
+    // permissions are unknown permissions, and `releases.files` is the one this panel grants to
+    // nobody but the owner.
     const permissions = access.access.user.permissions;
-    if ((action === "commit" || action === "dispatch") && permissions) {
-      if (!permissions.includes("releases.files")) {
+    if (action === "commit" || action === "dispatch") {
+      if (!permissions || !permissions.includes("releases.files")) {
         return error(403, "You do not have permission for this action.");
       }
     }

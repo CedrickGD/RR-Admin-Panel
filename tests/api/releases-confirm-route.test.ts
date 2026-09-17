@@ -11,6 +11,7 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { resetGithubReleaseStateForTests } from "../../functions/_lib/github-release";
+import type { PanelMember } from "../../functions/_lib/panel-access";
 import { resetConfirmTokenStateForTests } from "../../functions/_lib/release-confirm";
 import type { RuntimeEnv } from "../../functions/_lib/types";
 import { onRequestPost as confirm } from "../../functions/api/admin/releases/confirm";
@@ -111,7 +112,8 @@ afterEach(() => {
 
 function db(
   draft: Record<string, unknown> | null = draftRow(),
-  member = panelMemberRow(EMAIL, "owner"),
+  /** `null` is a seat with no `panel_members` row — no panel permissions at all. */
+  member: PanelMember | null = panelMemberRow(EMAIL, "owner"),
   resolvers: MockD1Resolvers = {},
 ): MockD1 {
   return createMockD1({
@@ -284,6 +286,48 @@ describe("POST /api/admin/releases/confirm — make-current", () => {
     expect(response.status).toBe(409);
     expect((await response.json()) as { code: string }).toMatchObject({ code: "stale" });
   });
+
+  // A manifest whose <url> carries no /releases/download/<tag>/ segment — a legacy file, or one
+  // already rewritten to a NAS URL — leaves <version> as the only usable signal, and <version> is
+  // the 4-part number. `pinnedTag()` has to normalise "1.5.2.0" to "v1.5.2"; prefixing a `v`
+  // straight onto it would compare "v1.5.2.0" against "v1.5.2" and never match, so the already-
+  // pinned refusal would silently stop firing and a no-op rollback would mint a token.
+  describe("with a manifest whose url pins no tag", () => {
+    beforeEach(() => {
+      const legacy = [
+        "<item>",
+        "  <version>1.5.2.0</version>",
+        "  <url>https://dl.razorreaper.app/update/download</url>",
+        "</item>",
+      ].join("\n");
+      github.on(MANIFEST, {
+        body: {
+          path: "update.xml",
+          sha: "sha",
+          size: legacy.length,
+          encoding: "base64",
+          content: base64(legacy),
+        },
+      });
+    });
+
+    it("still refuses the release <version> resolves to, via the 4-part fallback", async () => {
+      github.on(RELEASE(900), { body: releaseBody() });
+      const response = await post(db(), { action: "make-current", subject: "900" });
+      expect(response.status).toBe(409);
+      expect((await response.json()) as { code: string; error: string }).toMatchObject({
+        code: "stale",
+        error: "update.xml already pins v1.5.2.",
+      });
+    });
+
+    it("reads the from-version off <version> and mints for a different release", async () => {
+      github.on(RELEASE(880), { body: releaseBody({ id: 880, tag_name: "v1.5.1" }) });
+      const effects = await effectsOf(await post(db(), { action: "make-current", subject: "880" }));
+      expect(effects[0]).toEqual({ kind: "manifest", text: "update.xml: 1.5.2 → 1.5.1." });
+      expect(effects[1]?.text).toContain("829 installs are on 1.5.2");
+    });
+  });
 });
 
 describe("POST /api/admin/releases/confirm — unpublish", () => {
@@ -381,6 +425,31 @@ describe("POST /api/admin/releases/confirm — commit and dispatch", () => {
     expect(response.status).toBe(403);
     expect(github.calls).toHaveLength(0);
   });
+
+  // A seat with no `panel_members` row carries no permissions at all, and `requireDashboardAccess`
+  // lets exactly one such seat this far: an AppUserRole admin, whose `!member` branch exempts
+  // admins from the `.write` denial. Unknown permissions are not permission — the gate has to
+  // fail closed rather than skip itself because there is nothing to check.
+  it.each(["commit", "dispatch"] as const)(
+    "refuses a seat with no panel permissions at all (%s)",
+    async (action) => {
+      github.on(WORKFLOW_LIST, {
+        body: {
+          workflows: [
+            { id: 10, name: "Build installer", path: ".github/workflows/build-installer.yml" },
+          ],
+        },
+      });
+      const subject = action === "commit" ? "installer/RazorReaper.iss" : "10";
+      const response = await post(db(draftRow(), null), { action, subject });
+
+      expect(response.status).toBe(403);
+      // Refused before any state is read, so the effect list never tells such a seat what is on
+      // master — the second half of "owner-only in both directions".
+      expect(github.calls).toHaveLength(0);
+      expect((await response.json()) as { token?: string }).not.toHaveProperty("token");
+    },
+  );
 });
 
 describe("POST /api/admin/releases/confirm — guards", () => {

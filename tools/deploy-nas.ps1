@@ -28,8 +28,15 @@ function Invoke-Nas([string]$Command) {
     if ($LASTEXITCODE -ne 0) { Write-Host "NAS step failed (exit $LASTEXITCODE)." -ForegroundColor Red; exit $LASTEXITCODE }
 }
 
+# Compare against the real remote head, not a possibly stale remote-tracking ref: without the
+# fetch a push from elsewhere passed the guard and the NAS deployed that commit instead. Native
+# git failures do not trip $ErrorActionPreference, so check the exit codes by hand.
+git fetch -q origin $Ref
+if ($LASTEXITCODE -ne 0) { Write-Host "git fetch origin $Ref failed (exit $LASTEXITCODE)." -ForegroundColor Red; exit 1 }
 $localHead = (git rev-parse --short HEAD).Trim()
+if ($LASTEXITCODE -ne 0 -or -not $localHead) { Write-Host "Not inside the repository checkout." -ForegroundColor Red; exit 1 }
 $remoteHead = (git rev-parse --short "origin/$Ref").Trim()
+if ($LASTEXITCODE -ne 0 -or -not $remoteHead) { Write-Host "origin/$Ref is unknown here." -ForegroundColor Red; exit 1 }
 if ($localHead -ne $remoteHead) {
     Write-Host "HEAD ($localHead) is not origin/$Ref ($remoteHead). Push first - the NAS pulls from GitHub." -ForegroundColor Yellow
     exit 1
@@ -41,7 +48,9 @@ Invoke-Nas "set -e; cd $NasRepo && git fetch origin && git checkout -q $Ref && g
 Write-Host "=== 2. Rebuilding and restarting [$Services] on the NAS ===" -ForegroundColor Cyan
 # BUILD_SHA (the NAS checkout's HEAD, i.e. what gets built) is baked into rr-api for the System
 # health page. The backtick keeps PowerShell from expanding `$(...)`; the NAS shell runs it.
-Invoke-Nas "set -e; cd $NasRepo/deploy/nas && BUILD_SHA=`$(git rev-parse --short HEAD) docker compose up -d --build $Services"
+# The images carry fixed tags (compose.yml), so every rebuild orphans the previous image as
+# <none>; the prune removes dangling images only (nothing tagged, nothing in use).
+Invoke-Nas "set -e; cd $NasRepo/deploy/nas && BUILD_SHA=`$(git rev-parse --short HEAD) docker compose up -d --build $Services && docker image prune -f"
 
 Write-Host "=== 3. Live status ===" -ForegroundColor Green
-Invoke-Nas "docker ps --filter name=razorreaper --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}'; echo; echo 'served by admin:'; docker exec razorreaper-admin-1 ls /srv/admin/assets | grep -E '^index-.*[.](js|css)'"
+Invoke-Nas "docker ps --filter name=razorreaper --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}'; echo; echo 'served by admin:'; docker exec razorreaper-admin-1 ls /srv/admin/assets | grep -E '^index-.*[.](js|css)' || echo 'admin: no index-* assets found'"

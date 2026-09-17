@@ -81,6 +81,23 @@ describe("NAS admin deployment", () => {
     expect(viteConfig).toMatch(/"\/manifest\.json",\s*"  Cache-Control: no-store"/);
   });
 
+  it("deploys only what the remote head has, names its services and prunes old images", () => {
+    const script = repoFile("tools/deploy-nas.ps1");
+
+    // The guard must look at origin's real head, not a stale remote-tracking ref.
+    expect(script.indexOf("git fetch -q origin $Ref")).toBeGreaterThan(-1);
+    expect(script.indexOf("git fetch -q origin $Ref")).toBeLessThan(
+      script.indexOf('git rev-parse --short "origin/$Ref"'),
+    );
+    expect(script).toContain("if ($localHead -ne $remoteHead)");
+    // Never a bare `docker compose up`: the service list is explicit (section 0).
+    expect(script).toContain("docker compose up -d --build $Services");
+    expect(script).toContain("docker image prune -f");
+    // An empty asset listing is a warning, not a failed deploy after the fact.
+    expect(script).toContain("|| echo 'admin: no index-* assets found'");
+    expect(script).not.toContain("restart cloudflared");
+  });
+
   it("wires the service and tunnel hostname without publishing a NAS port", () => {
     const compose = repoFile("deploy/nas/compose.yml");
     const tunnel = repoFile("deploy/nas/cloudflared/config.yml");

@@ -72,7 +72,9 @@ Its dedicated `admin.env` contains only the same `ORIGIN_KEY` already used by rr
 rr-api authenticate Caddy's forwarding headers and reconstruct the public HTTPS URL.
 
 After pulling this commit on the NAS, build the new service and restart cloudflared so its
-process reloads the tracked tunnel ingress file:
+process reloads the tracked tunnel ingress file. Restarting cloudflared drops every public
+hostname for ~10 s (502 on all of them): only with the owner's okay and in an agreed window;
+the day-to-day admin redeploy (`npm run deploy:nas -- -Service admin`) never restarts it.
 
 ```bash
 cd /volume1/docker/razorreaper/src/RR-Admin-Panel/deploy/nas

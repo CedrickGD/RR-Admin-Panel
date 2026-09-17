@@ -1605,6 +1605,42 @@ h6 {
   font-size: var(--fs-micro);
   color: var(--text-2);
 }
+/* A day with online time has its date and Online cells as RecordLinks that
+   jump to the day in the interval list below. They keep the cells' look: the
+   link's inline-flex and `font: inherit` (consistency.css, later in the
+   cascade) are put back to the cells' own type, and the link's accent-and-
+   underline hover — which touch Chromium would leave on a tapped cell — is a
+   plain brightening where a pointer hovers. */
+html[data-theme] .record-link.user-activity-timeline-date {
+  display: block;
+  font-size: var(--fs-micro);
+  line-height: inherit;
+  color: var(--text-2);
+  cursor: pointer;
+}
+html[data-theme] .record-link.user-activity-timeline-total {
+  display: block;
+  text-align: right;
+  font-family: var(--font-mono, "JetBrains Mono", monospace);
+  font-size: var(--fs-micro);
+  line-height: inherit;
+  color: var(--text-3);
+  cursor: pointer;
+}
+html[data-theme] .record-link.user-activity-timeline-date:hover {
+  color: var(--text-2);
+  text-decoration: none;
+}
+html[data-theme] .record-link.user-activity-timeline-total:hover {
+  color: var(--text-3);
+  text-decoration: none;
+}
+@media (hover: hover) {
+  html[data-theme]
+    .record-link:is(.user-activity-timeline-date, .user-activity-timeline-total):hover {
+    color: var(--text-1);
+  }
+}
 .user-activity-timeline-track {
   position: relative;
   height: 20px;
@@ -1701,13 +1737,38 @@ h6 {
 /* Exact online intervals — the strip above, spelled out: the same page of
    days, one line per bar with its local start, end and duration, so the owner
    reads the times instead of guessing them off a 3px bar. A <details> so a
-   long lifetime page folds away, open by default so nobody has to hunt. Only
-   the clock values and durations are mono; the day header and notes are prose. */
+   long lifetime page folds away, open by default so nobody has to hunt; each
+   day inside is a <details> of its own (the newest week open, older days a
+   header each). Only clock values and durations are mono; the rest is prose. */
 .user-activity-intervals {
   margin-top: 12px;
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   background: rgba(4, 7, 14, 0.28);
+}
+.user-activity-intervals summary {
+  cursor: pointer;
+  list-style: none;
+}
+.user-activity-intervals summary::-webkit-details-marker {
+  display: none;
+}
+.user-activity-intervals summary::after {
+  content: "+";
+  margin-left: auto;
+  color: var(--text-3);
+  font-size: var(--fs-small);
+  font-weight: 400;
+  line-height: 1;
+}
+.user-activity-intervals[open] > summary::after,
+.user-activity-intervals details[open] > summary::after {
+  content: "−";
+}
+.user-activity-intervals summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: var(--r-sm);
 }
 .user-activity-intervals > summary {
   display: flex;
@@ -1716,26 +1777,6 @@ h6 {
   flex-wrap: wrap;
   min-height: 36px;
   padding: 7px 10px;
-  cursor: pointer;
-  list-style: none;
-}
-.user-activity-intervals > summary::-webkit-details-marker {
-  display: none;
-}
-.user-activity-intervals > summary::after {
-  content: "+";
-  margin-left: auto;
-  color: var(--text-3);
-  font-size: var(--fs-small);
-  line-height: 1;
-}
-.user-activity-intervals[open] > summary::after {
-  content: "−";
-}
-.user-activity-intervals > summary:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
-  border-radius: var(--r-sm);
 }
 .user-activity-intervals-count {
   min-width: 0;
@@ -1748,54 +1789,75 @@ h6 {
   flex-basis: 100%;
 }
 .user-activity-intervals-day {
-  padding: 6px 6px 8px;
   border-top: 1px solid var(--line);
+  /* A jump from the strip lands under the sticky workspace bar (68px), not behind it. */
+  scroll-margin-top: 84px;
 }
+/* Date · total · count · first · last. Each span is one wrap unit, so a phone
+   breaks the header between them and never inside a value: the 248px of a
+   390px phone hold "Wed, 30 Sept 2026 · 12h 24m · 12 intervals ·" on one line
+   only with the date at the box title's 11px, so the compact box uses that.
+   The tapped-day flash is the tapped-bar line's surface, faded out by the
+   transition. */
 .user-activity-intervals-dayhead {
   display: flex;
   align-items: baseline;
-  gap: 4px 8px;
+  gap: 2px 5px;
   flex-wrap: wrap;
-  margin: 0 4px 2px;
+  padding: 7px 8px;
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+  transition:
+    background-color 500ms ease,
+    box-shadow 500ms ease;
+}
+.user-activity-intervals-dayhead > span {
+  white-space: nowrap;
+}
+.user-activity-intervals-dayhead strong {
   font-size: var(--fs-tiny);
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-1);
 }
-.user-activity-intervals-dayhead span {
-  font-weight: 400;
-  color: var(--text-3);
+.user-activity-intervals.is-compact .user-activity-intervals-dayhead strong {
+  font-size: var(--fs-micro);
 }
+.user-activity-intervals-dayhead b {
+  font-family: var(--font-mono, "JetBrains Mono", monospace);
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+}
+.user-activity-intervals-day.is-flash > .user-activity-intervals-dayhead {
+  background: hsl(var(--ah) var(--as) var(--al) / 0.14);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+/* A wide box flows a day's lines into columns of at least 230px, read down
+   then across (a 1440 view is four columns, not a strip down the left); the
+   compact box stays one column. A line never splits across columns. */
 .user-activity-intervals-list {
   margin: 0;
-  padding: 0;
+  padding: 0 6px 8px;
   list-style: none;
+  column-width: 230px;
+  column-gap: 16px;
 }
-/* Start · End · Duration · what the end means. Fixed clock columns keep the
-   lines of a day in register; the note column takes what is left. At the
-   compact width the note column goes (the "≈" on the end value carries it). */
+.user-activity-intervals.is-compact .user-activity-intervals-list {
+  column-width: auto;
+}
+/* Start · End · Duration. Fixed clock columns keep the lines of a day in
+   register; a midnight note takes a second row under the end value. */
 .user-activity-interval {
   display: grid;
-  grid-template-columns: 58px 62px 66px minmax(0, 1fr);
+  grid-template-columns: 58px 62px minmax(0, 1fr);
   gap: 0 8px;
   align-items: baseline;
   padding: 3px 4px;
+  break-inside: avoid;
   border-top: 1px solid rgba(255, 255, 255, 0.035);
   border-radius: 4px;
   font-size: var(--fs-tiny);
   color: var(--text-2);
-}
-.user-activity-intervals.is-compact .user-activity-interval {
-  grid-template-columns: 58px 62px minmax(0, 1fr);
-}
-.user-activity-interval.is-header {
-  border-top: 0;
-  padding-top: 4px;
-  padding-bottom: 2px;
-  font-size: var(--fs-micro);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--text-3);
+  scroll-margin-top: 84px;
 }
 .user-activity-interval.is-selected {
   background: hsl(var(--ah) var(--as) var(--al) / 0.14);
@@ -1811,21 +1873,15 @@ h6 {
 .user-activity-interval-clock {
   color: var(--text-1);
 }
-/* The dash, the "≈" and the midnight marks are glyphs, not values. */
+/* The dash and the "≈" are glyphs, not values. */
 .user-activity-interval-clock i {
   font-style: normal;
   color: var(--text-3);
 }
 .user-activity-interval-note {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  grid-column: 2 / -1;
   font-size: var(--fs-micro);
   color: var(--text-3);
-}
-.user-activity-interval.is-approximate .user-activity-interval-note {
-  color: var(--text-2);
 }
 .user-activity-warning {
   margin: 8px 0 0;

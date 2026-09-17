@@ -214,8 +214,9 @@ export function formatActivityClock(value: string, timezone: string, seconds = f
 }
 
 /**
- * "1h 20m", "27m", "40s" — the list's clock values are minutes, so its
- * durations are too; formatDuration's "27m 0s" would only add noise.
+ * "1h 20m", "35m", "<1m" — the panel's one duration format. Its clock values
+ * are minutes, so every total, average and line is too; formatDuration's
+ * "35m 0s" only adds noise. The seconds-exact value stays on the titles.
  */
 export function formatActivityDuration(seconds: number): string {
   const whole = Math.max(0, Math.round(seconds));
@@ -223,7 +224,7 @@ export function formatActivityDuration(seconds: number): string {
   const minutes = Math.floor((whole % 3600) / 60);
   if (hours > 0) return `${hours}h ${minutes}m`;
   if (minutes > 0) return `${minutes}m`;
-  return `${whole}s`;
+  return whole > 0 ? "<1m" : "0m";
 }
 
 export interface ActivityIntervalLine {
@@ -245,14 +246,26 @@ export interface ActivityIntervalDay {
   date: string;
   seconds: number;
   lines: ActivityIntervalLine[];
+  /** The day's first start and last end, "HH:MM", for its header. */
+  first: string;
+  last: string;
+  /** The last end is a last heartbeat, so the header reads "last ≈20:55". */
+  lastApproximate: boolean;
+  /** Unfolded on first paint; older days on the page start folded. */
+  open: boolean;
 }
+
+/* A lifetime page is 30 days; the newest week reads open, the rest is a
+   header each until tapped, so the list never becomes a wall. */
+export const ACTIVITY_OPEN_DAYS = 7;
 
 /**
  * The exact-interval list for the day rows on one timeline page: the same
  * clipped segments the strip draws (so the two never disagree), in clock
  * order within each day, with days that have no online time left out.
  * A run that crosses local midnight appears on both days, "22:40–24:00" and
- * "00:00–01:55", and each half says so.
+ * "00:00–01:55", and each half says so. Only the newest ACTIVITY_OPEN_DAYS
+ * days start open.
  */
 export function buildActivityIntervalDays(
   rows: ActivityTimelineRow[],
@@ -280,7 +293,16 @@ export function buildActivityIntervalDays(
           intoNextDay,
         };
       });
-    days.push({ date: row.date, seconds: row.seconds, lines });
+    const last = lines[lines.length - 1];
+    days.push({
+      date: row.date,
+      seconds: row.seconds,
+      lines,
+      first: lines[0].start,
+      last: last.end,
+      lastApproximate: last.approximateEnd,
+      open: days.length < ACTIVITY_OPEN_DAYS,
+    });
   }
   return days;
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ACTIVITY_OPEN_DAYS,
   activityAxisTicks,
   activityGridStep,
   activitySegmentLabelFits,
@@ -10,6 +11,7 @@ import {
   buildActivityTimelineRows,
   formatActivityClock,
   formatActivityDate,
+  formatActivityDuration,
   localDateStartEpoch,
 } from "../src/utils/activityTimeline";
 import { paginate } from "../src/utils/pagination";
@@ -167,6 +169,61 @@ describe("exact interval list", () => {
     expect(formatActivityClock("2026-08-29T21:30:15.000Z", "Europe/Berlin")).toBe("23:30");
     expect(formatActivityClock("2026-08-29T21:30:15.000Z", "Europe/Berlin", true)).toBe("23:30:15");
     expect(formatActivityClock("2026-08-29T22:05:00.000Z", "America/Chicago")).toBe("17:05");
+  });
+
+  it("sums a day up for its header: first start, last end and whether that end is a heartbeat", () => {
+    expect(days[1]).toMatchObject({ first: "09:00", last: "24:00", lastApproximate: false });
+    expect(days[0]).toMatchObject({ first: "00:00", last: "00:45", lastApproximate: true });
+  });
+
+  it("opens the newest week of days on a page and folds the rest", () => {
+    const dates = Array.from({ length: 10 }, (_, index) => addCalendarDays("2026-08-30", -index));
+    const manyRows = buildActivityTimelineRows(
+      dates.map((date) => ({ date, seconds: 600, sessions: 1 })),
+      dates.map((date) => ({
+        startedAt: `${date}T10:00:00.000Z`,
+        endedAt: `${date}T10:10:00.000Z`,
+        approximateEnd: false,
+      })),
+      "Europe/Berlin",
+    );
+    const open = buildActivityIntervalDays(manyRows, "Europe/Berlin").map((day) => day.open);
+    expect(ACTIVITY_OPEN_DAYS).toBe(7);
+    expect(open).toEqual([true, true, true, true, true, true, true, false, false, false]);
+    // Days without online time are not on the list, so they do not use up the open ones.
+    const gappy = buildActivityTimelineRows(
+      [
+        { date: "2026-08-30", seconds: 0, sessions: 0 },
+        { date: "2026-08-29", seconds: 0, sessions: 0 },
+        ...dates.slice(2).map((date) => ({ date, seconds: 600, sessions: 1 })),
+      ],
+      dates.slice(2).map((date) => ({
+        startedAt: `${date}T10:00:00.000Z`,
+        endedAt: `${date}T10:10:00.000Z`,
+        approximateEnd: false,
+      })),
+      "Europe/Berlin",
+    );
+    expect(buildActivityIntervalDays(gappy, "Europe/Berlin").map((day) => day.open)).toEqual([
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+    ]);
+  });
+
+  it("formats every duration to the minute", () => {
+    expect(formatActivityDuration(4_800)).toBe("1h 20m");
+    expect(formatActivityDuration(10_800)).toBe("3h 0m");
+    expect(formatActivityDuration(2_100)).toBe("35m");
+    // Never "35m 0s"; below a minute the value still reads as a minute figure.
+    expect(formatActivityDuration(2_100.4)).toBe("35m");
+    expect(formatActivityDuration(40)).toBe("<1m");
+    expect(formatActivityDuration(0)).toBe("0m");
   });
 });
 

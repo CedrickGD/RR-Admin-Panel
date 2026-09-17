@@ -257,6 +257,56 @@ describe("UserActivityPanel", () => {
     expect(selection()?.textContent).toBe("Thu, 17 Sept 202610:00:00–18:20:00 · 8h 20m");
   });
 
+  it("lists every interval by day, and a strip cell jumps to its day", async () => {
+    await render();
+    expect(container.querySelector(".user-activity-intervals > summary")?.textContent).toBe(
+      "Exact online intervals2 intervals · 2 days on this page",
+    );
+    const days = Array.from(
+      container.querySelectorAll<HTMLDetailsElement>(".user-activity-intervals-day"),
+    );
+    expect(days.map((day) => day.querySelector("summary")?.textContent)).toEqual([
+      "Thu, 17 Sept 2026\u00a0·8h 20m\u00a0· 1 interval\u00a0·first 10:00\u00a0· last 18:20",
+      "Wed, 16 Sept 2026\u00a0·5m\u00a0· 1 interval\u00a0·first 16:00\u00a0· last 16:05",
+    ]);
+    expect(days.map((day) => day.open)).toEqual([true, true]);
+    expect(
+      Array.from(container.querySelectorAll(".user-activity-interval")).map((line) => ({
+        text: line.textContent,
+        title: line.getAttribute("title"),
+      })),
+    ).toEqual([
+      { text: "10:00 –18:208h 20m", title: "10:00:00–18:20:00 · 8h 20m · Europe/Berlin" },
+      { text: "16:00 –16:055m", title: "16:00:00–16:05:00 · 5m 0s · Europe/Berlin" },
+    ]);
+    // The pager would sit between the legend and the list; with two days there is none.
+    expect(container.querySelector(".table-pagination")).toBeNull();
+
+    // The strip's date and Online cells are buttons wired to the day's section.
+    const cells = Array.from(
+      container.querySelectorAll<HTMLButtonElement>(
+        "button.user-activity-timeline-date, button.user-activity-timeline-total",
+      ),
+    );
+    expect(cells.map((cell) => cell.textContent)).toEqual([
+      "Thu, 17 Sept 2026",
+      "8h 20m",
+      "Wed, 16 Sept 2026",
+      "5m",
+    ]);
+    expect(cells.map((cell) => cell.getAttribute("aria-controls"))).toEqual([
+      days[0].id,
+      days[0].id,
+      days[1].id,
+      days[1].id,
+    ]);
+    days[1].open = false;
+    await act(async () => cells[3].click());
+    expect(days[1].open).toBe(true);
+    expect(days[1].className).toContain("is-flash");
+    expect(days[0].className).not.toContain("is-flash");
+  });
+
   it("keeps the figures as a definition list in sentence case", async () => {
     await render();
     const labels = Array.from(container.querySelectorAll(".user-activity-stats dt")).map(

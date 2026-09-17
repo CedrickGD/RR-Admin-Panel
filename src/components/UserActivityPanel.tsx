@@ -1,5 +1,14 @@
 import { Select } from "./ds/Select";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import type { UserActivityDay, UserActivityPayload } from "../types/telemetry";
 import {
   activityAxisTicks,
@@ -18,6 +27,7 @@ import { fetchUserActivity } from "../utils/api";
 import { formatDuration, formatNumber } from "../utils/format";
 import { paginate } from "../utils/pagination";
 import { useMediaQuery } from "../hooks/useMediaQuery";
+import { RecordLink } from "./ds/TableFrame";
 import { TablePagination } from "./ds/TablePagination";
 
 type ActivityRange = "today" | "7d" | "30d" | "all";
@@ -29,6 +39,8 @@ const RANGE_OPTIONS: Array<{ key: ActivityRange; label: string }> = [
   { key: "all", label: "Lifetime" },
 ];
 const TIMELINE_PAGE_SIZE = 30;
+/* How long a day header stays lit after its strip cell was tapped. */
+const DAY_FLASH_MS = 1500;
 /* Below this content width the date column drops to "Thu 17" so the 24-hour
    track keeps the room; a 390px phone lands at ~250px, a tablet well above. */
 const COMPACT_TIMELINE_PX = 520;
@@ -92,21 +104,57 @@ function selectionClock(value: string, timezone: string, compact: boolean): stri
   return compact ? clock.slice(0, 5) : clock;
 }
 
-/** What the desktop list's fourth column says about a line's end. */
-function lineEndNote(line: ActivityIntervalLine): string {
-  if (line.intoNextDay) return "continues past midnight";
-  if (line.approximateEnd) return "≈ last heartbeat";
-  return "confirmed";
+/** A line's title carries what the list line itself leaves out: seconds and what the end means. */
+function lineTitle(line: ActivityIntervalLine, timezone: string): string {
+  const end = line.intoNextDay ? "24:00:00" : formatClock(line.endedAt, timezone);
+  const note = line.approximateEnd ? " · end is the last heartbeat" : "";
+  return `${formatClock(line.startedAt, timezone)}–${line.approximateEnd ? "≈" : ""}${end} · ${formatDuration(line.durationSeconds)} · ${timezone}${note}`;
 }
 
-const lineDomId = (id: string) => `activity-interval-${id.replace(/[^\w-]/g, "-")}`;
+/** "from previous day", "into next day" — where local midnight clipped the run. */
+function lineMidnightNote(line: ActivityIntervalLine): string | null {
+  const notes = [];
+  if (line.fromPreviousDay) notes.push("from previous day");
+  if (line.intoNextDay) notes.push("into next day");
+  return notes.length > 0 ? notes.join(" · ") : null;
+}
 
-/** Scrolls an element into view where the DOM can (jsdom has no scrollIntoView). */
+/** Opens a folded day section and scrolls an element into view where the DOM can (jsdom cannot). */
 function reveal(id: string, block: ScrollLogicalPosition): void {
   const element = document.getElementById(id);
-  if (element && typeof element.scrollIntoView === "function") {
+  if (!element) return;
+  const section = element.closest("details");
+  if (section && element !== section) section.open = true;
+  else if (element instanceof HTMLDetailsElement) element.open = true;
+  if (typeof element.scrollIntoView === "function") {
     element.scrollIntoView({ block, behavior: "smooth" });
   }
+}
+
+interface DayCellProps {
+  className: string;
+  title?: string;
+  /** The day section's id; without one (an offline day) the cell is plain text. */
+  controls?: string;
+  "aria-label"?: string;
+  onSelect: () => void;
+  children: ReactNode;
+}
+
+/** A strip cell that jumps to its day in the interval list, or plain text where the day has none. */
+function DayCell({ controls, onSelect, children, ...rest }: DayCellProps) {
+  if (!controls) {
+    return (
+      <span className={rest.className} title={rest.title}>
+        {children}
+      </span>
+    );
+  }
+  return (
+    <RecordLink {...rest} aria-controls={controls} onClick={onSelect}>
+      {children}
+    </RecordLink>
+  );
 }
 
 function segmentLabel(segment: SelectedSegment, timezone: string): string {
@@ -177,7 +225,12 @@ export function UserActivityPanel({ identity }: UserActivityPanelProps) {
   const [error, setError] = useState<string | null>(null);
   const [timelinePage, setTimelinePage] = useState(1);
   const [selectedSegment, setSelectedSegment] = useState<SelectedSegment | null>(null);
+  const [flashDate, setFlashDate] = useState<string | null>(null);
   const requestSeq = useRef(0);
+  // Two panels can be mounted at once (a row here, the Customer 360 overlay); the ids stay apart.
+  const uid = useId();
+  const dayDomId = (date: string) => `${uid}day-${date}`;
+  const lineDomId = (id: string) => `${uid}line-${id.replace(/[^\w-]/g, "-")}`;
   // A screen with no hover (a phone, a tablet) gets told to tap, not to hover.
   const touch = useMediaQuery("(hover: none)");
 
@@ -243,6 +296,12 @@ export function UserActivityPanel({ identity }: UserActivityPanelProps) {
     if (dayPage.page !== timelinePage) setTimelinePage(dayPage.page);
   }, [dayPage.page, timelinePage]);
 
+  useEffect(() => {
+    if (flashDate === null) return;
+    const timer = window.setTimeout(() => setFlashDate(null), DAY_FLASH_MS);
+    return () => window.clearTimeout(timer);
+  }, [flashDate]);
+
   const showTimeline = Boolean(
     !loading && !error && activity && !activity.legacyOnly && activity.totalSeconds > 0,
   );
@@ -262,18 +321,24 @@ export function UserActivityPanel({ identity }: UserActivityPanelProps) {
     setSelectedSegment(null);
   }
 
+  /** A strip cell was tapped: its day section unfolds, scrolls under the bar and lights up briefly. */
+  function showDay(date: string) {
+    reveal(dayDomId(date), "start");
+    setFlashDate(date);
+  }
+
   const stats: Array<{ label: string; value: string }> = activity
     ? [
         {
           label: "Recorded online",
-          value: activity.totalSeconds > 0 ? formatDuration(activity.totalSeconds) : "0m",
+          value: formatActivityDuration(activity.totalSeconds),
         },
         { label: "Sessions", value: formatNumber(activity.sessionCount) },
         {
           label: "Avg session",
           value:
             activity.averageSessionSeconds > 0
-              ? formatDuration(activity.averageSessionSeconds)
+              ? formatActivityDuration(activity.averageSessionSeconds)
               : "—",
         },
         {
@@ -343,7 +408,7 @@ export function UserActivityPanel({ identity }: UserActivityPanelProps) {
               <>
                 {/* The compact box has ~250px: the date goes short like the row
                     dates (the full one on the title) and the clocks drop their
-                    seconds, so "Wed 16 · 20:00–≈ 20:55 · 55m 0s" stays one line
+                    seconds, so "Wed 16 · 20:00–≈ 20:55 · 55m" stays one line
                     instead of pushing the timeline down by a line on every tap. */}
                 <strong title={compact ? formatActivityDate(selectedSegment.date) : undefined}>
                   {formatActivityDate(selectedSegment.date, compact)}
@@ -352,7 +417,7 @@ export function UserActivityPanel({ identity }: UserActivityPanelProps) {
                   {selectionClock(selectedSegment.startedAt, activity.timezone, compact)}–
                   {selectedSegment.approximateEnd ? "≈ " : ""}
                   {selectionClock(selectedSegment.endedAt, activity.timezone, compact)} ·{" "}
-                  {formatDuration(selectedSegment.durationSeconds)}
+                  {formatActivityDuration(selectedSegment.durationSeconds)}
                 </span>
               </>
             ) : (
@@ -384,12 +449,14 @@ export function UserActivityPanel({ identity }: UserActivityPanelProps) {
 
               {visibleRows.map((row) => (
                 <div key={row.date} className="user-activity-timeline-row">
-                  <span
+                  <DayCell
                     className="user-activity-timeline-date"
                     title={compact ? formatActivityDate(row.date) : undefined}
+                    controls={row.segments.length > 0 ? dayDomId(row.date) : undefined}
+                    onSelect={() => showDay(row.date)}
                   >
                     {formatActivityDate(row.date, compact)}
-                  </span>
+                  </DayCell>
                   <div
                     className="user-activity-timeline-track"
                     aria-label={`${formatActivityDate(row.date)} app-online intervals`}
@@ -427,9 +494,14 @@ export function UserActivityPanel({ identity }: UserActivityPanelProps) {
                       })
                     )}
                   </div>
-                  <span className="user-activity-timeline-total">
+                  <DayCell
+                    className="user-activity-timeline-total"
+                    controls={row.segments.length > 0 ? dayDomId(row.date) : undefined}
+                    aria-label={`${formatActivityDate(row.date)} · ${formatActivityDuration(row.seconds)} online`}
+                    onSelect={() => showDay(row.date)}
+                  >
                     {row.seconds > 0 ? formatActivityDuration(row.seconds) : "—"}
-                  </span>
+                  </DayCell>
                 </div>
               ))}
             </div>
@@ -453,65 +525,6 @@ export function UserActivityPanel({ identity }: UserActivityPanelProps) {
             </p>
           ) : null}
 
-          {/* The strip shows where the online time sits; this is the same page of days, spelled
-              out — every start and end clock time, readable on a phone without a tap. */}
-          <details className={`user-activity-intervals${compact ? " is-compact" : ""}`} open>
-            <summary>
-              <span className="label-sm">Exact online intervals</span>
-              <span className="user-activity-intervals-count">
-                {formatNumber(intervalCount)} {intervalCount === 1 ? "interval" : "intervals"} ·{" "}
-                {formatNumber(intervalDays.length)} {intervalDays.length === 1 ? "day" : "days"} on
-                this page · {activity.timezone}
-              </span>
-            </summary>
-            {intervalDays.map((day) => (
-              <section key={day.date} className="user-activity-intervals-day">
-                <h4 className="user-activity-intervals-dayhead">
-                  <strong>{formatActivityDate(day.date)}</strong>
-                  <span>
-                    {formatActivityDuration(day.seconds)} · {day.lines.length}{" "}
-                    {day.lines.length === 1 ? "interval" : "intervals"}
-                  </span>
-                </h4>
-                {!compact ? (
-                  <div className="user-activity-interval is-header" aria-hidden="true">
-                    <span>Start</span>
-                    <span>End</span>
-                    <span>Duration</span>
-                    <span>End confirmed by</span>
-                  </div>
-                ) : null}
-                <ol className="user-activity-intervals-list">
-                  {day.lines.map((line) => (
-                    <li
-                      key={line.id}
-                      id={lineDomId(line.id)}
-                      className={`user-activity-interval${selectedSegment?.id === line.id ? " is-selected" : ""}${line.approximateEnd ? " is-approximate" : ""}`}
-                      title={`${formatClock(line.startedAt, activity.timezone)}–${formatClock(line.endedAt, activity.timezone)} · ${activity.timezone}`}
-                    >
-                      <span className="user-activity-interval-clock">
-                        {line.fromPreviousDay ? <i title="began the day before">‹</i> : null}
-                        {line.start}
-                        <i aria-hidden="true"> –</i>
-                      </span>
-                      <span className="user-activity-interval-clock">
-                        {line.approximateEnd ? <i title="last heartbeat">≈</i> : null}
-                        {line.end}
-                        {line.intoNextDay ? <i title="continues past midnight">›</i> : null}
-                      </span>
-                      <span className="user-activity-interval-duration">
-                        {formatActivityDuration(line.durationSeconds)}
-                      </span>
-                      {!compact ? (
-                        <span className="user-activity-interval-note">{lineEndNote(line)}</span>
-                      ) : null}
-                    </li>
-                  ))}
-                </ol>
-              </section>
-            ))}
-          </details>
-
           <TablePagination
             page={dayPage.page}
             pageCount={dayPage.pageCount}
@@ -521,6 +534,77 @@ export function UserActivityPanel({ identity }: UserActivityPanelProps) {
             itemLabel="days"
             onPageChange={changeTimelinePage}
           />
+
+          {/* The strip shows where the online time sits; this is the same page of days, spelled
+              out — every start and end clock time, readable on a phone without a tap. Each day
+              folds on its own; the pager sits above so paging never means scrolling past it. */}
+          <details className={`user-activity-intervals${compact ? " is-compact" : ""}`} open>
+            <summary>
+              <span className="label-sm">Exact online intervals</span>
+              <span className="user-activity-intervals-count">
+                {formatNumber(intervalCount)} {intervalCount === 1 ? "interval" : "intervals"} ·{" "}
+                {formatNumber(intervalDays.length)} {intervalDays.length === 1 ? "day" : "days"} on
+                this page
+              </span>
+            </summary>
+            {intervalDays.map((day) => (
+              <details
+                key={day.date}
+                id={dayDomId(day.date)}
+                className={`user-activity-intervals-day${flashDate === day.date ? " is-flash" : ""}`}
+                open={day.open}
+              >
+                {/* The "·" is glued to the item before it, so where the phone wraps the header
+                    (date · total · count / first · last) no line starts with a separator. */}
+                <summary className="user-activity-intervals-dayhead">
+                  <span>
+                    <strong>{formatActivityDate(day.date)}</strong>
+                    {"\u00a0·"}
+                  </span>
+                  <span>
+                    <b>{formatActivityDuration(day.seconds)}</b>
+                    {"\u00a0· "}
+                    {day.lines.length} {day.lines.length === 1 ? "interval" : "intervals"}
+                    {"\u00a0·"}
+                  </span>
+                  <span>
+                    first <b>{day.first}</b>
+                    {"\u00a0· "}last{" "}
+                    <b>
+                      {day.lastApproximate ? "≈" : ""}
+                      {day.last}
+                    </b>
+                  </span>
+                </summary>
+                <ol className="user-activity-intervals-list">
+                  {day.lines.map((line) => {
+                    const note = lineMidnightNote(line);
+                    return (
+                      <li
+                        key={line.id}
+                        id={lineDomId(line.id)}
+                        className={`user-activity-interval${selectedSegment?.id === line.id ? " is-selected" : ""}`}
+                        title={lineTitle(line, activity.timezone)}
+                      >
+                        <span className="user-activity-interval-clock">
+                          {line.start}
+                          <i aria-hidden="true"> –</i>
+                        </span>
+                        <span className="user-activity-interval-clock">
+                          {line.approximateEnd ? <i title="last heartbeat">≈</i> : null}
+                          {line.end}
+                        </span>
+                        <span className="user-activity-interval-duration">
+                          {formatActivityDuration(line.durationSeconds)}
+                        </span>
+                        {note ? <span className="user-activity-interval-note">{note}</span> : null}
+                      </li>
+                    );
+                  })}
+                </ol>
+              </details>
+            ))}
+          </details>
         </>
       ) : null}
     </div>

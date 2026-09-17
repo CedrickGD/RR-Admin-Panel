@@ -401,7 +401,13 @@ export function Navbar({ page, onNavigate, user, onLogout }: NavbarProps) {
             size={18}
             title="Back"
             aria-label="Back"
-            onClick={() => history.back()}
+            onClick={(event) => {
+              // Blur first: this button outlives the workspace by one commit,
+              // and with it still focused React restored focus to it, over the
+              // router's hand-back to the card head that opened the record.
+              event.currentTarget.blur();
+              history.back();
+            }}
           />
         ) : null}
         <div className={`workspace-breadcrumb${topLayer ? " has-layer" : ""}`}>

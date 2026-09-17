@@ -1118,8 +1118,10 @@ select.glass-input {
 .data-table-wrap {
   overscroll-behavior-x: contain;
   -webkit-overflow-scrolling: touch;
+  /* No scrollbar-color here: the accent one that stood at this spot never
+     shipped (consistency.css's token rule outranked it), and the thumb is
+     --scroll-thumb from css/base.css like every other scroller. */
   scrollbar-width: thin;
-  scrollbar-color: hsl(var(--ah) var(--as) var(--al) / 0.5) rgba(255, 255, 255, 0.05);
   /* Tall lists scroll INSIDE the panel: the header row stays pinned and the
      horizontal scrollbar sits at the panel's bottom edge — always on screen,
      instead of hiding below a 50-row list where nobody ever saw it. Sized to

@@ -4,7 +4,10 @@
 import { Hono } from "hono";
 
 import type { WorkerModule } from "../../../../backend-worker/index.js";
-import { enableServerErrorRing, recordServerError } from "../../../../functions/_lib/http-error-ring";
+import {
+  enableServerErrorRing,
+  recordServerError,
+} from "../../../../functions/_lib/http-error-ring";
 import { attachCloudflareContext } from "./cf-request";
 import { installWorkersGlobals } from "./cf-polyfills";
 import type { RrApiEnv } from "./env";
@@ -23,8 +26,8 @@ export const WORKER_EXACT_PATHS: ReadonlySet<string> = new Set([
   "/healthz",
 ]);
 
-/** Path prefixes the worker owns (media CDN proxy, updater proxy). */
-export const WORKER_PREFIXES: readonly string[] = ["/media/", "/update/"];
+/** Path prefixes the worker owns (media CDN proxy, updater proxy, public release notes). */
+export const WORKER_PREFIXES: readonly string[] = ["/media/", "/update/", "/release-notes/"];
 
 export interface ExecutionContextLike {
   waitUntil(promise: Promise<unknown>): void;

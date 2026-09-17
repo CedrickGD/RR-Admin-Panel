@@ -26,6 +26,7 @@ import {
   touchInstall,
 } from "../shared/installs-store.ts";
 import { proxyToOrigin, readOriginProxyConfig } from "../shared/origin-proxy.ts";
+import { tagForVersion, tagFromManifestUrl, versionForTag } from "../shared/releases-contract.ts";
 
 const EVENT_RETENTION_DAYS = 90;
 // Legacy clients heartbeat every 30s; coalesce those into at most one session write per interval.
@@ -188,7 +189,17 @@ export default {
           path === "/update/download/latest" ||
           path === "/update/download/free")
       ) {
-        return await handleUpdateDownload(request, env, ctx, path === "/update/download/free");
+        return await handleUpdateDownload(request, env, ctx, {
+          countAsFreeDownload: path === "/update/download/free",
+          pinned: path !== "/update/download/latest",
+        });
+      }
+
+      if (
+        (request.method === "GET" || request.method === "HEAD") &&
+        path.startsWith("/release-notes/")
+      ) {
+        return await handleReleaseNotes(request, env, path.slice("/release-notes/".length));
       }
 
       return json({ ok: false, error: "Route not found." }, 404);
@@ -300,6 +311,11 @@ async function handleMedia(request, env, ctx) {
 // repo) and set GITHUB_TOKEN before flipping the repo to private.
 const GH_API = "https://api.github.com";
 const FREE_DOWNLOAD_COUNTER_KEY = "downloads:free";
+// The public notes page is cheap to render and changes only when a release is published.
+const RELEASE_NOTES_CACHE_CONTROL = "public, max-age=600";
+// Tags are "v1.5.4"-shaped. Anything else never reaches GitHub and never reaches the page.
+const RELEASE_NOTES_TAG_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+const RELEASE_NOTES_TAG_MAX_LENGTH = 64;
 
 function ghConfig(env) {
   return {
@@ -337,11 +353,21 @@ async function handleUpdateManifest(request, env) {
   }
 
   let xml = await res.text();
-  // Point the installer <url> at the worker so a private repo still serves the download.
-  // The manifest's version always matches the latest release, so /update/download (= latest)
-  // is the exact asset the manifest describes.
+  // The committed manifest keeps github.com URLs — RazorReaper's ReleaseReadinessTests asserts
+  // those exact shapes against the file — so both customer-facing elements are rewritten here, on
+  // the way out, and a client never sees a github.com link (design §8).
+  // The tag has to be read off the committed <url> *before* that element is replaced.
+  const tag = manifestTagFromXml(xml);
   const origin = publicRequestOrigin(request);
+  // Point the installer <url> at the worker so a private repo still serves the download;
+  // /update/download resolves the asset of exactly this tag (see handleUpdateDownload).
   xml = xml.replace(/<url>[\s\S]*?<\/url>/i, `<url>${origin}/update/download</url>`);
+  if (tag) {
+    xml = xml.replace(
+      /<changelog>[\s\S]*?<\/changelog>/i,
+      `<changelog>${origin}/release-notes/${encodeURIComponent(tag)}</changelog>`,
+    );
+  }
 
   return new Response(xml, {
     status: 200,
@@ -350,6 +376,30 @@ async function handleUpdateManifest(request, env) {
       "cache-control": "public, max-age=120",
     },
   });
+}
+
+/** Text of the first `<name>…</name>` element, or null. The manifest is flat; no parser needed. */
+function firstXmlElementText(xml, name) {
+  const match = new RegExp(`<${name}>([\\s\\S]*?)</${name}>`, "i").exec(xml ?? "");
+  const text = match?.[1]?.trim();
+  return text ? text : null;
+}
+
+/**
+ * The tag the committed manifest pins: the `/releases/download/<tag>/` segment of its `<url>`,
+ * falling back to "v" + the 3-part `<version>` when that URL is not the expected shape. Null when
+ * neither yields a usable tag — the caller then leaves `<changelog>` alone and serves latest.
+ */
+function manifestTagFromXml(xml) {
+  const url = firstXmlElementText(xml, "url");
+  const fromUrl = url ? tagFromManifestUrl(url) : null;
+  if (fromUrl && RELEASE_NOTES_TAG_PATTERN.test(fromUrl)) {
+    return fromUrl;
+  }
+
+  const version = firstXmlElementText(xml, "version");
+  const threePart = version ? versionForTag(version) : "";
+  return /^\d+(\.\d+){0,2}$/.test(threePart) ? tagForVersion(threePart) : null;
 }
 
 /**
@@ -370,23 +420,96 @@ function publicRequestOrigin(request) {
   return url.origin;
 }
 
-async function handleUpdateDownload(request, env, ctx, countAsFreeDownload = false) {
-  const cfg = ghConfig(env);
+/** The tag update.xml pins, read through the same Contents call the manifest route uses. */
+async function readPinnedTag(cfg) {
+  const apiUrl = `${GH_API}/repos/${cfg.repo}/contents/update.xml?ref=${encodeURIComponent(cfg.branch)}`;
 
-  let relRes;
+  let res;
   try {
-    relRes = await fetch(`${GH_API}/repos/${cfg.repo}/releases/latest`, {
+    res = await fetch(apiUrl, { headers: ghHeaders(cfg, "application/vnd.github.raw+json") });
+  } catch {
+    return null;
+  }
+  if (!res.ok) {
+    return null;
+  }
+  return manifestTagFromXml(await res.text());
+}
+
+/** `{ release, status }`; `status: 0` means the call itself failed. */
+async function fetchReleaseByTag(cfg, tag) {
+  let res;
+  try {
+    res = await fetch(`${GH_API}/repos/${cfg.repo}/releases/tags/${encodeURIComponent(tag)}`, {
       headers: ghHeaders(cfg, "application/vnd.github+json"),
     });
   } catch {
-    return new Response("Release lookup unavailable.", { status: 502 });
+    return { release: null, status: 0 };
   }
-  if (!relRes.ok) {
-    return new Response(`Release lookup failed (${relRes.status}).`, { status: 502 });
+  if (!res.ok) {
+    return { release: null, status: res.status };
+  }
+  return { release: await res.json(), status: res.status };
+}
+
+function findReleaseAsset(release, assetName) {
+  if (!Array.isArray(release?.assets)) {
+    return null;
+  }
+  return release.assets.find((candidate) => candidate?.name === assetName) ?? null;
+}
+
+/**
+ * **Pinning.** `/update/download` and `/update/download/free` serve the asset of the tag
+ * `update.xml` names, so pointing the manifest at an older tag (the panel's governed
+ * `make-current`) is a real rollback and not a cosmetic edit. A pinned tag that cannot be
+ * resolved — unreadable manifest, deleted release, missing installer — falls back to
+ * `releases/latest` so a bad pin never strands a client, and every request logs which path it
+ * took. `/update/download/latest` keeps the historical latest-wins behaviour (design §8).
+ */
+async function handleUpdateDownload(request, env, ctx, options = {}) {
+  const { countAsFreeDownload = false, pinned = true } = options;
+  const cfg = ghConfig(env);
+
+  let asset = null;
+  let tag = null;
+  let via = "latest";
+  let fallbackReason = null;
+
+  if (pinned) {
+    tag = await readPinnedTag(cfg);
+    if (!tag) {
+      fallbackReason = "manifest-pins-no-tag";
+    } else {
+      const lookup = await fetchReleaseByTag(cfg, tag);
+      asset = findReleaseAsset(lookup.release, cfg.asset);
+      if (asset) {
+        via = "pinned-tag";
+      } else {
+        fallbackReason = lookup.release ? "asset-missing" : `tag-lookup-${lookup.status}`;
+      }
+    }
   }
 
-  const rel = await relRes.json();
-  const asset = Array.isArray(rel?.assets) ? rel.assets.find((a) => a.name === cfg.asset) : null;
+  if (!asset) {
+    let relRes;
+    try {
+      relRes = await fetch(`${GH_API}/repos/${cfg.repo}/releases/latest`, {
+        headers: ghHeaders(cfg, "application/vnd.github+json"),
+      });
+    } catch {
+      return new Response("Release lookup unavailable.", { status: 502 });
+    }
+    if (!relRes.ok) {
+      return new Response(`Release lookup failed (${relRes.status}).`, { status: 502 });
+    }
+
+    asset = findReleaseAsset(await relRes.json(), cfg.asset);
+    via = pinned ? "latest-fallback" : "latest";
+  }
+
+  console.log("update_download_resolved", { via, tag, fallbackReason });
+
   if (!asset) {
     return new Response(`Installer '${cfg.asset}' not found in the latest release.`, {
       status: 404,
@@ -449,6 +572,245 @@ function queueFreeDownloadCount(env, ctx, enabled) {
   if (ctx?.waitUntil) {
     ctx.waitUntil(task);
   }
+}
+
+// ── Public release notes ────────────────────────────────────────────────────
+// GET /release-notes/:tag — the page the rewritten <changelog> and the Discord post link to, so a
+// customer never needs repo access (design decision 3). Public, no auth, no scripts, no customer
+// data: a heading, the version and date, and the release notes rendered from a tiny markdown
+// subset. Everything that reaches the markup goes through escapeHtml first.
+
+async function handleReleaseNotes(request, env, rawTag) {
+  let tag;
+  try {
+    tag = decodeURIComponent(rawTag ?? "").trim();
+  } catch {
+    return releaseNotesNotFound();
+  }
+  if (!tag || tag.length > RELEASE_NOTES_TAG_MAX_LENGTH || !RELEASE_NOTES_TAG_PATTERN.test(tag)) {
+    return releaseNotesNotFound();
+  }
+
+  const cfg = ghConfig(env);
+  // TODO(releases): once functions/_lib/releases-store.ts has landed, take the notes from
+  // release_drafts.notes_full_md (and the customer bullets from notes_customer) for this tag —
+  // `ensureReleasesSchema(env)` first, per design §3 — and keep the GitHub release body below as
+  // the fallback for a tag with no draft row. Until that module exists the body is the only
+  // source, which is why nothing here touches env.DB.
+  const lookup = await fetchReleaseByTag(cfg, tag);
+  if (!lookup.release) {
+    if (lookup.status === 404) {
+      return releaseNotesNotFound();
+    }
+    return new Response("Release notes unavailable.", {
+      status: 502,
+      headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" },
+    });
+  }
+  // A draft release exists on GitHub but has not been announced to anybody; its notes are not
+  // public content, so it reads as unknown here.
+  if (lookup.release.draft === true) {
+    return releaseNotesNotFound();
+  }
+
+  const html = renderReleaseNotesPage({
+    tag,
+    title: typeof lookup.release.name === "string" ? lookup.release.name : "",
+    publishedAt:
+      typeof lookup.release.published_at === "string" ? lookup.release.published_at : null,
+    notesMarkdown: typeof lookup.release.body === "string" ? lookup.release.body : "",
+  });
+
+  const headers = {
+    "content-type": "text/html; charset=utf-8",
+    "cache-control": RELEASE_NOTES_CACHE_CONTROL,
+  };
+  if (request.method === "HEAD") {
+    return new Response(null, { status: 200, headers });
+  }
+  return new Response(html, { status: 200, headers });
+}
+
+function releaseNotesNotFound() {
+  // Deliberately not cached: a tag published a minute from now must not read as missing for ten.
+  return new Response(
+    renderReleaseNotesShell(
+      "Release notes",
+      "<h1>Release notes</h1>\n<p>These release notes are not available.</p>",
+    ),
+    {
+      status: 404,
+      headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" },
+    },
+  );
+}
+
+function renderReleaseNotesPage({ tag, title, publishedAt, notesMarkdown }) {
+  const version = versionForTag(tag) || tag;
+  const heading = escapeHtml(title.trim() || `RazorReaper ${version}`);
+  const released = formatReleaseDate(publishedAt);
+  const meta = released
+    ? `Version ${escapeHtml(version)} · released ${escapeHtml(released)}`
+    : `Version ${escapeHtml(version)}`;
+  const notes =
+    renderNotesMarkdown(notesMarkdown) || "<p>No notes were published for this release.</p>";
+
+  return renderReleaseNotesShell(
+    `${title.trim() || `RazorReaper ${version}`} — release notes`,
+    `<h1>${heading}</h1>\n<p class="meta">${meta}</p>\n${notes}`,
+  );
+}
+
+function renderReleaseNotesShell(title, main) {
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="index, follow" />
+    <title>${escapeHtml(title)}</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --rn-bg: #ffffff;
+        --rn-fg: #1b1d21;
+        --rn-muted: #6b7079;
+        --rn-rule: #e4e6ea;
+        --rn-code: #f3f4f6;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --rn-bg: #17181b;
+          --rn-fg: #e9eaec;
+          --rn-muted: #9aa0a8;
+          --rn-rule: #2b2d31;
+          --rn-code: #232529;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 40px 16px 64px;
+        background: var(--rn-bg);
+        color: var(--rn-fg);
+        font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      }
+      main { margin: 0 auto; max-width: 640px; }
+      h1 { margin: 0 0 4px; font-size: 24px; font-weight: 600; letter-spacing: -0.01em; }
+      h2, h3, h4 { margin: 28px 0 8px; font-size: 17px; font-weight: 600; }
+      p { margin: 0 0 12px; }
+      p.meta {
+        margin: 0 0 24px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--rn-rule);
+        color: var(--rn-muted);
+        font-size: 14px;
+      }
+      ul { margin: 0 0 12px; padding-left: 20px; }
+      li { margin: 0 0 6px; }
+      code {
+        padding: 1px 5px;
+        border-radius: 4px;
+        background: var(--rn-code);
+        font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+${main
+  .split("\n")
+  .map((line) => `      ${line}`)
+  .join("\n")}
+    </main>
+  </body>
+</html>
+`;
+}
+
+/** ISO timestamp → "2026-09-17". Never a locale string: the page is cached for everyone. */
+function formatReleaseDate(value) {
+  if (!value) {
+    return null;
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString().slice(0, 10);
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/** Inline markdown, applied to text that is already escaped — never the other way round. */
+function renderNotesInline(text) {
+  return escapeHtml(text)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+}
+
+/**
+ * A deliberately tiny markdown subset — headings, bullets, paragraphs, `code` and **bold**. No
+ * links, no images, no raw HTML passthrough: the page has to be safe with a release body written
+ * by anybody who can publish, so everything is escaped and only these shapes become markup.
+ */
+function renderNotesMarkdown(markdown) {
+  const blocks = [];
+  let paragraph = [];
+  let bullets = [];
+
+  const flushParagraph = () => {
+    if (paragraph.length > 0) {
+      blocks.push(`<p>${paragraph.join("<br />")}</p>`);
+      paragraph = [];
+    }
+  };
+  const flushBullets = () => {
+    if (bullets.length > 0) {
+      blocks.push(`<ul>${bullets.map((item) => `<li>${item}</li>`).join("")}</ul>`);
+      bullets = [];
+    }
+  };
+
+  for (const raw of String(markdown ?? "")
+    .replace(/\r\n?/g, "\n")
+    .split("\n")) {
+    const line = raw.trim();
+    if (!line) {
+      flushParagraph();
+      flushBullets();
+      continue;
+    }
+
+    const heading = /^(#{1,4})\s+(.+)$/.exec(line);
+    if (heading) {
+      flushParagraph();
+      flushBullets();
+      // h1 belongs to the release title, so markdown headings start one level down.
+      const level = Math.min(heading[1].length + 1, 4);
+      blocks.push(`<h${level}>${renderNotesInline(heading[2])}</h${level}>`);
+      continue;
+    }
+
+    const bullet = /^[-*]\s+(.+)$/.exec(line);
+    if (bullet) {
+      flushParagraph();
+      bullets.push(renderNotesInline(bullet[1]));
+      continue;
+    }
+
+    flushBullets();
+    paragraph.push(renderNotesInline(line));
+  }
+
+  flushParagraph();
+  flushBullets();
+  return blocks.join("\n");
 }
 
 // ── Proxy mode (W3.7) ───────────────────────────────────────────────────────

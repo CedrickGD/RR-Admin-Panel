@@ -31,6 +31,15 @@ const SHARED_KEY = "legacy-shared-key";
 const ADMIN_EMAIL = "admin@example.com";
 const INSTALL_ID = "6f1d2c9a-9b2e-4a5d-8d77-2f4e1c0a9b13";
 const HWID = "A1B2C3D4E5B60718293A4B5C6D7E8F90";
+const MANIFEST_TAG = "v1.5.3";
+const MANIFEST_XML = [
+  "<update>",
+  "  <version>1.5.3.0</version>",
+  `  <url>https://github.com/CedrickGD/RazorReaper/releases/download/${MANIFEST_TAG}/RazorReaper-Setup.exe</url>`,
+  `  <changelog>https://github.com/CedrickGD/RazorReaper/releases/tag/${MANIFEST_TAG}</changelog>`,
+  "  <mandatory>false</mandatory>",
+  "</update>",
+].join("\n");
 
 let handle: SqliteDatabaseHandle;
 let env: RrApiEnv;
@@ -79,9 +88,23 @@ beforeAll(async () => {
           headers: { "content-type": "image/png", etag: '"abc"' },
         });
       }
-      if (url === "https://api.github.com/repos/CedrickGD/RazorReaper/releases/latest") {
+      if (
+        url === "https://api.github.com/repos/CedrickGD/RazorReaper/contents/update.xml?ref=master"
+      ) {
+        // As committed: github.com URLs, which rr-api rewrites on the way out (design §8).
+        return new Response(MANIFEST_XML, { status: 200 });
+      }
+      if (
+        url === "https://api.github.com/repos/CedrickGD/RazorReaper/releases/latest" ||
+        url === `https://api.github.com/repos/CedrickGD/RazorReaper/releases/tags/${MANIFEST_TAG}`
+      ) {
         return new Response(
           JSON.stringify({
+            tag_name: MANIFEST_TAG,
+            name: "RazorReaper 1.5.3",
+            body: "- Calm bullet with <angle> brackets",
+            draft: false,
+            published_at: "2026-09-12T10:30:00Z",
             assets: [
               {
                 name: "RazorReaper-Setup.exe",
@@ -91,6 +114,9 @@ beforeAll(async () => {
           }),
           { status: 200, headers: { "content-type": "application/json" } },
         );
+      }
+      if (url.startsWith("https://api.github.com/repos/CedrickGD/RazorReaper/releases/tags/")) {
+        return new Response("Not Found", { status: 404 });
       }
       if (url === "https://api.github.com/repos/CedrickGD/RazorReaper/releases/assets/42") {
         return new Response(null, {
@@ -209,6 +235,7 @@ describe("rr-api app", () => {
     expect(isWorkerPath("/api/install/register")).toBe(true);
     expect(isWorkerPath("/media/images/x.png")).toBe(true);
     expect(isWorkerPath("/update/update.xml")).toBe(true);
+    expect(isWorkerPath("/release-notes/v1.5.3")).toBe(true);
     expect(isWorkerPath("/api/admin/data")).toBe(false);
     expect(isWorkerPath("/health")).toBe(false);
   });
@@ -485,6 +512,29 @@ describe("rr-api app", () => {
       stats: { totals: { freeDownloads: number } };
     };
     expect(payload.stats.totals.freeDownloads).toBe(1);
+  });
+
+  it("serves the rewritten manifest and the public notes page it points at", async () => {
+    const manifest = await call("/update/update.xml");
+    expect(manifest.status).toBe(200);
+    expect(manifest.headers.get("cache-control")).toBe("public, max-age=120");
+    const xml = await manifest.text();
+    expect(xml).toContain(`<url>${ORIGIN}/update/download</url>`);
+    expect(xml).toContain(`<changelog>${ORIGIN}/release-notes/${MANIFEST_TAG}</changelog>`);
+    expect(xml).not.toContain("github.com");
+
+    // The <changelog> target must actually answer on the same host — that is what the two new
+    // Caddy handle blocks expose on dl.razorreaper.app.
+    const notes = await call(`/release-notes/${MANIFEST_TAG}`);
+    expect(notes.status).toBe(200);
+    expect(notes.headers.get("content-type")).toBe("text/html; charset=utf-8");
+    expect(notes.headers.get("cache-control")).toBe("public, max-age=600");
+    const html = await notes.text();
+    expect(html).toContain("<h1>RazorReaper 1.5.3</h1>");
+    expect(html).toContain("<li>Calm bullet with &lt;angle&gt; brackets</li>");
+    expect(html).not.toContain("<script");
+
+    expect((await call("/release-notes/v0.0.0")).status).toBe(404);
   });
 
   it("rate-limits the 61st ingest from one cf-connecting-ip with 429", async () => {

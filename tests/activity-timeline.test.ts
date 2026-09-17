@@ -249,6 +249,8 @@ describe("timeline axis for a measured track", () => {
     // 8px at the ends ("00:006:00"), so the short form it is.
     expect(labels(164)).toEqual(["00", "06", "12", "18", "24"]);
     expect(labels(150)).toEqual(["00", "06", "12", "18", "24"]);
+    // Narrower than even the short labels want: still the short ones, never the full ones back.
+    expect(labels(100)).toEqual(["00", "06", "12", "18", "24"]);
     expect(activityAxisTicks(150).map((tick) => tick.hour)).toEqual([0, 6, 12, 18, 24]);
     // The track's guide lines follow the ticks.
     expect(activityGridStep(activityAxisTicks(150))).toBe("25%");

@@ -113,8 +113,8 @@ export interface ActivityAxisTick {
   label: string;
 }
 
-/* An 11px monospace digit is ~6.6px wide; a full "06:00" label is five of them,
-   a short "06" two. The gap keeps neighbouring labels from reading as one.
+/* An 11px monospace digit is ~6.6px wide; a full "06:00" label is five of them.
+   The gap keeps neighbouring labels from reading as one.
    The first and last labels sit flush with the track's ends instead of centred
    on their tick (index.css), so the step beside them has to hold a whole edge
    label, the gap and half of its centred neighbour — one and a half labels,
@@ -124,7 +124,6 @@ const TICK_CHAR_PX = 6.6;
 const TICK_MIN_GAP_PX = 8;
 const EDGE_LABELS = 1.5;
 const FULL_TICK_PX = EDGE_LABELS * 5 * TICK_CHAR_PX + TICK_MIN_GAP_PX;
-const SHORT_TICK_PX = EDGE_LABELS * 2 * TICK_CHAR_PX + TICK_MIN_GAP_PX;
 
 const hourLabel = (hour: number, short: boolean) =>
   `${String(hour).padStart(2, "0")}${short ? "" : ":00"}`;
@@ -133,8 +132,10 @@ const hourLabel = (hour: number, short: boolean) =>
  * Hour ticks for the day-row axis, chosen from the measured track width so the
  * labels never collide: every 2 h on a wide track (13 ticks), every 4 h on a
  * tablet-wide one (7), every 6 h on a phone (00, 06, 12, 18, 24) — with the
- * ":00" dropped once even those five would touch. `null` (not measured yet, or
- * no layout engine) keeps the full 2-hour axis.
+ * ":00" dropped once even those five would touch. The short form is the floor:
+ * a track too narrow even for it still gets the short labels, never the full
+ * ones back. `null` (not measured yet, or no layout engine) keeps the full
+ * 2-hour axis.
  */
 export function activityAxisTicks(trackWidth: number | null): ActivityAxisTick[] {
   const build = (stepHours: number, short: boolean) =>
@@ -146,7 +147,7 @@ export function activityAxisTicks(trackWidth: number | null): ActivityAxisTick[]
   for (const stepHours of [2, 4, 6]) {
     if (trackWidth / (24 / stepHours) >= FULL_TICK_PX) return build(stepHours, false);
   }
-  return build(6, trackWidth / 4 >= SHORT_TICK_PX);
+  return build(6, true);
 }
 
 /** Grid-line spacing for the track background, in step with the axis ticks. */

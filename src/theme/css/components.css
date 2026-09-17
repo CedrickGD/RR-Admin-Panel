@@ -13,7 +13,9 @@
   overflow: hidden;
   transition: border-color 0.2s;
 }
-.panel:hover { border-color: var(--line-hi); }
+.panel:hover {
+  border-color: var(--line-hi);
+}
 
 .panel-head {
   display: flex;
@@ -24,25 +26,59 @@
   border-bottom: 1px solid var(--line);
   flex-wrap: wrap;
 }
-.panel-head-left { display: flex; flex-direction: column; gap: 3px; }
-.panel-head-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.panel-body { padding: 12px var(--pad-panel-x); }
-.panel-body-tight { padding: 8px var(--pad-panel-x); }
-.panel-body-flush { padding: 0; }
+.panel-head-left {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.panel-head-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.panel-body {
+  padding: 12px var(--pad-panel-x);
+}
+.panel-body-tight {
+  padding: 8px var(--pad-panel-x);
+}
+.panel-body-flush {
+  padding: 0;
+}
 
 /* Collapsible panel */
-.panel-head-clickable { cursor: pointer; user-select: none; }
-.panel-head-clickable:hover .section-title { color: var(--accent-text); }
-.panel-collapsed .panel-head { border-bottom: none; padding-bottom: 13px; }
-.panel-collapse-chevron { transition: transform var(--t-med); color: var(--text-3); display: flex; }
-.panel-collapse-chevron-closed { transform: rotate(-90deg); }
+.panel-head-clickable {
+  cursor: pointer;
+  user-select: none;
+}
+.panel-head-clickable:hover .section-title {
+  color: var(--accent-text);
+}
+.panel-collapsed .panel-head {
+  border-bottom: none;
+  padding-bottom: 13px;
+}
+.panel-collapse-chevron {
+  transition: transform var(--t-med);
+  color: var(--text-3);
+  display: flex;
+}
+.panel-collapse-chevron-closed {
+  transform: rotate(-90deg);
+}
 .panel-body-clip {
   display: grid;
   grid-template-rows: 1fr;
   transition: grid-template-rows var(--t-collapse) var(--ease-smooth);
 }
-.panel-collapsed .panel-body-clip { grid-template-rows: 0fr; }
-.panel-body-inner { overflow: hidden; min-height: 0; }
+.panel-collapsed .panel-body-clip {
+  grid-template-rows: 0fr;
+}
+.panel-body-inner {
+  overflow: hidden;
+  min-height: 0;
+}
 
 /* ── KPI stat tile — THE single specification ──────────────────
    Phase 5 (handoff 2026-09-12, §2.4): `.stat-card` used to be declared in six
@@ -87,7 +123,9 @@
   /* The tile is its own query container — see the @container rule below. */
   container-type: inline-size;
   container-name: tile;
-  transition: border-color var(--t-med), background var(--t-med);
+  transition:
+    border-color var(--t-med),
+    background var(--t-med);
 }
 .stat-card:hover {
   background: var(--surface-2);
@@ -113,13 +151,25 @@
   background: transparent;
   border: 1px solid var(--line);
 }
-.tile-icon svg { width: 15px; height: 15px; }
+.tile-icon svg {
+  width: 15px;
+  height: 15px;
+}
 /* The sparkline well is off on the standard tile — it is decoration next to a
    number, and it was the widest thing in a 64px row. `showSpark` opts in. */
-.tile-spark { display: none; }
-.stat-card-spark .tile-spark { display: block; }
+.tile-spark {
+  display: none;
+}
+.stat-card-spark .tile-spark {
+  display: block;
+}
 
-.tile-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.tile-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
 /* Value and label share one line: value first so a row of tiles reads down a
    single column of numbers. */
 .tile-line {
@@ -164,8 +214,15 @@
   line-height: 1.35;
   color: var(--text-3);
 }
-.stat-sub-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.stat-sub .kpi-card-chevron { flex: none; }
+.stat-sub-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stat-sub .kpi-card-chevron {
+  flex: none;
+}
 
 /* A narrow tile, not a narrow viewport, is what squeezes the label: at 390px
    the 4-up grid collapses to ONE 358px column (tiles are wide there) while a
@@ -180,7 +237,9 @@
    5-up/6-up desktop row (TrafficPage, HeatmapPage) can still land a tile
    under 200px, and the icon is the first thing to give there too. */
 @container tile (max-width: 200px) {
-  .tile-side { display: none; }
+  .tile-side {
+    display: none;
+  }
 }
 
 /* The stacked, wrapping narrow layout below is phone-only. Gating it on
@@ -235,7 +294,9 @@
      (consistency.css), so every tile is narrow except the lone spanning
      last tile on an odd count, which stays single-line and alone in its
      grid row — flex-start and center land it identically there. */
-  .stat-card { align-items: flex-start; }
+  .stat-card {
+    align-items: flex-start;
+  }
 }
 /* Equal height within a KPI row: once the rule above lets label/sub-line
    wrap, two tiles in the same row can wrap a different amount. Grid items
@@ -244,8 +305,12 @@
    taller cell. min-height above stays the floor; this lets a row grow past
    it together. No effect at desktop widths, where content is already
    single-line and every tile is already 64px. */
-.stat-grid { align-items: stretch; }
-.stat-card { height: 100%; }
+.stat-grid {
+  align-items: stretch;
+}
+.stat-card {
+  height: 100%;
+}
 
 /* Opt-in full tile (KpiStatCard size="full") — the old default, kept for the
    one place a hero number may still earn the room. Used nowhere today. */
@@ -254,17 +319,44 @@
   padding: 18px 20px;
   align-items: flex-start;
 }
-.stat-card-full .tile-line { flex-direction: column; align-items: flex-start; gap: 2px; }
-.stat-card-full .stat-value { font-size: var(--fs-stat); line-height: 1.2; }
-.stat-card-full .stat-label { font-size: var(--fs-small); }
+.stat-card-full .tile-line {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.stat-card-full .stat-value {
+  font-size: var(--fs-stat);
+  line-height: 1.2;
+}
+.stat-card-full .stat-label {
+  font-size: var(--fs-small);
+}
 
-.stat-card-delta { font-size: var(--fs-tiny); font-weight: 600; margin-left: 8px; vertical-align: 4px; }
-.stat-card-delta-positive { color: var(--success); }
-.stat-card-delta-negative { color: var(--danger); }
+.stat-card-delta {
+  font-size: var(--fs-tiny);
+  font-weight: 600;
+  margin-left: 8px;
+  vertical-align: 4px;
+}
+.stat-card-delta-positive {
+  color: var(--success);
+}
+.stat-card-delta-negative {
+  color: var(--danger);
+}
 
-.kpi-card-clickable { cursor: pointer; }
-.kpi-card-clickable:active { transform: translateY(0) scale(0.99); }
-.kpi-card-chevron { display: inline-block; vertical-align: -2px; margin-left: 4px; opacity: 0.55; }
+.kpi-card-clickable {
+  cursor: pointer;
+}
+.kpi-card-clickable:active {
+  transform: translateY(0) scale(0.99);
+}
+.kpi-card-chevron {
+  display: inline-block;
+  vertical-align: -2px;
+  margin-left: 4px;
+  opacity: 0.55;
+}
 
 /* ── ds/PageToolbar — the one filter row per page ──────────────
    One strip directly above the table or list it filters (below the KPI
@@ -302,7 +394,9 @@
   min-width: 180px;
 }
 .page-toolbar-left ~ .page-toolbar-search,
-.page-toolbar-left + .page-toolbar-filters { margin-left: auto; }
+.page-toolbar-left + .page-toolbar-filters {
+  margin-left: auto;
+}
 .page-toolbar-filters {
   display: flex;
   align-items: center;
@@ -315,12 +409,21 @@
   height: var(--control-h);
   min-height: var(--control-h);
 }
-.page-toolbar .glass-input { width: 100%; }
-.page-toolbar .ds-seg { padding: 3px; flex-wrap: nowrap; }
-.page-toolbar .ds-seg-btn { height: calc(var(--control-h) - 8px); }
+.page-toolbar .glass-input {
+  width: 100%;
+}
+.page-toolbar .ds-seg {
+  padding: 3px;
+  flex-wrap: nowrap;
+}
+.page-toolbar .ds-seg-btn {
+  height: calc(var(--control-h) - 8px);
+}
 .page-toolbar .custom-select,
 .page-toolbar .gdrop,
-.page-toolbar .gdrop-trigger { min-width: 0; }
+.page-toolbar .gdrop-trigger {
+  min-width: 0;
+}
 
 /* Phone: the search gets its own full-width row first — it is the control
    people reach for — and the rest wraps two-up underneath. Wrapping beats a
@@ -344,7 +447,9 @@
     overflow-x: auto;
     scrollbar-width: none;
   }
-  .page-toolbar-left::-webkit-scrollbar { display: none; }
+  .page-toolbar-left::-webkit-scrollbar {
+    display: none;
+  }
   .page-toolbar-filters {
     flex: 1 0 100%;
     margin-left: 0;
@@ -352,11 +457,21 @@
   /* Two selects per row. Reset keeps its own width and sits at the right end
      of whatever row it lands on — stretched across the full width it read as
      the loudest control on the page, which is the opposite of what it is. */
-  .page-toolbar-filters > * { flex: 1 1 calc(50% - 4px); min-width: 0; }
-  .page-toolbar-filters > .btn { flex: 0 0 auto; margin-left: auto; }
+  .page-toolbar-filters > * {
+    flex: 1 1 calc(50% - 4px);
+    min-width: 0;
+  }
+  .page-toolbar-filters > .btn {
+    flex: 0 0 auto;
+    margin-left: auto;
+  }
   .page-toolbar-filters .gdrop,
-  .page-toolbar-filters .gdrop-trigger { width: 100%; }
-  .page-toolbar-filters .gdrop-trigger { justify-content: space-between; }
+  .page-toolbar-filters .gdrop-trigger {
+    width: 100%;
+  }
+  .page-toolbar-filters .gdrop-trigger {
+    justify-content: space-between;
+  }
 }
 
 /* ── Badges & chips ───────────────────────────────────────────── */
@@ -370,12 +485,30 @@
   font-weight: 600;
   white-space: nowrap;
 }
-.badge-success { background: var(--success-sub); color: hsl(142 71% 65%); }
-.badge-warning { background: var(--warning-sub); color: var(--warning-text); }
-.badge-danger  { background: var(--danger-sub);  color: var(--danger-text); }
-.badge-info    { background: var(--info-sub);    color: var(--info-text); }
-.badge-accent  { background: var(--accent-subtle); color: var(--accent-text); }
-.badge-muted   { background: hsl(225 60% 80% / 0.08); color: var(--text-2); }
+.badge-success {
+  background: var(--success-sub);
+  color: hsl(142 71% 65%);
+}
+.badge-warning {
+  background: var(--warning-sub);
+  color: var(--warning-text);
+}
+.badge-danger {
+  background: var(--danger-sub);
+  color: var(--danger-text);
+}
+.badge-info {
+  background: var(--info-sub);
+  color: var(--info-text);
+}
+.badge-accent {
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+}
+.badge-muted {
+  background: hsl(225 60% 80% / 0.08);
+  color: var(--text-2);
+}
 
 .badge-live {
   display: inline-flex;
@@ -397,14 +530,34 @@
   animation: live-pulse 2s ease-in-out infinite;
 }
 @keyframes live-pulse {
-  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 hsl(142 71% 50% / 0.7); }
-  50%      { opacity: 0.6; box-shadow: 0 0 0 4px hsl(142 71% 50% / 0); }
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 hsl(142 71% 50% / 0.7);
+  }
+  50% {
+    opacity: 0.6;
+    box-shadow: 0 0 0 4px hsl(142 71% 50% / 0);
+  }
 }
 
-.status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); flex-shrink: 0; }
-.status-dot.warn { background: var(--warning); }
-.status-dot.err  { background: var(--danger); }
-.status-dot.idle { background: var(--text-3); animation: none; }
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+  flex-shrink: 0;
+}
+.status-dot.warn {
+  background: var(--warning);
+}
+.status-dot.err {
+  background: var(--danger);
+}
+.status-dot.idle {
+  background: var(--text-3);
+  animation: none;
+}
 
 /* Phone bump. 11px status chips are the smallest functional text the console
    ships and a phone held at arm's length is the worst place to read them, so
@@ -432,12 +585,16 @@
 }
 .kv-tag-accent {
   color: var(--accent-up);
-  background: hsl(var(--ah) var(--as) var(--al) / 0.10);
+  background: hsl(var(--ah) var(--as) var(--al) / 0.1);
   border-color: hsl(var(--ah) var(--as) var(--al) / 0.35);
 }
 
 /* ── Key-value list ───────────────────────────────────────────── */
-.kv-list { display: flex; flex-direction: column; gap: 0; }
+.kv-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
 .kv-row {
   display: flex;
   align-items: center;
@@ -447,9 +604,21 @@
   border-bottom: 1px solid hsl(225 50% 75% / 0.05);
   flex-wrap: wrap;
 }
-.kv-row:last-child { border-bottom: none; }
-.kv-key { font-size: var(--fs-small); color: var(--text-2); font-weight: 500; }
-.kv-val { font-family: var(--font-mono); font-size: var(--fs-small); color: var(--text-1); font-weight: 500; text-align: right; }
+.kv-row:last-child {
+  border-bottom: none;
+}
+.kv-key {
+  font-size: var(--fs-small);
+  color: var(--text-2);
+  font-weight: 500;
+}
+.kv-val {
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  color: var(--text-1);
+  font-weight: 500;
+  text-align: right;
+}
 
 /* ── Data table ───────────────────────────────────────────────── */
 /* DataTable `caption`: names the table for assistive tech without taking space. */
@@ -464,8 +633,16 @@
   white-space: nowrap;
   border: 0;
 }
-.data-table-wrap { overflow-x: auto; border-radius: var(--r); border: 1px solid var(--line); }
-.data-table { width: 100%; border-collapse: collapse; font-size: var(--fs-body); }
+.data-table-wrap {
+  overflow-x: auto;
+  border-radius: var(--r);
+  border: 1px solid var(--line);
+}
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-body);
+}
 .data-table thead th {
   padding: 10px 14px;
   text-align: left;
@@ -476,13 +653,32 @@
   border-bottom: 1px solid var(--line);
   white-space: nowrap;
 }
-.data-table tbody tr { position: relative; border-bottom: 1px solid var(--line-row); transition: background 0.12s; }
-.data-table tbody tr:last-child { border-bottom: none; }
-.data-table tbody tr:hover { background: hsl(210 80% 75% / 0.04); }
-.data-table tbody tr.row-expanded { background: hsl(210 80% 75% / 0.06); }
-.data-table tbody td { padding: 11px 14px; color: var(--text-1); vertical-align: middle; }
-.data-table tbody td.muted { color: var(--text-2); }
-.data-table tbody td.mono  { font-family: var(--font-mono); font-size: var(--fs-small); }
+.data-table tbody tr {
+  position: relative;
+  border-bottom: 1px solid var(--line-row);
+  transition: background 0.12s;
+}
+.data-table tbody tr:last-child {
+  border-bottom: none;
+}
+.data-table tbody tr:hover {
+  background: hsl(210 80% 75% / 0.04);
+}
+.data-table tbody tr.row-expanded {
+  background: hsl(210 80% 75% / 0.06);
+}
+.data-table tbody td {
+  padding: 11px 14px;
+  color: var(--text-1);
+  vertical-align: middle;
+}
+.data-table tbody td.muted {
+  color: var(--text-2);
+}
+.data-table tbody td.mono {
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+}
 
 /* One-line cell that clamps instead of stretching the table (a Discord handle,
    an error type, a suspension reason). A class, not an inline style: an inline
@@ -503,61 +699,147 @@
   }
 }
 
-.row-expand-panel { background: rgba(3, 5, 12, 0.28); border-top: 1px solid var(--line); }
+.row-expand-panel {
+  background: rgba(3, 5, 12, 0.28);
+  border-top: 1px solid var(--line);
+}
 /* Padding sits on .row-expand-content, NOT on .row-expand-inner: the inner is
    the overflow-clip element, and a border-box can't shrink below its own
    padding — padding there floors every collapsed row at ~28px of leaked
    content (same split as .panel-body-inner + .panel-body). */
-.row-expand-content { padding: 14px 16px; }
+.row-expand-content {
+  padding: 14px 16px;
+}
 .row-expand-clip {
   display: grid;
   grid-template-rows: 1fr;
   transition: grid-template-rows var(--t-collapse) var(--ease-smooth);
 }
-.row-expand-clip[data-collapsed="true"] { grid-template-rows: 0fr; }
-.row-expand-clip > .row-expand-inner { overflow: hidden; min-height: 0; }
+.row-expand-clip[data-collapsed="true"] {
+  grid-template-rows: 0fr;
+}
+.row-expand-clip > .row-expand-inner {
+  overflow: hidden;
+  min-height: 0;
+}
 /* The expanded row's cell is flush: `.record-table td.row-expand-panel` in
    consistency.css (last layer) already zeroes its padding at a specificity no
    table rule reaches, in both the desktop grid and the stacked mobile card, so
    the `.row-expand-td` opt-out class needs no rule — and no !important — here. */
-.row-expand-collapsed .row-expand-panel { border-top-color: transparent; }
-.glass-inset { background: rgba(3, 5, 12, 0.28); border: 1px solid var(--line); border-radius: 10px; }
+.row-expand-collapsed .row-expand-panel {
+  border-top-color: transparent;
+}
+.glass-inset {
+  background: rgba(3, 5, 12, 0.28);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
 
 /* ── Rank list (horizontal share bars) ────────────────────────── */
-.rank { display: flex; flex-direction: column; gap: 8px; }
-.rank-row { display: grid; grid-template-columns: minmax(70px, auto) 1fr auto; align-items: center; gap: 10px; }
-.rank-label { font-size: var(--fs-small); color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rank-track { height: 5px; border-radius: var(--r-pill); background: var(--surface-3); overflow: hidden; }
+.rank {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.rank-row {
+  display: grid;
+  grid-template-columns: minmax(70px, auto) 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+.rank-label {
+  font-size: var(--fs-small);
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rank-track {
+  height: 5px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  overflow: hidden;
+}
 .rank-fill {
   display: block;
   height: 100%;
   border-radius: var(--r-pill);
-  background: linear-gradient(90deg, hsl(var(--ah) var(--as) var(--al) / 0.9), hsl(var(--ah) var(--as) var(--al) / 0.55));
+  background: linear-gradient(
+    90deg,
+    hsl(var(--ah) var(--as) var(--al) / 0.9),
+    hsl(var(--ah) var(--as) var(--al) / 0.55)
+  );
   animation: v2grow var(--t-fill) var(--ease-out) backwards;
   transform-origin: left;
 }
-@keyframes v2grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-.rank-value { font-size: var(--fs-small); font-weight: 600; color: var(--text-1); }
+@keyframes v2grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+.rank-value {
+  font-size: var(--fs-small);
+  font-weight: 600;
+  color: var(--text-1);
+}
 
 /* ── Radial gauge ─────────────────────────────────────────────── */
-.gauge { display: flex; align-items: center; gap: 14px; }
-.gauge-svg { flex: none; }
-.gauge-track { stroke: var(--surface-3); }
+.gauge {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.gauge-svg {
+  flex: none;
+}
+.gauge-track {
+  stroke: var(--surface-3);
+}
 .gauge-fill {
   stroke: var(--accent);
   filter: drop-shadow(0 0 5px hsl(var(--ah) var(--as) var(--al) / calc(0.5 * var(--glow))));
   transition: stroke-dashoffset var(--t-fill) var(--ease-out);
 }
-.gauge-num { font-family: var(--font-display); font-weight: 700; font-size: var(--fs-strong); fill: var(--text-1); }
-.gauge-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.gauge-num {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--fs-strong);
+  fill: var(--text-1);
+}
+.gauge-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
 /* 12.5px sat between two steps of the scale; it rounds up to the 13px one. */
-.gauge-title { font-size: var(--fs-small); font-weight: 600; color: var(--text-1); }
-.gauge-sub { font-size: var(--fs-tiny); color: var(--text-3); }
+.gauge-title {
+  font-size: var(--fs-small);
+  font-weight: 600;
+  color: var(--text-1);
+}
+.gauge-sub {
+  font-size: var(--fs-tiny);
+  color: var(--text-3);
+}
 
 /* ── Activity / error feed ────────────────────────────────────── */
-.feed { display: flex; flex-direction: column; }
-.feed-row { display: flex; gap: 11px; position: relative; padding: 0 0 14px; }
-.feed-row:last-child { padding-bottom: 2px; }
+.feed {
+  display: flex;
+  flex-direction: column;
+}
+.feed-row {
+  display: flex;
+  gap: 11px;
+  position: relative;
+  padding: 0 0 14px;
+}
+.feed-row:last-child {
+  padding-bottom: 2px;
+}
 .feed-row::before {
   content: "";
   position: absolute;
@@ -567,7 +849,9 @@
   width: 1px;
   background: var(--line);
 }
-.feed-row:last-child::before { display: none; }
+.feed-row:last-child::before {
+  display: none;
+}
 .feed-dot {
   flex: none;
   width: 10px;
@@ -577,14 +861,44 @@
   background: var(--surface-3);
   border: 2px solid var(--line-hi);
 }
-.feed-dot.ok { border-color: var(--success); }
-.feed-dot.bad { border-color: var(--danger); }
-.feed-dot.accent { border-color: var(--accent); }
-.feed-body { min-width: 0; flex: 1; }
-.feed-title { font-size: var(--fs-small); font-weight: 550; color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0; }
-.feed-meta { font-size: var(--fs-tiny); color: var(--text-3); margin: 1px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.feed-dot.ok {
+  border-color: var(--success);
+}
+.feed-dot.bad {
+  border-color: var(--danger);
+}
+.feed-dot.accent {
+  border-color: var(--accent);
+}
+.feed-body {
+  min-width: 0;
+  flex: 1;
+}
+.feed-title {
+  font-size: var(--fs-small);
+  font-weight: 550;
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+}
+.feed-meta {
+  font-size: var(--fs-tiny);
+  color: var(--text-3);
+  margin: 1px 0 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 /* 10.5px was under the scale's documented 11px floor; it reads the floor now. */
-.feed-time { flex: none; font-size: var(--fs-micro); color: var(--text-3); font-family: var(--font-mono); margin-top: 2px; }
+.feed-time {
+  flex: none;
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  margin-top: 2px;
+}
 
 /* ═══════════════════════════════════════════════════════════════
    ds/Modal — THE DIALOG
@@ -691,7 +1005,9 @@
   padding: 20px 22px;
   scrollbar-gutter: stable;
 }
-.dialog-body > form { min-width: 0; }
+.dialog-body > form {
+  min-width: 0;
+}
 /* Discard step (Modal's isDirty exit): raised between the head and the form so
    the work being thrown away stays visible behind the decision. */
 .dialog-discard {
@@ -722,8 +1038,16 @@
    row's bottom edge exactly ON the visible bottom, with the buttons their own
    14px above it. Anything past -20px does start clipping them, so this number
    is the dialog's padding — never the row's. */
-.dialog-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 9px; }
-.dialog-actions-between { justify-content: space-between; }
+.dialog-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+.dialog-actions-between {
+  justify-content: space-between;
+}
 .dialog-body .dialog-actions {
   position: sticky;
   bottom: -20px;
@@ -834,7 +1158,11 @@
 /* ── KPI drill-down contents (ds/Modal TimespanGrid + BreakdownList) ──
    The dialog these sit in is `.dialog`, above; only the KPI-specific rows the
    drill-down fills it with are here. */
-.kpi-timespan-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px; }
+.kpi-timespan-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 8px;
+}
 .kpi-timespan-cell {
   display: flex;
   flex-direction: column;
@@ -844,10 +1172,23 @@
   background: var(--surface-2);
   border: 1px solid var(--line);
 }
-.kpi-timespan-label { font-size: var(--fs-tiny); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-2); }
+.kpi-timespan-label {
+  font-size: var(--fs-tiny);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-2);
+}
 /* 18px sat between two steps of the scale; it takes the compact rung — the same step as the compact KPI tile's value. */
-.kpi-timespan-value { font-family: var(--font-display); font-weight: 700; font-size: var(--fs-section); color: var(--text-1); }
-.kpi-timespan-hint { font-size: var(--fs-tiny); color: var(--text-2); }
+.kpi-timespan-value {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--fs-section);
+  color: var(--text-1);
+}
+.kpi-timespan-hint {
+  font-size: var(--fs-tiny);
+  color: var(--text-2);
+}
 /* Grid (not flex) so every row's label column shares one width: a long label like
    "Legacy (pre-1.4)" no longer pushes just its own row's bar/value to the right. */
 .kpi-breakdown {
@@ -857,8 +1198,12 @@
   row-gap: 7px;
   font-size: var(--fs-body);
 }
-.kpi-breakdown > .kicker { grid-column: 1 / -1; }
-.kpi-breakdown-row { display: contents; }
+.kpi-breakdown > .kicker {
+  grid-column: 1 / -1;
+}
+.kpi-breakdown-row {
+  display: contents;
+}
 .kpi-breakdown-label {
   grid-column: 1;
   align-self: center;
@@ -879,10 +1224,25 @@
   display: block;
   height: 100%;
   border-radius: var(--r-pill);
-  background: linear-gradient(90deg, hsl(var(--ah) var(--as) var(--al) / 0.85), hsl(var(--ah) var(--as) var(--al) / 0.55));
+  background: linear-gradient(
+    90deg,
+    hsl(var(--ah) var(--as) var(--al) / 0.85),
+    hsl(var(--ah) var(--as) var(--al) / 0.55)
+  );
 }
-.kpi-breakdown-value { grid-column: 3; align-self: center; min-width: 56px; text-align: right; color: var(--text-1); }
-.kpi-drilldown-note { font-size: var(--fs-small); color: var(--text-2); line-height: 1.6; margin: 0; }
+.kpi-breakdown-value {
+  grid-column: 3;
+  align-self: center;
+  min-width: 56px;
+  text-align: right;
+  color: var(--text-1);
+}
+.kpi-drilldown-note {
+  font-size: var(--fs-small);
+  color: var(--text-2);
+  line-height: 1.6;
+  margin: 0;
+}
 
 /* ── Customer 360 workspace ───────────────────────────────────
    Customer360View only ever renders inline, as the `.customer-workspace`
@@ -899,7 +1259,9 @@
   align-items: start;
 }
 @media (min-width: 1100px) {
-  .customer360-layout { grid-template-columns: 320px minmax(0, 1fr); }
+  .customer360-layout {
+    grid-template-columns: 320px minmax(0, 1fr);
+  }
 }
 .customer360-side,
 .customer360-main {
@@ -909,24 +1271,91 @@
   min-width: 0;
 }
 /* A card heading with an action at its right edge (Identity + "Raw data"). */
-.customer360-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
-.customer360-card-head > .customer360-section-heading { margin-bottom: 0; }
-.customer360-badges { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.customer360-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.customer360-card-head > .customer360-section-heading {
+  margin-bottom: 0;
+}
+.customer360-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
 /* Label | value rows: the identity card is narrow, so a label column keeps
    every value on one left edge instead of a stack of label-over-value pairs. */
-.customer360-facts { display: grid; gap: 8px; margin: 0; }
-.customer360-facts > div { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 12px; align-items: baseline; }
-.customer360-facts dt { color: var(--text-3); font-size: var(--fs-tiny); }
-.customer360-facts dd { min-width: 0; margin: 0; color: var(--text-1); font-size: var(--fs-small); line-height: 1.5; overflow-wrap: anywhere; }
-.customer360-anchor { margin: 12px 0 0; padding-top: 12px; border-top: 1px solid var(--line-row); color: var(--text-3); font-size: var(--fs-tiny); line-height: 1.5; overflow-wrap: anywhere; }
-.customer360-anchor .customer360-mono { color: var(--text-2); }
+.customer360-facts {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+.customer360-facts > div {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  gap: 12px;
+  align-items: baseline;
+}
+.customer360-facts dt {
+  color: var(--text-3);
+  font-size: var(--fs-tiny);
+}
+.customer360-facts dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--text-1);
+  font-size: var(--fs-small);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.customer360-anchor {
+  margin: 12px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-row);
+  color: var(--text-3);
+  font-size: var(--fs-tiny);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.customer360-anchor .customer360-mono {
+  color: var(--text-2);
+}
 /* The key figures use the KPI tile's type scale (.stat-value / .stat-label
    above): label --fs-tiny, value --fs-figure in the display face. */
-.customer360-figures { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 12px; margin: 0; }
-.customer360-figures > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.customer360-figures dt { color: var(--text-2); font-size: var(--fs-tiny); font-weight: 500; }
-.customer360-figures dd { margin: 0; color: var(--text-1); font-family: var(--font-display); font-size: var(--fs-figure); font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; overflow-wrap: anywhere; }
-.customer360-figures dd.is-danger { color: var(--danger-text); }
+.customer360-figures {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 12px;
+  margin: 0;
+}
+.customer360-figures > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.customer360-figures dt {
+  color: var(--text-2);
+  font-size: var(--fs-tiny);
+  font-weight: 500;
+}
+.customer360-figures dd {
+  margin: 0;
+  color: var(--text-1);
+  font-family: var(--font-display);
+  font-size: var(--fs-figure);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+.customer360-figures dd.is-danger {
+  color: var(--danger-text);
+}
 .customer360-tabs {
   display: flex;
   gap: 4px;
@@ -949,16 +1378,28 @@
   color: var(--text-2);
   font: 600 var(--fs-small) var(--font-display);
   cursor: pointer;
-  transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+  transition:
+    background var(--t-fast),
+    border-color var(--t-fast),
+    color var(--t-fast);
 }
-.customer360-tabs button svg { width: 14px; height: 14px; }
-.customer360-tabs button:hover { color: var(--text-1); background: var(--surface-2); }
+.customer360-tabs button svg {
+  width: 14px;
+  height: 14px;
+}
+.customer360-tabs button:hover {
+  color: var(--text-1);
+  background: var(--surface-2);
+}
 .customer360-tabs button.active {
   color: var(--accent-text);
   border-color: hsl(var(--ah) var(--as) var(--al) / 0.28);
   background: hsl(var(--ah) var(--as) var(--al) / 0.1);
 }
-.customer360-tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.customer360-tabs button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
 .customer360-content {
   min-height: 0;
   overflow-y: auto;
@@ -967,10 +1408,29 @@
 }
 /* Column counts follow the room the right column actually has (it is 320px
    narrower from 1100px), not a viewport breakpoint. */
-.customer360-stack { display: flex; flex-direction: column; gap: 16px; }
-.customer360-two-col { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 16px; align-items: start; }
-.customer360-three-col { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 16px; align-items: start; }
-.customer360-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 12px; align-items: start; }
+.customer360-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.customer360-two-col {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: 16px;
+  align-items: start;
+}
+.customer360-three-col {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 16px;
+  align-items: start;
+}
+.customer360-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
 .customer360-card {
   min-width: 0;
   padding: 15px;
@@ -979,15 +1439,32 @@
   background: linear-gradient(145deg, hsl(225 45% 75% / 0.045), hsl(235 40% 75% / 0.018));
   box-shadow: inset 0 1px 0 hsl(220 80% 95% / 0.035);
 }
-.customer360-section-heading { display: flex; align-items: center; gap: 8px; min-width: 0; margin-bottom: 12px; }
+.customer360-section-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-bottom: 12px;
+}
 /* The 0.875rem in this shorthand is dead: consistency.css sets font-size
    var(--fs-strong) on the same selector from a later import, so 15px paints.
    It stays because a font shorthand cannot drop its size, and splitting it into
    longhands is not a no-op — the shorthand also resets line-height, font-style,
    font-variant and font-stretch to normal. */
-.customer360-section-heading h3 { margin: 0; color: var(--text-1); font: 650 0.875rem var(--font-display); }
-.customer360-section-icon { display: inline-grid; place-items: center; color: var(--accent-text); }
-.customer360-section-icon svg { width: 15px; height: 15px; }
+.customer360-section-heading h3 {
+  margin: 0;
+  color: var(--text-1);
+  font: 650 0.875rem var(--font-display);
+}
+.customer360-section-icon {
+  display: inline-grid;
+  place-items: center;
+  color: var(--accent-text);
+}
+.customer360-section-icon svg {
+  width: 15px;
+  height: 15px;
+}
 /* No frame of its own: the card around it is the frame, and a second border
    inside it read as a box in a box. */
 .customer360-info-grid {
@@ -996,21 +1473,49 @@
   gap: 0;
   margin: 0;
 }
-.customer360-info { min-width: 0; }
+.customer360-info {
+  min-width: 0;
+}
 .customer360-info dt,
-.customer360-record-fields dt { margin: 0 0 3px; color: var(--text-3); font-weight: 650; letter-spacing: 0.07em; text-transform: uppercase; }
+.customer360-record-fields dt {
+  margin: 0 0 3px;
+  color: var(--text-3);
+  font-weight: 650;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
 .customer360-info dd,
-.customer360-record-fields dd { min-width: 0; margin: 0; color: var(--text-1); font-size: var(--fs-small); overflow-wrap: anywhere; white-space: pre-wrap; }
+.customer360-record-fields dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--text-1);
+  font-size: var(--fs-small);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
 /* The mono face is shared by read-only machine values and by `<Input mono>`
    (license keys, HWIDs). Only the read-only ones shrink: a size on a FIELD
    must stay beatable by the 16px touch floor at the end of consistency.css,
    or Safari's focus-zoom comes back. The themed size that actually paints is
    `html[data-theme] .customer360-mono:not(input, textarea)` in consistency.css;
    this is the un-themed fallback, so it needs no !important either. */
-.customer360-mono { font-family: var(--font-mono); }
-.customer360-mono:not(input, textarea) { font-size: var(--fs-tiny); }
-.customer360-record-list { display: flex; flex-direction: column; gap: 8px; }
-.customer360-record { border: 1px solid var(--line-row); border-radius: var(--r-sm); background: hsl(225 50% 75% / 0.025); overflow: hidden; }
+.customer360-mono {
+  font-family: var(--font-mono);
+}
+.customer360-mono:not(input, textarea) {
+  font-size: var(--fs-tiny);
+}
+.customer360-record-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.customer360-record {
+  border: 1px solid var(--line-row);
+  border-radius: var(--r-sm);
+  background: hsl(225 50% 75% / 0.025);
+  overflow: hidden;
+}
 .customer360-record > summary {
   display: flex;
   align-items: center;
@@ -1021,65 +1526,267 @@
   cursor: pointer;
   list-style: none;
 }
-.customer360-record > summary::-webkit-details-marker { display: none; }
-.customer360-record > summary > span:first-child { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.customer360-record > summary strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-small); }
-.customer360-record > summary small { color: var(--text-3); font-size: var(--fs-tiny); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.customer360-record[open] > summary { border-bottom: 1px solid var(--line-row); background: hsl(225 50% 75% / 0.035); }
-.customer360-record-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin: 0; }
-.customer360-record-fields > div { min-width: 0; padding: 9px 10px; border-right: 1px solid var(--line-row); border-bottom: 1px solid var(--line-row); }
-.customer360-card-title { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
-.customer360-card-title > div:first-child { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.customer360-card-title strong { color: var(--text-1); font-size: var(--fs-small); }
+.customer360-record > summary::-webkit-details-marker {
+  display: none;
+}
+.customer360-record > summary > span:first-child {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.customer360-record > summary strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-small);
+}
+.customer360-record > summary small {
+  color: var(--text-3);
+  font-size: var(--fs-tiny);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.customer360-record[open] > summary {
+  border-bottom: 1px solid var(--line-row);
+  background: hsl(225 50% 75% / 0.035);
+}
+.customer360-record-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  margin: 0;
+}
+.customer360-record-fields > div {
+  min-width: 0;
+  padding: 9px 10px;
+  border-right: 1px solid var(--line-row);
+  border-bottom: 1px solid var(--line-row);
+}
+.customer360-card-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.customer360-card-title > div:first-child {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.customer360-card-title strong {
+  color: var(--text-1);
+  font-size: var(--fs-small);
+}
 .customer360-card-title small,
-.customer360-caption { color: var(--text-3); font-size: var(--fs-tiny); margin: 0; }
-.customer360-copy { margin: 5px 0; color: var(--text-2); font-size: var(--fs-small); line-height: 1.5; }
-.customer360-checks { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
-.customer360-check { display: flex; gap: 8px; min-width: 0; }
-.customer360-check > div { display: flex; flex-direction: column; min-width: 0; }
-.customer360-check strong { color: var(--text-1); font-size: var(--fs-small); }
-.customer360-check span:not(.customer360-check-dot) { color: var(--text-2); font-size: var(--fs-tiny); overflow-wrap: anywhere; }
-.customer360-check small { color: var(--text-3); line-height: 1.4; }
-.customer360-check-dot { flex: none; width: 8px; height: 8px; margin-top: 5px; border-radius: 50%; background: var(--text-3); }
-.customer360-check-dot.is-pass { background: var(--success); }
-.customer360-check-dot.is-warning { background: var(--warning); }
-.customer360-check-dot.is-fail { background: var(--danger); }
-.customer360-feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
-.customer360-feature-grid > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border: 1px solid var(--line-row); border-radius: 8px; }
-.customer360-feature-grid span { min-width: 0; color: var(--text-2); font-size: var(--fs-small); overflow: hidden; text-overflow: ellipsis; }
-.customer360-feature-grid strong { color: var(--text-1); font-size: var(--fs-small); }
-.customer360-feedback-list { display: flex; flex-direction: column; gap: 12px; }
-.customer360-feedback { padding: 12px; border: 1px solid var(--line-row); border-radius: var(--r-sm); background: hsl(225 50% 75% / 0.022); }
-.customer360-feedback > p { margin: 8px 0 12px; color: var(--text-1); line-height: 1.55; white-space: pre-wrap; }
-.customer360-inline-details { margin-top: 10px; color: var(--text-2); font-size: var(--fs-small); }
-.customer360-inline-details > summary { cursor: pointer; }
-.customer360-inline-details .customer360-record-fields { margin-top: 8px; border: 1px solid var(--line-row); border-radius: 8px; overflow: hidden; }
-.customer360-callout { display: flex; align-items: flex-start; gap: 10px; padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px; }
-.customer360-callout svg { flex: none; width: 16px; height: 16px; margin-top: 2px; }
-.customer360-callout strong { color: var(--text-1); font-size: var(--fs-small); }
-.customer360-callout p { margin: 2px 0 0; color: var(--text-2); font-size: var(--fs-small); }
-.customer360-callout-warning { background: var(--warning-sub); border-color: hsl(38 92% 55% / 0.25); color: var(--warning); }
-.customer360-callout-danger { background: var(--danger-sub); border-color: hsl(4 86% 58% / 0.25); color: var(--danger); }
-.customer360-empty { margin: 0; padding: 16px 8px; color: var(--text-3); font-size: var(--fs-small); text-align: center; }
-.customer360-load-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center; color: var(--text-2); }
-.customer360-load-state > span { color: var(--text-3); font-size: var(--fs-small); }
+.customer360-caption {
+  color: var(--text-3);
+  font-size: var(--fs-tiny);
+  margin: 0;
+}
+.customer360-copy {
+  margin: 5px 0;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  line-height: 1.5;
+}
+.customer360-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+.customer360-check {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+.customer360-check > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.customer360-check strong {
+  color: var(--text-1);
+  font-size: var(--fs-small);
+}
+.customer360-check span:not(.customer360-check-dot) {
+  color: var(--text-2);
+  font-size: var(--fs-tiny);
+  overflow-wrap: anywhere;
+}
+.customer360-check small {
+  color: var(--text-3);
+  line-height: 1.4;
+}
+.customer360-check-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--text-3);
+}
+.customer360-check-dot.is-pass {
+  background: var(--success);
+}
+.customer360-check-dot.is-warning {
+  background: var(--warning);
+}
+.customer360-check-dot.is-fail {
+  background: var(--danger);
+}
+.customer360-feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+.customer360-feature-grid > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line-row);
+  border-radius: 8px;
+}
+.customer360-feature-grid span {
+  min-width: 0;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.customer360-feature-grid strong {
+  color: var(--text-1);
+  font-size: var(--fs-small);
+}
+.customer360-feedback-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.customer360-feedback {
+  padding: 12px;
+  border: 1px solid var(--line-row);
+  border-radius: var(--r-sm);
+  background: hsl(225 50% 75% / 0.022);
+}
+.customer360-feedback > p {
+  margin: 8px 0 12px;
+  color: var(--text-1);
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+.customer360-inline-details {
+  margin-top: 10px;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+}
+.customer360-inline-details > summary {
+  cursor: pointer;
+}
+.customer360-inline-details .customer360-record-fields {
+  margin-top: 8px;
+  border: 1px solid var(--line-row);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.customer360-callout {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.customer360-callout svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+}
+.customer360-callout strong {
+  color: var(--text-1);
+  font-size: var(--fs-small);
+}
+.customer360-callout p {
+  margin: 2px 0 0;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+}
+.customer360-callout-warning {
+  background: var(--warning-sub);
+  border-color: hsl(38 92% 55% / 0.25);
+  color: var(--warning);
+}
+.customer360-callout-danger {
+  background: var(--danger-sub);
+  border-color: hsl(4 86% 58% / 0.25);
+  color: var(--danger);
+}
+.customer360-empty {
+  margin: 0;
+  padding: 16px 8px;
+  color: var(--text-3);
+  font-size: var(--fs-small);
+  text-align: center;
+}
+.customer360-load-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  text-align: center;
+  color: var(--text-2);
+}
+.customer360-load-state > span {
+  color: var(--text-3);
+  font-size: var(--fs-small);
+}
 .customer360-load-state .customer360-card,
-.customer360-load-state .customer360-callout { width: min(720px, 100%); text-align: left; }
-.customer360-activity-details { margin-top: 12px; }
+.customer360-load-state .customer360-callout {
+  width: min(720px, 100%);
+  text-align: left;
+}
+.customer360-activity-details {
+  margin-top: 12px;
+}
 /* The complete record, in the "Raw data" dialog. The dialog body scrolls, so
    the dump needs no height of its own. */
-.dialog.customer360-raw-dialog { width: min(880px, 100%); }
-.customer360-json { margin: 0; padding: 12px; border: 1px solid var(--line-row); border-radius: var(--r-sm); background: var(--surface-2); color: var(--text-2); font: var(--fs-tiny)/1.55 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.dialog.customer360-raw-dialog {
+  width: min(880px, 100%);
+}
+.customer360-json {
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--line-row);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font: var(--fs-tiny)/1.55 var(--font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 
 @media (max-width: 600px) {
   .customer360-info-grid,
-  .customer360-record-fields { grid-template-columns: 1fr; }
+  .customer360-record-fields {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ── Empty states ─────────────────────────────────────────────── */
 /* ── Order lookup / license fulfilment ───────────────────────── */
 /* .license-lookup-panel is a plain panel: no accent wash, no tinted border. */
-.license-lookup-body { display: flex; flex-direction: column; gap: 14px; }
+.license-lookup-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
 .license-lookup-form {
   display: grid;
   grid-template-columns: minmax(190px, 0.7fr) minmax(280px, 1.6fr) auto;
@@ -1089,84 +1796,351 @@
 /* Every field in these two forms is a ds/Field now, which brings its own
    column layout — the old `label { flex-direction: column }` rule is gone
    because it also hit `.ds-field-label` and broke the requirement marker. */
-.license-lookup-results { padding: 13px; border: 1px solid var(--line); border-radius: 11px; background: hsl(225 50% 75% / 0.025); }
-.license-lookup-results-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.license-lookup-results-head > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.license-lookup-results-head strong { color: var(--text-1); font-size: var(--fs-body); }
-.license-lookup-results-head span { color: var(--text-3); font-size: var(--fs-tiny); }
-.license-lookup-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 9px; margin-top: 12px; }
-.license-lookup-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; padding: 11px; border: 1px solid var(--line-row); border-radius: 9px; background: var(--surface-2); }
-.license-lookup-card-main { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
-.license-lookup-key { display: inline-flex; align-items: center; gap: 5px; color: var(--text-1); }
-.license-lookup-card-main > div { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; color: var(--text-3); font-size: var(--fs-tiny); }
-.license-lookup-card-actions { display: flex; flex: none; gap: 6px; }
-.license-lookup-empty { margin: 12px 0 0; padding: 12px; border-radius: 8px; background: var(--warning-sub); color: var(--text-2); font-size: var(--fs-small); line-height: 1.5; }
-.license-workflow-form { display: flex; flex-direction: column; gap: 13px; }
-.license-workflow-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
-.license-workflow-form .label-sm em { color: var(--text-3); font-style: normal; font-weight: 500; text-transform: none; letter-spacing: 0; }
-.license-workflow-form textarea { resize: vertical; min-height: 68px; }
-.license-action-explainer { padding: 10px 11px; border-left: 2px solid var(--accent); border-radius: 6px; background: var(--accent-subtle); color: var(--text-2); font-size: var(--fs-small); line-height: 1.5; }
-.license-workflow-note { margin: 0; color: var(--text-3); font-size: var(--fs-tiny); line-height: 1.45; }
+.license-lookup-results {
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: hsl(225 50% 75% / 0.025);
+}
+.license-lookup-results-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.license-lookup-results-head > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.license-lookup-results-head strong {
+  color: var(--text-1);
+  font-size: var(--fs-body);
+}
+.license-lookup-results-head span {
+  color: var(--text-3);
+  font-size: var(--fs-tiny);
+}
+.license-lookup-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 9px;
+  margin-top: 12px;
+}
+.license-lookup-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding: 11px;
+  border: 1px solid var(--line-row);
+  border-radius: 9px;
+  background: var(--surface-2);
+}
+.license-lookup-card-main {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+.license-lookup-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-1);
+}
+.license-lookup-card-main > div {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  color: var(--text-3);
+  font-size: var(--fs-tiny);
+}
+.license-lookup-card-actions {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}
+.license-lookup-empty {
+  margin: 12px 0 0;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--warning-sub);
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  line-height: 1.5;
+}
+.license-workflow-form {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+.license-workflow-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 11px;
+}
+.license-workflow-form .label-sm em {
+  color: var(--text-3);
+  font-style: normal;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.license-workflow-form textarea {
+  resize: vertical;
+  min-height: 68px;
+}
+.license-action-explainer {
+  padding: 10px 11px;
+  border-left: 2px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent-subtle);
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  line-height: 1.5;
+}
+.license-workflow-note {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--fs-tiny);
+  line-height: 1.45;
+}
 /* `.form-error` is the DS name (ds/Field's FormError) and now the only one:
    the license dialogs' `.license-workflow-error` band was the same box and its
    last call site is migrated. */
-.form-error { margin: 0; padding: 9px 10px; border: 1px solid hsl(4 86% 58% / 0.25); border-radius: 8px; background: var(--danger-sub); color: var(--danger-text); font-size: var(--fs-small); }
-.license-workflow-success { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; }
-.license-workflow-success-icon { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid hsl(142 71% 45% / 0.32); border-radius: 50%; background: hsl(142 71% 45% / 0.1); color: var(--success-text); }
-.license-workflow-success-icon svg { width: 20px; height: 20px; }
-.license-workflow-success p { margin: 0; color: var(--text-2); }
-.license-workflow-success > code { width: 100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: hsl(235 55% 4% / 0.5); color: var(--accent-text); font-size: var(--fs-body); overflow-wrap: anywhere; user-select: all; }
-.license-workflow-result-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; border: 1px solid var(--line-row); border-radius: 9px; overflow: hidden; }
-.license-workflow-result-grid span { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 9px; color: var(--text-3); font-size: var(--fs-tiny); border-right: 1px solid var(--line-row); }
-.license-workflow-result-grid strong { color: var(--text-1); font-size: var(--fs-small); overflow-wrap: anywhere; }
+.form-error {
+  margin: 0;
+  padding: 9px 10px;
+  border: 1px solid hsl(4 86% 58% / 0.25);
+  border-radius: 8px;
+  background: var(--danger-sub);
+  color: var(--danger-text);
+  font-size: var(--fs-small);
+}
+.license-workflow-success {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+.license-workflow-success-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid hsl(142 71% 45% / 0.32);
+  border-radius: 50%;
+  background: hsl(142 71% 45% / 0.1);
+  color: var(--success-text);
+}
+.license-workflow-success-icon svg {
+  width: 20px;
+  height: 20px;
+}
+.license-workflow-success p {
+  margin: 0;
+  color: var(--text-2);
+}
+.license-workflow-success > code {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: hsl(235 55% 4% / 0.5);
+  color: var(--accent-text);
+  font-size: var(--fs-body);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.license-workflow-result-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: 100%;
+  border: 1px solid var(--line-row);
+  border-radius: 9px;
+  overflow: hidden;
+}
+.license-workflow-result-grid span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding: 9px;
+  color: var(--text-3);
+  font-size: var(--fs-tiny);
+  border-right: 1px solid var(--line-row);
+}
+.license-workflow-result-grid strong {
+  color: var(--text-1);
+  font-size: var(--fs-small);
+  overflow-wrap: anywhere;
+}
 
 /* ── License key copy affordance ─────────────────────────────── */
 /* A key nobody can copy is a key nobody can deliver: the inventory cell, the
    creation notice and the lookup card all pair the value with one IconButton. */
-.license-key-cell { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
-.creation-notice-keys { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; margin: 6px 0 0; padding: 0; list-style: none; }
-.creation-notice-keys li { display: inline-flex; align-items: center; gap: 2px; min-width: 0; }
-.creation-notice-keys code { color: var(--text-1); font-family: var(--font-mono); font-size: var(--fs-tiny); overflow-wrap: anywhere; }
+.license-key-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.creation-notice-keys {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 12px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.creation-notice-keys li {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+.creation-notice-keys code {
+  color: var(--text-1);
+  font-family: var(--font-mono);
+  font-size: var(--fs-tiny);
+  overflow-wrap: anywhere;
+}
 
 /* ── License generator (the "Bulk generate" tab) ─────────────── */
 /* Was ~8 inline-styled flex columns and an onClick button; it is a real form
    now, so the layout lives here and the errors live in the form. */
-.license-generator-form { display: flex; flex-direction: column; gap: 16px; }
-.license-generator-note { margin: 0; color: var(--text-3); font-size: var(--fs-small); line-height: 1.5; }
-.license-generator-note strong { color: var(--text-1); font-weight: 600; }
-.license-generator-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; align-items: start; }
-.license-generator-section { min-width: 0; margin: 0; padding: 14px 0 0; border: 0; border-top: 1px solid var(--line); }
-.license-generator-section > legend { padding: 0; margin-bottom: 10px; }
+.license-generator-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.license-generator-note {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--fs-small);
+  line-height: 1.5;
+}
+.license-generator-note strong {
+  color: var(--text-1);
+  font-weight: 600;
+}
+.license-generator-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+.license-generator-section {
+  min-width: 0;
+  margin: 0;
+  padding: 14px 0 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+.license-generator-section > legend {
+  padding: 0;
+  margin-bottom: 10px;
+}
 /* Tailwind's preflight makes every svg a block, which would drop the legend
    icon onto its own line. */
-.license-generator-section > legend svg { display: inline-block; vertical-align: -2px; margin-right: 6px; }
+.license-generator-section > legend svg {
+  display: inline-block;
+  vertical-align: -2px;
+  margin-right: 6px;
+}
 /* The seat toggle sits in the field grid, aligned with the inputs' baseline —
    and its checkbox hugs its label instead of being pushed a column apart.
    Compound selector on purpose: plain `.toggle-row` (workspace.css) is a later
    layer, so a single class here would lose its `justify-content`. */
 .toggle-row.license-generator-toggle,
-.toggle-row.announcement-toggle { align-self: end; justify-content: flex-start; gap: 10px; min-height: 34px; }
-.license-generator-actions { display: flex; justify-content: flex-end; }
+.toggle-row.announcement-toggle {
+  align-self: end;
+  justify-content: flex-start;
+  gap: 10px;
+  min-height: 34px;
+}
+.license-generator-actions {
+  display: flex;
+  justify-content: flex-end;
+}
 
 /* ── Announcement editor dialog ──────────────────────────────── */
-.announcement-form { display: flex; flex-direction: column; gap: 16px; }
-.announcement-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; align-items: end; }
+.announcement-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.announcement-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  align-items: end;
+}
 
 /* ── Feedback reply dialog ───────────────────────────────────── */
-.feedback-reply-body { display: grid; gap: 16px; min-width: 0; }
-.feedback-reply-item { min-width: 0; padding: 4px 12px; border-left: 2px solid var(--accent); }
-.feedback-reply-meta { color: var(--text-2); font-size: var(--fs-small); }
-.feedback-reply-text { margin: 8px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-.feedback-reply-draft { min-height: 120px; resize: vertical; font-family: inherit; }
+.feedback-reply-body {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.feedback-reply-item {
+  min-width: 0;
+  padding: 4px 12px;
+  border-left: 2px solid var(--accent);
+}
+.feedback-reply-meta {
+  color: var(--text-2);
+  font-size: var(--fs-small);
+}
+.feedback-reply-text {
+  margin: 8px 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.feedback-reply-draft {
+  min-height: 120px;
+  resize: vertical;
+  font-family: inherit;
+}
 
 /* ── License order editor (the pencil dialog) ────────────────── */
-.license-edit-form { display: flex; flex-direction: column; gap: 14px; }
-.license-edit-facts { display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--text-3); font-size: var(--fs-tiny); }
-.license-edit-facts strong { color: var(--text-2); }
-.license-edit-facts .is-source { text-transform: uppercase; }
-.license-edit-facts .is-verified { color: var(--success-text); }
-.license-edit-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
-.license-edit-raw > summary { cursor: pointer; color: var(--text-2); font-size: var(--fs-small); }
+.license-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.license-edit-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  color: var(--text-3);
+  font-size: var(--fs-tiny);
+}
+.license-edit-facts strong {
+  color: var(--text-2);
+}
+.license-edit-facts .is-source {
+  text-transform: uppercase;
+}
+.license-edit-facts .is-verified {
+  color: var(--success-text);
+}
+.license-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+.license-edit-raw > summary {
+  cursor: pointer;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+}
 .license-edit-raw pre {
   margin: 8px 0 0;
   padding: 10px 12px;
@@ -1182,16 +2156,31 @@
 }
 
 @media (max-width: 800px) {
-  .license-lookup-form { grid-template-columns: 1fr; }
-  .license-lookup-card { align-items: flex-start; flex-direction: column; }
-  .license-lookup-card-actions { width: 100%; flex-wrap: wrap; }
+  .license-lookup-form {
+    grid-template-columns: 1fr;
+  }
+  .license-lookup-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .license-lookup-card-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
 }
 
 @media (max-width: 560px) {
   .license-workflow-grid,
-  .license-workflow-result-grid { grid-template-columns: 1fr; }
-  .license-lookup-results-head { align-items: flex-start; flex-direction: column; }
-  .license-lookup-cards { grid-template-columns: 1fr; }
+  .license-workflow-result-grid {
+    grid-template-columns: 1fr;
+  }
+  .license-lookup-results-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .license-lookup-cards {
+    grid-template-columns: 1fr;
+  }
 }
 
 .empty-state {
@@ -1214,11 +2203,26 @@
   justify-content: center;
   color: var(--text-3);
 }
-.empty-state p { font-size: var(--fs-body); color: var(--text-2); margin: 0; }
-.empty-state strong { font-family: var(--font-display); font-size: var(--fs-strong); color: var(--text-1); }
+.empty-state p {
+  font-size: var(--fs-body);
+  color: var(--text-2);
+  margin: 0;
+}
+.empty-state strong {
+  font-family: var(--font-display);
+  font-size: var(--fs-strong);
+  color: var(--text-1);
+}
 /* The way out of the empty state (ds/EmptyState `action`): clear the filters,
    add the first member, retry the fetch. */
-.empty-state-action { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.empty-state-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
 
 /* "All clear" variant — green ring */
 .empty-ring {
@@ -1235,10 +2239,22 @@
   animation: ring-pop 0.26s var(--ease-pop) 0.06s backwards;
 }
 @keyframes ring-pop {
-  from { opacity: 0; transform: scale(0.9); }
-  to   { opacity: 1; transform: none; }
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
-.empty-title { font-family: var(--font-display); font-size: var(--fs-body); font-weight: 600; color: var(--text-1); margin: 0; }
+.empty-title {
+  font-family: var(--font-display);
+  font-size: var(--fs-body);
+  font-weight: 600;
+  color: var(--text-1);
+  margin: 0;
+}
 
 /* ── Timeline (session events) ────────────────────────────────── */
 .timeline-track {
@@ -1249,7 +2265,11 @@
   overflow: visible;
   margin: 6px 0;
 }
-.timeline-fill { height: 100%; background: linear-gradient(90deg, var(--accent-dim), var(--accent)); border-radius: var(--r-pill); }
+.timeline-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-dim), var(--accent));
+  border-radius: var(--r-pill);
+}
 .timeline-marker {
   position: absolute;
   top: 50%;
@@ -1260,21 +2280,43 @@
   background: var(--accent);
   border: 2px solid var(--bg);
   cursor: pointer;
-  transition: transform 0.15s, box-shadow 0.15s;
+  transition:
+    transform 0.15s,
+    box-shadow 0.15s;
 }
-.timeline-marker:hover { box-shadow: 0 0 0 4px var(--accent-glow); }
+.timeline-marker:hover {
+  box-shadow: 0 0 0 4px var(--accent-glow);
+}
 @media (hover: hover) and (pointer: fine) {
-  .timeline-marker:hover { transform: translate(-50%, -50%) scale(1.3); }
+  .timeline-marker:hover {
+    transform: translate(-50%, -50%) scale(1.3);
+  }
 }
-.timeline-marker.is-error { background: var(--danger); }
-.timeline-marker.is-error:hover { box-shadow: 0 0 0 4px hsl(4 86% 58% / 0.35); }
+.timeline-marker.is-error {
+  background: var(--danger);
+}
+.timeline-marker.is-error:hover {
+  box-shadow: 0 0 0 4px hsl(4 86% 58% / 0.35);
+}
 
 /* ── Progress bars ────────────────────────────────────────────── */
-.progress-track { height: 5px; background: hsl(225 50% 75% / 0.09); border-radius: var(--r-pill); overflow: hidden; }
+.progress-track {
+  height: 5px;
+  background: hsl(225 50% 75% / 0.09);
+  border-radius: var(--r-pill);
+  overflow: hidden;
+}
 /* Radius lives on the overflow-hidden track only (border-radius: 0 also
    overrides index.css's legacy pill radius): the fill is scaleX-driven, and a
    non-uniform scale smears a rounded end cap into a sliver at small values. */
-.progress-fill { width: 100%; height: 100%; border-radius: 0; background: var(--accent); transform-origin: left; transition: transform var(--t-fill) var(--ease-out); }
+.progress-fill {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  background: var(--accent);
+  transform-origin: left;
+  transition: transform var(--t-fill) var(--ease-out);
+}
 
 /* ── Spinner / skeleton ───────────────────────────────────────── */
 .spinner {
@@ -1285,40 +2327,77 @@
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }
-.spinner-sm { width: 16px; height: 16px; border-width: 1.5px; }
-.animate-spin { animation: spin 0.7s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
+.spinner-sm {
+  width: 16px;
+  height: 16px;
+  border-width: 1.5px;
+}
+.animate-spin {
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 
 /* Skeleton → content settle: remount the loaded branch with this class */
-.dt-settle { animation: dt-settle var(--t-med) var(--ease-out); }
+.dt-settle {
+  animation: dt-settle var(--t-med) var(--ease-out);
+}
 @keyframes dt-settle {
-  from { opacity: 0.4; }
-  to   { opacity: 1; }
+  from {
+    opacity: 0.4;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /* Both stops are tokens (theme/consistency.css, per theme): the dark theme's
    translucent white tint is invisible on the light theme's white panels. */
 .skeleton {
-  background: linear-gradient(90deg, var(--skeleton-1, hsl(225 50% 75% / 0.05)) 0%, var(--skeleton-2, hsl(225 50% 75% / 0.11)) 50%, var(--skeleton-1, hsl(225 50% 75% / 0.05)) 100%);
+  background: linear-gradient(
+    90deg,
+    var(--skeleton-1, hsl(225 50% 75% / 0.05)) 0%,
+    var(--skeleton-2, hsl(225 50% 75% / 0.11)) 50%,
+    var(--skeleton-1, hsl(225 50% 75% / 0.05)) 100%
+  );
   background-size: 200% 100%;
   animation: shimmer 1.8s linear infinite;
   border-radius: 6px;
 }
 @keyframes shimmer {
-  0%   { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
 }
 
 /* ── Chart container ──────────────────────────────────────────── */
-.chart-wrap { padding: 6px 4px 4px; }
-.chart-wrap-tall { min-height: 280px; }
+.chart-wrap {
+  padding: 6px 4px 4px;
+}
+.chart-wrap-tall {
+  min-height: 280px;
+}
 
 /* Zoomable plot (hooks/useChartZoom): focusable, because an unmodified wheel
    scrolls the page and zooming needs Ctrl/⌘ *or* focus. `zoom-in` replaces the
    old `ns-resize`, which promised a resize handle. */
-.chart-zoom { cursor: zoom-in; border-radius: var(--r-sm); }
-.chart-zoom:focus { outline: none; }
-.chart-zoom:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.chart-zoom {
+  cursor: zoom-in;
+  border-radius: var(--r-sm);
+}
+.chart-zoom:focus {
+  outline: none;
+}
+.chart-zoom:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 
 /* Panel-header cluster for a chart: legend, meta stats and the range/zoom
    controls. Wraps under the panel title on narrow viewports (.panel-head wraps). */
@@ -1330,14 +2409,23 @@
   gap: 8px 14px;
   min-width: 0;
 }
-.chart-zoom-controls { display: inline-flex; align-items: center; gap: 4px; }
+.chart-zoom-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
 /* The cluster is wider than the space beside the title, so let it shrink and
    wrap inside the header instead of pushing the whole slot below the title. */
 @media (min-width: 761px) {
-  .panel-head-right:has(> .chart-head-tools) { flex: 1 1 0; }
+  .panel-head-right:has(> .chart-head-tools) {
+    flex: 1 1 0;
+  }
 }
 @media (max-width: 760px) {
-  .chart-head-tools { justify-content: flex-start; width: 100%; }
+  .chart-head-tools {
+    justify-content: flex-start;
+    width: 100%;
+  }
 }
 
 /* Chart legend (charts/ChartLegend) — one inline row for a panel header,
@@ -1359,10 +2447,18 @@
   font-size: var(--fs-tiny);
   white-space: nowrap;
 }
-.chart-legend-swatch { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.chart-legend-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: none;
+}
 /* A forecast series is drawn dashed, so its swatch is too — the gradient comes
    from the component, this only shapes it into a line. */
-.chart-legend-swatch-dashed { height: 3px; border-radius: 2px; }
+.chart-legend-swatch-dashed {
+  height: 3px;
+  border-radius: 2px;
+}
 
 /* Chart hover tooltip card */
 .chart-tip {
@@ -1378,11 +2474,36 @@
   min-width: 120px;
 }
 /* 10.5px was under the scale's documented 11px floor; it reads the floor now. */
-.chart-tip-label { color: var(--text-3); font-family: var(--font-mono); font-size: var(--fs-micro); margin: 0 0 5px; }
-.chart-tip-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 2px 0; }
-.chart-tip-name { display: flex; align-items: center; gap: 6px; color: var(--text-2); }
-.chart-tip-dot { width: 7px; height: 7px; border-radius: 50%; }
-.chart-tip-val { font-family: var(--font-display); font-weight: 700; color: var(--text-1); font-variant-numeric: tabular-nums; }
+.chart-tip-label {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  margin: 0 0 5px;
+}
+.chart-tip-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 2px 0;
+}
+.chart-tip-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-2);
+}
+.chart-tip-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+.chart-tip-val {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+}
 
 /* ═══════════════════════════════════════════════════════════════
    COMPOSITION CLASSES — the static layout and type that pages used
@@ -1399,110 +2520,329 @@
    ═══════════════════════════════════════════════════════════════ */
 
 /* The two sizes pages reached for inline, as utilities. */
-.text-tiny  { font-size: var(--fs-tiny); }    /* 12px */
-.text-micro { font-size: var(--fs-micro); }   /* 11px */
+.text-tiny {
+  font-size: var(--fs-tiny);
+} /* 12px */
+.text-micro {
+  font-size: var(--fs-micro);
+} /* 11px */
 
 /* A qualifying note pulled back up into the .page-stack-lg gap, so it
    reads as attached to the panel above it. */
-.page-note { margin: -8px 0 0; font-size: var(--fs-tiny); color: var(--text-3); }
+.page-note {
+  margin: -8px 0 0;
+  font-size: var(--fs-tiny);
+  color: var(--text-3);
+}
 
 /* A labelled group inside an expanded row or a side panel. The label rule
    is compound because base.css already sets .label-sm { margin: 0 } at
    (0,1,0) and workspace.css restates .label-sm later still. */
-.detail-block { margin-bottom: 14px; }
-.label-sm.detail-label { margin-bottom: 8px; }
+.detail-block {
+  margin-bottom: 14px;
+}
+.label-sm.detail-label {
+  margin-bottom: 8px;
+}
 
 /* ds/DataTable <DetailGrid> — label-over-machine-value cells filling the
    width of an expanded row. `.detail-grid` is the name consistency.css
    already clears backgrounds on; it simply never had a layout home. */
-.detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
-.detail-grid > .glass-inset { padding: 8px 12px; }
-.detail-grid .label-sm { margin-bottom: 3px; }
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+}
+.detail-grid > .glass-inset {
+  padding: 8px 12px;
+}
+.detail-grid .label-sm {
+  margin-bottom: 3px;
+}
 /* A `.glass-inset p`, which consistency.css styles at (0,1,1) — but only
    white-space, overflow-wrap, text-overflow and line-height, none of which
    are below, so a plain class is enough here. */
-.detail-grid-val { margin: 0; font-family: var(--font-mono); font-size: var(--fs-tiny); color: var(--text-1); word-break: break-all; }
+.detail-grid-val {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-tiny);
+  color: var(--text-1);
+  word-break: break-all;
+}
 
 /* ── ErrorsPage — one collected error, rendered in full ────────── */
-.error-event-card { padding: 10px 12px; }
-.error-event-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.error-event-type { font-size: var(--fs-tiny); font-weight: 600; color: var(--text-1); }
-.error-event-time { margin-left: auto; font-size: var(--fs-micro); color: var(--text-3); white-space: nowrap; }
+.error-event-card {
+  padding: 10px 12px;
+}
+.error-event-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.error-event-type {
+  font-size: var(--fs-tiny);
+  font-weight: 600;
+  color: var(--text-1);
+}
+.error-event-time {
+  margin-left: auto;
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+  white-space: nowrap;
+}
 /* Compound on purpose: the message IS a `.glass-inset p`, so consistency.css
    sets line-height 1.5 on it at (0,1,1). 1.55 is the value that shipped. */
-.error-event-card .error-event-msg { margin: 6px 0 0; font-size: var(--fs-small); color: var(--text-1); line-height: 1.55; word-break: break-word; }
-.error-event-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
-.error-event-list { display: grid; gap: 8px; }
-.error-events-more { display: flex; justify-content: center; margin-top: 10px; }
+.error-event-card .error-event-msg {
+  margin: 6px 0 0;
+  font-size: var(--fs-small);
+  color: var(--text-1);
+  line-height: 1.55;
+  word-break: break-word;
+}
+.error-event-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.error-event-list {
+  display: grid;
+  gap: 8px;
+}
+.error-events-more {
+  display: flex;
+  justify-content: center;
+  margin-top: 10px;
+}
 /* Two caps, two offsets — the margins the two call sites shipped. */
-.error-events-note { margin-top: 10px; font-size: var(--fs-tiny); color: var(--text-3); }
-.error-occurrences-note { margin-top: 8px; font-size: var(--fs-tiny); color: var(--text-3); }
-.error-failure-summary { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
-.error-skeleton-row { display: flex; align-items: center; gap: 10px; padding: 12px 16px; }
-.error-skeleton-grow { flex: 1; max-width: 420px; }
-.error-group-icon { flex-shrink: 0; color: var(--danger); }
+.error-events-note {
+  margin-top: 10px;
+  font-size: var(--fs-tiny);
+  color: var(--text-3);
+}
+.error-occurrences-note {
+  margin-top: 8px;
+  font-size: var(--fs-tiny);
+  color: var(--text-3);
+}
+.error-failure-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.error-skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+}
+.error-skeleton-grow {
+  flex: 1;
+  max-width: 420px;
+}
+.error-group-icon {
+  flex-shrink: 0;
+  color: var(--danger);
+}
 /* The licence-tier chip beside a customer's identity. It was 0.625rem (10px),
    below the scale's floor; it is a status pill like any other, so it reads the
    floor token now.
    FREE is deliberately flat — the neutral counterpart to the accent-tinted
    .is-premium chip beside it. --surface-3 is the token to reach for if it
    should ever get a fill. */
-.error-tier-pill { padding: 2px 6px; border-radius: 4px; font-size: var(--fs-micro); font-weight: 700; letter-spacing: 0.05em; vertical-align: middle; }
-.error-tier-pill.is-premium { background: var(--accent-subtle); color: var(--accent-text); }
-.error-tier-pill.is-free { background: transparent; color: var(--text-3); }
-.error-identity-id { margin-left: 8px; }
-.error-cell-sub { font-size: var(--fs-tiny); color: var(--text-2); }
-.error-cell-more { color: var(--text-3); }
+.error-tier-pill {
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  vertical-align: middle;
+}
+.error-tier-pill.is-premium {
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+}
+.error-tier-pill.is-free {
+  background: transparent;
+  color: var(--text-3);
+}
+.error-identity-id {
+  margin-left: 8px;
+}
+.error-cell-sub {
+  font-size: var(--fs-tiny);
+  color: var(--text-2);
+}
+.error-cell-more {
+  color: var(--text-3);
+}
 /* Background faults table. The source word with the render breaker's note under it; the note and
    the versions list wrap inside their columns (record-table cells are nowrap), and a member name
    that cannot ellipsise in the stacked card may break anywhere rather than widen it. */
-.error-fault-source { display: grid; gap: 2px; }
-.error-cell-note { display: block; font-size: var(--fs-micro); color: var(--text-3); white-space: normal; }
-.error-fault-versions { white-space: normal; }
-.error-fault-frame { overflow-wrap: anywhere; }
-.error-cell-empty { color: var(--text-3); opacity: 0.55; }
+.error-fault-source {
+  display: grid;
+  gap: 2px;
+}
+.error-cell-note {
+  display: block;
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+  white-space: normal;
+}
+.error-fault-versions {
+  white-space: normal;
+}
+.error-fault-frame {
+  overflow-wrap: anywhere;
+}
+.error-cell-empty {
+  color: var(--text-3);
+  opacity: 0.55;
+}
 /* An inline cluster inside a table cell: a badge beside a count, a live dot
    beside a timestamp. */
-.cell-inline { display: inline-flex; align-items: center; gap: 6px; }
+.cell-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 
 /* ── FeedbackPage — the inbox card ─────────────────────────────── */
-.panel-body-stack { display: flex; flex-direction: column; gap: 10px; }
+.panel-body-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
 /* Padding is a modifier, NOT part of .feedback-card: the three loading
    placeholders wear the bare card and ship without any. */
-.feedback-item { padding: 14px 16px; }
-.feedback-item-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
-.feedback-item-status { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.feedback-item-time { font-family: var(--font-mono); font-size: var(--fs-tiny); color: var(--text-3); }
-.feedback-item-actions { display: flex; align-items: center; gap: 2px; }
+.feedback-item {
+  padding: 14px 16px;
+}
+.feedback-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.feedback-item-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.feedback-item-time {
+  font-family: var(--font-mono);
+  font-size: var(--fs-tiny);
+  color: var(--text-3);
+}
+.feedback-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
 /* The clamp for a long message stays inline: it is conditional on state. */
-.feedback-item-msg { margin: 0 0 8px; font-size: var(--fs-body); color: var(--text-1); line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
-.feedback-item-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; font-size: var(--fs-small); color: var(--text-3); }
-.feedback-item-fact { display: inline-flex; align-items: center; gap: 5px; color: var(--text-2); }
+.feedback-item-msg {
+  margin: 0 0 8px;
+  font-size: var(--fs-body);
+  color: var(--text-1);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.feedback-item-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: var(--fs-small);
+  color: var(--text-3);
+}
+.feedback-item-fact {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-2);
+}
 /* A new message has no coloured left tick and no tinted border: its "New"
    badge (info tone) already carries the status, and the tick was decoration
    on top of it — accent is for the primary action and the active state. */
 
 /* ── InstallsPanel — one registered device per row ─────────────── */
-.installs-list { display: flex; flex-direction: column; gap: 6px; }
-.installs-note { font-size: var(--fs-tiny); color: var(--text-3); }
-.installs-error { display: flex; align-items: center; gap: 8px; font-size: var(--fs-tiny); color: var(--danger); }
-.installs-action-error { margin: 0; font-size: var(--fs-tiny); color: var(--danger); }
-.installs-skeleton { width: 160px; height: 12px; }
-.installs-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 6px 12px; }
+.installs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.installs-note {
+  font-size: var(--fs-tiny);
+  color: var(--text-3);
+}
+.installs-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-tiny);
+  color: var(--danger);
+}
+.installs-action-error {
+  margin: 0;
+  font-size: var(--fs-tiny);
+  color: var(--danger);
+}
+.installs-skeleton {
+  width: 160px;
+  height: 12px;
+}
+.installs-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 6px 12px;
+}
 /* State, not data: the row was dimmed with an inline opacity. */
-.installs-row.is-revoked { opacity: 0.7; }
-.installs-id { font-family: var(--font-mono); font-size: var(--fs-tiny); color: var(--text-1); }
-.installs-seen { font-size: var(--fs-tiny); color: var(--text-3); white-space: nowrap; }
-.installs-actions { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
+.installs-row.is-revoked {
+  opacity: 0.7;
+}
+.installs-id {
+  font-family: var(--font-mono);
+  font-size: var(--fs-tiny);
+  color: var(--text-1);
+}
+.installs-seen {
+  font-size: var(--fs-tiny);
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.installs-actions {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 
 /* ── Reduced motion — movement goes, opacity cues stay ─────────── */
 @media (prefers-reduced-motion: reduce) {
-  .rank-fill { animation: none; }
+  .rank-fill {
+    animation: none;
+  }
   .gauge-fill,
-  .progress-fill { transition: none; }
-  .skeleton { animation: none; }
-  .empty-state { animation: dt-settle var(--t-med) ease-out; }  /* fade stays, rise goes */
-  .empty-ring { animation: none; }
+  .progress-fill {
+    transition: none;
+  }
+  .skeleton {
+    animation: none;
+  }
+  .empty-state {
+    animation: dt-settle var(--t-med) ease-out;
+  } /* fade stays, rise goes */
+  .empty-ring {
+    animation: none;
+  }
   /* .dt-settle stays — opacity-only comprehension aid */
   /* .panel-body-clip collapse stays — comprehension aid, per AUDIT §6 */
 }

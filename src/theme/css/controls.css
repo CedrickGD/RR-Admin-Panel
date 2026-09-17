@@ -15,12 +15,23 @@
   font-weight: 500;
   line-height: 1;
   white-space: nowrap;
-  transition: background var(--t-med), box-shadow var(--t-med), color var(--t-med), border-color var(--t-med), opacity var(--t-med);
+  transition:
+    background var(--t-med),
+    box-shadow var(--t-med),
+    color var(--t-med),
+    border-color var(--t-med),
+    opacity var(--t-med);
   cursor: pointer;
   border: 1px solid transparent;
 }
-.btn:disabled { opacity: 0.45; cursor: not-allowed; }
-.btn-icon:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.btn-icon:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 
 .btn-primary {
   background: var(--accent);
@@ -48,17 +59,29 @@
   border-color: hsl(var(--ah) var(--as) var(--al) / 0.22);
 }
 .btn-accent-ghost:hover:not(:disabled) {
-  background: hsl(var(--ah) var(--as) var(--al) / 0.20);
-  border-color: hsl(var(--ah) var(--as) var(--al) / 0.40);
+  background: hsl(var(--ah) var(--as) var(--al) / 0.2);
+  border-color: hsl(var(--ah) var(--as) var(--al) / 0.4);
 }
 
-.btn-danger { background: var(--danger); color: #fff; border-color: var(--danger); }
+.btn-danger {
+  background: var(--danger);
+  color: #fff;
+  border-color: var(--danger);
+}
 .btn-danger:hover:not(:disabled) {
   background: hsl(4 86% 65%);
 }
 
-.btn-sm { padding: 5px 10px; font-size: var(--fs-small); border-radius: 7px; }
-.btn-xs { padding: 3px 8px; font-size: var(--fs-tiny); border-radius: 6px; }
+.btn-sm {
+  padding: 5px 10px;
+  font-size: var(--fs-small);
+  border-radius: 7px;
+}
+.btn-xs {
+  padding: 3px 8px;
+  font-size: var(--fs-tiny);
+  border-radius: 6px;
+}
 
 .btn-icon {
   display: inline-flex;
@@ -69,9 +92,16 @@
   background: var(--surface-2);
   color: var(--text-2);
   border: 1px solid var(--line);
-  transition: background var(--t-med), color var(--t-med), border-color var(--t-med);
+  transition:
+    background var(--t-med),
+    color var(--t-med),
+    border-color var(--t-med);
 }
-.btn-icon:hover:not(:disabled) { background: var(--surface-3); color: var(--text-1); border-color: var(--line-hi); }
+.btn-icon:hover:not(:disabled) {
+  background: var(--surface-3);
+  color: var(--text-1);
+  border-color: var(--line-hi);
+}
 
 /* ── ds/Tabs — underline sub-view switcher ────────────────────────
    The DS owner of the tab row. Unlike the legacy `.workspace-tabs`
@@ -87,7 +117,9 @@
   overflow-x: auto;
   scrollbar-width: none;
 }
-.ds-tabs::-webkit-scrollbar { display: none; }
+.ds-tabs::-webkit-scrollbar {
+  display: none;
+}
 .ds-tab {
   display: inline-flex;
   align-items: center;
@@ -101,11 +133,21 @@
   font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
-  transition: color var(--t-med), border-color var(--t-med);
+  transition:
+    color var(--t-med),
+    border-color var(--t-med);
 }
-.ds-tab:hover:not(.is-active) { color: var(--text-2); }
-.ds-tab.is-active { color: var(--text-1); border-bottom-color: var(--accent); }
-.ds-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.ds-tab:hover:not(.is-active) {
+  color: var(--text-2);
+}
+.ds-tab.is-active {
+  color: var(--text-1);
+  border-bottom-color: var(--accent);
+}
+.ds-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
 .ds-tab-count,
 .ds-seg-count {
   padding: 1px 6px;
@@ -116,7 +158,10 @@
   font-variant-numeric: tabular-nums;
 }
 .ds-tab.is-active .ds-tab-count,
-.ds-seg-btn.is-active .ds-seg-count { background: var(--accent-subtle); color: var(--accent-text); }
+.ds-seg-btn.is-active .ds-seg-count {
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+}
 
 /* ── ds/SegmentedControl — pill filter row ────────────────────── */
 .ds-seg {
@@ -145,18 +190,27 @@
   font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
-  transition: background var(--t-fast), color var(--t-fast);
+  transition:
+    background var(--t-fast),
+    color var(--t-fast);
 }
-.ds-seg-btn:hover:not(.is-active) { color: var(--text-1); }
+.ds-seg-btn:hover:not(.is-active) {
+  color: var(--text-1);
+}
 .ds-seg-btn.is-active {
   background: var(--accent-subtle);
   box-shadow: inset 0 0 0 1px hsl(var(--ah) var(--as) var(--al) / 0.5);
   color: var(--accent-text);
 }
-.ds-seg-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ds-seg-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 
 /* ── Custom dropdown (GlassDropdown) ──────────────────────────── */
-.gdrop { position: relative; }
+.gdrop {
+  position: relative;
+}
 .gdrop-trigger {
   display: inline-flex;
   align-items: center;
@@ -168,16 +222,28 @@
   color: var(--text-2);
   font-size: var(--fs-body);
   cursor: pointer;
-  transition: border-color var(--t-med), color var(--t-med), background var(--t-med);
+  transition:
+    border-color var(--t-med),
+    color var(--t-med),
+    background var(--t-med);
 }
-.gdrop-trigger:hover { border-color: var(--line-hi); background: var(--surface-2); color: var(--text-1); }
+.gdrop-trigger:hover {
+  border-color: var(--line-hi);
+  background: var(--surface-2);
+  color: var(--text-1);
+}
 .gdrop-active .gdrop-trigger {
-  background: hsl(var(--ah) var(--as) var(--al) / 0.10);
+  background: hsl(var(--ah) var(--as) var(--al) / 0.1);
   border-color: hsl(var(--ah) var(--as) var(--al) / 0.45);
   color: var(--accent-text);
 }
-.gdrop-chevron { opacity: 0.55; transition: transform var(--t-med); }
-.gdrop-chevron-open { transform: rotate(180deg); }
+.gdrop-chevron {
+  opacity: 0.55;
+  transition: transform var(--t-med);
+}
+.gdrop-chevron-open {
+  transform: rotate(180deg);
+}
 .gdrop-menu {
   position: absolute;
   top: calc(100% + 6px);
@@ -203,9 +269,21 @@
   border-bottom: 1px solid var(--line);
   color: var(--text-3);
 }
-.gdrop-search input { flex: 1; background: none; border: none; color: var(--text-1); font-size: var(--fs-body); }
-.gdrop-search input::placeholder { color: var(--text-3); }
-.gdrop-list { max-height: 264px; overflow-y: auto; padding: 5px; }
+.gdrop-search input {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--text-1);
+  font-size: var(--fs-body);
+}
+.gdrop-search input::placeholder {
+  color: var(--text-3);
+}
+.gdrop-list {
+  max-height: 264px;
+  overflow-y: auto;
+  padding: 5px;
+}
 .gdrop-item {
   display: flex;
   align-items: center;
@@ -220,11 +298,25 @@
   font-size: var(--fs-body);
   text-align: left;
   cursor: pointer;
-  transition: background 0.12s, color 0.12s;
+  transition:
+    background 0.12s,
+    color 0.12s;
 }
-.gdrop-item:hover { background: hsl(210 80% 75% / 0.07); color: var(--text-1); }
-.gdrop-item-selected, .gdrop-item-selected:hover { color: var(--accent-text); background: var(--accent-subtle); }
-.gdrop-empty { padding: 10px 12px; font-size: var(--fs-small); color: var(--text-2); margin: 0; }
+.gdrop-item:hover {
+  background: hsl(210 80% 75% / 0.07);
+  color: var(--text-1);
+}
+.gdrop-item-selected,
+.gdrop-item-selected:hover {
+  color: var(--accent-text);
+  background: var(--accent-subtle);
+}
+.gdrop-empty {
+  padding: 10px 12px;
+  font-size: var(--fs-small);
+  color: var(--text-2);
+  margin: 0;
+}
 
 /* ── Inputs ───────────────────────────────────────────────────────
    Single owner of the field's own geometry (ds/Input). index.css used to
@@ -238,7 +330,10 @@
   padding: 8px 12px;
   color: var(--text-1);
   font-size: var(--fs-body);
-  transition: border-color var(--t-med), box-shadow var(--t-med), background var(--t-med);
+  transition:
+    border-color var(--t-med),
+    box-shadow var(--t-med),
+    background var(--t-med);
   width: 100%;
 }
 /* One focus ring, not two: the `:focus-visible` outline below is the console's
@@ -255,7 +350,9 @@
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
-.glass-input::placeholder { color: var(--text-3); }
+.glass-input::placeholder {
+  color: var(--text-3);
+}
 /* Validation state (ds/Input `invalid`, ds/Field `error`): the field itself
    says it failed, not only the message under it. Outranks the themed
    `input.glass-input` border and the borderless ambience shadow. */
@@ -269,8 +366,17 @@
 }
 
 /* ── ds/Field — label + requirement hint + control + help/error ── */
-.ds-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.ds-field-label { display: flex; align-items: baseline; gap: 6px; }
+.ds-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.ds-field-label {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
 /* The requirement marker: quieter than the label it qualifies. */
 .ds-field-label em {
   color: var(--text-3);
@@ -281,11 +387,30 @@
   letter-spacing: 0;
 }
 .ds-field-help,
-.ds-field-error { margin: 0; font-size: var(--fs-tiny); line-height: 1.45; }
-.ds-field-help { color: var(--text-3); }
-.ds-field-error { color: var(--danger-text); }
+.ds-field-error {
+  margin: 0;
+  font-size: var(--fs-tiny);
+  line-height: 1.45;
+}
+.ds-field-help {
+  color: var(--text-3);
+}
+.ds-field-error {
+  color: var(--danger-text);
+}
 
-.search-wrap { position: relative; display: flex; align-items: center; }
-.search-wrap .search-icon { position: absolute; left: 10px; color: var(--text-3); pointer-events: none; display: flex; }
-.search-wrap .glass-input { padding-left: 32px; }
-
+.search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.search-wrap .search-icon {
+  position: absolute;
+  left: 10px;
+  color: var(--text-3);
+  pointer-events: none;
+  display: flex;
+}
+.search-wrap .glass-input {
+  padding-left: 32px;
+}

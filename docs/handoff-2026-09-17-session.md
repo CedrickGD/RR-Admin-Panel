@@ -209,3 +209,71 @@ gegen Repo, Client-Repo und NAS geprüft. Hashes sind Kurzformen von `main`.
 > Subagenten/Workflows mit unabhängiger Gegenprüfung, pro Runde Gate + Screenshots bei 1440 und 390, nach
 > jedem Push `npm run deploy:nas` und die Hashes nennen. Zeig mir zeitnah sichtbare Ergebnisse als Bilder,
 > antworte kurz und auf Deutsch.
+
+---
+
+## 9. Nachtrag: Cloud-Session 17.09. (Branch `claude/rr-admin-panel-handoff-gm8xfg`, Stand `a1c0646`)
+
+Diese Fortsetzung lief in einem Cloud-Container (Claude Code Remote): **kein `ssh` zum NAS, kein `adb`,
+kein LAN** — deshalb kein Deploy und kein Lauf auf dem echten Handy. Alles unten ist auf dem Branch
+`claude/rr-admin-panel-handoff-gm8xfg` gepusht (Basis `7f0826f` = `main`), **nicht** auf `main`.
+
+- **Live-Stand geprüft (indirekt):** `rr-admin-panel.pages.dev` (deployt automatisch von `main`) servierte
+  `index-BKWHLXSh.js` / `index-CU2wjcv8.css`; ein lokaler Build von `main` (`7f0826f`) ergibt exakt diese
+  Hashes → Frontend live = `70ce13b`. `api.razorreaper.app/api/health` → 200. Container-Status, `BUILD_SHA`
+  und Backup-Marke waren von hier nicht prüfbar.
+- **Handy-Lauf emuliert** (Headless-Chromium, Touch, 390×844 @3 und 412×915 @3.5 „S-Ultra“, dazu 1440×900
+  mit offener Leiste; Erscheinung dark/network/310). Fixture-Preview und Harness neu aufgebaut (siehe unten).
+  Bestätigt: Spur/Achse-Kanten Streuung 0,00 px, „Tap …“ am Handy, kein horizontales Scrollen. Neun Befunde,
+  jeder von zwei unabhängigen Prüfern gemessen, acht davon behoben:
+  `a7284e1` Achsen-Labels kollidierten bei 412 px („00:006:00“) — Budget für die randverankerten Labels;
+  `4e09f3e` + `5a7af09` Aufklapp-Chevron saß als Fußzeile unten links (consistency.css-Regel gewann) — wieder
+  oben rechts, Karten ~60 px kürzer, Freiraum nur in der Chevron-Zeile;
+  `884f22d` Auswahlzeile nach Segment-Tipp einzeilig („Wed 16 · 20:00–≈20:55 · 55m“);
+  `bd54689` Mitternachts-Segment ragte 2 px über die Spur — späte Balken hängen rechts;
+  `20ef1cd` Hover-Farbe nur bei `(hover: hover)`;
+  `bd3bb9a` Customer 360 „Recent history“: Zeitstempel saß unter dem Punkt („5m / ago“) — `RelativeTime`
+  trägt jetzt die Klasse, die das Grid erwartet;
+  `ae55548` IPv6 „Last IP“ in der Karte brach in 4 Zeilen — volle Zeile;
+  `ea0d5d6` Export-Knopf im Verzeichnis 34 → 44 px am Handy;
+  `f6c85bf` Achsen-Fallback nimmt kurze Labels.
+  **Nicht angefasst (F3):** 6×12-px-Segmentpillen an dichten Tagen überlappen — die neue Intervall-Liste ist
+  die lesbare Fläche dafür.
+- **Online-Zeiten detailliert** (Wunsch des Besitzers: „nicht nur die 0815-Übersicht“). Drei Prototypen,
+  zwei Juroren, Gewinner „Exact online intervals“: `c7b40d4`, `21e0703`, `449fb78`, `94a55a6`, `76351d0`,
+  `af2b001`. Unter Legende und Pager ein Kasten mit jeder Online-Phase als Zeile (Start – Ende – Dauer, Mono,
+  „≈“ bei Heartbeat-Ende), nach Tag gruppiert; Tageskopf „Wed, 16 Sept 2026 · 3h 24m · 10 intervals ·
+  first 09:00 · last ≈20:55“; neueste 7 Aktivtage offen, ältere gefaltet; Datum/Online-Zelle in der Leiste
+  springt zum Tag; angetipptes Segment hebt seine Zeile hervor; Mitternacht als „from previous day“ /
+  „into next day“; eine Dauerform im ganzen Panel („35m“, nie „35m 0s“); Desktop mehrspaltig
+  (1440: 4 Spalten). Light-Theme nimmt `--surface-2` wie die Leiste. Dateien: `src/components/UserActivityPanel.tsx`,
+  `src/utils/activityTimeline.ts`, `src/index.css`, `src/theme/operations.css`, Tests in
+  `tests/activity-timeline.test.ts`, `tests/user-activity-panel.test.tsx`.
+- **PWA / WebAPK** (`8c139cb`, `a1c0646`): `static/manifest.json` (id/start_url/scope „/“, standalone,
+  Farben = `--bg` `#050505`), Icons 192/512 „any“ + 512 „maskable“ + Apple-Touch-Icon aus `src/img/logo.ico`,
+  `vite.config.ts` `publicDir: static/`, `_headers`-Regeln, `deploy/nas/admin/Dockerfile` kopiert `static/`.
+  **Bewusst ohne Service Worker** (Chrome braucht seit 108 keinen; ein Worker könnte das Access-302
+  verschlucken). `<link rel="manifest" crossorigin="use-credentials">`, damit das Access-Cookie mitgeht.
+  Installation: Android Chrome auf `admin.razorreaper.app` → Menü → „App installieren“ (nicht „Zum
+  Startbildschirm“); danach `chrome://webapks`. Falls nur die Verknüpfung angeboten wird: Access-Bypass für
+  `/manifest.json` und `/icons/*` erwägen (Punkt in Abschnitt 5).
+- **Gate auf `a1c0646`:** Typecheck grün, 107 Testdateien / 1276 Tests grün, Build grün
+  (`index-DgX6BsKK.js` / `index-CJe2ghPK.css`), `format:check` grün, Prettier auf allen geänderten
+  `src/`-, `tests/`-, `static/`-Dateien grün. Jede Runde hatte eine unabhängige Gegenprüfung (Korrektheit +
+  Design) mit eigenen Messskripten.
+- **Schritte des Besitzers:** `git fetch origin && git merge --ff-only origin/claude/rr-admin-panel-handoff-gm8xfg`
+  auf `main`, push, dann `npm run deploy:nas -- -Service admin,rr-api` (Dockerfile geändert → Image-Rebuild);
+  erwartete Hashes `index-DgX6BsKK.js` / `index-CJe2ghPK.css`. Danach der echte Handy-Lauf (`phone.mjs`)
+  für Session history (Liste, Tageskopf, Segment-Tipp, Chevron) und Kartentipp — die Emulation ersetzt ihn
+  nicht (Schriftrendering, echte Touch-Treffer).
+- **Harness:** `.local/` ist gitignored; die in dieser Session gebaute Fixture-Preview (`preview.config.ts`,
+  `fixture-api.ts`, typisierte `fixtures.ts`, `harness.mjs`, Szenario- und Messskripte, Font-Cache) wurde als
+  `visual-harness-2026-09-17.tgz` an den Besitzer geschickt — nach `.local/visual-harness/` entpacken,
+  `bash .local/visual-harness/run.sh` startet die Preview auf 4179 ohne Login; Playwright (`playwright-core`)
+  wird per Pfad importiert (`HARNESS_*`-Umgebungsvariablen in `harness.mjs`).
+- **Abschnitt 5, vorgeschlagene Reihenfolge:** (1) 1920: Ort statt IP (Einzeiler `col-lg`/`col-xl`);
+  (2) Restrictions-Tab: Namenslink auf `RecordOpen`; (3) Lizenzen unter 1502 px; (4) Runde-3-Kleinigkeiten
+  (`/api/health` flach, `App.tsx`-Render-Gate, `CF_PAGES_BRANCH`); (5) Bot-Status in System health (braucht
+  Bot-Repo, Bot-Neustart ~3 s); (6) Serverseitige Drosselung erst nach dem Client-Release entscheiden;
+  (7) Caddy-/Cloudflared-Healthchecks nur mit Okay und Zeitfenster; (8) Arne-Session-Dauer im Zero-Trust-Dashboard
+  (nur Besitzer). Client-Release (`fix/client-tidy`) bleibt der Knopf des Besitzers.

@@ -368,3 +368,26 @@ one-shot per hotkey; Even split / Fill / Filter only, filter composes with the f
 no OCR, success = share of changed pixels in the calibrated region with a user knob; after typing the filter the first
 slot is clicked so focus leaves the search box; ships Experimental with a 10-point in-game checklist. Implementation
 runs in worktree `rr-wt-tf` (branch `wt/turret-filler`), lands on `master` after review + gate.
+
+## 18. Turret Filler landed (2026-09-18, late evening)
+
+**Client `master` = `a474236`, pushed (master only, no release). Gate: 0 warnings, 3256 tests.**
+
+- New script **Turret Filler** (key `turretfill`, `Services/Automation/Scripts/TurretFillerScript.cs`), Experimental.
+  One-shot per hotkey on the inventory that is open. Modes Even split (exactly N presses, aborts after two presses
+  that moved nothing) / Fill (stops at the first one, N is the cap) / Filter only. The filter also composes with the
+  first two: click search point, 40 backspaces, type the ammo name (KEYEVENTF_UNICODE), settle, then CLICK the
+  first-slot point so focus leaves the search box. Amount = T / Shift+T / Ctrl+T. Success check = share of changed
+  pixels in the calibrated region against `ChangeThresholdPercent` (default 0.2, 0.02–10); the activity line reports
+  the last measured value. Foreground is re-checked before every press and inside the filter block.
+  No OCR, no Drop-Item guard (unicode typing cannot fire ARK binds), no turret counting.
+- Review found and fixed: "Filter only" with the switch off was a silent no-op (now `Filtering => UseFilter || Mode ==
+  FilterOnly`), and the filter block never re-checked foreground.
+- Landed behind round J with zero rebase conflicts; diagnostics snapshot lists the script (`script.turretfill.hotkey`).
+- Live CDP (round 19 + 21): block renders EN/DE/RU/ZH, Mode -> Filter only reveals the four filter rows without
+  another click, values clamp and persist (99 -> 20, 50 -> 10), all controls 34 px and on one right edge, search finds
+  "ammo"/"filler", zero console errors. Follow-up `a474236`: `.script-settings .rr-dd` is `min-width: 120px` now, so
+  "Ganzer Stapel" / "Половина стака" no longer end in an ellipsis (widest trigger 134 px, still right-aligned).
+- **Only the owner can prove in game** (10-point list in the chat): hover-transfer with T/Shift+T/Ctrl+T, the region
+  threshold open vs closed, the real "last change %" of a transfer vs a swallowed press, that the slot click frees the
+  search box, that the search text types on a German client, behaviour on a laggy server.

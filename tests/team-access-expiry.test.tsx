@@ -25,6 +25,16 @@ import { PERMISSIONS } from "../shared/panel-policy";
  */
 const HOUR = 3_600_000;
 const OWNER = "owner@example.test";
+/*
+ * The hour America/New_York lives through twice: on 2026-11-01 the clock goes 01:59 EDT ->
+ * 01:00 EST, so "2026-11-01T01:20" names two real instants an hour apart and `new Date(local)`
+ * can only ever return the earlier one. Both constants below are the LATER (EST) instant, the
+ * one a naive round trip through the datetime-local field silently loses.
+ */
+/** An expiry already stored on the second pass: 01:30 EST. */
+const DST_SECOND_PASS = "2026-11-01T06:30:00.000Z";
+/** A moment inside the first pass; one hour later (the "1 hour" preset) lands on the second. */
+const DST_FIRST_PASS = Date.parse("2026-11-01T05:20:00.000Z");
 const iso = (offset: number) => new Date(Date.now() + offset).toISOString();
 const ownerIdentity: AuthUser = {
   email: OWNER,
@@ -70,6 +80,7 @@ function payload() {
       member("short@example.test", { expires_at: iso(2 * HOUR) }),
       member("normal@example.test", { expires_at: iso(60 * 24 * HOUR) }),
       member("gone@example.test", { enabled: 0, expires_at: iso(-3 * HOUR) }),
+      member("dst@example.test", { expires_at: DST_SECOND_PASS }),
     ],
     sessions: [
       group("short@example.test", {
@@ -272,5 +283,35 @@ describe("Panel access · the Access expires presets", () => {
       .map((id) => document.getElementById(id)?.textContent ?? "")
       .join(" ");
     expect(help).toContain("every single request");
+  });
+});
+
+/*
+ * Local wall-clock time is not a moment: at a DST fall-back one local string names two instants
+ * an hour apart, and parsing it always yields the earlier one. A grant the owner never touched
+ * must not move, and "1 hour" must not hand out an expiry of zero minutes.
+ */
+describe("Panel access · the hour the clock repeats", () => {
+  it("keeps a stored expiry the owner never touched", async () => {
+    await render();
+    await openEditor("dst@example.test");
+    // The field shows the wall-clock time of the second pass — which reads the same as the first.
+    expect(expiresInput()!.value).toBe("2026-11-01T01:30");
+    await click(button("Save access", dialog()!));
+    await settle(() => posted.length > 0, "the save request");
+    expect(posted[0].expiresAt).toBe(DST_SECOND_PASS);
+  });
+
+  it("grants a full hour from a '1 hour' preset clicked inside that window", async () => {
+    await render();
+    await openEditor("normal@example.test");
+    const clock = vi.spyOn(Date, "now").mockReturnValue(DST_FIRST_PASS);
+    await click(button("1 hour", dialog()!));
+    clock.mockRestore();
+    expect(expiresInput()!.value).toBe("2026-11-01T01:20");
+    await click(button("Save access", dialog()!));
+    await settle(() => posted.length > 0, "the save request");
+    // Re-parsing the field would save DST_FIRST_PASS itself: an hour granted, zero minutes given.
+    expect(Date.parse(String(posted[0].expiresAt))).toBe(DST_FIRST_PASS + HOUR);
   });
 });

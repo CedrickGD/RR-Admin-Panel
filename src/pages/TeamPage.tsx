@@ -138,7 +138,14 @@ type Editor = {
   displayName: string;
   role: PanelRole;
   enabled: boolean;
+  /** What the datetime-local input shows: local wall-clock time, never an instant. */
   expiresAt: string;
+  /**
+   * The instant `expiresAt` was built from, while one is known — the member's stored expiry or
+   * a preset. Null once the owner types, because a typed wall-clock time is only a wall-clock
+   * time. See `expiryIso` for why the difference matters.
+   */
+  expiresAtIso: string | null;
   overrides: PermissionOverrides;
   password: string;
   existing: boolean;
@@ -149,6 +156,7 @@ const emptyEditor = (): Editor => ({
   role: "viewer",
   enabled: true,
   expiresAt: "",
+  expiresAtIso: null,
   overrides: {},
   password: "",
   existing: false,
@@ -181,9 +189,30 @@ const EXPIRY_PRESETS: { key: string; label: string; ms: number | null }[] = [
   { key: "30d", label: "30 days", ms: 30 * 24 * HOUR },
   { key: "none", label: "No expiry", ms: null },
 ];
-/** A preset's value for the datetime-local input — local time, like everything else in the field. */
-function presetValue(ms: number | null, now = Date.now()) {
-  return ms === null ? "" : localDate(new Date(now + ms).toISOString());
+/**
+ * A preset as the editor stores it: local time for the input, and the instant that produced it.
+ * "1 hour" has to mean an hour even when the wall clock is about to repeat one.
+ */
+function presetExpiry(ms: number | null, now = Date.now()) {
+  if (ms === null) return { expiresAt: "", expiresAtIso: null };
+  const iso = new Date(now + ms).toISOString();
+  return { expiresAt: localDate(iso), expiresAtIso: iso };
+}
+/**
+ * What to save for a field showing `local`.
+ *
+ * `localDate` is not invertible at a DST fall-back: Europe/Berlin lives through 02:00–03:00 twice
+ * on 2026-10-25, so "2026-10-25T02:20" names two instants an hour apart and `new Date(local)`
+ * always returns the earlier one. That silently moved a grant the owner never touched an hour
+ * back, and turned a "1 hour" preset clicked inside that window into an expiry of zero minutes.
+ * So when the field still holds exactly what a known instant wrote, that instant is what is sent;
+ * a hand-typed time has nothing else to go on and is parsed as before.
+ */
+function expiryIso(local: string, known: string | null) {
+  if (!local) return null;
+  const knownMs = known ? Date.parse(known) : Number.NaN;
+  if (Number.isFinite(knownMs) && localDate(known) === local) return new Date(knownMs).toISOString();
+  return new Date(local).toISOString();
 }
 /**
  * "in 2 h" while an expiry is less than 48 hours out. A bare timestamp reads as "some date"
@@ -289,6 +318,7 @@ export function TeamPage() {
       role: m.role,
       enabled: Boolean(m.enabled),
       expiresAt: localDate(m.expires_at),
+      expiresAtIso: m.expires_at,
       overrides: m.overrides,
       password: "",
       existing: true,
@@ -659,10 +689,12 @@ export function TeamPage() {
           <form
             onSubmit={(e) => {
               e.preventDefault();
+              // `expiresAtIso` is the editor's own bookkeeping — the API takes one expiry.
+              const { expiresAtIso, ...fields } = editor;
               void action({
                 action: "save",
-                ...editor,
-                expiresAt: editor.expiresAt ? new Date(editor.expiresAt).toISOString() : null,
+                ...fields,
+                expiresAt: expiryIso(editor.expiresAt, expiresAtIso),
               });
             }}
             className="member-form"
@@ -715,14 +747,18 @@ export function TeamPage() {
                       {...control}
                       type="datetime-local"
                       value={editor.expiresAt}
-                      onChange={(e) => setEditor({ ...editor, expiresAt: e.target.value })}
+                      // Hand-typed: the string is all we know, and at a DST fall-back it is
+                      // genuinely ambiguous. Only a preset or the stored value carries an instant.
+                      onChange={(e) =>
+                        setEditor({ ...editor, expiresAt: e.target.value, expiresAtIso: null })
+                      }
                     />
                     <div className="expiry-presets" role="group" aria-label="Quick access expiry">
                       {EXPIRY_PRESETS.map((preset) => (
                         <Button
                           key={preset.key}
                           size="sm"
-                          onClick={() => setEditor({ ...editor, expiresAt: presetValue(preset.ms) })}
+                          onClick={() => setEditor({ ...editor, ...presetExpiry(preset.ms) })}
                         >
                           {preset.label}
                         </Button>

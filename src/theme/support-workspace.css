@@ -361,20 +361,11 @@ html[data-theme] .support-workspace .support-inbox {
     flex-direction: column;
     gap: 8px;
   }
-  .support-workspace .page-toolbar-left {
-    min-width: 0;
-    width: 100%;
-  }
-  .support-workspace .ds-seg {
-    width: 100%;
-    display: flex;
-    flex-wrap: wrap;
-  }
-  .support-workspace .ds-seg-btn {
-    flex: 1;
-    justify-content: center;
-    min-height: 44px;
-  }
+  /* The full-width wrapping scope pills, their 44px targets and the page
+     toolbar's own stacking are ds/PageToolbar's job now (css/components.css).
+     This page's copy is what proved the point: `flex: 1` gave every segment a
+     0 basis, so the row never wrapped and its 44px pills hung 14px out of the
+     34px box the toolbar locks every control to — over the card below. */
   .support-report {
     padding: 18px 16px;
   }

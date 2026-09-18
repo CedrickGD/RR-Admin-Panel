@@ -446,15 +446,40 @@
     flex: 1 0 100%;
     margin-left: 0;
   }
+  /* The scope pills are the one control that can run wider than the screen.
+     They wrap onto as many rows as they need and the control grows with them,
+     which replaces two habits that did not survive measurement at 390px:
+
+     - the row used to scroll sideways inside .page-toolbar-left, hiding its
+       last segment behind a gesture with no affordance — the same "where is
+       it" problem the paragraph above rejects for the filters;
+     - the control kept the fixed --control-h every other toolbar control
+       takes, so a 44px touch target inside a 34px box spilled 14px out of its
+       own rounded border and over the card below it (measured on Feedback at
+       390: segment bottom 308 against a card top of 305.7, and the layout
+       never knew, because the height was locked).
+
+     Height is therefore the content's, with the touch target as the floor, and
+     the box keeps the page's own gap to the card underneath. */
   .page-toolbar-left {
     flex: 1 0 100%;
-    /* The scope pills are the one control that may run wider than the screen;
-       let them scroll rather than break the row grid. */
-    overflow-x: auto;
-    scrollbar-width: none;
+    overflow: visible;
   }
-  .page-toolbar-left::-webkit-scrollbar {
-    display: none;
+  .page-toolbar .ds-seg {
+    width: 100%;
+    flex-wrap: wrap;
+    height: auto;
+    min-height: var(--control-h-touch);
+  }
+  /* `flex: 1` is what stopped the row wrapping at all: a 0 basis makes every
+     segment's hypothetical size 0, so the line always "fits" and the segments
+     then overflow on their min-content width instead of breaking. A basis of
+     auto wraps on the real label width — counts included. */
+  .page-toolbar .ds-seg-btn {
+    flex: 1 1 auto;
+    justify-content: center;
+    height: auto;
+    min-height: var(--control-h-touch);
   }
   .page-toolbar-filters {
     flex: 1 0 100%;

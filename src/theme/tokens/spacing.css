@@ -26,6 +26,13 @@
      and the header actions above it share one control height. */
   --control-h: 34px;
 
+  /* The same control on a touch screen. Six workspaces had already hardcoded
+     44px at their own breakpoint (Traffic, Versions, Live, Directory, Session
+     history, Feedback), which is how the DS ended up with a 26px segmented
+     pill on one phone page and a 44px one on the next. The number is declared
+     once here and spent by the primitives in css/components.css. */
+  --control-h-touch: 44px;
+
   /* Motion — purposeful, fast, no bounce except value pops */
   --ease-rise:   cubic-bezier(0.21, 0.9, 0.35, 1);   /* @kind other */ /* entrances */
   --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);       /* @kind other */ /* collapses, fills, gauges */

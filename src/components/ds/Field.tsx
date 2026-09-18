@@ -12,6 +12,12 @@
  * The control is cloned, not wrapped in guesswork: when `children` is a single
  * element it receives `id`, `aria-describedby` and — while `error` is set —
  * `aria-invalid`. Pass `htmlFor` when the control brings its own id.
+ *
+ * Once the control shares its row with something else — a reveal button, a row of
+ * quick-grant presets — that single element is the wrapper, and cloning onto it
+ * describes the box instead of the input: the screen reader reads the label and
+ * nothing else. Pass a function in that case and spread what it hands you onto the
+ * real control.
  */
 import {
   Children,
@@ -34,10 +40,11 @@ export interface FieldProps {
   /** Id of the control when it brings its own; otherwise Field generates one. */
   htmlFor?: string;
   className?: string;
-  children: ReactNode;
+  /** The control, or a function receiving the props the control needs (see above). */
+  children: ReactNode | ((control: ControlProps) => ReactNode);
 }
 
-type ControlProps = {
+export type ControlProps = {
   id?: string;
   "aria-describedby"?: string;
   "aria-invalid"?: boolean | "true" | "false";
@@ -49,24 +56,24 @@ export function Field({ label, hint, help, error, htmlFor, className = "", child
   const errorId = useId();
   const controlId = htmlFor ?? generatedId;
 
-  const only = Children.count(children) === 1 ? Children.toArray(children)[0] : null;
-  const control =
-    only && isValidElement(only)
-      ? cloneElement(only as ReactElement<ControlProps>, {
-          id: (only as ReactElement<ControlProps>).props.id ?? controlId,
-          "aria-describedby":
-            [
-              (only as ReactElement<ControlProps>).props["aria-describedby"],
-              error ? errorId : null,
-              !error && help ? helpId : null,
-            ]
-              .filter(Boolean)
-              .join(" ") || undefined,
-          "aria-invalid": error
-            ? true
-            : (only as ReactElement<ControlProps>).props["aria-invalid"],
-        })
-      : children;
+  const describedBy = error ? errorId : help ? helpId : undefined;
+  const controlProps: ControlProps = {
+    id: controlId,
+    "aria-describedby": describedBy,
+    "aria-invalid": error ? true : undefined,
+  };
+  const cloneOnly = (nodes: ReactNode) => {
+    const only = Children.count(nodes) === 1 ? Children.toArray(nodes)[0] : null;
+    if (!only || !isValidElement(only)) return nodes;
+    const props = (only as ReactElement<ControlProps>).props;
+    return cloneElement(only as ReactElement<ControlProps>, {
+      id: props.id ?? controlId,
+      "aria-describedby":
+        [props["aria-describedby"], describedBy].filter(Boolean).join(" ") || undefined,
+      "aria-invalid": error ? true : props["aria-invalid"],
+    });
+  };
+  const control = typeof children === "function" ? children(controlProps) : cloneOnly(children);
 
   return (
     <div className={`ds-field${className ? ` ${className}` : ""}`}>

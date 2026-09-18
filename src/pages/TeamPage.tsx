@@ -707,29 +707,29 @@ export function TeamPage() {
                 htmlFor="member-expires"
                 help="The panel checks this on every single request, independently of the Cloudflare sign-in — that one can last a month and says nothing about how long this member may use the panel. Leave empty for unlimited access. Your local time."
               >
-                {/* Same shape as the password field: the wrapper carries its own id so
-                    ds/Field's label keeps pointing at the input, not at the box. */}
-                <div className="expiry-field" id="member-expires-controls">
-                  <Input
-                    id="member-expires"
-                    type="datetime-local"
-                    value={editor.expiresAt}
-                    onChange={(e) => setEditor({ ...editor, expiresAt: e.target.value })}
-                  />
-                  <div className="expiry-presets" role="group" aria-label="Quick access expiry">
-                    {EXPIRY_PRESETS.map((preset) => (
-                      <Button
-                        key={preset.key}
-                        size="sm"
-                        onClick={() =>
-                          setEditor({ ...editor, expiresAt: presetValue(preset.ms) })
-                        }
-                      >
-                        {preset.label}
-                      </Button>
-                    ))}
+                {/* The presets share the row, so the input is not Field's only child — it takes
+                    the description through the render prop instead of Field's clone. */}
+                {(control) => (
+                  <div className="expiry-field">
+                    <Input
+                      {...control}
+                      type="datetime-local"
+                      value={editor.expiresAt}
+                      onChange={(e) => setEditor({ ...editor, expiresAt: e.target.value })}
+                    />
+                    <div className="expiry-presets" role="group" aria-label="Quick access expiry">
+                      {EXPIRY_PRESETS.map((preset) => (
+                        <Button
+                          key={preset.key}
+                          size="sm"
+                          onClick={() => setEditor({ ...editor, expiresAt: presetValue(preset.ms) })}
+                        >
+                          {preset.label}
+                        </Button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
               </Field>
               {data?.authMode === "app" && (
                 <Field
@@ -738,37 +738,40 @@ export function TeamPage() {
                   htmlFor="member-password"
                 >
                   {/* The owner reads this password out to the member, so it can be
-                      revealed and generated instead of typed blind. */}
-                  <div className="input-with-action" id="member-password-controls">
-                    <Input
-                      id="member-password"
-                      type={showPassword ? "text" : "password"}
-                      autoComplete="new-password"
-                      required={!editor.existing}
-                      value={editor.password}
-                      onChange={(e) => setEditor({ ...editor, password: e.target.value })}
-                    />
-                    <IconButton
-                      icon={showPassword ? <EyeOff /> : <Eye />}
-                      size={16}
-                      title={showPassword ? "Hide password" : "Show password"}
-                      /* The name stays put and aria-pressed carries the state —
-                         swapping both said "Hide password, pressed", which reads
-                         as the opposite of what the button would do. */
-                      aria-label="Show password"
-                      aria-pressed={showPassword}
-                      onClick={() => setShowPassword((visible) => !visible)}
-                    />
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        setEditor({ ...editor, password: generatePassword() });
-                        setShowPassword(true);
-                      }}
-                    >
-                      Generate
-                    </Button>
-                  </div>
+                      revealed and generated instead of typed blind — which puts the input
+                      inside a wrapper, so it takes Field's props through the render prop. */}
+                  {(control) => (
+                    <div className="input-with-action">
+                      <Input
+                        {...control}
+                        type={showPassword ? "text" : "password"}
+                        autoComplete="new-password"
+                        required={!editor.existing}
+                        value={editor.password}
+                        onChange={(e) => setEditor({ ...editor, password: e.target.value })}
+                      />
+                      <IconButton
+                        icon={showPassword ? <EyeOff /> : <Eye />}
+                        size={16}
+                        title={showPassword ? "Hide password" : "Show password"}
+                        /* The name stays put and aria-pressed carries the state —
+                           swapping both said "Hide password, pressed", which reads
+                           as the opposite of what the button would do. */
+                        aria-label="Show password"
+                        aria-pressed={showPassword}
+                        onClick={() => setShowPassword((visible) => !visible)}
+                      />
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          setEditor({ ...editor, password: generatePassword() });
+                          setShowPassword(true);
+                        }}
+                      >
+                        Generate
+                      </Button>
+                    </div>
+                  )}
                 </Field>
               )}
               <label className="toggle-row member-toggle">

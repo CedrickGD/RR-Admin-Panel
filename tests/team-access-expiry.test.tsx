@@ -260,4 +260,17 @@ describe("Panel access · the Access expires presets", () => {
     await settle(() => posted.length > 1, "the second save request");
     expect(posted[1].expiresAt).toBeNull();
   });
+
+  it("describes the datetime-local input itself, not the box the presets share with it", async () => {
+    await render();
+    await openEditor("normal@example.test");
+    const describedBy = expiresInput()!.getAttribute("aria-describedby");
+    expect(describedBy).toBeTruthy();
+    // The one sentence that explains why this field matters now that the sign-in lasts a month.
+    const help = describedBy!
+      .split(" ")
+      .map((id) => document.getElementById(id)?.textContent ?? "")
+      .join(" ");
+    expect(help).toContain("every single request");
+  });
 });

@@ -24,7 +24,9 @@
 		path /update/*
 	}
 	handle @updateProxy {
-		reverse_proxy rr-api:8787
+		reverse_proxy rr-api:8787 {
+			header_up X-Forwarded-Proto https
+		}
 	}
 
 	# Public release notes (the <changelog> target and the Discord post link), so a customer never
@@ -35,7 +37,9 @@
 		path /release-notes/*
 	}
 	handle @releaseNotes {
-		reverse_proxy rr-api:8787
+		reverse_proxy rr-api:8787 {
+			header_up X-Forwarded-Proto https
+		}
 	}
 
 	# Do not expose the media origin through arbitrary paths or methods on the download host.

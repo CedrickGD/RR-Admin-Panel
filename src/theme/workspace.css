@@ -882,6 +882,23 @@ td {
 .input-with-action > .glass-input {
   flex: 1 1 auto;
 }
+/* "Access expires" is a datetime-local plus its quick grants (1 hour … 30 days, No expiry).
+   A datetime value needs ~270px at the 16px phone font size, so the presets cannot share the
+   input's row the way .input-with-action does: they take their own wrapping row underneath and
+   the input keeps the field's full width. The buttons are ds/Buttons, so the dialog's coarse-
+   pointer rule in consistency.css already gives them their 44px target — nothing here sets a
+   size of its own. */
+.expiry-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.expiry-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
 .permission-table select,
 .permission-table input {
   padding: 9px 11px;

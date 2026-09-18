@@ -57,7 +57,13 @@ type SessionGroup = {
   tokens: number;
   first_seen_at: string;
   last_seen_at: string;
+  /** The Cloudflare sign-in's own expiry — about a month out for everyone since the Allow policy. */
   expires_at: string;
+  /** When the panel really stops honouring the session: the earlier of the two expiries. */
+  effective_expires_at: string;
+  limited_by: "member" | "token";
+  /** The member is removed, switched off or expired: the tokens live on, the session does not. */
+  blocked: boolean;
   ids: string[];
 };
 type Audit = {
@@ -119,6 +125,11 @@ function asGroup(s: Partial<SessionGroup> & { id?: string; email: string }): Ses
     first_seen_at: s.first_seen_at ?? s.last_seen_at ?? "",
     last_seen_at: s.last_seen_at ?? "",
     expires_at: s.expires_at ?? "",
+    // An rr-api from before the effective-expiry fields knows only the sign-in expiry. Falling
+    // back to it keeps the old, slightly optimistic reading instead of rendering "Invalid Date".
+    effective_expires_at: s.effective_expires_at ?? s.expires_at ?? "",
+    limited_by: s.limited_by ?? "token",
+    blocked: s.blocked ?? false,
     ids: s.ids ?? (s.id ? [s.id] : []),
   };
 }
@@ -155,6 +166,35 @@ function localDate(iso: string | null) {
 }
 function displayDate(iso: string) {
   return new Date(iso).toLocaleString();
+}
+const HOUR = 3_600_000;
+/**
+ * Quick grants for "Access expires". Typing a date and a time by hand to hand somebody the
+ * panel for two hours is what made the field feel unusable next to a Cloudflare sign-in that
+ * lasts a month — these fill it, and the input still shows (and can correct) the result.
+ */
+const EXPIRY_PRESETS: { key: string; label: string; ms: number | null }[] = [
+  { key: "1h", label: "1 hour", ms: HOUR },
+  { key: "8h", label: "8 hours", ms: 8 * HOUR },
+  { key: "1d", label: "1 day", ms: 24 * HOUR },
+  { key: "7d", label: "7 days", ms: 7 * 24 * HOUR },
+  { key: "30d", label: "30 days", ms: 30 * 24 * HOUR },
+  { key: "none", label: "No expiry", ms: null },
+];
+/** A preset's value for the datetime-local input — local time, like everything else in the field. */
+function presetValue(ms: number | null, now = Date.now()) {
+  return ms === null ? "" : localDate(new Date(now + ms).toISOString());
+}
+/**
+ * "in 2 h" while an expiry is less than 48 hours out. A bare timestamp reads as "some date"
+ * even when it is this afternoon, and that window is exactly when the owner needs to see it.
+ * Empty once it has passed — the Access column already says "Expired" there.
+ */
+function expiresSoon(iso: string, now = Date.now()) {
+  const left = Date.parse(iso) - now;
+  if (!Number.isFinite(left) || left <= 0 || left >= 48 * HOUR) return "";
+  const minutes = Math.round(left / 60000);
+  return minutes < 90 ? `in ${minutes} min` : `in ${Math.round(left / HOUR)} h`;
 }
 const PASSWORD_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%&*";
 /**
@@ -291,8 +331,9 @@ export function TeamPage() {
         <span>
           <Clock3 />
           {/* Session groups, i.e. signed-in browsers — one per Access token would count a
-              single open tab six times. */}
-          <strong>{data?.sessions.length ?? "—"}</strong>active sessions
+              single open tab six times. A group whose member the panel already refuses is
+              not one of them, however long its Cloudflare tokens still run. */}
+          <strong>{data?.sessions.filter((s) => !s.blocked).length ?? "—"}</strong>active sessions
         </span>
       </div>
       {error && !editor && !confirm && (
@@ -345,6 +386,7 @@ export function TeamPage() {
               {shown.map((m) => {
                 const expired = !!m.expires_at && Date.parse(m.expires_at) <= Date.now();
                 const removed = !!m.removed_at;
+                const soon = m.expires_at ? expiresSoon(m.expires_at) : "";
                 return (
                   <tr key={m.email}>
                     <td>
@@ -375,7 +417,15 @@ export function TeamPage() {
                       )}
                     </td>
                     <td data-label="Valid until">
-                      {removed ? "—" : m.expires_at ? displayDate(m.expires_at) : "No expiry"}
+                      {removed ? (
+                        "—"
+                      ) : !m.expires_at ? (
+                        "No expiry"
+                      ) : soon ? (
+                        <RecordCell primary={displayDate(m.expires_at)} secondary={soon} />
+                      ) : (
+                        displayDate(m.expires_at)
+                      )}
                     </td>
                     <td>
                       {m.role === "owner" || m.email === data?.actor ? (
@@ -488,7 +538,27 @@ export function TeamPage() {
                       />
                     </td>
                     <td data-label="Last activity">{displayDate(s.last_seen_at)}</td>
-                    <td data-label="Expires">{displayDate(s.expires_at)}</td>
+                    {/* The Cloudflare sign-in runs for a month; the panel checks the member's
+                        own expiry on every request. This column shows whichever comes first,
+                        and says which of the two it is. */}
+                    <td data-label="Expires">
+                      {s.blocked ? (
+                        <RecordCell
+                          primary={
+                            <span className="status-text danger">
+                              <i />
+                              Ended
+                            </span>
+                          }
+                          secondary="access removed or expired"
+                        />
+                      ) : (
+                        <RecordCell
+                          primary={displayDate(s.effective_expires_at)}
+                          secondary={s.limited_by === "member" ? "access limit" : "sign-in"}
+                        />
+                      )}
+                    </td>
                     <td>
                       {s.email !== data.actor && (
                         <Button
@@ -634,13 +704,32 @@ export function TeamPage() {
               <Field
                 label="Access expires"
                 hint="optional"
-                help="Leave empty for unlimited access. Your local time."
+                htmlFor="member-expires"
+                help="The panel checks this on every single request, independently of the Cloudflare sign-in — that one can last a month and says nothing about how long this member may use the panel. Leave empty for unlimited access. Your local time."
               >
-                <Input
-                  type="datetime-local"
-                  value={editor.expiresAt}
-                  onChange={(e) => setEditor({ ...editor, expiresAt: e.target.value })}
-                />
+                {/* Same shape as the password field: the wrapper carries its own id so
+                    ds/Field's label keeps pointing at the input, not at the box. */}
+                <div className="expiry-field" id="member-expires-controls">
+                  <Input
+                    id="member-expires"
+                    type="datetime-local"
+                    value={editor.expiresAt}
+                    onChange={(e) => setEditor({ ...editor, expiresAt: e.target.value })}
+                  />
+                  <div className="expiry-presets" role="group" aria-label="Quick access expiry">
+                    {EXPIRY_PRESETS.map((preset) => (
+                      <Button
+                        key={preset.key}
+                        size="sm"
+                        onClick={() =>
+                          setEditor({ ...editor, expiresAt: presetValue(preset.ms) })
+                        }
+                      >
+                        {preset.label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
               </Field>
               {data?.authMode === "app" && (
                 <Field

@@ -221,3 +221,15 @@ Paket-Historie in `docs/handoff-2026-09-12-panel-rework.md`. Hashes sind Kurzfor
   `work/overlay.py` (Pillow, Segoe UI), `work/make_bg.py` (OpenAI-Pfad, blockiert: kein Guthaben; Gemini-Quota 0).
   Erste Renders vom Besitzer als zu abstrakt abgelehnt; zweite Runde mit OSM-Gebäudedaten und modellierten Wahrzeichen
   läuft.
+
+## 11. Runde E: Sprachen komplett (18.09., Client `master` bis `c21a523`, gepusht, 2888 Tests)
+
+- Alle Seiten unter `Components/Pages` sind in en/de/ru/zh-Hans übersetzt (2688 Schlüssel je Wörterbuch, Paritätstest);
+  Services, die eigene Meldungen formulieren (MediaConverter, SteamFavorites, Crosshair, LoadingScreen, FileModifier,
+  CharPreset, GameIni, Notifier …), bekamen einen ILocalizer. Bewusst englisch: der generierte WTS/WTB-Post der Line List,
+  ARK-eigene Item-/Binding-Namen, Skript-Anzeigenamen, Preset-/Profilnamen, Steam-Optionen und URLs (`docs/i18n.md`).
+- Noch offen: die Toasts der Automations-Skripte selbst (AutomationScriptBase + sieben Dateien unter
+  `Services/Automation`), ein echter Fenster-Durchgang auf Deutsch/Russisch wegen Überlängen (die langen SettingRow-Texte
+  auf Scripts und die Server-Troubleshooting-Karten zuerst), Übersetzungsqualität ist Maschinen-Erstfassung.
+- Live (CDP Runde 10): 51 Prüfungen bestanden, Deutsch/Russisch auf allen Seiten; zwei „Treffer“ (Desync, Feedback &
+  Support) sind absichtlich gleichlautende deutsche Werte, keine Fehler.

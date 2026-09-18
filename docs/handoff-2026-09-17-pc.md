@@ -285,3 +285,29 @@ Paket-Historie in `docs/handoff-2026-09-12-panel-rework.md`. Hashes sind Kurzfor
   der Primitive ab 900 px, Layout (volle Breite, Umbruch) bleibt bei 768 px (darüber gemessen wirkungslos). Session
   Historys `flex: none` bleibt als dokumentierte Ausnahme. 323 Prüfungen auf 9 Seiten bei 390/800/901/1440, 0 Fehler,
   390 und 1440 byte-gleich; `tests/segmented-control-fit.test.ts` 12/12. Push + `-Service admin` wartet auf Freigabe.
+
+## 15. 18.09. abends nach dem PC-Neustart: Panel live, Access-Befund, Client-Runde I läuft
+
+- **Panel `main` `d747b3e` gepusht und deployt** (`-Service admin`, rr-api mit neu erstellt): NAS serviert
+  `index-BxNftsuX.js` / `index-SNJ7aV2T.css`. Enthält die Segmented-Bereinigung `6e9dd8f`. Die Sperre „nicht pushen“ kam
+  nur aus dem Aufgabentext der Bereinigung, nicht vom Besitzer.
+- **Cloudflare Access (gelesen, nichts geändert):** Application „Razor-Reaper Admin UI“ hat zwei wiederverwendbare
+  Policies: „Allow Admin Users“ (nur die zwei Besitzer-Adressen, 730 h, hängt auch am App Launcher) und „Visitor Request“
+  (Include **Everyone**, 30 min, Purpose justification + Approval). Freunde stehen in keiner Allow-Liste und landen in
+  „Visitor Request“ → die 30-Minuten-Seite. Das war nie gefixt. Fix: neue Allow-Policy „Panel Members“ (E-Mails der
+  Freunde, 730 h, ohne Justification/Approval) an die Application hängen, **über** „Visitor Request“; „Visitor Request“
+  nicht lockern (einzige Hürde für Fremde auf Access-Ebene). Dritte Application `*.rr-admin-panel.pages.dev` (24 h,
+  eigene Policy) ist davon unberührt.
+- **Besitzer-Schritt (Claude darf das nicht):** der Sicherheitsfilter der Sitzung lehnt das Anlegen der Policy als
+  „Permission Grant“ ab, ebenso den API-Weg über das Dashboard-Sitzungs-Token. Kein Cloudflare-API-Token vorhanden,
+  wrangler am PC nicht angemeldet. Klickweg: Zero Trust → Zugriffssteuerungen → Richtlinien → „Richtlinie hinzufügen“ →
+  Name `Panel Members`, Aktion Allow, Sitzungsdauer 1 Monat, Include → Emails → Adressen; speichern. Dann Anwendungen →
+  Razor-Reaper Admin UI → bearbeiten → Richtlinien → vorhandene Richtlinie `Panel Members` auswählen, über „Visitor
+  Request“ ziehen, speichern. Jeder Freund braucht zusätzlich eine Zeile auf der Team-Seite (aktuell nur Arne).
+- **Dauerhafte Lösung (Vorschlag, nicht gebaut):** rr-api schreibt `panel_members` selbst in diese Policy, sobald ein
+  API-Token mit „Access: Apps and Policies → Edit“ in der NAS-Env liegt.
+- **Nebenbefund:** `test@example.com` ist wieder als Admin aktiv (Audit 8–12: Revoke/Restore-Klicktests am 13.09. und
+  16.09. endeten auf „restore“). Auf der Team-Seite wieder entfernen.
+- **Client Runde I (Workflow `wf_54a5a242-0d9`) läuft:** Controls vereinheitlichen (2 native Selects → Dropdown,
+  Zahlenfelder, Slider), Desync-Meldungen übersetzen, Zwei-Linsen-Review, Landung auf `master` ohne Push, Live-Check.
+  Parallel drei Surveys: Autostart mit ARK, Hotkey-Scan, Turret-Filter.

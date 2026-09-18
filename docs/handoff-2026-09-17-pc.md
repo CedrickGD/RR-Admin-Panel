@@ -316,3 +316,31 @@ Paket-Historie in `docs/handoff-2026-09-12-panel-rework.md`. Hashes sind Kurzfor
   Include = Arnes Adresse, Policy-ID `70c9ede2-a8ee-419b-8445-2fdb2d2df68e`), 3 „Visitor Request“ (Everyone, 30 min,
   Begründung + Genehmigung, unverändert). Neuer Freund = E-Mail in „Panel Members“ eintragen **und** Zeile auf der
   Team-Seite. Offen: Arnes Testlogin (vorher `…cloudflareaccess.com/cdn-cgi/access/logout`).
+
+## 16. 18.09. spät: Zugriffszeit pro Mitglied, Client-Runde I, Plugins
+
+- **Panel `main` `ed013a8`, gepusht und deployt (`-Service admin,rr-api`):** NAS serviert `index-CsDxEwDl.js` /
+  `index-BLo-FmJ4.css`, `BUILD_SHA=ed013a8`. Gate 138 Dateien / 1801 Tests. Anlass: mit der neuen Access-Policy hält der
+  Cloudflare-Login 730 h, der Besitzer hielt die Zugriffszeit pro Nutzer deshalb für nutzlos. Sie ist es nicht:
+  `memberDenied` (`functions/_lib/panel-access.ts`) prüft `panel_members.expires_at` bei jedem Request. Irreführend war die
+  Oberfläche. Neu: `GET /api/admin/team` liefert je Session-Gruppe `effective_expires_at`, `limited_by`
+  (`member`|`token`) und `blocked` (reine Funktion `sessionAccessView`); Sessions-Tabelle zeigt das echte Ende mit
+  Zweitzeile „access limit“/„sign-in“, gesperrte Gruppen als „Ended“ und nicht mehr in der Aktiv-Kachel; „Access expires“
+  mit Schnellwahl (1 h, 8 h, 1 Tag, 7 Tage, 30 Tage, No expiry) in Ortszeit; „Valid until“ mit Relativhinweis unter 48 h;
+  403-Text trennt abgeschaltet/abgelaufen/entfernt, und die Login-Karte zeigt ihn dem Betroffenen (`/api/auth/session`
+  liefert `reason`). Review-Funde behoben: Ablaufzeit in der doppelten Stunde der Zeitumstellung, Hilfetext wieder per
+  aria am Input. Screenshots 1440/390 aus der Fixture: `%TEMP%/rr-shots/access-time/`.
+- **Client Runde I, `master` `c06f7bf`, gepusht, 3204 Tests:** eine gemeinsame Zahlenfeld-Regel in `primitives.css`
+  (34 px, Mono, keine nativen Spinner, `color-scheme: dark`), Mausrad verstellt keine Zahlenfelder mehr, toter
+  Select-CSS entfernt. Stale Annahmen: native Selects und Desync-i18n waren schon erledigt; Crosshair-Halbpixel ist
+  rechnerisch unvermeidbar. Surveys: Start/Stopp mit ARK komplett, aber ungetestet; Hotkey-Scan speist nur vier Skripte,
+  liest `Input.ini` einmalig, Fed Suit drückt fest F/T/Esc; Turret-Filter hat keinen Code.
+- **Besitzer-Entscheidung Turret:** eigenes Skript, alle drei Modi als Option (gleich verteilen / bis Zielwert füllen /
+  nach Munitionstyp filtern), immer nur auf dem offenen Inventar. Entwurfs-Workflow `wf_60a5305d-323` (rein lesend).
+- **Läuft:** Client Runde J (`wf_e00564e1-6ed`): Hotkey-Scan vollständig, InputRecorder löschen, ArkLink-Tests,
+  `.content-card`-Leck ohne optische Änderung verankern, eine Control-Höhe in gemeinsamen Zeilen; Baseline-Messung gegen
+  Nachher-Messung, Landung ohne Push.
+- **Plugins (Besitzerwunsch):** `context-mode@context-mode` 1.0.169 und `ponytail@ponytail` 4.10.0 per `claude plugin`
+  im User-Scope installiert. Wurden in die laufende Sitzung nachgeladen; der MCP-Server von context-mode lief beim ersten
+  Start in den 30-s-Timeout (Abhängigkeiten), nach Reconnect verbunden. Hooks: Read nur Hinweise, Bash leitet nur
+  curl/wget und Gradle/Maven um.

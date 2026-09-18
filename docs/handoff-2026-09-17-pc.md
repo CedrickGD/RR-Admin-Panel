@@ -426,8 +426,9 @@ this chat before the tests began and wants them done in a fresh chat from this h
 
 ### How to run the session
 - Tools: computer-use (`request_access` for "ARK Survival Evolved", "Steam", "RazorReaper"; the owner must approve
-  the dialog, so ask while they are at the PC). Drive the CLIENT's settings over WebView2 CDP (port 9223, scripts in
-  the old scratchpad are gone with the session — the mechanics are: env `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=
+  the dialog, so ask while they are at the PC). Drive the CLIENT's settings over WebView2 CDP (port 9223; working example scripts were copied to the untracked
+  `RR-Admin-Panel/.local/client-cdp/` — `round19.mjs` drives the Turret Filler block, `round17.mjs` the Scripts page,
+  `round16-measure.mjs` measures all routes; the mechanics are: env `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=
   --remote-debugging-port=9223`, page target `https://0.0.0.1/`, real `Input.dispatchMouseEvent` clicks) and the GAME
   with computer-use. Scripts need ARK in the foreground, so give each script under test a global hotkey first and
   start it with the hotkey while the game has focus.

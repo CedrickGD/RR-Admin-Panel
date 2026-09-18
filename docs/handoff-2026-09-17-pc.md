@@ -179,3 +179,24 @@ Paket-Historie in `docs/handoff-2026-09-12-panel-rework.md`. Hashes sind Kurzfor
   (5) Privatschalten erst nach Token-Prüfung auf beiden Flächen und Adoption-Schwelle.
 - **Bekannt:** `BuildResponse.runId` kann null sein, wenn der Run nach 15 s noch nicht sichtbar ist (dann Refresh);
   `<args>` in update.xml ist über das Panel nicht änderbar; die Release-Tabellen entstehen beim ersten Aufruf der Seite.
+
+## 9. Runde C: Client-Mehrwert (18.09., `master` bis `7b4a3ff`, gepusht, 933 Tests)
+
+- **Lifetime-Seite** `/guides/dino-level` („Higher dino levels“, Nav „Dino levels“ mit Schloss-Marker in Mods & Intel):
+  echte Sperre nur für diese Seite (`Services/LifetimeAccess.cs`, `PremiumLock RequiresLifetime`; Monatspläne bleiben
+  gesperrt, gesperrter Inhalt steht nicht im DOM), Knöpfe Buy Premium / Redeem key; Inhalt = die acht Schritte des
+  Besitzers plus Voraussetzungen und Hinweise, kein Video.
+- **Crosshair:** Ursprung lag bei (Canvas−1)/2 → jetzt Mittelpixel (ungerade Strichstärken bleiben systembedingt
+  einen halben Pixel versetzt); CS2/Valorant-Codes gegen die echten Formate; sichtbare Fehlermeldung beim Import;
+  PNG-Import auf Inhalt beschnitten; Rust bewusst nicht (kein dokumentiertes Format, Hinweis auf Crosshair-X-Import).
+- **Stretched-Res:** Hinweise/Fehlermeldungen je Hersteller (NVIDIA/AMD/Intel).
+- **Sprachen:** `Services/Localization` (ILocalizer, JSON-Wörterbücher `Resources/i18n/{en,de,ru,zh-Hans}.json`,
+  Preference `rr.ui.language`), Dropdown in den Einstellungen, Umschalten ohne Neustart über einen Cascading-Wert
+  „Language“ in MainLayout (jede Komponente mit `Localizer.T` deklariert den CascadingParameter; Test erzwingt das).
+  Übersetzt: Sidebar, Befehlspalette (Seiten/Abschnitte), Home, Einstellungen komplett, Feedback & Support, Konto,
+  Lizenz-/What's-new-Overlay, NotFound, Update-Meldungen. Noch Englisch: alle übrigen Seiten, Palette-Befehle, Tray, HUD
+  (`docs/i18n.md`).
+- **Live geprüft** per CDP (Runden 5–8, PNGs im Scratchpad): Umschalten DE/RU/EN inkl. Sidebar in <100 ms, Lifetime-Seite,
+  Fehlermeldung Crosshair, Hersteller-Hinweis, keine Konsolenfehler.
+- **Offen:** Sprachen zweite Welle; Stretched-Res pro Monitor (Service zielt immer auf den Hauptmonitor); Stream Deck
+  später; `DiscordPresenceService.ShopUrl` noch eigene Kopie der Store-URL; Cloudflare-Worker-Redeploy (Besitzer).

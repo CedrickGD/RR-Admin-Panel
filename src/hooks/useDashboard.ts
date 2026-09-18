@@ -54,8 +54,11 @@ export function useDashboard(activePage: PageKey) {
             setUser(null);
             setSummary(null);
             setHealth(null);
+            // A refusal the gate explained (access removed, switched off, expired on a date)
+            // outranks the generic copy: it is the only thing the person can act on.
             setAuthError(
-              session.authMode === "app" ? "Session expired. Please sign in again." : null,
+              session.reason ??
+                (session.authMode === "app" ? "Session expired. Please sign in again." : null),
             );
             return;
           }
@@ -112,6 +115,9 @@ export function useDashboard(activePage: PageKey) {
         setSummary(null);
         setHealth(null);
         setRequiresBootstrap(!session.hasUsers);
+        // The first load of a member whose access has run out lands here, not in the 401
+        // branch above — this is where the panel's own refusal has to reach the screen.
+        setAuthError(session.reason ?? null);
       }
     } catch {
       // An unavailable verifier says nothing about authentication. Keep this

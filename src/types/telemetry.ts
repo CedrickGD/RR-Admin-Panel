@@ -454,6 +454,12 @@ export interface SessionPayload {
   hasUsers: boolean;
   authMode?: AuthMode;
   user?: AuthUser;
+  /**
+   * Why the panel refused an identity it could verify — removed, switched off, or expired
+   * on a named date. Only set for a 403 from the member gate; a plain "not signed in" 401
+   * leaves it null.
+   */
+  reason?: string | null;
 }
 
 export interface AuthActionPayload {

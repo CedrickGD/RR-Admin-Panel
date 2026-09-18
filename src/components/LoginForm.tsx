@@ -45,6 +45,14 @@ export function LoginForm({ isBootstrap, authMode, busy, error, onSubmit }: Logi
               panel owner.
             </p>
           </div>
+          {/* Cloudflare signs the person in for a month, the panel checks its own expiry on
+              every request — so this card is exactly where a refused member lands, and the
+              gate's reason has to render here or it is never read by anyone. */}
+          {error ? (
+            <div id={ERROR_ID} className="inline-error" role="alert">
+              {error}
+            </div>
+          ) : null}
           <a href="/cdn-cgi/access/logout" className="btn btn-primary auth-submit">
             Sign in with a different account
           </a>

@@ -344,3 +344,27 @@ Paket-Historie in `docs/handoff-2026-09-12-panel-rework.md`. Hashes sind Kurzfor
   im User-Scope installiert. Wurden in die laufende Sitzung nachgeladen; der MCP-Server von context-mode lief beim ersten
   Start in den 30-s-Timeout (Abhängigkeiten), nach Reconnect verbunden. Hooks: Read nur Hinweise, Bash leitet nur
   curl/wget und Gradle/Maven um.
+
+## 17. Client round J landed, Turret Filler in the works (2026-09-18, evening)
+
+**Client `master` = `154b607`, pushed (master only, no release). Gate: 0 warnings, 3241 tests.**
+
+- Stream A (scripts): Fed Suit and Fast Transfer press the keys the player bound (`AccessInventory`, `TransferItem`)
+  instead of literal F/T; the key scan refreshes on script start and when `Input.ini` changes, keeps the last good scan
+  when the file is locked, and no longer hunts for the ARK install on every start; the Scripts page says where the key
+  defaults came from and has a localized "Rescan" (DE "Neu einlesen"); `InputRecorderService` deleted; ArkLink
+  debounce + legacy migration are under test; a second Start can no longer swap the keys of a run in flight.
+- Stream B (CSS): the leaked `.content-card` rule in `server-styles.css` is gone, the look every page already had is
+  declared in `theme.css`; one `--control-h` (34 px) for dropdown trigger, button and number/text field.
+  Measured against the baseline on 44 routes: the only card difference is three collapsible cards (Home sound, Settings
+  theme + font) going from `rgba(0,0,0,.15)` to their own declared `.18` — accepted, it is the value their page rule
+  always asked for. Notifier dropdowns 28.8 -> 34 px, centre unchanged.
+- Open from the live check: Notifier's small "Test" buttons (~22 px) next to the 34 px dropdown are not on the token;
+  `round16-measure.mjs` overwrites its `base-*.png` on a second run (needs an output prefix) — JSON data is intact.
+- No ARK install / `Input.ini` on this PC, so ActionMapping names and rebinding stay unverified in-game.
+
+**Turret Filler** (owner: all three behaviours as options, only the open inventory, own script): design fixed —
+one-shot per hotkey; Even split / Fill / Filter only, filter composes with the first two; T / Shift+T / Ctrl+T;
+no OCR, success = share of changed pixels in the calibrated region with a user knob; after typing the filter the first
+slot is clicked so focus leaves the search box; ships Experimental with a 10-point in-game checklist. Implementation
+runs in worktree `rr-wt-tf` (branch `wt/turret-filler`), lands on `master` after review + gate.

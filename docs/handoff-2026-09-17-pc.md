@@ -460,6 +460,14 @@ this chat before the tests began and wants them done in a fresh chat from this h
 7. Everything found goes into a ranked list: broken / unusable / confusing / fine. Fix rounds afterwards use the usual
    worktree → gate → two-lens review → land → push pattern; client `master` only, never a GitHub release.
 
+### Branch rule (owner, 2026-09-18 night)
+Everything lives on client `master` / panel `main` **locally**. Worktree branches are only a tool inside a round: every
+round ends merged (ff), worktree removed, branch deleted, `git worktree prune`. Pushing `master` / `main` is fine —
+**a release never is** (no `gh release`, no `v*` tag, no `update-manifest.yml`). Workspace was cleaned that night: both
+repos have exactly one local and one remote branch (two fully merged panel remote branches deleted), headless browser
+profiles under `Tempr-shots` and 30 build logs in the panel's ignored `.local` removed. Not touched because their
+origin is unknown: the untracked `.superdesign/` in the panel and the scripts/configs left in `.local`.
+
 ### Still open for the owner
 Remove `test@example.com` on the panel's Team page · decide on the ponytail status-line badge · `wrangler deploy` of
 the Cloudflare Worker · publish 1.5.3 from the panel when the in-game round is through · rotate the OpenAI key that

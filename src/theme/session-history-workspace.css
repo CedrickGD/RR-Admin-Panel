@@ -378,16 +378,13 @@ html[data-theme] .session-history-workspace .session-history-id-tail {
     flex-basis: auto;
   }
 
-  /* The scope pills stay on one row. Wrapping them stranded the last pill alone
-     on a second line; the ds toolbar already lets the row scroll sideways
-     below 768px, and with the phone's 44px pills padded a touch less the four
-     ("All customers", "Online", "Offline", "Errors") fit a 390px screen
-     without scrolling at all. */
-  .session-history-workspace .page-toolbar-left .ds-seg {
-    height: auto;
-    min-height: 44px;
-  }
-
+  /* The scope pills stay on one row. The toolbar primitive gives every segment
+     `flex: 1 1 auto` so the row wraps on the real label width, and here that
+     stranded the last pill alone on a second line; with the phone's 44px pills
+     padded a touch less the four ("All customers", "Online", "Offline",
+     "Errors") fit a 390px screen on one row instead. This is the one page that
+     overrides the primitive's segment flex, and the only thing it overrides —
+     the height and the 44px target below 900 are the primitive's. */
   .session-history-workspace .page-toolbar-left [role="radio"] {
     flex: none;
     padding-inline: 9px;

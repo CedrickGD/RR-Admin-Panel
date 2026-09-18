@@ -431,6 +431,37 @@
   min-width: 0;
 }
 
+/* Tablet portrait and down: a segment is a touch target here, so the control
+   around it has to be allowed to hold one.
+
+   This is one breakpoint wider than the phone block below, and deliberately
+   so. Four workspaces already raised their own segments to 44px at 900 — Live
+   and Session history as `[role="radio"]`, Versions and Customers as
+   `.ds-seg-btn`, which ds/SegmentedControl puts on the same button. That is a
+   decision about the band where a panel is touched rather than clicked, not
+   about the phone's stacked layout, and it was unanimous. Only two of the four
+   also unlocked the control, and where that pairing was missed the segments
+   hang out of their own rounded border exactly as they did at 390 before
+   b16720e — measured at 800: Session history's segment bottom 362 against a
+   control bottom of 357, Customers → Restrictions 313.3 against 308.3.
+
+   So the height belongs with the pills wherever the pills grow, and that is
+   here. The full-width wrapping row stays at 768 with the rest of the stacked
+   toolbar: above 768 nothing stretches .page-toolbar-left, so a `width: 100%`
+   moved up here would resolve against the control's own content width and
+   change nothing — measured, every page's control is the same width at 800
+   either way. */
+@media (max-width: 900px) {
+  .page-toolbar .ds-seg {
+    height: auto;
+    min-height: var(--control-h-touch);
+  }
+  .page-toolbar .ds-seg-btn {
+    height: auto;
+    min-height: var(--control-h-touch);
+  }
+}
+
 /* Phone: the search gets its own full-width row first — it is the control
    people reach for — and the rest wraps two-up underneath. Wrapping beats a
    horizontally scrolling strip here: a scroll strip hides half the filters
@@ -447,8 +478,9 @@
     margin-left: 0;
   }
   /* The scope pills are the one control that can run wider than the screen.
-     They wrap onto as many rows as they need and the control grows with them,
-     which replaces two habits that did not survive measurement at 390px:
+     They wrap onto as many rows as they need and the control grows with them
+     (the growing is the block above: it starts one breakpoint earlier), which
+     replaces two habits that did not survive measurement at 390px:
 
      - the row used to scroll sideways inside .page-toolbar-left, hiding its
        last segment behind a gesture with no affordance — the same "where is
@@ -459,8 +491,8 @@
        390: segment bottom 308 against a card top of 305.7, and the layout
        never knew, because the height was locked).
 
-     Height is therefore the content's, with the touch target as the floor, and
-     the box keeps the page's own gap to the card underneath. */
+     Width is therefore the row's, and the box keeps the page's own gap to the
+     card underneath. */
   .page-toolbar-left {
     flex: 1 0 100%;
     overflow: visible;
@@ -468,8 +500,6 @@
   .page-toolbar .ds-seg {
     width: 100%;
     flex-wrap: wrap;
-    height: auto;
-    min-height: var(--control-h-touch);
   }
   /* `flex: 1` is what stopped the row wrapping at all: a 0 basis makes every
      segment's hypothetical size 0, so the line always "fits" and the segments
@@ -478,8 +508,6 @@
   .page-toolbar .ds-seg-btn {
     flex: 1 1 auto;
     justify-content: center;
-    height: auto;
-    min-height: var(--control-h-touch);
   }
   .page-toolbar-filters {
     flex: 1 0 100%;

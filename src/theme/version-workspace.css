@@ -129,17 +129,12 @@ html[data-theme] .version-workspace .version-release-history .record-table > tbo
   }
 }
 @media (max-width: 900px) {
-  html[data-theme] .version-workspace .ds-seg {
-    height: auto;
+  html[data-theme] .version-workspace :is(.gdrop-trigger, .btn, .btn-icon, button[aria-expanded]) {
     min-height: 44px;
   }
-  html[data-theme]
-    .version-workspace
-    :is(.ds-seg-btn, .gdrop-trigger, .btn, .btn-icon, button[aria-expanded]) {
-    min-height: 44px;
-  }
+  /* Height and touch target for the segments are the toolbar primitive's from
+     900 down (css/components.css); the smaller label is this page's own. */
   html[data-theme] .version-workspace .ds-seg-btn {
-    height: auto;
     font-size: var(--fs-small);
   }
   html[data-theme] .version-workspace .btn-icon {

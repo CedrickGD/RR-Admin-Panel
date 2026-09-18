@@ -200,8 +200,12 @@ html[data-theme] .customer-directory-section[data-density] .customer-directory-a
     display: none;
   }
   /* Scoped to the workspace, not the directory section: the Restrictions tab
-     renders its own PageToolbar outside that section and kept 34px fields and
-     a 26px segmented control while the Directory next to it had 44px. */
+     renders its own PageToolbar outside that section and kept 34px fields
+     while the Directory next to it had 44px.
+
+     The segments are not in this list: a fixed `height: 44px` on a segment
+     inside a control the toolbar still locks to 34px is what makes it hang out
+     of its own border. The primitive raises both together from 900 down. */
   html[data-theme] .customer-directory-workspace .page-toolbar-search {
     flex-basis: 100%;
     max-width: none;
@@ -209,7 +213,7 @@ html[data-theme] .customer-directory-section[data-density] .customer-directory-a
   html[data-theme]
     .customer-directory-workspace
     .page-toolbar
-    :is(.btn, .gdrop-trigger, .glass-input, .ds-seg-btn) {
+    :is(.btn, .gdrop-trigger, .glass-input) {
     min-height: 44px;
     height: 44px;
   }

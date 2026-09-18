@@ -139,15 +139,16 @@ html[data-theme] .traffic-workspace .timezone-card {
     min-width: 0;
     width: 100%;
   }
+  /* Traffic takes the stacked toolbar one breakpoint early (its left slot is
+     full width just above), so the scope row is full width here rather than at
+     the toolbar's own 768. Height and touch target are the primitive's — see
+     the tablet block in css/components.css. */
   html[data-theme] .traffic-workspace .ds-seg {
     display: flex;
     flex-wrap: wrap;
-    height: auto;
-    min-height: 44px;
     width: 100%;
   }
   .traffic-workspace .ds-seg-btn {
-    min-height: 44px;
     flex: 1 1 auto;
     justify-content: center;
   }

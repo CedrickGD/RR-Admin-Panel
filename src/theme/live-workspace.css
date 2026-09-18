@@ -172,11 +172,6 @@ html[data-theme]
   overflow-wrap: anywhere;
 }
 @media (max-width: 900px) {
-  html[data-theme] .live-workspace .ds-seg {
-    height: auto;
-    min-height: 44px;
-  }
-
   html[data-theme] .live-workspace .live-session-table > tbody {
     display: grid;
     gap: 12px;

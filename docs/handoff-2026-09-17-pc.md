@@ -496,3 +496,7 @@ was pasted earlier.
   via hotkey + screenshots only, or the owner presses keys). Do not pass the claim on as fact before checking.
 - Lesson for prompts: forbid launching ARK/Steam/the client explicitly in EVERY stage of a workflow, not only the
   first — the rule was in the shared block and the last agent still went past it "to be helpful".
+- **Owner, last word before the new chat:** the PC was reset, so ARK starting from nothing (no world, no character,
+  no settings) is expected and fine — create a new single-player world and character, `gcm`, then run every test we
+  need. Items and structures needed for a test are simply cheated in through the console (look the exact command up
+  at test time, e.g. the `gfi` / `giveitemnum` family); no farming, no asking.

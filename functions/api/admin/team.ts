@@ -2,6 +2,7 @@ import { requireDashboardAccess } from "../../_lib/admin";
 import { hashPassword, isValidEmail, validatePasswordComplexity } from "../../_lib/auth";
 import { ensureAuthSchema } from "../../_lib/users";
 import {
+  describePanelSessions,
   ensurePanelSchema,
   findPanelMember,
   groupPanelSessions,
@@ -108,8 +109,13 @@ export async function onRequest({ request, env }: Context): Promise<Response> {
       return json({
         ok: true,
         members: (members.results ?? []).map(publicMember),
-        // One row per browser, not per Access JWT (a new token every few minutes).
-        sessions: groupPanelSessions(sessions.results ?? []),
+        // One row per browser, not per Access JWT (a new token every few minutes), and each
+        // one carrying when the panel really stops honouring it — which is the member's own
+        // expiry whenever that is shorter than the month-long Cloudflare sign-in.
+        sessions: describePanelSessions(
+          groupPanelSessions(sessions.results ?? []),
+          members.results ?? [],
+        ),
         audit: audit.results ?? [],
         authMode: auth.access.authMode,
         actor,

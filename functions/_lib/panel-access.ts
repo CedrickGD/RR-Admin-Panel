@@ -47,6 +47,23 @@ export interface PanelSessionGroup {
   expires_at: string;
   ids: string[];
 }
+/**
+ * A session group with the moment access REALLY ends.
+ *
+ * `expires_at` above is the Cloudflare sign-in: since the friends policy became an Allow
+ * with a 730-hour session it is about a month away for everyone, which made the panel's
+ * own per-member expiry look decorative. It is not — the gate in `_lib/admin.ts` calls
+ * `memberDenied` on every single request — but a table that prints the token expiry next
+ * to a member whose access ends in two hours is telling the owner the opposite.
+ */
+export interface PanelSessionView extends PanelSessionGroup {
+  /** The earlier of the sign-in expiry and the member's own access expiry. */
+  effective_expires_at: string;
+  /** Which of the two ends it. "member" only when the member's expiry is the shorter one. */
+  limited_by: "member" | "token";
+  /** The member row already refuses this address: tokens alive, session over. */
+  blocked: boolean;
+}
 export const PANEL_SCHEMA = [
   `CREATE TABLE IF NOT EXISTS panel_preferences (email TEXT PRIMARY KEY, appearance_json TEXT NOT NULL DEFAULT '{}', updated_at TEXT NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS panel_members (email TEXT PRIMARY KEY, display_name TEXT NOT NULL DEFAULT '', role TEXT NOT NULL CHECK(role IN ('owner','admin','support','viewer')), enabled INTEGER NOT NULL DEFAULT 1, expires_at TEXT, overrides_json TEXT NOT NULL DEFAULT '{}', revoked_before INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
@@ -115,6 +132,42 @@ export function memberDenied(member: PanelMember | null, now = Date.now()) {
       !member.enabled ||
       (member.expires_at && Date.parse(member.expires_at) <= now)),
   );
+}
+/**
+ * One session group plus the truth about when it ends. Pure — the Team page's API route and
+ * its tests call it with rows they already have.
+ *
+ * The member's expiry counts as the limit only when it is STRICTLY earlier: two identical
+ * timestamps end the session together, and labelling that "access limit" would point at a
+ * grant that shortens nothing. A token expiry that does not parse cannot be compared at all,
+ * so any real member expiry wins over it rather than the row silently keeping a bad date.
+ */
+export function sessionAccessView(
+  group: PanelSessionGroup,
+  member: PanelMember | null,
+  now = Date.now(),
+): PanelSessionView {
+  const tokenEnd = Date.parse(group.expires_at);
+  const memberEnd = member?.expires_at ? Date.parse(member.expires_at) : Number.NaN;
+  const limitedByMember =
+    Number.isFinite(memberEnd) && (!Number.isFinite(tokenEnd) || memberEnd < tokenEnd);
+  return {
+    ...group,
+    effective_expires_at: limitedByMember ? new Date(memberEnd).toISOString() : group.expires_at,
+    limited_by: limitedByMember ? "member" : "token",
+    // A denied member's browser still holds live tokens until it asks for something, so the
+    // group is still in the table — as an ended session, never as somebody who is signed in.
+    blocked: memberDenied(member, now),
+  };
+}
+/** `sessionAccessView` for a whole list; an address without a member row keeps its token expiry. */
+export function describePanelSessions(
+  groups: readonly PanelSessionGroup[],
+  members: readonly PanelMember[],
+  now = Date.now(),
+): PanelSessionView[] {
+  const byEmail = new Map(members.map((member) => [member.email, member]));
+  return groups.map((group) => sessionAccessView(group, byEmail.get(group.email) ?? null, now));
 }
 /**
  * Collapses token rows into one group per (email, auth_mode, user_agent), newest activity

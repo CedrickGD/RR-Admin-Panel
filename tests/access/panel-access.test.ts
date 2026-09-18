@@ -7,7 +7,15 @@ import {
 import { requireDashboardAccess } from "../../functions/_lib/admin";
 import { createAppSessionToken, hashPassword } from "../../functions/_lib/auth";
 import { createUser, ensureAuthSchema } from "../../functions/_lib/users";
-import { ensurePanelSchema, groupPanelSessions, tokenId } from "../../functions/_lib/panel-access";
+import {
+  describePanelSessions,
+  ensurePanelSchema,
+  groupPanelSessions,
+  sessionAccessView,
+  tokenId,
+  type PanelMember,
+  type PanelSessionGroup,
+} from "../../functions/_lib/panel-access";
 import { onRequest as team } from "../../functions/api/admin/team";
 import { onRequest as session } from "../../functions/api/auth/session";
 import { onRequest as login } from "../../functions/api/auth/login";
@@ -384,6 +392,114 @@ describe("panel permissions and session lifecycle on SQLite", () => {
       last_seen_at: "2026-09-12T10:30:00.000Z",
       expires_at: "2026-09-12T12:00:00.000Z",
     });
+  });
+  it("reports the earlier of the sign-in and the member's own expiry, and says which", () => {
+    const at = (iso: string) => Date.parse(iso);
+    const NOW = at("2026-09-18T12:00:00.000Z");
+    const member = (extra: Partial<PanelMember> = {}): PanelMember => ({
+      email: MEMBER,
+      display_name: "",
+      role: "support",
+      enabled: 1,
+      expires_at: null,
+      overrides_json: "{}",
+      revoked_before: 0,
+      removed_at: null,
+      created_at: "2026-09-01T00:00:00.000Z",
+      updated_at: "2026-09-01T00:00:00.000Z",
+      ...extra,
+    });
+    // A month-long Cloudflare session, which is what the Allow policy hands everyone now.
+    const group = (expires = "2026-10-18T12:00:00.000Z"): PanelSessionGroup => ({
+      key: `${MEMBER}|access|Chrome`,
+      email: MEMBER,
+      auth_mode: "access",
+      user_agent: "Chrome",
+      tokens: 3,
+      first_seen_at: "2026-09-18T09:00:00.000Z",
+      last_seen_at: "2026-09-18T11:58:00.000Z",
+      expires_at: expires,
+      ids: ["a", "b", "c"],
+    });
+    const view = (m: PanelMember | null, g = group()) => sessionAccessView(g, m, NOW);
+
+    // The case the owner called useless: two hours of panel access under a month of sign-in.
+    expect(view(member({ expires_at: "2026-09-18T14:00:00.000Z" }))).toMatchObject({
+      effective_expires_at: "2026-09-18T14:00:00.000Z",
+      limited_by: "member",
+      blocked: false,
+    });
+    // Equal timestamps: nothing shortens anything, so the sign-in keeps the label.
+    expect(view(member({ expires_at: "2026-10-18T12:00:00.000Z" }))).toMatchObject({
+      effective_expires_at: "2026-10-18T12:00:00.000Z",
+      limited_by: "token",
+    });
+    // No member expiry, and no member row at all: the sign-in is the only limit there is.
+    for (const m of [member(), null])
+      expect(view(m)).toMatchObject({
+        effective_expires_at: "2026-10-18T12:00:00.000Z",
+        limited_by: "token",
+        blocked: false,
+      });
+    // Already over: the tokens are alive, the session is not.
+    expect(view(member({ expires_at: "2026-09-18T10:00:00.000Z" }))).toMatchObject({
+      effective_expires_at: "2026-09-18T10:00:00.000Z",
+      limited_by: "member",
+      blocked: true,
+    });
+    // Disabled and removed are blocked too, whatever the dates say.
+    expect(view(member({ enabled: 0 })).blocked).toBe(true);
+    expect(view(member({ removed_at: "2026-09-17T08:00:00.000Z" })).blocked).toBe(true);
+    // An unparseable sign-in expiry cannot be compared, so a real member expiry wins over it…
+    expect(
+      view(member({ expires_at: "2026-09-18T14:00:00.000Z" }), group("not-a-date")),
+    ).toMatchObject({ effective_expires_at: "2026-09-18T14:00:00.000Z", limited_by: "member" });
+    // …and an unparseable member expiry never overrides a good one. (It also never denies:
+    // memberDenied compares the same NaN, so the row stays usable until the owner fixes it.)
+    expect(view(member({ expires_at: "whenever" }))).toMatchObject({
+      effective_expires_at: "2026-10-18T12:00:00.000Z",
+      limited_by: "token",
+      blocked: false,
+    });
+    // The list form matches each group to its own member and leaves strangers on the token.
+    expect(
+      describePanelSessions(
+        [group(), { ...group(), key: "other", email: OWNER }],
+        [member({ expires_at: "2026-09-18T14:00:00.000Z" })],
+        NOW,
+      ).map((g) => g.limited_by),
+    ).toEqual(["member", "token"]);
+  });
+  it("sends the effective session end and the blocked flag to the Team page", async () => {
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    // One hour of panel access under an 8-hour app session — the member is the limit.
+    expect((await save({ expiresAt })).status).toBe(200);
+    expect((await requireDashboardAccess(request("/api/admin/data", memberToken), env)).ok).toBe(
+      true,
+    );
+    const live = await (
+      await team({ env, request: request("/api/admin/team", ownerToken) })
+    ).json();
+    expect(live.sessions.find((s: { email: string }) => s.email === MEMBER)).toMatchObject({
+      effective_expires_at: expiresAt,
+      limited_by: "member",
+      blocked: false,
+    });
+    // The owner has no expiry of their own, so their own row still reads off the sign-in.
+    expect(live.sessions.find((s: { email: string }) => s.email === OWNER).limited_by).toBe(
+      "token",
+    );
+    // Switch the member off: the browser keeps its unexpired token rows, and the group has to
+    // show up as ended rather than as one of the signed-in devices.
+    await team({
+      env,
+      request: request("/api/admin/team", ownerToken, { action: "revoke", email: MEMBER }),
+    });
+    db.prepare("UPDATE panel_sessions SET revoked_at = NULL WHERE email = ?").run(MEMBER);
+    const after = await (
+      await team({ env, request: request("/api/admin/team", ownerToken) })
+    ).json();
+    expect(after.sessions.find((s: { email: string }) => s.email === MEMBER).blocked).toBe(true);
   });
   it("applies managed access and revocation to Cloudflare identities too", async () => {
     const accessEnv = { ...testAccessEnv(OWNER), DB: env.DB };

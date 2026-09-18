@@ -311,3 +311,8 @@ Paket-Historie in `docs/handoff-2026-09-12-panel-rework.md`. Hashes sind Kurzfor
 - **Client Runde I (Workflow `wf_54a5a242-0d9`) läuft:** Controls vereinheitlichen (2 native Selects → Dropdown,
   Zahlenfelder, Slider), Desync-Meldungen übersetzen, Zwei-Linsen-Review, Landung auf `master` ohne Push, Live-Check.
   Parallel drei Surveys: Autostart mit ARK, Hotkey-Scan, Turret-Filter.
+- **Nachtrag 18.09. ~21:00, Access gefixt (Besitzer hat geklickt, Claude hat gelesen und geprüft):** „Razor-Reaper Admin
+  UI“ hat jetzt 1 „Allow Admin Users“ (730 h), 2 **„Panel Members“** (Allow, 730 h, keine Begründung, keine Genehmigung,
+  Include = Arnes Adresse, Policy-ID `70c9ede2-a8ee-419b-8445-2fdb2d2df68e`), 3 „Visitor Request“ (Everyone, 30 min,
+  Begründung + Genehmigung, unverändert). Neuer Freund = E-Mail in „Panel Members“ eintragen **und** Zeile auf der
+  Team-Seite. Offen: Arnes Testlogin (vorher `…cloudflareaccess.com/cdn-cgi/access/logout`).

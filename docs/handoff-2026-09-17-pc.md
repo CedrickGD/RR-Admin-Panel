@@ -242,3 +242,22 @@ Paket-Historie in `docs/handoff-2026-09-12-panel-rework.md`. Hashes sind Kurzfor
 - Überlängen-Durchgang im echten Fenster (CDP, alle 40 Katalogseiten, de/ru): 0 neue Überläufe gegenüber Englisch nach
   Kürzungen in den Wörterbüchern; die fünf englischen Grundfälle (z. B. Launch-Options-Beispielkarte, 2 px) sind
   vorbestehend. Modale, Tabs und Toasts wurden nicht durchgesehen.
+
+## 13. Runde G: Skripte (18.09. abends, Client `master` bis `e99acfd`, gepusht, 3132+ Tests)
+
+- **Analyse zuerst** (Memory `rr-scripts-reality`): kein Anti-Cheat-Limit, nur das Gratis-Monatskontingent (Premium
+  überspringt es); Skripte tickten stumm ohne ARK im Vordergrund; Noglin kaputt (Konsolen-„.“ wurde zur Entf-Taste);
+  Bilderkennung nur Monitor 1; null Skript-Telemetrie; Fed Suit doppelt bezahlt; Taktzeiten zu langsam.
+- **G1 Eingabe:** Konsole tippt per KEYEVENTF_UNICODE (kein ToLowerInvariant mehr, Konsolentasten über den Simulator
+  → kein Hotkey-Selbstauslöser); KEYEVENTF_SCANCODE gesetzt, 30-ms-Mindesthaltezeit, Held-Key-Register wird bei Stop/
+  Dispose/Exception geleert; RunLoopAsync misst den Tick und wartet nur den Rest; Fed Suit `alreadyMetered`.
+- **G2 Sichtbarkeit + Telemetrie:** ARK-Status-Pill (nicht laufend / im Hintergrund / im Vordergrund), „letzte Aktion“
+  je Lauf, ein Hinweis-Toast pro stillem Lauf (an den Lauf gebunden), Telemetrie `script_start/stop/noop`
+  (+ `script_capture` aus G3) mit Allowlist-Test; Panel-Zähler in `KNOWN_COUNTER_SERVICES` (main `a4ca08c`, rr-api deployt).
+- **G3 Capture + Kalibrierung + Katalog:** DXGI-Output folgt dem ARK-Fenster (Prüfung nicht pro Tick), Referenz kennt
+  Monitor + Auflösung und matcht bei Abweichung nicht mehr, Live-Trefferquote für die fünf kalibrierten Skripte
+  (Dino Ready ausgenommen), „Experimental“-Chips auf Astro, Turret Manager, Auto Download, Fast TP, Crafting-Walk.
+- **Live (CDP Runde 12):** ARK-Pill in EN/DE, Chips exakt auf den fünf, Kalibrierkarte mit Live-Match; die Monitor-
+  Metadatenzeile erscheint nur mit vorhandener Referenz (so gebaut). Ungeprüft ohne echtes Spiel: Scancodes/Unicode an
+  ARKs Konsole, DXGI-Auswahl auf Multi-Monitor-Hardware. Auto-Clicker-Haltezeit bleibt bei `max(1, HoldMs)` (Produktfrage).
+- Danach: Dropdown-Clipping-Fix (Sprachmenü), Panel-Segmented-Copies-Bereinigung (beide laufen).

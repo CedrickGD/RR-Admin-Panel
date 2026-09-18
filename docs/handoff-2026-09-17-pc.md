@@ -391,3 +391,75 @@ runs in worktree `rr-wt-tf` (branch `wt/turret-filler`), lands on `master` after
 - **Only the owner can prove in game** (10-point list in the chat): hover-transfer with T/Shift+T/Ctrl+T, the region
   threshold open vs closed, the real "last change %" of a transfer vs a swallowed press, that the slot click frees the
   search box, that the search text types on a German client, behaviour on a laggy server.
+
+## 19. START HERE for the next chat: in-game test session (written 2026-09-18, night)
+
+**Owner's order (verbatim sense):** "Test ALL changes in game, that they are really usable and not only technically
+correct. Go into single player, best with `gcm` for admin mode, then you can do everything else." The owner stopped
+this chat before the tests began and wants them done in a fresh chat from this handoff.
+
+### State when this chat ended
+- Client `master` = `a474236`, pushed (round J + Turret Filler + dropdown min-width). 3256 tests, 0 warnings. No release.
+- **A key fix was still running** as a background workflow of the old chat: branch `wt/ark-default-keys`, worktree
+  `C:/Users/cedri/source/repos/CedrickGD/rr-wt-keys`. FIRST THING in the new chat: `git -C RazorReaper worktree list`
+  and `git log --oneline -8 master`.
+  - Landed (commits about "AccessInventory"/"DefaultInput" on master, worktree gone): run the gate, push `master`.
+  - Not landed (worktree still there): finish it — review the branch, gate, ff-merge, push. Do not test Fed Suit /
+    Fast Transfer / Crafting in game before this is in the build.
+- **The bug behind it (proven):** the game's own `ShooterGame/Config/DefaultInput.ini` line 108 has
+  `AccessInventory` = **F**; `ArkKeyBindingParser.StockBindings` said **E** (since `554176b`). Since round J Fed Suit
+  and Fast Transfer resolve through that table, so without a player `Input.ini` they press E instead of F. The fix also
+  makes `DefaultInput.ini` from the install the base layer under the player's `Input.ini`, with `StockBindings` only
+  as the no-install fallback.
+- Panel `main` = this commit, deployed build is still `ed013a8` (docs only since).
+
+### Facts about this PC that earlier agents got wrong
+- **ARK: Survival Evolved IS installed:** `C:\Program Files (x86)\Steam\steamapps\common\ARK` (app id 346110,
+  ~508 GB, exe `ShooterGame\Binaries\Win64\ShooterGame.exe`). Two agents reported "no ARK install" — false.
+- `ShooterGame\Saved` does **not exist**: the game has not been started since this install. So there is no
+  `Input.ini` yet (the app's "Input.ini not found — using ARK's default keys" is truthful), no single-player save, no
+  character. The first launch will create them — and may bring first-run dialogs (Steam launch-option picker,
+  redistributables, BattlEye installer = **UAC, which computer-use cannot click; ask the owner**). Prefer the
+  "launch without BattlEye" option for single player if Steam offers it.
+- Second Steam library: `D:\SteamLibrary`. Installed RazorReaper (release) exists in the Start menu too — test the
+  **dev build** from `RazorReaper/bin/Debug/net10.0-windows10.0.19041.0/win-x64/RazorReaper.exe`, not the release.
+
+### How to run the session
+- Tools: computer-use (`request_access` for "ARK Survival Evolved", "Steam", "RazorReaper"; the owner must approve
+  the dialog, so ask while they are at the PC). Drive the CLIENT's settings over WebView2 CDP (port 9223, scripts in
+  the old scratchpad are gone with the session — the mechanics are: env `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=
+  --remote-debugging-port=9223`, page target `https://0.0.0.1/`, real `Input.dispatchMouseEvent` clicks) and the GAME
+  with computer-use. Scripts need ARK in the foreground, so give each script under test a global hotkey first and
+  start it with the hotkey while the game has focus.
+- Screenshots are expensive: run the hands-on part in subagents (one phase per agent, game stays open between them),
+  Fable only judges. Send the owner pictures promptly. Reply short, in German.
+- Do not change the owner's ARK graphics/control settings. Do not rebind keys in the game unless a test needs it, and
+  put it back. Single player only. Close ARK and the client when done; leave the client language on English.
+- In game: Tab opens the console; `gcm` = creative mode (free crafting, no weight). Items/structures for the tests
+  (auto turret, advanced rifle bullets, a storage box, a Fed/Tek suit piece) can be crafted in creative mode or given
+  by console — look the exact commands up at test time, none were verified in this chat.
+
+### What to test (usable, not just correct)
+1. **Key scan:** after the first ARK start `Input.ini` exists → Scripts page status line changes from "not found" to
+   the found state; "Rescan" works; rebind `AccessInventory` in ARK's options to another key, Rescan, Fed Suit /
+   Crafting show the new key; restore the binding.
+2. **Turret Filler** — the 10-point list from §18 / the chat: hover-transfer with T / Shift+T / Ctrl+T, region
+   calibration on the open turret inventory and the open-vs-closed match %, Even split (1 press = exactly one stack),
+   Even split on a full turret (stops after two no-change presses), Fill, the real "last change %" for a transfer vs a
+   swallowed press (tune the 0.2 default from that), filter: text lands in the search box, the slot click frees the
+   search box so T transfers again, search text surviving into the next turret, German client typing.
+   Also: is the calibration flow itself understandable for a player (region, reference, two points with a 3 s
+   countdown)? Report friction, not only pass/fail.
+3. **Turret Manager** (old script) still works next to the new one.
+4. **Fed Suit, Fast Transfer, Crafting** press the bound keys (after the key fix).
+5. **Start/close with ARK** (`ArkLinkService`): client option on → starting ARK starts/closes what it promises.
+6. Earlier rounds that were never seen in game: scancode key presses and unicode console typing reach ARK
+   (Auto-Walk, Anti-AFK, Fast TP search box, console commands), script hotkeys fire while ARK is fullscreen, the
+   silent-run toast when ARK is not focused, vision scripts on the right monitor (memory: they capture monitor 0).
+7. Everything found goes into a ranked list: broken / unusable / confusing / fine. Fix rounds afterwards use the usual
+   worktree → gate → two-lens review → land → push pattern; client `master` only, never a GitHub release.
+
+### Still open for the owner
+Remove `test@example.com` on the panel's Team page · decide on the ponytail status-line badge · `wrangler deploy` of
+the Cloudflare Worker · publish 1.5.3 from the panel when the in-game round is through · rotate the OpenAI key that
+was pasted earlier.

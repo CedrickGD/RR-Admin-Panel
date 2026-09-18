@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 /*
- * At <=600px ds/Modal is a full-screen sheet. On a real Android Chrome it used
+ * At <=600px ds/Modal is a bottom sheet. On a real Android Chrome it used
  * to inherit the desktop card's entrance: the overlay faded 0 -> 1, the sheet
  * faded 0 -> 1 inside it (opacities multiply) and rose 12px. At rest the sheet
  * was fine, but for the whole open and close the page underneath showed
@@ -12,9 +12,16 @@ import { describe, expect, it } from "vitest";
  * t=100ms opacity 0.95). Headless screenshots never saw it because the visual
  * harness disables transitions.
  *
- * The guard: inside the phone block neither layer ever fades, the sheet fills
- * the dynamic viewport with an opaque fill, and the desktop card keeps its
- * own fade + scale entrance.
+ * The guard: inside the phone block neither layer ever fades, the sheet is an
+ * opaque bottom sheet as tall as its own content, and the desktop card keeps
+ * its own fade + scale entrance.
+ *
+ * The height half of that is the second defect this file now guards. The sheet
+ * used to be pinned to 100dvh whatever it held, so a two-button confirm
+ * ("Delete feedback") rendered as a full-screen wall — measured at 390x844:
+ * 844px of sheet for 204px of content, ~640px of it empty below the buttons.
+ * Content height with a 90dvh cap gives the confirm 240px and leaves the tall
+ * dialogs (team editor, licence forms) scrolling in the body as before.
  */
 function source(path: string): string {
   return readFileSync(fileURLToPath(new URL(path, import.meta.url)), "utf8");
@@ -36,7 +43,7 @@ function rules(css: string): Array<{ selector: string; body: string }> {
 }
 
 const components = source("../src/theme/css/components.css");
-const phoneStart = components.indexOf("/* ≤600px: the dialog is a full-screen sheet.");
+const phoneStart = components.indexOf("/* ≤600px: the dialog is a bottom sheet.");
 const phoneEnd = components.indexOf("/* ── KPI drill-down contents");
 const phone = stripComments(components.slice(phoneStart, phoneEnd));
 const desktop = stripComments(components.slice(0, phoneStart));
@@ -91,16 +98,32 @@ describe("dialog sheet on a phone", () => {
     );
   });
 
-  it("fills the dynamic viewport with an opaque fill", () => {
+  it("sizes to its content, capped at 90% of the dynamic viewport", () => {
     const sheet = rules(phone).find(
       (rule) => rule.selector === ".dialog-overlay > .dialog" && rule.body.includes("height"),
     );
     expect(sheet).toBeDefined();
     const body = sheet!.body;
-    expect(body).toMatch(/height: 100vh;\s*height: 100dvh;/);
-    expect(body).toContain("max-height: none;");
+    // Content height, not the viewport's. `max-height: none` is what made a
+    // confirm dialog a full-screen wall and must never come back here.
+    expect(body).toMatch(/height: auto;/);
+    expect(body).not.toContain("max-height: none;");
+    // vh first, dvh second: the same fallback pair the height used to carry.
+    expect(body).toMatch(/max-height: 90vh;\s*max-height: 90dvh;/);
+    // A sheet rises from the bottom edge, so it is anchored there and only the
+    // two corners that left the screen edge are rounded.
+    expect(body).toMatch(/border-radius: var\(--r\) var\(--r\) 0 0;/);
+    expect(phone).toMatch(/\.dialog-overlay \{\s*padding: 0;\s*align-items: flex-end;\s*\}/);
+    // The body gives its height back — down to its own scroller — only at the
+    // cap. `flex: 1` would fill whatever height the sheet was handed.
+    expect(phone).toMatch(
+      /\.dialog-overlay > \.dialog > \.dialog-body \{\s*flex: 0 1 auto;\s*padding-bottom: calc\(16px \+ env\(safe-area-inset-bottom, 0px\)\);\s*\}/,
+    );
+    // The bottom inset still clears the home indicator; the top one is gone
+    // with the top edge it used to clear.
+    expect(phone).toContain("env(safe-area-inset-bottom, 0px)");
+    expect(phone).not.toContain("safe-area-inset-top");
     expect(body).toContain("background: var(--workspace-dialog);");
-    expect(phone).toMatch(/\.dialog-overlay \{\s*padding: 0;\s*align-items: stretch;\s*\}/);
 
     // The token behind the fill has no alpha channel in either theme.
     const colors = source("../src/theme/tokens/colors.css");

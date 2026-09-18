@@ -1091,13 +1091,24 @@
   background: var(--surface-float);
 }
 
-/* ≤600px: the dialog is a full-screen sheet. Same markup, so the head keeps
+/* ≤600px: the dialog is a bottom sheet. Same markup, so the head keeps
    the title on the left and the X top-right; the sheet is opaque (the fill is
    --workspace-dialog, which consistency.css also sets at (0,2,1)) and only its
    body scrolls — the page underneath is locked on <html> by ds/Modal. Selectors
    carry one class more than the ≤600px head/body padding in consistency.css,
    which would otherwise win on source order. The bottom padding and the sticky
    action row both clear the home indicator (safe-area inset).
+
+   The sheet is as tall as what is in it, never taller than 90% of the dynamic
+   viewport. It used to be pinned to 100dvh whatever it held, which is right
+   for a form and absurd for a confirm: "Delete feedback" is one line of text
+   and two buttons, and it rendered as a full-screen wall with ~640px of empty
+   sheet under the buttons (measured at 390×844: 844px tall, content 204px).
+   Content height also puts every dialog's actions a thumb's reach from the
+   bottom edge instead of wherever the content happened to end. Anything
+   taller than the cap — the team editor, the licence forms — hits it and
+   scrolls in the body exactly as before, with the head and the sticky action
+   row staying put.
 
    The sheet is opaque on EVERY frame, not only at rest. It used to inherit the
    desktop card's entrance: the overlay faded 0→1 and the sheet faded 0→1 on top
@@ -1111,26 +1122,32 @@
 @media (max-width: 600px) {
   .dialog-overlay {
     padding: 0;
-    align-items: stretch;
+    align-items: flex-end;
   }
   .dialog-overlay > .dialog {
     width: 100%;
-    height: 100vh;
-    height: 100dvh;
-    max-height: none;
+    height: auto;
+    max-height: 90vh;
+    max-height: 90dvh;
     gap: 0;
     border: 0;
-    border-radius: 0;
+    /* The two corners that are not on the screen edge any more. */
+    border-radius: var(--r) var(--r) 0 0;
     box-shadow: none;
     background: var(--workspace-dialog);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
+  /* The top edge is no longer the screen's, so the head takes the plain
+     ≤600px padding and nothing for a notch that is not above it. */
   .dialog-overlay > .dialog > .dialog-head {
-    padding-top: calc(16px + env(safe-area-inset-top, 0px));
+    padding-top: 16px;
   }
+  /* `flex: 1` filled whatever height the sheet had been given; the sheet now
+     takes the height the body asks for, and the body gives it back — down to
+     its own scroller — only once the 90dvh cap is reached. */
   .dialog-overlay > .dialog > .dialog-body {
-    flex: 1;
+    flex: 0 1 auto;
     padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
   }
   .dialog-overlay > .dialog > .dialog-body .dialog-actions {

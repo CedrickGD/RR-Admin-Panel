@@ -261,3 +261,25 @@ Paket-Historie in `docs/handoff-2026-09-12-panel-rework.md`. Hashes sind Kurzfor
   Metadatenzeile erscheint nur mit vorhandener Referenz (so gebaut). Ungeprüft ohne echtes Spiel: Scancodes/Unicode an
   ARKs Konsole, DXGI-Auswahl auf Multi-Monitor-Hardware. Auto-Clicker-Haltezeit bleibt bei `max(1, HoldMs)` (Produktfrage).
 - Danach: Dropdown-Clipping-Fix (Sprachmenü), Panel-Segmented-Copies-Bereinigung (beide laufen).
+
+## 14. Runde H: Dropdown-Clipping und Segmented-Kopien (18.09. spät)
+
+- **Client `master` `9464654`, gepusht, 3194 Tests.** Das Sprachmenü in Settings zeigte nur drei von vier Sprachen. Ursache
+  war kein Overflow: `pages/server-styles.css` setzt `backdrop-filter` auf das nackte `.content-card`, jede Karte ist damit
+  ein Stacking-Context, und die nächste Karte malte über die absolut positionierte Liste. Die `.content-card:has(.rr-dd)
+  { overflow: visible }`-Ausnahme half nie und kostete jede Karte mit Dropdown ihre Rundung. Fix in der Primitive: die
+  Liste liegt per `popover="manual"` im Top-Layer (Blazor behält das DOM-Element), `wwwroot/js/dropdown-layer.js`
+  platziert sie am Trigger, klappt bei Platzmangel nach oben, deckelt auf die Fensterhöhe, folgt Scroll/Resize und schließt
+  bei Outside-Click/Escape über `CloseFromLayer`. Der alte Backdrop (deckte nur die Karte) ist weg. `.content-card`s
+  Blur-Leak selbst bleibt absichtlich unangetastet (würde jede Karte umfärben).
+- **Live (CDP Runde 13):** vier Optionen klickbar, Flip nach oben (Viewport 1424×376 emuliert, da `.main-content` der
+  Scroller ist und die Sprachzeile nicht tiefer rutschen kann), Sprachwechsel zh→en, Monitor-Dropdown auf Stretched Res
+  über den Preset-Karten, 0 Konsolenfehler.
+- **Nachtrag läuft:** Liste ist exakt triggerbreit („中文 (…“ abgeschnitten, Breite hängt an der gewählten Sprache) →
+  Mindestbreite = Trigger, `width: max-content`, bei Rechtsüberlauf rechtsbündig am Trigger.
+- **Panel `main` `6e9dd8f`, NICHT gepusht/deployt (Auftrag):** Segmented-Control-Kopien bereinigt. Kopien lagen nicht
+  einheitlich bei 900 px (Traffic 800, Session History 600), zwei `[role="radio"]`-Kopien fehlten in der Liste, bei 800 px
+  liefen Session History und Customers → Restrictions um 5 px über. Entscheidung: Höhe (44 px, Control entsperrt) gehört
+  der Primitive ab 900 px, Layout (volle Breite, Umbruch) bleibt bei 768 px (darüber gemessen wirkungslos). Session
+  Historys `flex: none` bleibt als dokumentierte Ausnahme. 323 Prüfungen auf 9 Seiten bei 390/800/901/1440, 0 Fehler,
+  390 und 1440 byte-gleich; `tests/segmented-control-fit.test.ts` 12/12. Push + `-Service admin` wartet auf Freigabe.

@@ -262,9 +262,9 @@ Paket-Historie in `docs/handoff-2026-09-12-panel-rework.md`. Hashes sind Kurzfor
   ARKs Konsole, DXGI-Auswahl auf Multi-Monitor-Hardware. Auto-Clicker-Haltezeit bleibt bei `max(1, HoldMs)` (Produktfrage).
 - Danach: Dropdown-Clipping-Fix (Sprachmenü), Panel-Segmented-Copies-Bereinigung (beide laufen).
 
-## 14. Runde H: Dropdown-Clipping und Segmented-Kopien (18.09. spät)
+## 14. Runde H: Dropdown-Clipping und Segmented-Kopien (18.09. spät, Client `master` bis `2aeb8ab`, gepusht)
 
-- **Client `master` `9464654`, gepusht, 3194 Tests.** Das Sprachmenü in Settings zeigte nur drei von vier Sprachen. Ursache
+- **Client `9464654`, 3194 Tests.** Das Sprachmenü in Settings zeigte nur drei von vier Sprachen. Ursache
   war kein Overflow: `pages/server-styles.css` setzt `backdrop-filter` auf das nackte `.content-card`, jede Karte ist damit
   ein Stacking-Context, und die nächste Karte malte über die absolut positionierte Liste. Die `.content-card:has(.rr-dd)
   { overflow: visible }`-Ausnahme half nie und kostete jede Karte mit Dropdown ihre Rundung. Fix in der Primitive: die
@@ -275,8 +275,10 @@ Paket-Historie in `docs/handoff-2026-09-12-panel-rework.md`. Hashes sind Kurzfor
 - **Live (CDP Runde 13):** vier Optionen klickbar, Flip nach oben (Viewport 1424×376 emuliert, da `.main-content` der
   Scroller ist und die Sprachzeile nicht tiefer rutschen kann), Sprachwechsel zh→en, Monitor-Dropdown auf Stretched Res
   über den Preset-Karten, 0 Konsolenfehler.
-- **Nachtrag läuft:** Liste ist exakt triggerbreit („中文 (…“ abgeschnitten, Breite hängt an der gewählten Sprache) →
-  Mindestbreite = Trigger, `width: max-content`, bei Rechtsüberlauf rechtsbündig am Trigger.
+- **Nachtrag gelandet (`2aeb8ab`, gepusht, 3195 Tests):** Liste war exakt triggerbreit („中文 (…“, Breite hing an der
+  gewählten Sprache). Jetzt `width: max-content`, JS setzt nur Mindestbreite (Trigger) und Maximalbreite (Fenster),
+  bei Rechtsüberlauf rechtsbündig am Trigger. Live (CDP Runde 14): kein Label mehr abgeschnitten, Breite unabhängig
+  von der Auswahl, Flip weiterhin ok, Monitor-Dropdown unverändert, 0 Konsolenfehler.
 - **Panel `main` `6e9dd8f`, NICHT gepusht/deployt (Auftrag):** Segmented-Control-Kopien bereinigt. Kopien lagen nicht
   einheitlich bei 900 px (Traffic 800, Session History 600), zwei `[role="radio"]`-Kopien fehlten in der Liste, bei 800 px
   liefen Session History und Customers → Restrictions um 5 px über. Entscheidung: Höhe (44 px, Control entsperrt) gehört

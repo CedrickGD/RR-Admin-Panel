@@ -233,3 +233,12 @@ Paket-Historie in `docs/handoff-2026-09-12-panel-rework.md`. Hashes sind Kurzfor
   auf Scripts und die Server-Troubleshooting-Karten zuerst), Übersetzungsqualität ist Maschinen-Erstfassung.
 - Live (CDP Runde 10): 51 Prüfungen bestanden, Deutsch/Russisch auf allen Seiten; zwei „Treffer“ (Desync, Feedback &
   Support) sind absichtlich gleichlautende deutsche Werte, keine Fehler.
+
+## 12. Runde F: Skript-Toasts und Überlängen (18.09., Client `master` bis `5a408d3`, gepusht, 2977 Tests)
+
+- Alle 17 Automations-Skripte und die sieben Automations-Dienste melden über den ILocalizer (86 neue Schlüssel, 2784 je
+  Wörterbuch); der Toast-Scan-Test erfasst jetzt auch geerbte Localizer und `TryActivity`. Offen: `Services/Desync/
+  DesyncService.cs` (neun englische Activity-Zeilen), `InputRecorderService` ohne Aufrufer.
+- Überlängen-Durchgang im echten Fenster (CDP, alle 40 Katalogseiten, de/ru): 0 neue Überläufe gegenüber Englisch nach
+  Kürzungen in den Wörterbüchern; die fünf englischen Grundfälle (z. B. Launch-Options-Beispielkarte, 2 px) sind
+  vorbestehend. Modale, Tabs und Toasts wurden nicht durchgesehen.

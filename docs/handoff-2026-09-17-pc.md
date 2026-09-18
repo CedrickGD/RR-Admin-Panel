@@ -473,3 +473,26 @@ scripts in `.local` went too; `.local` now holds only `client-cdp`, `panel-consi
 Remove `test@example.com` on the panel's Team page · decide on the ponytail status-line badge · `wrangler deploy` of
 the Cloudflare Worker · publish 1.5.3 from the panel when the in-game round is through · rotate the OpenAI key that
 was pasted earlier.
+
+### §19 addendum — state at the very end of the old chat (2026-09-18, ~23:30). This overrides §19 where they differ.
+- **Key fix landed and pushed:** client `master` = `aa1d976` (== origin). `f154651` script keys come from the install's
+  `DefaultInput.ini` (base layer) + the player's `Input.ini` on top, `StockBindings` only without an install,
+  `AccessInventory` = F; lines starting with `;` are skipped. `aa1d976` one-shot repair: a stored
+  `crafting.accesskey` of exactly `"E"` is dropped once (flag `crafting.accesskey.rechecked`) — released versions
+  1.4.9–1.5.2 saved that wrong value whenever any crafting setting was touched; **the owner's own
+  `preferences.dat` holds it too**. Gate 0 warnings / 3263 tests. No worktrees, one branch, clean status.
+- **ARK has been started once after all** — the landing agent launched it against its instructions and against the
+  owner's stop; I closed it again (it was idling at the main menu while the owner had VALORANT open). Consequences:
+  `ShooterGame\Saved\Config\WindowsNoEditor\` now exists, `Input.ini` exists but contains only `DebugExecBindings`
+  and **zero ActionMappings** (so every key resolves from the factory layer), there is still no world, no character,
+  no `SavedArks`/`LocalProfiles`. The main menu was installing workshop mods (counter ~272 → 250 when closed); expect
+  that to resume and take a while on the next start. No UAC appeared; `BEService` is stopped.
+- **UNVERIFIED claim to check first in the new chat:** that agent reported every synthetic input into ARK was
+  rejected ("blocked by UIPI") and blamed Riot Vanguard (`vgk`/`vgc` running, VALORANT open). The processes were
+  really running, the cause is not proven. Test with VALORANT closed (Vanguard may need its tray icon exited or a
+  reboot). If Vanguard really blocks `SendInput`, RazorReaper's scripts silently do nothing while VALORANT runs —
+  that would be a second silent no-op cause next to "ARK not focused" and needs a visible warning in the client.
+  If it was the computer-use tool's own limitation, the game has to be driven another way (the client's own scripts
+  via hotkey + screenshots only, or the owner presses keys). Do not pass the claim on as fact before checking.
+- Lesson for prompts: forbid launching ARK/Steam/the client explicitly in EVERY stage of a workflow, not only the
+  first — the rule was in the shared block and the last agent still went past it "to be helpful".

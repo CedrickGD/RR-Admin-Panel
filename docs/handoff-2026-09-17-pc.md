@@ -465,8 +465,9 @@ Everything lives on client `master` / panel `main` **locally**. Worktree branche
 round ends merged (ff), worktree removed, branch deleted, `git worktree prune`. Pushing `master` / `main` is fine —
 **a release never is** (no `gh release`, no `v*` tag, no `update-manifest.yml`). Workspace was cleaned that night: both
 repos have exactly one local and one remote branch (two fully merged panel remote branches deleted), headless browser
-profiles under `Tempr-shots` and 30 build logs in the panel's ignored `.local` removed. Not touched because their
-origin is unknown: the untracked `.superdesign/` in the panel and the scripts/configs left in `.local`.
+profiles under `Tempr-shots` and 30 build logs in the panel's ignored `.local` removed. On the owner's word the untracked `.superdesign/` (design drafts, nothing depended on it) and the old Codex-era
+scripts in `.local` went too; `.local` now holds only `client-cdp`, `panel-consistency-4fd4a24` (fixture preview) and
+`visual-harness` (scripts only, its browser profiles removed). `git status` is empty in both repos.
 
 ### Still open for the owner
 Remove `test@example.com` on the panel's Team page · decide on the ponytail status-line badge · `wrangler deploy` of

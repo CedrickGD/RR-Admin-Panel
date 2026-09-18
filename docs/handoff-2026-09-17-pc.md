@@ -200,3 +200,24 @@ Paket-Historie in `docs/handoff-2026-09-12-panel-rework.md`. Hashes sind Kurzfor
   Fehlermeldung Crosshair, Hersteller-Hinweis, keine Konsolenfehler.
 - **Offen:** Sprachen zweite Welle; Stretched-Res pro Monitor (Service zielt immer auf den Hauptmonitor); Stream Deck
   später; `DiscordPresenceService.ShopUrl` noch eigene Kopie der Store-URL; Cloudflare-Worker-Redeploy (Besitzer).
+
+## 10. Runde D: Client (18.09., `master` bis `1a8e320`, gepusht, 1030+ Tests)
+
+- **Stretched-Res pro Monitor:** `Services/Display/IDisplayApi.cs` + `Win32DisplayApi.cs` als Seam, jeder Win32-Aufruf
+  trägt den Gerätenamen (vorher immer `null` = Hauptmonitor, auch beim Revert); Monitor-Dropdown je Bereich (Presets,
+  Custom), Preference je Feature, Fallback auf den Hauptmonitor bei abgestecktem Gerät; Statuskarte folgt dem geänderten
+  Monitor. Nicht auf echter Multi-Monitor-Hardware geprüft (CDS_FULLSCREEN mit Nicht-Primär-Gerät ist Annahme).
+- **Store-URL:** nur noch `StoreLinks.Store` (Discord-Presence-Knopf angepasst, Test erzwingt eine Stelle).
+- **Sprachen, Welle 2:** Befehlspalette komplett, geteilte Komponenten, Home-Karten, Tray (Menü wird bei Sprachwechsel
+  neu gebaut), HUD, Lifetime-Guide, Referenz-/Hilfe-Seiten, ARK-Referenzseiten, Map Mods, Troubleshoot, Compact ARK,
+  Launch Options, Vision, Game/Sky Changer, Paintings/Pixel, Toasts. Ein Test listet die noch englischen Seiten
+  (`UntranslatedPagesAreListedTests`), `docs/i18n.md` hat die Tabelle. Welle 3 (15 Seiten: Building, Crosshair, Scripts,
+  Convert, Server, Line List, Fonts, INI Changer, Auto Clicker, Notifier, Gamma, INI Builder, Char Manager, File
+  Modifier, Loading Screen + Service-Toasts) läuft als Runde E.
+- **Live (CDP Runde 9):** Monitor-Dropdown listet drei Monitore, Deutsch auf allen geprüften migrierten Seiten ohne
+  englische Reste, Palette deutsch, Dino-Guide deutsch, keine Konsolenfehler; Crosshair/Scripts waren erwartungsgemäß
+  noch englisch (Welle 3).
+- **Teams-Hintergrund (Nebenprojekt, `D:\Teams-BG`):** Blender 5.2.2 portable, `work/scene.py` (prozedural, Cycles/OptiX),
+  `work/overlay.py` (Pillow, Segoe UI), `work/make_bg.py` (OpenAI-Pfad, blockiert: kein Guthaben; Gemini-Quota 0).
+  Erste Renders vom Besitzer als zu abstrakt abgelehnt; zweite Runde mit OSM-Gebäudedaten und modellierten Wahrzeichen
+  läuft.

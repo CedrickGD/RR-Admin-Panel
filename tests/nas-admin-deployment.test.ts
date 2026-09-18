@@ -196,7 +196,7 @@ describe("NAS admin deployment", () => {
       );
       expect(caddyfile).toMatch(
         new RegExp(
-          `handle ${matcher} \{\s*reverse_proxy rr-api:8787 \{\s*header_up X-Forwarded-Proto https\s*\}\s*\}`,
+          `handle ${matcher} \\{\\s*reverse_proxy rr-api:8787 \\{\\s*header_up X-Forwarded-Proto https\\s*\\}\\s*\\}`,
         ),
       );
     }

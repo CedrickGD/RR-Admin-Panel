@@ -18,8 +18,8 @@ import {
 import {
   findPanelMember,
   memberDenied,
+  memberDeniedMessage,
   memberOverrides,
-  memberRemoved,
   trackPanelSession,
 } from "./panel-access";
 
@@ -65,15 +65,10 @@ export async function requireDashboardAccess(
   // 403, not 401: the identity is valid, the panel simply refuses it. A 401 would send the
   // SPA back to the sign-in gate, which for a removed member loops through Cloudflare Access
   // and lands here again.
-  if (memberDenied(member))
-    return deny(
-      error(
-        403,
-        memberRemoved(member)
-          ? "Panel access has been removed for this account."
-          : "Panel access is disabled or expired.",
-      ),
-    );
+  // The text names which of the three states it is (removed / switched off / expired, with the
+  // date) so the person reads a situation instead of a category — /api/auth/session hands it to
+  // the sign-in card, which is the only screen a denied member ever reaches.
+  if (memberDenied(member)) return deny(error(403, memberDeniedMessage(member)));
   if (!member) {
     const required = routePermissions(
       new URL(request.url).pathname.replace(/\/$/, ""),

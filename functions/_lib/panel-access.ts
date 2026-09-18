@@ -133,6 +133,28 @@ export function memberDenied(member: PanelMember | null, now = Date.now()) {
       (member.expires_at && Date.parse(member.expires_at) <= now)),
   );
 }
+/** ISO -> "2026-09-18 14:30 UTC"; an unparseable value is handed back untouched. */
+function utcMinute(iso: string) {
+  const ms = Date.parse(iso);
+  return Number.isFinite(ms)
+    ? `${new Date(ms).toISOString().slice(0, 16).replace("T", " ")} UTC`
+    : iso;
+}
+/**
+ * Why the gate refuses this member, in words they can act on.
+ *
+ * "Panel access is disabled or expired." named two different situations at once and left the
+ * member with nothing to do about either. Switched off is the owner's decision; run out is a
+ * date that can be extended, so it says which date it was.
+ */
+export function memberDeniedMessage(member: PanelMember | null): string {
+  if (memberRemoved(member)) return "Panel access has been removed for this account.";
+  if (member && !member.enabled)
+    return "Panel access is switched off for this account. The panel owner can switch it back on.";
+  if (member?.expires_at)
+    return `Panel access for this account expired on ${utcMinute(member.expires_at)}. The panel owner can extend it.`;
+  return "Panel access is not available for this account.";
+}
 /**
  * One session group plus the truth about when it ends. Pure — the Team page's API route and
  * its tests call it with rows they already have.

@@ -11,6 +11,7 @@ import {
   describePanelSessions,
   ensurePanelSchema,
   groupPanelSessions,
+  memberDeniedMessage,
   sessionAccessView,
   tokenId,
   type PanelMember,
@@ -500,6 +501,52 @@ describe("panel permissions and session lifecycle on SQLite", () => {
       await team({ env, request: request("/api/admin/team", ownerToken) })
     ).json();
     expect(after.sessions.find((s: { email: string }) => s.email === MEMBER).blocked).toBe(true);
+  });
+  it("says whether panel access is removed, switched off or expired — and since when", async () => {
+    const reason = async (token: string) => {
+      const denied = await requireDashboardAccess(request("/api/admin/data", token), env);
+      expect(denied.ok).toBe(false);
+      if (denied.ok) throw new Error("unreachable");
+      expect(denied.response.status).toBe(403);
+      return (await denied.response.json()).error as string;
+    };
+    await save({ enabled: false });
+    expect(await reason(memberToken)).toBe(
+      "Panel access is switched off for this account. The panel owner can switch it back on.",
+    );
+    await save({ enabled: true, expiresAt: "2020-01-01T00:00:00Z" });
+    // The date is in the message: "expired" alone leaves the member with nothing to ask for.
+    expect(await reason(memberToken)).toBe(
+      "Panel access for this account expired on 2020-01-01 00:00 UTC. The panel owner can extend it.",
+    );
+    await team({
+      env,
+      request: request("/api/admin/team", ownerToken, { action: "revoke", email: MEMBER }),
+    });
+    expect(await reason(memberToken)).toBe("Panel access has been removed for this account.");
+    // The login route refuses with the same sentence, not a second wording of its own.
+    const rejected = await login({
+      env,
+      request: request("/api/auth/login", "", { email: MEMBER, password: "Example-Password-123!" }),
+    });
+    expect(rejected.status).toBe(403);
+    expect((await rejected.json()).error).toBe("Panel access has been removed for this account.");
+    expect(memberDeniedMessage(null)).toBe("Panel access is not available for this account.");
+  });
+  it("hands the refusal to the sign-in screen through /api/auth/session", async () => {
+    await save({ enabled: true, expiresAt: "2020-01-01T00:00:00Z" });
+    const denied = await (
+      await session({ env, request: request("/api/auth/session", memberToken) })
+    ).json();
+    // The status code contract is untouched: the panel still answers 200 with authenticated
+    // false, it just no longer swallows the reason on the way.
+    expect(denied.authenticated).toBe(false);
+    expect(denied.reason).toContain("expired on 2020-01-01 00:00 UTC");
+    // Nobody signed in at all gets a 401 from the gate and no reason to show.
+    const anonymous = await (
+      await session({ env, request: request("/api/auth/session", "") })
+    ).json();
+    expect(anonymous).toMatchObject({ authenticated: false, reason: null });
   });
   it("applies managed access and revocation to Cloudflare identities too", async () => {
     const accessEnv = { ...testAccessEnv(OWNER), DB: env.DB };

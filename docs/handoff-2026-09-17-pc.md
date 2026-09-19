@@ -695,3 +695,10 @@ client `master` `314c120` unchanged. All pushed, one branch each, no worktrees.*
   Verified live: all six commands registered in the home guild (read from Discord's API inside the container), startup log
   clean, no `[chats] Created`. NOT clicked through live by anyone yet: every door, `/delete` on an open ticket, the ping.
   NAS backups `*.bak-20260919e`.
+- **Ping role created on the owner's order ("mach du"), 2026-09-19 ~22:45:** role **"🔔 Ticket Ping"** (id
+  `1550968709764612106`, no permissions, not mentionable, position 1), given to the owner so he stays pinged; pinned as
+  `HUMAN_PING_ROLE_ID` in NAS `bot.env` (backup `bot.env.bak-20260919-pingrole`), bot recreated, startup log:
+  `"I need a human" pings the holders of role …`. He may rename it (id is pinned). More people: `/ticketping user:`.
+- **Live click-through still open.** computer-use screenshots HIDE every non-granted window — the owner was in a game
+  (`cod.exe`) and told me to use the browser instead; Discord WEB in the Claude-in-Chrome browser is not logged in (login =
+  owner only, QR code). Meanwhile a read-only audit workflow walked the ticket flows in the code (`rr-bot-ticket-audit`).

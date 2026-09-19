@@ -609,3 +609,41 @@ five worn pieces so they land in the transmitter → Esc → reopen → repeat, 
   81 during my deploys). Software is not the cause; check dust filter / fan mode in UGOS / location. A self-stopping logger
   writes `~/nas-watch.log` until 2026-09-20 ~16:30. Cheap win found but not applied: `loadSummaryD1`'s event stats full-scan
   (207 ms per 15 s dashboard poll) splits into three indexed queries (10 ms).
+
+## 22. Same night: Discord round 3 live, a security finding caught in review, and two things the owner changed under the bot
+
+**Heads: panel `main` `7a4d775` (served `index-D7EQcjSv.js` / `index-DxqRLU8M.css`) · bot `main` `0fb615a` (NAS rebuilt) ·
+client `master` `314c120` unchanged. All pushed, one branch each, no worktrees.**
+
+- **Round 3 (owner's list, all live):** the AI may ask for the app's support report (`[[NEED_REPORT]]` sentinel → embed with
+  "I've sent it" / Skip → panel `POST /api/discord/support-context`; allow-list sanitiser, then the bot's redactor); Discord
+  slowmode 45 s on ticket channels; **Re-enable AI** button; staff-only ticket log (entry on open, edited on close with the
+  transcript attached); transcript upload to the panel (`POST /api/discord/tickets`, table `discord_tickets`, 800 KB cap, one
+  shorter retry on 413) → **"Discord tickets (N)"** in Customer 360 and in Licenses → "Customer & order" (download only, the
+  panel never renders the HTML; `Content-Disposition: attachment`, `nosniff`, `CSP: sandbox`), delete audited; **Delete
+  ticket** button + auto-delete 24 h after close (`TICKET_AUTO_DELETE_HOURS`, `closed=` stamp in the topic, written in the
+  same `channel.edit` as the rename because of the 2-per-10-min channel PATCH bucket); **My purchase** button
+  (`POST /api/discord/purchase`, order ref + key masked, never through a model — uses the order data the SellHub webhook
+  already stores; NO live SellHub/Stripe API integration, that would need their API credentials); answers in the member's
+  language; one brand helper `brand.js` (accent purple `0x8b5cf6`, guild icon as thumbnail, ≤ 2 short lines per block, one
+  blank line between blocks) used by every support/ticket/verify message. Gates run by the coordinator: bot 125 node tests,
+  panel 145 files / 1848 tests + build. Live-checked from the bot container: 401 without the secret on all three endpoints,
+  support-context found for 9 of 12 linked customers with NO forbidden field, purchase masking ok.
+- **Security finding caught by review, fixed before deploy:** report ids were the row id (`FB-000123`), so a `report_id`
+  anchor let anyone count through other customers' support messages + diagnostics. Now `FB-` + 12 random chars
+  (`crypto.randomUUID`) for new reports, the sequential form is refused as an anchor, lookup only through
+  `feedback_report_meta`; licence facts still require the report to belong to the linked machine. Verified by reading the code
+  and live (`FB-000001` → `found:false`). Backup before the deploy: NAS `/data/db/rr-pre-discord-tickets-20260919.sqlite`.
+- **The owner styles what the bot creates.** Minutes after each deploy he renamed the channels (`├│・createt-icket`,
+  `├│・ticket-log`, category `| ====== TICKETS ====== |`). The bot looks channels/roles up BY NAME when no id is set, so the
+  round-3 restart created a second, empty "Tickets" category (the owner deleted it himself). Fixed operationally: ids pinned
+  in NAS `bot.env` — `TICKETS_CATEGORY_ID`, `SUPPORT_CHANNEL_ID`, `TICKET_LOG_CHANNEL_ID`, `CUSTOMER_CHAT_ID`,
+  `LIFETIME_ROLE_ID`, `VERIFIED_ROLE_ID` (backups `bot.env.bak-20260919*`). **After every bot deploy grep the log for
+  `[chats] Created`.** Code follow-up not done: persist ids / topic markers instead of name lookup.
+- **Customer role replaced by the owner:** "✅ Verified Customer" no longer exists; he created **"RR-Customer"** (below the bot
+  role, so the hierarchy problem from §21 is gone). `VERIFIED_ROLE_ID` now points to it, #reaper-lounge got an overwrite for
+  it. First sync: **12 granted, 1 stripped** — audit log: "RR-Customer" removed from one member (not the server owner) who has
+  no active licence link, i.e. a role the owner had given by hand. Reported to the owner; a hand-given role needs a link
+  (panel → Link Discord account) or a staff grant (`/verify user:`), otherwise every sync removes it again.
+- Still true from §21: the Anthropic account has no credit (Gemini answers); announcement #7 untouched; the in-game list is
+  open; ARK and the dev client are still running on the PC (owner ended ARK testing, nothing was closed by me).

@@ -59,7 +59,9 @@ describe("customer order license workflow", () => {
     expect(page).toContain("unlinkLicenseDiscord(editCandidate.license_key, discordId)");
     expect(page).toContain("Replace existing account(s)");
     // The id is validated before the call, and the wait is stated where the action happens.
-    expect(page).toContain("/^\\d{17,20}$/.test(discordId)");
+    // ...with the same snowflake check the worker uses, not a second copy of the regex.
+    expect(page).toContain("isDiscordSnowflake(discordId)");
+    expect(page).not.toContain("/^\\d{17,20}$/");
     expect(page).toContain("up to 30 minutes");
   });
 });

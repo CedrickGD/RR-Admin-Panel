@@ -1,3 +1,4 @@
+import { isDiscordSnowflake } from "../../shared/discord-id";
 import { TableFrame, RecordCell, RecordLink } from "../components/ds/TableFrame";
 import "../theme/license-workspace.css";
 import { Select } from "../components/ds/Select";
@@ -1083,7 +1084,7 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker }: LicensesP
   const submitDiscordLink = async () => {
     if (!editCandidate) return;
     const discordId = newDiscordId.trim();
-    if (!/^\d{17,20}$/.test(discordId)) {
+    if (!isDiscordSnowflake(discordId)) {
       setDiscordError("Enter the Discord user id (17-20 digits), not the @name.");
       return;
     }

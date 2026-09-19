@@ -42,10 +42,8 @@ export interface LicenseVerifyResult {
  */
 export const MANUAL_LICENSE_KEY = "MANUAL";
 
-/** Discord snowflake: 17–20 digits, nothing else. */
-export function isDiscordSnowflake(value: string): boolean {
-  return /^\d{17,20}$/.test(value);
-}
+/** Discord snowflake check — one copy in shared/, used by the panel UI too. */
+export { isDiscordSnowflake } from "../../shared/discord-id";
 
 /**
  * Decide whether a license entitles its holder to the Verified role: it must exist, be active,

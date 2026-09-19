@@ -33,6 +33,11 @@ export const MEMBER_AUDIT_LABELS: Record<string, string> = {
   revoke: "Access removed",
   restore: "Access restored",
   "end-session": "Session ended",
+  // Licenses → Discord accounts (functions/api/admin/licenses/[key]/discord.ts): target is the
+  // license key, detail the account ids.
+  "discord-link": "Discord account linked",
+  "discord-rebind": "Discord account rebound",
+  "discord-unlink": "Discord account unlinked",
 };
 
 type RestrictionDetail = { type?: unknown; until?: unknown; reason?: unknown };

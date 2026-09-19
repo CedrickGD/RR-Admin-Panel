@@ -342,3 +342,28 @@ CREATE TABLE IF NOT EXISTS feedback_replies (
   UNIQUE(feedback_id, request_id)
 );
 CREATE INDEX IF NOT EXISTS idx_feedback_reply_thread ON feedback_replies(feedback_id, id);
+
+-- Discord support tickets archived by the bot on close (functions/_lib/discord-tickets.ts).
+-- transcript_html is the rendered conversation; the panel only ever serves it as a download.
+CREATE TABLE IF NOT EXISTS discord_tickets (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  channel_id TEXT NOT NULL UNIQUE,
+  ticket_no INTEGER,
+  channel_name TEXT,
+  discord_id TEXT,
+  discord_tag TEXT,
+  category TEXT,
+  status TEXT NOT NULL DEFAULT 'closed' CHECK (status IN ('closed', 'deleted', 'false_topic')),
+  opened_at TEXT,
+  closed_at TEXT,
+  closed_by TEXT,
+  ai_replies INTEGER NOT NULL DEFAULT 0,
+  message_count INTEGER NOT NULL DEFAULT 0,
+  provider TEXT,
+  transcript_html TEXT NOT NULL DEFAULT '',
+  size_bytes INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_discord_tickets_member ON discord_tickets(discord_id, id DESC);
+CREATE INDEX IF NOT EXISTS idx_discord_tickets_status ON discord_tickets(status, id DESC);

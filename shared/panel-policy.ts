@@ -122,6 +122,10 @@ export function routePermissions(
     return [write ? "monitoring.write" : "monitoring.read"];
   if (path.startsWith("/api/admin/feedback") || path === "/api/admin/errors")
     return [write ? "support.write" : "support.read"];
+  // Archived Discord tickets sit with the rest of support: reading includes downloading a
+  // transcript, deleting one is a support write.
+  if (path.startsWith("/api/admin/discord-tickets"))
+    return [write ? "support.write" : "support.read"];
   if (path.startsWith("/api/admin/announcements"))
     return [write ? "announcements.write" : "announcements.read"];
   // Releases, specific-first — the generic branch is last and would otherwise swallow all four.

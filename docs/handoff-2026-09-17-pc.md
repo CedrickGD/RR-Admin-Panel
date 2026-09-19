@@ -702,3 +702,30 @@ client `master` `314c120` unchanged. All pushed, one branch each, no worktrees.*
 - **Live click-through still open.** computer-use screenshots HIDE every non-granted window — the owner was in a game
   (`cod.exe`) and told me to use the browser instead; Discord WEB in the Claude-in-Chrome browser is not logged in (login =
   owner only, QR code). Meanwhile a read-only audit workflow walked the ticket flows in the code (`rr-bot-ticket-audit`).
+
+## 24. Night of 2026-09-19: the ticket system clicked through LIVE, a code audit, and what both found
+
+- **How the live test was possible:** the owner was in a game, computer-use screenshots hide non-granted windows, so he said
+  "mach einfach über browser". Claude-in-Chrome = his **Google Chrome** (not Comet); Discord web there was logged out until he
+  scanned the QR code himself. The tab lives in the "Claude" tab group. Screenshots cannot be saved to disk by that extension
+  version — evidence is `#ticket-log` (Ticket 0002) and the bot log.
+- **Proven live on bot `2a0c0fa` (test ticket `ticket-0002`, Scripts & Automation, opened/closed/deleted by the coordinator):**
+  panel select → modal → triage → channel + opening embed → first AI answer (Gemini; Claude parked after ONE failed call) →
+  report prompt → Skip → `/disableai` → `/enableai` → `/transcript` (ephemeral html) → *I need a human* (pinged the 🔔 Ticket
+  Ping holder) → `@RazorReaper Helper enableai` (USER mention) → second ticket in the same category refused, category + ticket
+  named → *Solved — close*: ONE close embed + Delete button, `closed-0002` + `closed=` stamp within seconds, log
+  `Archived ticket-0002 (closed) in the panel.` / `renamed and hidden`, #ticket-log entry edited with the transcript →
+  *Delete ticket*: channel gone at once. The owner's original complaint (cannot close / cannot delete) is fixed and proven.
+- **Seen live, being fixed (spec: scratchpad `live-test-findings-spec.md`):** typing `@RazorReaper` + space inserts the bot's
+  managed ROLE mention, not the user → the command was ignored AND went to the AI, whose answer was empty after sentinel
+  stripping = paid silence (`out=5`); the open-ticket limit is only checked after the form is filled; the panel still says
+  "One open ticket at a time."; #ticket-log said "0 AI replies" because `/enableai` resets the cap counter the close reports.
+- **Owner decision pending — slash-name collision:** `/transcript`, `/close`, `/delete` also exist on the old **Ticket Tool**
+  bot and Discord lists Ticket Tool's first (its `/transcript` answers "This channel isn't a ticket"). Recommendation given:
+  remove Ticket Tool (our bot replaces it) or disable its commands under Server Settings → Integrations.
+- **Audit (workflow `rr-bot-ticket-audit`, 6 Sonnet flow-walkers + Opus refuters): 15 confirmed defects**, list with the
+  verifier's reasoning in scratchpad `audit-confirmed.json`; fixed on branch `wt/audit-fixes` (`db328f8` + review fixes
+  `dd7b909`, 156 tests): one hand-off producer acked before any await, the 8-answer cap liftable by staff only, role-mention
+  door, sweep reconciles a close rename lost to a restart, one in-flight close promise, limit check hydrates the blocking
+  ticket, ⏳ receipt for a message that arrives mid-answer, "cut short" marker for the 1900-char slice, attachment-only
+  messages answered, Report ID accepted after the 30-min window, dead `!` prefix table removed from COMMANDS.md.

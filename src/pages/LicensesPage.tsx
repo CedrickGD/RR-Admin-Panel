@@ -16,6 +16,7 @@ import {
   PlayCircle,
   Plus,
   SearchCheck,
+  Ticket,
   Trash2,
   ShoppingCart,
   User,
@@ -35,6 +36,7 @@ import { PageToolbar } from "../components/ds/PageToolbar";
 import { SearchInput } from "../components/ds/SearchInput";
 import { RelativeTime } from "../components/ds/RelativeTime";
 import { CustomerReturnLink } from "../components/CustomerReturnLink";
+import { DiscordTicketList } from "../components/DiscordTickets";
 import { useWorkspaceSearch } from "../hooks/useWorkspaceSearch";
 import { formatDate } from "../utils/format";
 import {
@@ -42,6 +44,7 @@ import {
   apiUrl,
   bindAdminLicense,
   fetchApi,
+  fetchDiscordTickets,
   fetchLicenseDiscordLinks,
   issueAdminLicense,
   linkLicenseDiscord,
@@ -51,7 +54,7 @@ import {
 } from "../utils/api";
 import { useRefreshSignal } from "../utils/refreshBus";
 import type { SummaryPayload } from "../types/telemetry";
-import type { LicenseOperationResponse } from "../types/customer360";
+import type { DiscordTicketRecord, LicenseOperationResponse } from "../types/customer360";
 
 interface LicenseRecord {
   id: number;
@@ -650,6 +653,11 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker }: LicensesP
   const [newDiscordTag, setNewDiscordTag] = useState("");
   const [replaceDiscord, setReplaceDiscord] = useState(false);
 
+  // Archived Discord support tickets of the same key, loaded by the same effect below.
+  const [tickets, setTickets] = useState<DiscordTicketRecord[] | null>(null);
+  const [ticketTotal, setTicketTotal] = useState(0);
+  const [ticketError, setTicketError] = useState<string | null>(null);
+
   // Optional buyer attribution stamped onto keys at generation time
   const [genOrderId, setGenOrderId] = useState("");
   const [genCustomerName, setGenCustomerName] = useState("");
@@ -1022,8 +1030,8 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker }: LicensesP
     setEditCandidate(lic);
   };
 
-  // The dialog's Discord section loads itself; every write answers with the new list, so this runs
-  // once per opened license.
+  // The dialog's Discord sections load themselves; every link write answers with the new list, so
+  // this runs once per opened license.
   useEffect(() => {
     if (!editCandidate) return;
     let cancelled = false;
@@ -1032,6 +1040,9 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker }: LicensesP
     setNewDiscordId("");
     setNewDiscordTag("");
     setReplaceDiscord(false);
+    setTickets(null);
+    setTicketTotal(0);
+    setTicketError(null);
     void (async () => {
       try {
         const result = await fetchLicenseDiscordLinks(editCandidate.license_key);
@@ -1048,6 +1059,23 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker }: LicensesP
         setDiscordError(
           err instanceof Error ? err.message : "Could not load the Discord accounts.",
         );
+      }
+    })();
+    void (async () => {
+      try {
+        const result = await fetchDiscordTickets({ license_key: editCandidate.license_key });
+        if (cancelled) return;
+        if (!result.ok) {
+          throw new Error(
+            result.data?.error ?? `Could not load Discord tickets (HTTP ${result.status}).`,
+          );
+        }
+        setTickets(result.data?.tickets ?? []);
+        setTicketTotal(result.data?.total ?? 0);
+      } catch (err) {
+        if (cancelled) return;
+        setTickets([]);
+        setTicketError(err instanceof Error ? err.message : "Could not load the Discord tickets.");
       }
     })();
     return () => {
@@ -2268,6 +2296,26 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker }: LicensesP
                 past the seat limit.
               </p>
               <FormError message={discordError} />
+            </section>
+
+            {/* Archived support tickets of the same accounts. Read-only apart from Delete. */}
+            <section className="license-discord" aria-label="Discord tickets">
+              <h3 className="license-discord-title">
+                <Ticket size={14} aria-hidden="true" /> Discord tickets ({ticketTotal})
+              </h3>
+              {tickets === null ? (
+                <p className="license-discord-empty">Loading…</p>
+              ) : (
+                <DiscordTicketList
+                  tickets={tickets}
+                  empty="No support ticket is archived for this key."
+                  onDeleted={(id) => {
+                    setTickets((current) => (current ?? []).filter((row) => row.id !== id));
+                    setTicketTotal((current) => Math.max(0, current - 1));
+                  }}
+                />
+              )}
+              <FormError message={ticketError} />
             </section>
 
             {editCandidate.order_meta ? (

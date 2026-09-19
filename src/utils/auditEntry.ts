@@ -38,6 +38,8 @@ export const MEMBER_AUDIT_LABELS: Record<string, string> = {
   "discord-link": "Discord account linked",
   "discord-rebind": "Discord account rebound",
   "discord-unlink": "Discord account unlinked",
+  // Support → archived Discord tickets: target is the ticket's channel id.
+  "discord-ticket-delete": "Discord ticket deleted",
 };
 
 type RestrictionDetail = { type?: unknown; until?: unknown; reason?: unknown };

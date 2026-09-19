@@ -113,6 +113,34 @@ export interface Customer360Feedback {
 
 export type Customer360DatabaseRow = Record<string, unknown>;
 
+/** One archived Discord support ticket — the row without its transcript (that is a download). */
+export interface DiscordTicketRecord {
+  id: number;
+  channel_id: string;
+  ticket_no: number | null;
+  channel_name: string | null;
+  discord_id: string | null;
+  discord_tag: string | null;
+  category: string | null;
+  status: "closed" | "deleted" | "false_topic";
+  opened_at: string | null;
+  closed_at: string | null;
+  closed_by: string | null;
+  ai_replies: number;
+  message_count: number;
+  provider: string | null;
+  size_bytes: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DiscordTicketsResponse {
+  ok?: boolean;
+  error?: string;
+  total?: number;
+  tickets?: DiscordTicketRecord[];
+}
+
 export interface Customer360Customer {
   anchor: {
     requested_by: Customer360Selector;
@@ -165,6 +193,9 @@ export interface Customer360Customer {
   licenses: AdminLicenseRecord[];
   access: Customer360DatabaseRow[];
   discord_links: Customer360DatabaseRow[];
+  /** Newest 100; `discord_tickets_total` is the real count the card shows. */
+  discord_tickets?: DiscordTicketRecord[];
+  discord_tickets_total?: number;
   feedback: Customer360Feedback[];
   errors: ErrorEventDetail[];
   installs: InstallRecord[];

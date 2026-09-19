@@ -12,6 +12,7 @@ import {
   RefreshCw,
   Settings2,
   ShieldCheck,
+  Ticket,
   UserRound,
 } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
@@ -47,6 +48,7 @@ import { RelativeTime } from "./ds/RelativeTime";
 import { usePanelPermission } from "../hooks/usePanelPermission";
 import { PanelBackground } from "./PanelBackground";
 import { CustomerAvatar, useCustomerProfiles } from "./CustomerProfiles";
+import { DiscordTicketList } from "./DiscordTickets";
 import { FEEDBACK_KIND_BADGE } from "./FeedbackReplies";
 import { resolveCountry } from "../utils/geography";
 import { setWorkspaceSearch } from "../hooks/useWorkspaceSearch";
@@ -843,7 +845,7 @@ function CommerceTab({ customer }: { customer: Customer360Customer }) {
     <div className="customer360-stack">
       <SectionErrors
         customer={customer}
-        names={["licenses", "orders", "access", "discord_links", "usage"]}
+        names={["licenses", "orders", "access", "discord_links", "discord_tickets", "usage"]}
       />
       <div className="customer360-two-col">
         <section className="customer360-card">
@@ -915,8 +917,29 @@ function CommerceTab({ customer }: { customer: Customer360Customer }) {
             }
           />
         </section>
+        <DiscordTicketsCard customer={customer} />
       </div>
     </div>
+  );
+}
+
+/**
+ * The count stays visible even at zero — "Discord tickets (0)" answers "did this customer ever
+ * open one" without a second click. A delete drops the row here and decrements the count; the next
+ * overlay open reloads it from the server anyway.
+ */
+function DiscordTicketsCard({ customer }: { customer: Customer360Customer }) {
+  const [removed, setRemoved] = useState<number[]>([]);
+  const tickets = (customer.discord_tickets ?? []).filter((row) => !removed.includes(row.id));
+  const total = Math.max(0, (customer.discord_tickets_total ?? tickets.length) - removed.length);
+  return (
+    <section className="customer360-card">
+      <SectionHeading icon={<Ticket />} title="Discord tickets" count={total} />
+      <DiscordTicketList
+        tickets={tickets}
+        onDeleted={(id) => setRemoved((current) => [...current, id])}
+      />
+    </section>
   );
 }
 

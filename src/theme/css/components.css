@@ -1643,6 +1643,44 @@
   border-right: 1px solid var(--line-row);
   border-bottom: 1px solid var(--line-row);
 }
+/* Archived Discord tickets (src/components/DiscordTickets.tsx). One list for both places it
+   appears — the Customer 360 commerce grid and the Licenses "Customer & order" dialog — so the
+   rows read the same in a card and in a dialog. Same rhythm as .license-discord-row. */
+.discord-tickets {
+  display: grid;
+  gap: 6px;
+}
+.discord-ticket-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.discord-ticket-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line-row);
+}
+.discord-ticket-row > div {
+  display: grid;
+  flex: 1 1 180px;
+  min-width: 0;
+  gap: 2px;
+  overflow-wrap: anywhere;
+}
+.discord-ticket-row strong {
+  font-size: var(--fs-small);
+}
+.discord-ticket-meta,
+.discord-ticket-empty {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+}
 .customer360-card-title {
   display: flex;
   align-items: flex-start;

@@ -13,6 +13,7 @@ import type {
 import type {
   Customer360Response,
   Customer360Selector,
+  DiscordTicketsResponse,
   IssueLicenseInput,
   LicenseOperationResponse,
   LicenseSearchResponse,
@@ -548,8 +549,15 @@ async function postLicenseOperation(
   return { ok: res.ok && body.ok === true, data: body, status: res.status };
 }
 
-export async function downloadSessionExport(): Promise<void> {
-  const url = new URL(apiUrl("/api/admin/sessions-export"), window.location.origin);
+/**
+ * Fetch a file endpoint and hand the bytes to the browser's download. The server's
+ * Content-Disposition names the file; `fallbackName` is only used when it says nothing.
+ *
+ * Nothing here ever renders the response — a ticket transcript is third-party HTML, and this path
+ * is exactly why the panel never needs to put it on screen.
+ */
+async function downloadFromApi(path: string, fallbackName: string, failure: string): Promise<void> {
+  const url = new URL(apiUrl(path), window.location.origin);
   url.searchParams.set("_ts", String(Date.now()));
 
   const res = await fetchApi(url.toString(), {
@@ -560,12 +568,12 @@ export async function downloadSessionExport(): Promise<void> {
 
   if (!res.ok) {
     const body = await parseJson<{ error?: string }>(res);
-    throw new Error(body?.error ?? "Failed to download session export.");
+    throw new Error(body?.error ?? failure);
   }
 
   const blob = await res.blob();
   const objectUrl = window.URL.createObjectURL(blob);
-  const filename = readDownloadFilename(res.headers.get("content-disposition")) ?? defaultExportName();
+  const filename = readDownloadFilename(res.headers.get("content-disposition")) ?? fallbackName;
 
   const anchor = document.createElement("a");
   anchor.href = objectUrl;
@@ -578,6 +586,47 @@ export async function downloadSessionExport(): Promise<void> {
   window.setTimeout(() => {
     window.URL.revokeObjectURL(objectUrl);
   }, 0);
+}
+
+export function downloadSessionExport(): Promise<void> {
+  return downloadFromApi(
+    "/api/admin/sessions-export",
+    defaultExportName(),
+    "Failed to download session export.",
+  );
+}
+
+/** Archived Discord tickets for one license key (or one Discord account). */
+export async function fetchDiscordTickets(
+  filter: { license_key?: string; discord_id?: string } = {},
+): Promise<{ ok: boolean; data?: DiscordTicketsResponse; status: number }> {
+  const url = new URL(apiUrl("/api/admin/discord-tickets"), window.location.origin);
+  for (const [key, value] of Object.entries(filter)) {
+    if (value) url.searchParams.set(key, value);
+  }
+  const res = await fetchApi(url.toString(), { credentials: "include", cache: "no-store" });
+  const body = await parseJson<DiscordTicketsResponse>(res);
+  return { ok: res.ok && body.ok === true, data: body, status: res.status };
+}
+
+export async function deleteDiscordTicket(
+  id: number,
+): Promise<{ ok: boolean; data?: { error?: string }; status: number }> {
+  const res = await fetchApi(
+    apiUrl(`/api/admin/discord-tickets/${id}`),
+    { method: "DELETE", credentials: "include" },
+    { retry: false },
+  );
+  const body = await parseJson<{ ok?: boolean; error?: string }>(res);
+  return { ok: res.ok && body.ok === true, data: body, status: res.status };
+}
+
+export function downloadDiscordTicketTranscript(id: number): Promise<void> {
+  return downloadFromApi(
+    `/api/admin/discord-tickets/${id}/transcript`,
+    `rr-ticket-${id}.html`,
+    "Failed to download the transcript.",
+  );
 }
 
 function readDownloadFilename(contentDisposition: string | null): string | null {

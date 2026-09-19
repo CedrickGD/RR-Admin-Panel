@@ -729,3 +729,18 @@ client `master` `314c120` unchanged. All pushed, one branch each, no worktrees.*
   door, sweep reconciles a close rename lost to a restart, one in-flight close promise, limit check hydrates the blocking
   ticket, ⏳ receipt for a message that arrives mid-answer, "cut short" marker for the 1900-char slice, attachment-only
   messages answered, Report ID accepted after the 30-min window, dead `!` prefix table removed from COMMANDS.md.
+- **All of it landed and is live (bot `main` `1033761`, 159 tests, deployed 2026-09-19 ~23:55, NAS backups `*.bak-20260919f`):**
+  the 15 audit fixes, the live findings (panel text "per category"; an empty AI answer posts one short brand line and costs
+  no answer; limit refusal BEFORE the modal via module-level `ticketLimits`/`ticketLimitEmbed`; the panel's select is reset
+  after every pick; `totalAiReplies()` = answers counted from the transcript, shared by close and channelDelete) and one
+  coordinator decision against the fix stage: **"I need a human" is never a dead end** — `humanPinged` means only "a real
+  ping went out" (written in `humanPing()` alone); AI on → one hand-off with the Re-enable button (no ping when STAFF
+  switches it off); AI off + member + no ping yet → a PING-ONLY message without a button (keeps the one-live-button
+  invariant); AI off + staff → refused; after a restart at most one extra ping-only message per ticket.
+- **Re-tested live after the deploy (`ticket-0004`):** panel text ✓, select reset ✓, same-category refusal arrives at once
+  without the form ✓, `@RazorReaper delete` typed with the ROLE mention on an OPEN ticket → closed, `Archived ticket-0004
+  (closed) in the panel.`, renamed, deleted ✓. NOT re-tested live: the empty-answer line (needs a bare-sentinel answer), the
+  ping-only message (needs a non-staff member), staff lifting the 8-answer cap, the sweep's rename reconcile.
+- **Known ceilings, told to the owner:** the daily AI budget lives in memory — every bot restart resets it; a ticket's FIRST
+  answer costs ~52k weighted tokens (the 46k KB is not cached on the first call), so `AI_DAILY_TOKEN_BUDGET=400000` is about
+  7 new tickets a day; follow-ups cost ~7.5k. Ticket Tool's colliding slash commands are still the owner's call.

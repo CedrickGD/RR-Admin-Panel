@@ -10,6 +10,7 @@ import {
   X,
   Key,
   Link2,
+  MessageSquareText,
   Pencil,
   PlayCircle,
   Plus,
@@ -40,8 +41,12 @@ import {
   apiUrl,
   bindAdminLicense,
   fetchApi,
+  fetchLicenseDiscordLinks,
   issueAdminLicense,
+  linkLicenseDiscord,
   searchAdminLicenses,
+  unlinkLicenseDiscord,
+  type LicenseDiscordLink,
 } from "../utils/api";
 import { useRefreshSignal } from "../utils/refreshBus";
 import type { SummaryPayload } from "../types/telemetry";
@@ -635,6 +640,15 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker }: LicensesP
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
+  // Verified Discord accounts of the license being edited. They are written straight away (link /
+  // unlink are their own calls), unlike the order fields the dialog's Save commits.
+  const [discordLinks, setDiscordLinks] = useState<LicenseDiscordLink[] | null>(null);
+  const [discordBusy, setDiscordBusy] = useState(false);
+  const [discordError, setDiscordError] = useState<string | null>(null);
+  const [newDiscordId, setNewDiscordId] = useState("");
+  const [newDiscordTag, setNewDiscordTag] = useState("");
+  const [replaceDiscord, setReplaceDiscord] = useState(false);
+
   // Optional buyer attribution stamped onto keys at generation time
   const [genOrderId, setGenOrderId] = useState("");
   const [genCustomerName, setGenCustomerName] = useState("");
@@ -1005,6 +1019,94 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker }: LicensesP
     setEditForm(orderFormFor(lic));
     setEditError(null);
     setEditCandidate(lic);
+  };
+
+  // The dialog's Discord section loads itself; every write answers with the new list, so this runs
+  // once per opened license.
+  useEffect(() => {
+    if (!editCandidate) return;
+    let cancelled = false;
+    setDiscordLinks(null);
+    setDiscordError(null);
+    setNewDiscordId("");
+    setNewDiscordTag("");
+    setReplaceDiscord(false);
+    void (async () => {
+      try {
+        const result = await fetchLicenseDiscordLinks(editCandidate.license_key);
+        if (cancelled) return;
+        if (!result.ok) {
+          throw new Error(
+            result.data?.error ?? `Could not load Discord accounts (HTTP ${result.status}).`,
+          );
+        }
+        setDiscordLinks(result.data?.links ?? []);
+      } catch (err) {
+        if (cancelled) return;
+        setDiscordLinks([]);
+        setDiscordError(
+          err instanceof Error ? err.message : "Could not load the Discord accounts.",
+        );
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [editCandidate]);
+
+  /** Both Discord writes answer with the license's links, so they share one result handler. */
+  const applyDiscordResult = async (
+    run: () => Promise<{
+      ok: boolean;
+      data?: { error?: string; links?: LicenseDiscordLink[] };
+      status: number;
+    }>,
+    fallbackMessage: string,
+  ) => {
+    if (discordBusy) return;
+    setDiscordBusy(true);
+    setDiscordError(null);
+    try {
+      const result = await run();
+      if (!result.ok)
+        throw new Error(result.data?.error ?? `${fallbackMessage} (HTTP ${result.status}).`);
+      setDiscordLinks(result.data?.links ?? []);
+      // The inventory shows the verified handle in its own column — pull it fresh.
+      await fetchLicenses(true);
+    } catch (err) {
+      setDiscordError(err instanceof Error ? err.message : fallbackMessage);
+    } finally {
+      setDiscordBusy(false);
+    }
+  };
+
+  const submitDiscordLink = async () => {
+    if (!editCandidate) return;
+    const discordId = newDiscordId.trim();
+    if (!/^\d{17,20}$/.test(discordId)) {
+      setDiscordError("Enter the Discord user id (17-20 digits), not the @name.");
+      return;
+    }
+    await applyDiscordResult(
+      () =>
+        linkLicenseDiscord(editCandidate.license_key, {
+          discord_id: discordId,
+          discord_tag: newDiscordTag.trim() || undefined,
+          replace: replaceDiscord || undefined,
+        }),
+      "Could not link that Discord account",
+    );
+    setNewDiscordId("");
+    setNewDiscordTag("");
+    setReplaceDiscord(false);
+  };
+
+  const unlinkDiscord = (discordId: string) => {
+    if (!editCandidate) return;
+    void applyDiscordResult(
+      () => unlinkLicenseDiscord(editCandidate.license_key, discordId),
+      "Could not unlink that Discord account",
+    );
   };
 
   const saveEdit = async () => {
@@ -2078,6 +2180,94 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker }: LicensesP
                 onChange={(e) => setEditForm((f) => ({ ...f, order_note: e.target.value }))}
               />
             </Field>
+
+            {/* Verified Discord accounts. Saved on click, not with the dialog's Save button. */}
+            <section className="license-discord" aria-label="Discord accounts">
+              <h3 className="license-discord-title">
+                <MessageSquareText size={14} aria-hidden="true" /> Discord accounts
+              </h3>
+              <p className="license-workflow-note">
+                The bot applies role changes within its next sync (up to 30 minutes), or right away
+                when the member runs /verify.
+              </p>
+              {discordLinks === null ? (
+                <p className="license-discord-empty">Loading…</p>
+              ) : discordLinks.length === 0 ? (
+                <p className="license-discord-empty">No Discord account is linked to this key.</p>
+              ) : (
+                <ul className="license-discord-list">
+                  {discordLinks.map((link) => (
+                    <li key={link.discord_id} className="license-discord-row">
+                      <div>
+                        <strong>
+                          {link.discord_tag ? discordHandle(link.discord_tag) : "Unnamed account"}
+                        </strong>
+                        <span className="mono">{link.discord_id}</span>
+                        <span className="license-discord-meta">
+                          {link.source ?? "unknown"} · {formatDate(link.verified_at)}
+                        </span>
+                      </div>
+                      <Badge tone={link.is_active === 1 ? "success" : "warning"}>
+                        {link.is_active === 1 ? "Linked" : "Revoked"}
+                      </Badge>
+                      {link.is_active === 1 ? (
+                        <Button
+                          size="xs"
+                          variant="danger"
+                          permission="licenses.write"
+                          icon={<X />}
+                          disabled={discordBusy}
+                          aria-label={`Unlink Discord account ${link.discord_id}`}
+                          onClick={() => unlinkDiscord(link.discord_id)}
+                        >
+                          Unlink
+                        </Button>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <div className="license-discord-form">
+                <Field label="Discord user id" hint="17-20 digits">
+                  <Input
+                    mono
+                    inputMode="numeric"
+                    placeholder="e.g. 123456789012345678"
+                    value={newDiscordId}
+                    onChange={(e) => setNewDiscordId(e.target.value)}
+                  />
+                </Field>
+                <Field label="Discord name" hint="optional">
+                  <Input
+                    placeholder="@member"
+                    value={newDiscordTag}
+                    onChange={(e) => setNewDiscordTag(e.target.value)}
+                  />
+                </Field>
+                <label className="toggle-row">
+                  <span>Replace existing account(s)</span>
+                  <input
+                    type="checkbox"
+                    checked={replaceDiscord}
+                    onChange={(e) => setReplaceDiscord(e.target.checked)}
+                  />
+                </label>
+                <Button
+                  size="sm"
+                  icon={<Link2 />}
+                  permission="licenses.write"
+                  disabled={discordBusy}
+                  onClick={() => void submitDiscordLink()}
+                >
+                  {discordBusy ? "Saving…" : replaceDiscord ? "Rebind account" : "Link account"}
+                </Button>
+              </div>
+              <p className="license-discord-empty">
+                Replacing revokes the other accounts on this key; leaving it off adds this one, even
+                past the seat limit.
+              </p>
+              <FormError message={discordError} />
+            </section>
 
             {editCandidate.order_meta ? (
               <details className="license-edit-raw">

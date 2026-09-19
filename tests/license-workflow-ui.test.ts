@@ -50,4 +50,16 @@ describe("customer order license workflow", () => {
     expect(page).toContain("Reveal license key");
     expect(page).toContain("Hide license key");
   });
+
+  it("manages a license's Discord accounts where the operator already edits the customer", () => {
+    // No new page and no fifth row action: the accounts sit in the Customer & order dialog, next
+    // to the buyer's Discord handle it already showed.
+    expect(api).toContain("/api/admin/licenses/${encodeURIComponent(licenseKey)}/discord");
+    expect(page).toContain("linkLicenseDiscord(editCandidate.license_key");
+    expect(page).toContain("unlinkLicenseDiscord(editCandidate.license_key, discordId)");
+    expect(page).toContain("Replace existing account(s)");
+    // The id is validated before the call, and the wait is stated where the action happens.
+    expect(page).toContain("/^\\d{17,20}$/.test(discordId)");
+    expect(page).toContain("up to 30 minutes");
+  });
 });

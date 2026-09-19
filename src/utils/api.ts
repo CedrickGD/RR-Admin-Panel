@@ -468,6 +468,63 @@ export async function bindAdminLicense(
   return postLicenseOperation(licenseKey, "bind", input);
 }
 
+/**
+ * The Discord accounts a license may use. One endpoint for all three calls — every answer carries
+ * the license's links back, so the dialog never needs a follow-up read.
+ */
+export interface LicenseDiscordLink {
+  discord_id: string;
+  discord_tag: string | null;
+  license_key: string;
+  verified_at: string;
+  revoked_at: string | null;
+  is_active: number;
+  source: string | null;
+}
+
+export interface LicenseDiscordResponse {
+  ok?: boolean;
+  error?: string;
+  links?: LicenseDiscordLink[];
+  replaced?: number;
+}
+
+async function licenseDiscordRequest(
+  licenseKey: string,
+  init: RequestInit,
+): Promise<{ ok: boolean; data?: LicenseDiscordResponse; status: number }> {
+  const res = await fetchApi(
+    apiUrl(`/api/admin/licenses/${encodeURIComponent(licenseKey)}/discord`),
+    { credentials: "include", cache: "no-store", ...init },
+    { retry: init.method === undefined || init.method === "GET" },
+  );
+  const body = await parseJson<LicenseDiscordResponse>(res);
+  return { ok: res.ok && body.ok === true, data: body, status: res.status };
+}
+
+export function fetchLicenseDiscordLinks(licenseKey: string) {
+  return licenseDiscordRequest(licenseKey, { method: "GET" });
+}
+
+export function linkLicenseDiscord(
+  licenseKey: string,
+  input: { discord_id: string; discord_tag?: string; replace?: boolean },
+) {
+  return licenseDiscordRequest(licenseKey, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+}
+
+export function unlinkLicenseDiscord(licenseKey: string, discordId: string) {
+  return licenseDiscordRequest(licenseKey, {
+    method: "DELETE",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ discord_id: discordId }),
+  });
+}
+
 async function postLicenseOperation(
   licenseKey: string,
   action: "activate" | "bind",

@@ -261,6 +261,63 @@ html[data-theme] .dialog.license-workspace-dialog {
   border-bottom: 1px solid var(--line-row);
   background: transparent;
 }
+/* Discord accounts inside the Customer & order dialog: a list of linked accounts plus the
+   link/rebind row. Same rhythm as .license-edit-facts — a rule above the section, no card. */
+.license-workspace-dialog .license-discord {
+  display: grid;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-row);
+}
+.license-workspace-dialog .license-discord-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--text-1);
+  font-size: var(--fs-small);
+}
+.license-workspace-dialog .license-discord-empty {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+}
+.license-workspace-dialog .license-discord-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.license-workspace-dialog .license-discord-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line-row);
+}
+.license-workspace-dialog .license-discord-row > div {
+  display: grid;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 2px;
+  overflow-wrap: anywhere;
+}
+.license-workspace-dialog .license-discord-row .license-discord-meta,
+.license-workspace-dialog .license-discord-row .mono {
+  color: var(--text-2);
+  font-size: var(--fs-small);
+}
+.license-workspace-dialog .license-discord-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px;
+}
+.license-workspace-dialog .license-discord-form > .ds-field {
+  flex: 1 1 180px;
+  min-width: 0;
+}
 
 @media (max-width: 900px) {
   html[data-theme] .license-workspace .license-table > tbody {

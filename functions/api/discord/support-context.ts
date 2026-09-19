@@ -24,16 +24,21 @@ import type { RuntimeEnv } from "../../_lib/types";
 type HandlerContext = { request: Request; env: RuntimeEnv };
 
 const REPORT_ID_PATTERN = /^[A-Za-z0-9-]{1,32}$/;
-const FALLBACK_REPORT_ID = /^FB-0*(\d{1,12})$/i;
+/**
+ * `FB-000123` is `fallbackFeedbackReportId` — the feedback row id padded to six digits. Anyone can
+ * count up from FB-000001, so that form is never accepted as an anchor here. A real report id is
+ * the twelve random characters `makeFeedbackReportId` produces, which this never matches.
+ */
+const GUESSABLE_REPORT_ID = /^FB-\d{1,11}$/i;
 
 /**
  * What the AI support assistant is told about the member it is answering — the same rows
  * Customer 360 shows, run through the allow-list in `_lib/discord-support.ts`.
  *
  * Anchor: the member's active Discord link (→ license → machine). When a `report_id` is supplied
- * the support report itself anchors instead, and then the license is withheld unless the linked
- * account turns out to be the same machine — a Report ID typed into a ticket is not proof of
- * ownership.
+ * the support report itself anchors instead. That id is the only thing tying the caller to the
+ * report, so only an unguessable one counts (see `anchorByReportId`); the license stays withheld
+ * on top of that unless the linked account turns out to be the same machine.
  *
  * Auth is identical to `/api/discord/links`: VERIFY_SHARED_SECRET as a Bearer token.
  */
@@ -146,10 +151,12 @@ function pickSupportReport(
 }
 
 /**
- * Report ID → feedback row. `feedback_report_meta` holds the id the app showed the customer; a
- * report from before that table has the derived `FB-000123` form, whose digits are the row id.
+ * Report ID → feedback row, through `feedback_report_meta` and nothing else. Possessing the id is
+ * the whole proof that the report is the caller's own, so a guessable one resolves to nothing and
+ * no id is ever derived back from a row id: that arithmetic is what made enumeration possible.
  */
 async function anchorByReportId(env: RuntimeEnv, reportId: string): Promise<AnchorSeed | null> {
+  if (GUESSABLE_REPORT_ID.test(reportId)) return null;
   const db = env.DB!;
   let feedbackId: number | null = null;
   try {
@@ -160,13 +167,9 @@ async function anchorByReportId(env: RuntimeEnv, reportId: string): Promise<Anch
       .first<{ feedback_id: number }>();
     feedbackId = meta ? Number(meta.feedback_id) : null;
   } catch {
-    // No metadata table on this database — the derived form below is the only remaining route.
+    // No metadata table on this database: then no report id can be proven, so none is accepted.
+    return null;
   }
-  if (feedbackId === null) {
-    const derived = FALLBACK_REPORT_ID.exec(reportId);
-    if (!derived) return null;
-    feedbackId = Number(derived[1]);
-  }
-  if (!Number.isInteger(feedbackId) || feedbackId <= 0) return null;
+  if (feedbackId === null || !Number.isInteger(feedbackId) || feedbackId <= 0) return null;
   return resolveAnchor(env, "feedback_id", String(feedbackId));
 }

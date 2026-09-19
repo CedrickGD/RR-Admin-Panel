@@ -226,10 +226,13 @@ describe("POST /api/feedback diagnostics compatibility", () => {
     });
 
     expect(response.status).toBe(201);
+    // Random, never the row id: the Discord bot treats this id as proof the report is the
+    // caller's own, so "FB-" plus the feedback row number would be an enumerable handle on
+    // every other customer's report (functions/api/discord/support-context.ts).
     expect(await response.json()).toEqual({
       ok: true,
       message: "Feedback received. Thank you!",
-      report_id: "FB-000042",
+      report_id: expect.stringMatching(/^FB-[0-9A-F]{12}$/),
     });
     const insert = mock.operations.find((operation) =>
       operation.normalizedSql.startsWith("INSERT INTO feedback "),
@@ -272,7 +275,6 @@ describe("POST /api/feedback diagnostics compatibility", () => {
     });
 
     expect(response.status).toBe(201);
-    expect(await response.json()).toMatchObject({ ok: true, report_id: "FB-000042" });
     const insert = mock.operations.find((operation) =>
       operation.normalizedSql.startsWith("INSERT INTO feedback "),
     );

@@ -2220,19 +2220,19 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker }: LicensesP
                 when the member runs /verify.
               </p>
               {discordLinks === null ? (
-                <p className="license-discord-empty">Loading…</p>
+                <p className="record-row-meta">Loading…</p>
               ) : discordLinks.length === 0 ? (
-                <p className="license-discord-empty">No Discord account is linked to this key.</p>
+                <p className="record-row-meta">No Discord account is linked to this key.</p>
               ) : (
-                <ul className="license-discord-list">
+                <ul className="record-row-list">
                   {discordLinks.map((link) => (
-                    <li key={link.discord_id} className="license-discord-row">
+                    <li key={link.discord_id} className="record-row">
                       <div>
                         <strong>
                           {link.discord_tag ? discordHandle(link.discord_tag) : "Unnamed account"}
                         </strong>
                         <span className="mono">{link.discord_id}</span>
-                        <span className="license-discord-meta">
+                        <span className="record-row-meta">
                           {link.source ?? "unknown"} · {formatDate(link.verified_at)}
                         </span>
                       </div>
@@ -2291,7 +2291,7 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker }: LicensesP
                   {discordBusy ? "Saving…" : replaceDiscord ? "Rebind account" : "Link account"}
                 </Button>
               </div>
-              <p className="license-discord-empty">
+              <p className="record-row-meta">
                 Replacing revokes the other accounts on this key; leaving it off adds this one, even
                 past the seat limit.
               </p>
@@ -2304,7 +2304,7 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker }: LicensesP
                 <Ticket size={14} aria-hidden="true" /> Discord tickets ({ticketTotal})
               </h3>
               {tickets === null ? (
-                <p className="license-discord-empty">Loading…</p>
+                <p className="record-row-meta">Loading…</p>
               ) : (
                 <DiscordTicketList
                   tickets={tickets}

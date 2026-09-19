@@ -12,6 +12,7 @@ import { ensureFeedbackReplies, saveFeedbackRecipient } from "../../_lib/feedbac
 import {
   ensureFeedbackDiagnosticsSchema,
   fallbackFeedbackReportId,
+  makeFeedbackReportId,
   storeFeedbackDiagnostics,
   storeFeedbackReportMeta,
   validateFeedbackDiagnostics,
@@ -116,7 +117,12 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
     if (!Number.isInteger(feedbackId) || feedbackId <= 0) {
       throw new Error("Feedback insert did not return its row id.");
     }
-    const reportId = fallbackFeedbackReportId(feedbackId);
+    // The report id is the one thing a customer can hand the Discord bot to prove a report is
+    // theirs (functions/api/discord/support-context.ts), so it is random, not the row id: a
+    // sequential id would let anyone enumerate other customers' reports. The derived
+    // `FB-000123` form below stays only for the case where the metadata row cannot be written —
+    // every reader derives the same id for such a row, and the bot refuses it as an anchor.
+    let reportId = makeFeedbackReportId();
     const authMode = auth.installId ? "signed" : "legacy_unsigned";
 
     if (auth.installId) {
@@ -164,7 +170,9 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
           createdAt,
         );
       } catch {
-        // The deterministic fallback report id remains stable for this feedback row.
+        // Nothing stored the random id, so nobody could resolve it. Fall back to the
+        // deterministic form, which every reader derives from the row id itself.
+        reportId = fallbackFeedbackReportId(feedbackId);
       }
     }
 

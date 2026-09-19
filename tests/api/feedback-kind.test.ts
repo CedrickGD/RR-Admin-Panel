@@ -93,7 +93,16 @@ async function submit(body: Record<string, unknown>, unsigned = false): Promise<
   const payload = (await response.json()) as { ok: boolean; report_id: string; message: string };
   // The response contract is unchanged: no kind on the wire back to the client.
   expect(Object.keys(payload).sort()).toEqual(["message", "ok", "report_id"]);
-  return Number(payload.report_id.slice(3));
+  return feedbackIdOf(payload.report_id);
+}
+
+/** The report id is random, so the row it belongs to comes from the metadata table, not from arithmetic. */
+function feedbackIdOf(reportId: string): number {
+  const row = handle
+    .prepare("SELECT feedback_id FROM feedback_report_meta WHERE report_id = ?")
+    .get(reportId) as { feedback_id: number } | undefined;
+  expect(row).toBeDefined();
+  return Number(row!.feedback_id);
 }
 
 function storedKind(id: number): string {

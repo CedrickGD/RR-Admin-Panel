@@ -239,6 +239,27 @@ describe("POST /api/discord/support-context", () => {
     expect(body.context.report.report_id).toBe("FB-NEW");
   });
 
+  it("resolves nothing for a countable FB-000042 report id", async () => {
+    // The whole context — session, installs, errors and the customer's own support text — hangs
+    // off this anchor, so a report id anyone can count up to must never reach the database.
+    const mock = db({
+      first: [
+        {
+          match: /SELECT feedback_id FROM feedback_report_meta WHERE report_id = \?/,
+          result: { feedback_id: 42 },
+        },
+      ],
+    });
+
+    const response = await call(mock, { report_id: "FB-000042" });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true, linked: false, found: false, context: null });
+    expect(
+      mock.operations.filter((op) => /feedback_report_meta/.test(op.normalizedSql)),
+    ).toHaveLength(0);
+  });
+
   it("withholds the licence when a Report ID points at a different machine", async () => {
     // The report belongs to another install; the Discord link is the only thing tying the caller
     // to a licence, and it does not match. A pasted Report ID must not unlock someone else's plan.

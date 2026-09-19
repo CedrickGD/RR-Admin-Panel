@@ -9,7 +9,12 @@ import { Button } from "./ds/Button";
 /**
  * The archived Discord tickets of one customer, in the two places that show them: the Customer 360
  * commerce grid and the Licenses "Customer & order" dialog. One list, so a row reads the same in
- * both — each site only supplies its own heading.
+ * both — each site only supplies its own heading. The rows are the shared `.record-row` the
+ * Discord accounts list above it in that same dialog uses.
+ *
+ * Delete is the two-step in-row confirm InstallsPanel's Revoke already uses: the second press is a
+ * different button with its own name, so it is also audibly the destructive one. A dialog would be
+ * a second Modal inside the open "Customer & order" one.
  *
  * The transcript is downloaded, never rendered: it is HTML a third party wrote.
  */
@@ -81,16 +86,16 @@ export function DiscordTicketList({
       "Could not delete the ticket.",
     );
 
-  if (tickets.length === 0) return <p className="discord-ticket-empty">{empty}</p>;
+  if (tickets.length === 0) return <p className="record-row-meta">{empty}</p>;
 
   return (
-    <div className="discord-tickets">
-      <ul className="discord-ticket-list">
+    <div className="record-rows">
+      <ul className="record-row-list">
         {tickets.map((ticket) => (
-          <li className="discord-ticket-row" key={ticket.id}>
+          <li className="record-row" key={ticket.id}>
             <div>
               <strong>{ticketTitle(ticket)}</strong>
-              <span className="discord-ticket-meta">
+              <span className="record-row-meta">
                 {[
                   ticket.closed_at ? formatDate(ticket.closed_at) : "date unknown",
                   `${ticket.ai_replies} AI ${ticket.ai_replies === 1 ? "reply" : "replies"}`,
@@ -116,24 +121,40 @@ export function DiscordTicketList({
             >
               Open transcript
             </Button>
-            <Button
-              size="xs"
-              variant="danger"
-              permission="support.write"
-              icon={<Trash2 />}
-              disabled={busyId !== null}
-              aria-label={`Delete ${ticketTitle(ticket)}`}
-              onClick={() =>
-                armedId === ticket.id ? void remove(ticket.id) : setArmedId(ticket.id)
-              }
-            >
-              {armedId === ticket.id ? "Confirm delete" : "Delete"}
-            </Button>
+            {armedId === ticket.id ? (
+              <>
+                <Button size="xs" disabled={busyId !== null} onClick={() => setArmedId(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  size="xs"
+                  variant="danger"
+                  permission="support.write"
+                  icon={<Trash2 />}
+                  disabled={busyId !== null}
+                  onClick={() => void remove(ticket.id)}
+                >
+                  {busyId === ticket.id ? "Deleting…" : "Confirm delete"}
+                </Button>
+              </>
+            ) : (
+              <Button
+                size="xs"
+                variant="danger"
+                permission="support.write"
+                icon={<Trash2 />}
+                disabled={busyId !== null}
+                aria-label={`Delete ${ticketTitle(ticket)}`}
+                onClick={() => setArmedId(ticket.id)}
+              >
+                Delete
+              </Button>
+            )}
           </li>
         ))}
       </ul>
       {error ? (
-        <p className="discord-ticket-empty" role="alert">
+        <p className="record-row-meta" role="alert">
           {error}
         </p>
       ) : null}

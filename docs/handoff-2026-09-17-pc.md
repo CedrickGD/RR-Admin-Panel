@@ -647,3 +647,38 @@ client `master` `314c120` unchanged. All pushed, one branch each, no worktrees.*
   (panel → Link Discord account) or a staff grant (`/verify user:`), otherwise every sync removes it again.
 - Still true from §21: the Anthropic account has no credit (Gemini answers); announcement #7 untouched; the in-game list is
   open; ARK and the dev client are still running on the PC (owner ended ARK testing, nothing was closed by me).
+
+## 23. Late night: the owner's first real test ticket — what broke, what is fixed and live (2026-09-19, ~22:00)
+
+- **Announcement #7 deleted on the owner's explicit order** (row saved on the NAS as
+  `/data/db/announcement-7-deleted-20260919.json`); `/api/announcements/active` serves 0.
+- **His test ticket (`ticket-0001`) could not be closed or deleted.** Causes, all read in the code + log: ticket state lived
+  in the channel TOPIC, Discord allows 2 channel PATCHes per 10 min, so `await channel.edit({name, topic})` in the close path
+  sat in the rate-limit queue and blocked transcript DM, #ticket-log, panel archive and the state Delete checks; on top, two
+  bot redeploys by the coordinator during his test killed the pending close. **Rule since then: no bot restart while the
+  owner tests — announce it first and check the log for ticket activity.**
+- **Bot fix round, live (bot `main` `ea53683`, 143 tests):** no channel PATCH during a ticket's life (topic written once at
+  create; AI on/off, waiting, reply count live in memory and are rebuilt after a restart by `hydrateTicket()` /
+  `rebuildTicketState()` from the bot's own control messages — their buttons are the record); close = guard → transcript →
+  DM / #ticket-log / archive → ONE "Ticket closed" message that ALWAYS carries the staff-only Delete button → rename + hide
+  NOT awaited; Delete is gated on "closed" = this process's record OR `closed-` name (review blocker: a re-opened ticket kept
+  a live Delete button); a scan that hits its 50-message window leaves the AI off. The AI knows the buttons: purchase/order
+  questions end with `[[SHOW_PURCHASE]]` → the bot posts the same embed as *My purchase* (data never reaches a model),
+  `[[NEED_REPORT]]` only for technical problems. Budget counts cached reads at 10 % (`weighUsage`; the live line
+  `in=51566 out=38 cacheR=49222` is 7 305, not 56 527). A provider answering 400/401/403 with a billing/auth error is parked
+  60 min (Claude has no credit → Gemini answers without a wasted call each time). Startup log after deploy: no
+  `[chats] Created`, healthy. Backups on the NAS: `*.bak-20260919d`. **Not yet clicked through live by anyone:** the new
+  close/delete path and the orphan `ticket-0001` (pressing *Delete ticket* there should now work: hydrate finds the old close
+  message's Delete button).
+- **Client: support reports were impossible on 1.5.3** — "diagnostics.providers[8].checks[4].key is invalid.": the nested
+  route `/guides/dino-level` produced the check key `route_guides/dino_level`, the panel validates
+  `^[a-z0-9][a-z0-9._:-]{0,63}$` and rejects the whole report. Fixed at the single choke point
+  `DiagnosticSnapshotService.NormalizeCheck` (`SanitizeKey`), with a test that runs the REAL nav catalogue + script list
+  against the panel's pattern and duplicate rule. Client `master` `e66e522`, pushed, 3311 tests, 0 warnings, dev build
+  rebuilt; NOT released (rule). Released clients ≤ 1.5.2 do not have that route, so they are not affected.
+- ARK and the dev client are no longer running (closed by the owner). Workflow lesson: a stage whose context shows a
+  "relayed user message" unrelated to its task may refuse (Sonnet builder did) — say in the stage rules how the task derives
+  from the owner's message.
+- **Round 4 ordered by the owner (in progress when this was written):** ticket commands as slash AND `@bot <word>` (close,
+  transcript, delete [staff], enableai, disableai), one open ticket per CATEGORY, and a role (`HUMAN_PING_ROLE_ID`) that
+  decides who is pinged on "I need a human" + owner-only `/ticketping`. Spec: scratchpad `discord-round4-spec.md`.

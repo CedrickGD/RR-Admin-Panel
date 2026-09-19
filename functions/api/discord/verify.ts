@@ -1,10 +1,11 @@
 import {
   MANUAL_LICENSE_KEY,
+  requireBotSecret,
   resolveLicenseForVerification,
   upsertDiscordLink,
   verifyReasonMessage,
 } from "../../_lib/discord";
-import { error, json, readJsonBody, getBearerToken, timingSafeEqualText } from "../../_lib/http";
+import { error, json, readJsonBody } from "../../_lib/http";
 import { internalError } from "../../_lib/responses";
 import type { RuntimeEnv } from "../../_lib/types";
 
@@ -27,13 +28,8 @@ type HandlerContext = {
  */
 export async function onRequestPost(context: HandlerContext): Promise<Response> {
   try {
-    const secret = context.env.VERIFY_SHARED_SECRET;
-    if (!secret) return error(500, "Discord verification is not configured on the server.");
-
-    const provided = getBearerToken(context.request) ?? "";
-    if (!timingSafeEqualText(provided, secret)) {
-      return error(401, "Unauthorized.");
-    }
+    const denied = requireBotSecret(context.request, context.env);
+    if (denied) return denied;
 
     const db = context.env.DB;
     if (!db) return error(500, "Database not available");

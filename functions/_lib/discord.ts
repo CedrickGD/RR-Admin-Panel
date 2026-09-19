@@ -4,7 +4,7 @@ import {
   findActiveSuspension,
   isSuspensionActive,
 } from "./access";
-import { nowIso } from "./http";
+import { error, getBearerToken, nowIso, timingSafeEqualText } from "./http";
 import type { RuntimeEnv } from "./types";
 
 /**
@@ -44,6 +44,19 @@ export const MANUAL_LICENSE_KEY = "MANUAL";
 
 /** Discord snowflake check — one copy in shared/, used by the panel UI too. */
 export { isDiscordSnowflake } from "../../shared/discord-id";
+
+/**
+ * The gate on every bot-facing endpoint: VERIFY_SHARED_SECRET as a Bearer token, compared in
+ * constant time, with no `?secret=` fallback. Returns the refusal, or null when the caller passes.
+ * One copy for /verify, /status, /links and the three round-3 endpoints.
+ */
+export function requireBotSecret(request: Request, env: RuntimeEnv): Response | null {
+  const secret = env.VERIFY_SHARED_SECRET;
+  if (!secret) return error(500, "Discord verification is not configured on the server.");
+  return timingSafeEqualText(getBearerToken(request) ?? "", secret)
+    ? null
+    : error(401, "Unauthorized.");
+}
 
 /**
  * Decide whether a license entitles its holder to the Verified role: it must exist, be active,

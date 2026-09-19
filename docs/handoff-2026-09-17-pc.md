@@ -682,3 +682,16 @@ client `master` `314c120` unchanged. All pushed, one branch each, no worktrees.*
 - **Round 4 ordered by the owner (in progress when this was written):** ticket commands as slash AND `@bot <word>` (close,
   transcript, delete [staff], enableai, disableai), one open ticket per CATEGORY, and a role (`HUMAN_PING_ROLE_ID`) that
   decides who is pinged on "I need a human" + owner-only `/ticketping`. Spec: scratchpad `discord-round4-spec.md`.
+- **Round 4 landed and is live the same night (bot `main` `2a0c0fa`, 154 tests, two independent reviews, 1 blocker fixed):**
+  one `runTicketAction(action, channel, member, respond)` behind three doors — buttons, slash (`/close /transcript /delete
+  /enableai /disableai`) and `@RazorReaper <word>` at the START of a message in a ticket (parser `parseBotCommand`, handled
+  before the AI path; the @bot transcript goes to the caller's DMs). `delete` is staff-only and on an OPEN ticket runs the
+  full close first; `closeTicketChannel` now awaits the panel archive as its LAST step (review blocker: delete could outrun
+  the upload) and `verifyApi` has a 30 s timeout (bounds every panel call). Open-ticket limit is per (opener, CATEGORY), a
+  ticket this process knows is closed no longer counts as open while its rename is queued, daily cap = max(3, categories) = 6.
+  "I need a human" pings the members of the role `HUMAN_PING_ROLE_ID` (individual `<@id>` mentions, cap 10, member cache
+  via the shared `fetchGuildMembers`), fallback = the owner; owner-only `/ticketping user:` toggles that role. **The env id
+  is NOT set yet** — the bot never creates the role; the owner creates one, then pin its id in NAS `bot.env` and redeploy.
+  Verified live: all six commands registered in the home guild (read from Discord's API inside the container), startup log
+  clean, no `[chats] Created`. NOT clicked through live by anyone yet: every door, `/delete` on an open ticket, the ping.
+  NAS backups `*.bak-20260919e`.

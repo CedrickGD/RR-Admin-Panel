@@ -1,4 +1,5 @@
 import {
+  MANUAL_LICENSE_KEY,
   resolveLicenseForVerification,
   upsertDiscordLink,
   verifyReasonMessage,
@@ -57,7 +58,7 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
       await upsertDiscordLink(context.env, {
         discordId,
         discordTag,
-        licenseKey: "MANUAL",
+        licenseKey: MANUAL_LICENSE_KEY,
         hwid: null,
         source: "manual",
       });
@@ -66,7 +67,10 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
         verified: true,
         manual: true,
         discord_id: discordId,
-        license_key: "MANUAL",
+        license_key: MANUAL_LICENSE_KEY,
+        plan: "manual",
+        expiresAt: null,
+        lifetime: false,
       });
     }
 
@@ -96,11 +100,16 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
       source: "slash",
     });
 
+    // plan/expiresAt/lifetime ride along so the bot can grant the Lifetime role in the same step
+    // instead of asking a second endpoint right after a successful /verify.
     return json({
       ok: true,
       verified: true,
       discord_id: discordId,
       license_key: result.license.license_key,
+      plan: result.license.type,
+      expiresAt: result.license.expires_at,
+      lifetime: result.license.type === "lifetime",
     });
   } catch (err) {
     return internalError(context.request, "Unable to complete the request.", err);

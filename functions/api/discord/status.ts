@@ -1,4 +1,4 @@
-import { resolveLicenseForVerification } from "../../_lib/discord";
+import { resolveLinkAccess } from "../../_lib/discord";
 import { ensureAccessSchema, type DiscordLinkRow } from "../../_lib/access";
 import { error, json, readJsonBody, getBearerToken, timingSafeEqualText } from "../../_lib/http";
 import { internalError } from "../../_lib/responses";
@@ -42,22 +42,19 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
       return json({ ok: true, linked: false, active: false });
     }
 
-    // Staff manual grants (source = "manual") carry no license — they are permanent by design, so
-    // report active without a license lookup. The reconcile sweep therefore never strips them.
-    if (link.source === "manual") {
-      return json({ ok: true, linked: true, active: true, license_key: link.license_key });
-    }
-
-    // Re-validate the underlying license so a later revoke/expiry/suspension flips active → false.
-    const result = await resolveLicenseForVerification(context.env, link.license_key);
-    const active = result.ok;
+    // Re-validates the underlying license (so a later revoke/expiry/suspension flips active →
+    // false) and short-circuits the license-less staff grant. Shared with /api/discord/links.
+    const access = await resolveLinkAccess(context.env, link);
 
     return json({
       ok: true,
       linked: true,
-      active,
+      active: access.active,
       license_key: link.license_key,
-      reason: active ? undefined : result.reason,
+      plan: access.plan,
+      expiresAt: access.expiresAt,
+      lifetime: access.lifetime,
+      reason: access.reason,
     });
   } catch (err) {
     return internalError(context.request, "Unable to complete the request.", err);

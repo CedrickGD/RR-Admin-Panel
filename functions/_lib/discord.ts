@@ -21,6 +21,11 @@ const DISCORD_API = "https://discord.com/api/v10";
 export interface LicenseVerifyResult {
   ok: boolean;
   reason?: string;
+  /**
+   * The license row whenever one was found — also on a rejection, so a caller can report *which*
+   * plan expired without a second lookup. `ok === false` still means "no access"; every caller
+   * guards on `ok` before using this.
+   */
   license?: {
     license_key: string;
     hwid: string | null;
@@ -28,6 +33,18 @@ export interface LicenseVerifyResult {
     expires_at: string | null;
     type: string;
   };
+}
+
+/**
+ * The license key the staff grant path (`/verify user:@member`) writes: a permanent, license-less
+ * link. Everything else in `discord_links` carries a real key, including the panel's manual
+ * link/rebind — which is why the permanence test is this key, never `source = "manual"`.
+ */
+export const MANUAL_LICENSE_KEY = "MANUAL";
+
+/** Discord snowflake: 17–20 digits, nothing else. */
+export function isDiscordSnowflake(value: string): boolean {
+  return /^\d{17,20}$/.test(value);
 }
 
 /**
@@ -66,9 +83,10 @@ export async function resolveLicenseForVerification(
     }>();
 
   if (!license) return { ok: false, reason: "invalid_key" };
-  if (license.status === "revoked") return { ok: false, reason: "revoked" };
-  if (license.status === "expired") return { ok: false, reason: "expired" };
-  if (license.expires_at && license.expires_at < nowIso()) return { ok: false, reason: "expired" };
+  if (license.status === "revoked") return { ok: false, reason: "revoked", license };
+  if (license.status === "expired") return { ok: false, reason: "expired", license };
+  if (license.expires_at && license.expires_at < nowIso())
+    return { ok: false, reason: "expired", license };
 
   // If the license is bound to hardware, a suspension on ANY bound machine blocks Discord access.
   // licenses.hwid is a comma-separated list for multi-seat/master keys — check every seat, not
@@ -81,7 +99,7 @@ export async function resolveLicenseForVerification(
       .filter((h) => h.length > 0);
     for (const seat of seats) {
       const suspension = await findActiveSuspension(env, { hwid: seat, identity: seat });
-      if (isSuspensionActive(suspension)) return { ok: false, reason: "suspended" };
+      if (isSuspensionActive(suspension)) return { ok: false, reason: "suspended", license };
     }
   }
 
@@ -90,11 +108,46 @@ export async function resolveLicenseForVerification(
   if (forDiscordId && license.max_uses !== -1) {
     const otherLinks = await countActiveLinksForLicense(env, license.license_key, forDiscordId);
     if (otherLinks >= Math.max(license.max_uses, 1)) {
-      return { ok: false, reason: "seat_limit" };
+      return { ok: false, reason: "seat_limit", license };
     }
   }
 
   return { ok: true, license };
+}
+
+/** What the bot may grant for one `discord_links` row. */
+export interface DiscordLinkAccess {
+  /** Should this account hold the customer role right now? */
+  active: boolean;
+  /** Why not, when `active` is false (`resolveLicenseForVerification` reason codes). */
+  reason?: string;
+  /** License `type` (`lifetime` / `trial` / …), `manual` for a staff grant. */
+  plan: string;
+  expiresAt: string | null;
+  lifetime: boolean;
+}
+
+/**
+ * Turn a link row into the bot's view of it. The ONLY place that answers "does this Discord account
+ * still deserve the role" — `/api/discord/status` and `/api/discord/links` both go through here, so
+ * the validity rules (revoked / expired / suspended, via `resolveLicenseForVerification`) exist once.
+ */
+export async function resolveLinkAccess(
+  env: RuntimeEnv,
+  link: { license_key: string },
+): Promise<DiscordLinkAccess> {
+  if (link.license_key === MANUAL_LICENSE_KEY) {
+    return { active: true, plan: "manual", expiresAt: null, lifetime: false };
+  }
+
+  const result = await resolveLicenseForVerification(env, link.license_key);
+  return {
+    active: result.ok,
+    reason: result.ok ? undefined : result.reason,
+    plan: result.license?.type ?? "unknown",
+    expiresAt: result.license?.expires_at ?? null,
+    lifetime: result.license?.type === "lifetime",
+  };
 }
 
 function botHeaders(env: RuntimeEnv): HeadersInit {
@@ -237,6 +290,31 @@ export async function upsertDiscordLink(
     )
     .bind(args.discordId, args.discordTag, args.licenseKey, args.hwid, now, args.source)
     .run();
+}
+
+/**
+ * The counterpart of `upsertDiscordLink`: deactivate a license's links without deleting the row, so
+ * the verification history survives. Either one account (`discordId`) or every account except one
+ * (`exceptDiscordId` — the panel's rebind). Returns how many rows were actually revoked.
+ */
+export async function revokeDiscordLinks(
+  env: RuntimeEnv,
+  args: { licenseKey: string; discordId?: string; exceptDiscordId?: string },
+): Promise<number> {
+  const db = env.DB;
+  if (!db) throw new Error("D1 binding DB is required.");
+  await ensureAccessSchema(env);
+  const [clause, discordId] = args.discordId
+    ? ["discord_id = ?", args.discordId]
+    : ["discord_id <> ?", args.exceptDiscordId ?? ""];
+  const result = await db
+    .prepare(
+      `UPDATE discord_links SET is_active = 0, revoked_at = ?
+       WHERE license_key = ? AND is_active = 1 AND ${clause}`,
+    )
+    .bind(nowIso(), args.licenseKey, discordId)
+    .run();
+  return result.meta?.changes ?? 0;
 }
 
 // ── OAuth CSRF state: HMAC-signed, short-lived token that also carries the license key so the

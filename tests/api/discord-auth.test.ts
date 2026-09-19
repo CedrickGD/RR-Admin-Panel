@@ -158,6 +158,37 @@ describe("POST /api/discord/verify (bot shared secret)", () => {
     await expectJson(response, 400, { ok: false, error: "discord_id is required." });
   });
 
+  it("reports the plan so the bot can grant the Lifetime role in the same step", async () => {
+    const mock = createMockD1({
+      first: [
+        {
+          match: LICENSE_LOOKUP,
+          result: {
+            license_key: "RR-TEST-KEY",
+            hwid: null,
+            status: "active",
+            expires_at: null,
+            type: "lifetime",
+            max_uses: 1,
+          },
+        },
+      ],
+    });
+
+    const response = await discordVerify({
+      request: botRequest("/api/discord/verify", { bearer: SECRET, json: verifyBody }),
+      env: env(mock),
+    });
+
+    await expectJson(response, 200, {
+      ok: true,
+      verified: true,
+      plan: "lifetime",
+      expiresAt: null,
+      lifetime: true,
+    });
+  });
+
   it("answers 500 when the shared secret is not configured", async () => {
     const response = await discordVerify({
       request: botRequest("/api/discord/verify", { bearer: SECRET, json: verifyBody }),
@@ -257,6 +288,48 @@ describe("POST /api/discord/status (bot shared secret)", () => {
       license_key: "MANUAL",
     });
     expect(ops(mock, LICENSE_LOOKUP)).toHaveLength(0);
+  });
+
+  it("carries the plan and expiry of a linked license", async () => {
+    const mock = linkDb(
+      {
+        discord_id: DISCORD_ID,
+        discord_tag: "buyer",
+        license_key: "RR-TEST-KEY",
+        hwid: null,
+        is_active: 1,
+        source: "slash",
+      },
+      {
+        first: [
+          {
+            match: LICENSE_LOOKUP,
+            result: {
+              license_key: "RR-TEST-KEY",
+              hwid: null,
+              status: "active",
+              expires_at: "2999-01-01T00:00:00.000Z",
+              type: "trial",
+              max_uses: 1,
+            },
+          },
+        ],
+      },
+    );
+
+    const response = await discordStatus({
+      request: botRequest("/api/discord/status", { bearer: SECRET }),
+      env: env(mock),
+    });
+
+    await expectJson(response, 200, {
+      ok: true,
+      linked: true,
+      active: true,
+      plan: "trial",
+      expiresAt: "2999-01-01T00:00:00.000Z",
+      lifetime: false,
+    });
   });
 
   it("keeps the 400 for a missing discord_id", async () => {

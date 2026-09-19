@@ -500,3 +500,67 @@ was pasted earlier.
   no settings) is expected and fine — create a new single-player world and character, `gcm`, then run every test we
   need. Items and structures needed for a test are simply cheated in through the console (look the exact command up
   at test time, e.g. the `gfi` / `giveitemnum` family); no farming, no asking.
+
+## 20. In-game session 2026-09-19: what got proven, what did not (the owner is unhappy with the pace — read this first)
+
+**Honest summary:** most of the night and half the day went into tooling problems instead of tests. Only Fed Suit was
+really tested and rebuilt. Turret Filler (10 points), Turret Manager, Crafting, key rebinding in ARK, Fast TP, the console
+path, ArkLink and the vision-monitor check are **still untested in game**. The owner ended ARK testing for the day.
+
+### Proven
+- **The "blocked by UIPI / Vanguard" claim was false.** `ShooterGame.exe` runs at medium integrity. The old agent read the
+  computer-use tool's boilerplate error; the real cause was that the grant "ARK Survival Evolved" maps to the Steam link —
+  the window belongs to `shootergame.exe` (grant it by basename while the game runs; same for the dev client
+  `razorreaper.exe`). computer-use clicks/keys/typed console text reach ARK, also with BattlEye running.
+  Whether a *running* Riot Vanguard blocks SendInput is still untested (vgc/vgk were stopped).
+- **RazorReaper's own SendInput reaches ARK with BattlEye on** (Auto-Walk walked the character into the sea; Fed Suit opens
+  the transmitter, clicks, transfers). Global hotkeys fire while ARK is the borderless-fullscreen foreground window (F4).
+- One-shot repair of `crafting.accesskey` = "E" worked (prefs before: "E"; after first start: key gone, `.rechecked` = True).
+- Key-scan status line / Rescan toast (~3.5 s) / ARK presence pill behave as designed. Not-focused feedback in the client is
+  clear ("No action yet — ARK is not in the foreground.") but lives only in the client window.
+
+### Fed Suit — what it is FOR (owner, verbatim sense) and what happened
+Genesis 2 only: opening a Tek Transmitter while wearing no Federation exo suit puts a new full set on the player. The script
+farms sets: open transmitter (F) → **click the player tab "DU"** (the middle panel opens on "TRANSMITTER") → T on each of the
+five worn pieces so they land in the transmitter → Esc → reopen → repeat, as fast as possible, until stopped or N runs.
+- The old macro never clicked the tab and pressed T 20× wherever the cursor was → moved nothing (evidence
+  `F10-sheet.jpg`). Its "press F6 to stop" toast named a hotkey that was never registered (`RegisterHotkeys` had no caller).
+- **Rework landed: client `master` = `f5a1c4c`, pushed** (gate 0 warnings / 3278 tests, two reviews). New
+  `ArkInventoryLayout`: positions = client centre + offset × (height/1080) × `UIScaling` (read from
+  `GameUserSettings.ini`), measured at 1080p/1.0: tab (−190,−425), slots x ∓164, y −339/−241/−145, offhand skipped.
+  New setting Runs (0 = endless). Removed: search filter, click-first-slot, presses per cycle, dead F5/F6 code. A
+  "nothing moved for 3 cycles → stop with a toast" guard exists (~110 lines, deletes cleanly if unwanted).
+- In game (F4, Gen2, 1080p): tab click works, computed points sit centred on all five slots (`F60-slots.jpg`), helmet + chest
+  + gloves transfer in < 1 s; **legs + boots stayed on** in both runs → hover 35 ms / press 40 ms too tight. A run started
+  with an inventory already open goes out of phase and swings the camera (`F50-sheet.jpg`).
+- Follow-up in flight when this was written: branch `wt/fedsuit-timing` (worktree `rr-wt-fed2`): hover 80 / press 70 /
+  tab settle 100 ms + a guard that stops before any click when the inventory did not open. **Check `git worktree list` and
+  `git log` first**; land it if gate + review are green, then rebuild the dev client. Unverified: the uniform-scale model
+  at any UI scale ≠ 1.0 or aspect ratio ≠ 16:9.
+
+### Other findings (code-verified, not yet fixed)
+1. **Failed hotkey registration still shows as bound** (`AutomationScriptBase.cs` `SaveHotkey`/`ApplyHotkey`): the text is
+   saved before registering; on failure only a toast, the field keeps the key, the next start fails silently. Seen live with
+   F12 (Steam screenshot key) and F8 (RazorReaper's OWN crosshair-overlay default — the toast blames "another app").
+2. **Fast Transfer has no UI at all** (`FastTransferMacro` only registered in DI) — delete or wire up: owner decision.
+3. Every plain key is bound by ARK's `DefaultInput.ini` (F1–F12, Ins/Home/End/PgUp/PgDn, numpad) and all scripts ship with an
+   empty hotkey → the player gets no suggestion. F7 is swallowed by the HotkeyField without feedback (probably WebView2's
+   caret-browsing accelerator — unverified).
+4. Test hotkeys set in the owner's prefs this session: Turret Filler F11, Turret Manager F10, Fast TP F9, Noglin F2,
+   Crafting F3, Fed Suit F4; Anti-AFK interval 30 s (was 600). Reset them if the owner wants his defaults back.
+
+### Tooling lessons (cost hours — do not repeat)
+- **Sub-agents cannot send input through computer-use** (12 of 12 attempts "aborted (user interrupt)"; screenshots work).
+  Only the main loop can drive the game. Do hands-on game input yourself; give agents CDP/code work only.
+- Never `open_application("Shootergame")` — it starts another ARK instance. Focus with
+  `scratchpad\focus.ps1` (Alt-tap + SetForegroundWindow, AttachThreadInput fallback). Focus right before every input batch.
+- Evidence without touching focus: GDI `CopyFromScreen` (scripts `shot.ps1`/`shots.ps1`) + contact sheets; start a
+  background capture loop, THEN press the hotkey. Do not call computer-use while a script is pressing keys.
+- The Claude desktop window and the client window sit on the game monitor by default — move them with `MoveWindow`
+  (DISPLAY2 at x=1920, DISPLAY3 at x=−1920). When the owner clicks into Claude, ARK loses focus and macros abort.
+- `gcm` is a toggle (check weight 99999). Arrow keys move the camera. Unexplained: a computer-use `Escape` opened the
+  Windows Start menu twice instead of reaching ARK; `TextInputHost` (Start/search input host) then held the foreground.
+- Do not end a turn while waiting for a background task in this desktop session — the session did not resume by itself
+  several times and the owner had to poke it. Keep working (docs, code reading) until the task notifies.
+- ARK state left: single player Genesis 2 (owner loaded it), creative mode on, character at a Tek Transmitter; an Island save
+  with 2 auto turrets / 1000 bullets / 2 metal foundations requested by console exists too (not verified in inventory).

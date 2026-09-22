@@ -744,3 +744,38 @@ client `master` `314c120` unchanged. All pushed, one branch each, no worktrees.*
 - **Known ceilings, told to the owner:** the daily AI budget lives in memory — every bot restart resets it; a ticket's FIRST
   answer costs ~52k weighted tokens (the 46k KB is not cached on the first call), so `AI_DAILY_TOKEN_BUDGET=400000` is about
   7 new tickets a day; follow-ups cost ~7.5k. Ticket Tool's colliding slash commands are still the owner's call.
+
+## 25. 2026-09-20 → 09-22: low-tier AI only, the last dead hotkey fields — STATE AT THE CHAT SWITCH (read this first)
+
+**State:** client `master` `82948da` (dev build rebuilt, not running, NOT released — stays 1.5.3), bot `main` `fbddf95`
+(live on the NAS, healthy), panel `main` = this doc. All pushed, no worktrees, no extra branches.
+
+- **Owner order 2026-09-20: "low model only was token cost angeht".** Bot defaults are now `claude-haiku-4-5` →
+  `gemini-3.5-flash-lite` → `gpt-5.4-nano` (commit `fbddf95`, 160 tests, two Sonnet reviews "land", deployed, startup log
+  names the three). Haiku 4.5 accepts NO adaptive thinking and NO `effort` (Anthropic Models API) — the adapter omits both
+  for any `haiku` model and keeps them for bigger ones (test pins the request shape). OpenAI gets `reasoning.effort: low`
+  only for gpt-5 / o-series. **Balances: Anthropic 0 AND OpenAI 0** (OpenAI answers 429 "You have no credits remaining",
+  now parked like an account error) → only Gemini answers. Never raise the bot's model tier without the owner.
+- **Biggest remaining AI cost (next chat, task 1):** every answer ships the whole knowledge base as system prompt, ~46k
+  tokens (`kb/ui.md` ≈ 39k of it; first answer of a ticket ≈ 52k weighted, follow-ups ≈ 7.5k with cache). Review proposal:
+  split `kb/ui.md` on its `## ` headings and send only the sections mapped to the ticket's category (static map, no new
+  dependency), keep the small files; ~6 cached prompt variants instead of 1. Not built yet.
+- **Client: Auto Clicker and Crosshair hotkeys are honest now** (`787061c` + tests `82948da`): a refused registration shows
+  the shared `HotkeyWarn` badge (new component, replaces the copies in `HotkeyLink.razor` / `GlobalHotkeys.razor`), the
+  Auto Clicker toast names the in-app owner (`scripts.toast.hotkey.conflict`), `HotkeyBinding.Holds` stops naming a feature
+  whose own key was refused, no new texts (keys exist in de/en/ru/zh-Hans). Gate run by me: build 0 warnings, 3319 tests.
+  Known limits: a field that failed because a neighbour held the key only recovers when its own key is re-entered or the app
+  restarts (same as scripts); a crosshair refusal shows the badge but no toast. Only checkable in the running app (list in
+  the workflow report): F8 on the Auto Clicker → toast "Crosshair overlay"; badge on both pages; clears on a free key.
+- **Flaky test (pre-existing, not from this branch):** `ScanLoopCadenceTests.ASlowTickDoesNotStretchTheInterval` (wall-clock,
+  mean gap < 140 ms) fails in ~half of the full-suite runs while a game loads the PC; green alone. Make it load-tolerant or
+  mark it, when touched next.
+- NAS rebooted on ~2026-09-21 (all containers "Up 20 hours" on 09-22), bot came back healthy; one more real ticket
+  (`ticket-0005`) was answered and archived afterwards.
+
+**Open list for the next chat (the owner's prompt carries it):** 1. KB trim per category (above). 2. In-game test round
+(memory `rr-ingame-test-session-pending`) incl. the new hotkey badges — only when the owner is not gaming. 3. Bot paths not
+yet live-tested: empty-answer line, ping-only message, staff lifting the 8-answer cap, sweep rename after a restart.
+4. Bot: replace the remaining name-lookup fallbacks with pinned ids. Owner decisions pending: remove Ticket Tool (slash
+collisions), credits/spend limits at Anthropic + OpenAI, the stripped role of "♛ HΔMSTΣʀ ♛", Fast Transfer delete or wire
+up, NAS dust/fan profile.

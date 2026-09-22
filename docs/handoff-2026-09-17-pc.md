@@ -779,3 +779,47 @@ yet live-tested: empty-answer line, ping-only message, staff lifting the 8-answe
 4. Bot: replace the remaining name-lookup fallbacks with pinned ids. Owner decisions pending: remove Ticket Tool (slash
 collisions), credits/spend limits at Anthropic + OpenAI, the stripped role of "♛ HΔMSTΣʀ ♛", Fast Transfer delete or wire
 up, NAS dust/fan profile.
+
+## 26. 2026-09-22 evening: KB per category + pinned ids live, Discord paths tested, Fed Suit rebuild in flight
+
+**Heads when written:** bot `main` `5b1fc47` (NAS runs `bb2caf7`; `5b1fc47` = startup-log NaN fix, not deployed yet) · client
+`master` `82948da` (dev build running on the PC, not released) · panel `main` = this doc. Worktrees in flight:
+`rr-wt-fed3` (`wt/fedsuit-verified`, client) and `rr-wt-bot6` (`wt/bot-live-fixes`, bot) — workflow `fedsuit-verified-and-bot-fixes`.
+
+- **Task 1 — KB per category, LIVE (bot `388e835` + `a63bd0b`, deployed 2026-09-22 ~20:50).** `loadKb()` returns
+  `{base, preamble, sections}`; `kbFor(kb, category, text)` sends the non-ui files + the category's `UI_PAGES` sections of
+  `kb/ui.md` + up to `MENTION_MAX = 4` pages the MEMBER named (title or German nav label, whole word, file order so the
+  bytes are stable); `PAIRED = {customlab: ['sky']}`; bare `## key` pages (hud, uw, compact, dinolevel) live in the map.
+  Startup log: `install 10.7k, license 9.4k, scripts 13.2k, bug 13.4k, other 10.3k`. **Proof from the bot log:** before
+  `answer gemini/gemini-3.5-flash-lite in=51680`, after (ticket-0006, scripts) `in=15141` → −71 %. Models unchanged (low tier).
+- **Task 4 — pinned ids, LIVE (bot `bb2caf7`).** `id-store.js` (`loadIds/saveIds/looseName`), NAS `/data/ids.json`
+  (bind mount `/volume1/docker/razorreaper/data/bot`). Order everywhere: env id → stored id → loose name → create; found or
+  created ids are stored, env ids never. `[ids] resolved: …` line at ready. **Found on the way:** `STAFF_ROLES` matched exact
+  names but the live roles carry emoji (`👑 Owner`, `🛡️ Admin`, `⚔️ Moderator`, `🎫 Support Staff`) → no staff role ever
+  matched; now resolved by loose name and pinned (4 ids), optional env `STAFF_ROLE_IDS`. `/ticket` and the welcome embed link
+  the real support channel (it is called `├│・createt-icket`, the old `create-ticket` substring never matched). Note:
+  `generalChat` resolved to `├│🧾・staff-chat` (loose name contains "chat") — same as before the change, only used to decide
+  "do not create"; the server has no public chat (owner decision open).
+- **Task 3 — Discord live test (ticket-0006, owner's account in Comet, deleted afterwards):** ✓ empty-answer line
+  ("Still with you" after a bare-sentinel answer), ✓ 8-answer cap → "Handed to a human" + ping, ✓ staff "Re-enable AI" lifts
+  it and the next answer arrives. ✗ ping-only message: needs a NON-staff account (the owner is staff) — not testable here.
+  ✗ rename after restart: needs a manual channel rename (blocked for me as a server-settings edit; owner chose to skip).
+  **New findings (fix round `wt/bot-live-fixes` in flight):** a pasted Report ID was fetched (`in=16163`) but flash-lite
+  answered with the purchase embed; the model quoted i18n keys (`notactive.hint`); it said "die Wissensbasis enthält…";
+  after "I've sent it" → "Report not found" the member's next question got silence (30-min wait) and "not found" never
+  mentions Skip; after Skip the pending question is not answered.
+- **Comet, not Chrome:** the Claude-in-Chrome extension is connected through **Comet** now (Google Chrome was not running).
+  A background tab is `document.hidden`: Discord's modals then never finish animating and stack up (two "Billing" forms
+  opened by mis-clicks, both discarded, nothing submitted). Only test when the owner has the tab in front.
+- **Client hotkey honesty ✓ live:** Auto Clicker = F8 → toast "Could not register F8 — Crosshair overlay already uses that
+  key." + orange "not active" badge; back to F6 clears it.
+- **Fed Suit in game (Gen2):** the transmitter must be switched ON (`[E] Einschalten`) or F opens nothing — the script's
+  not-open guard stopped correctly but the reason only shows as an in-app toast (invisible while ARK is in front).
+  Owner's own runs: works, but after 2–3 cycles pieces stay behind — **the boots (last slot) never move**: the exit key
+  follows the last T press by ~150 ms and closes the inventory before the server finished. Owner's orders: never close
+  before every selected piece is across, retry until it is, stop only when a piece really cannot move (transmitter full);
+  piece selection (e.g. only gloves + chest); a lag buffer; positions by UI scale, never by language. Rebuild in flight.
+  **Holding E on the transmitter opens a radial whose only entry is "Abreißen" (demolish) — never hold E there.**
+- Owner decisions this evening: Windows notification when ARK is in front for script stop/warning toasts (next round);
+  rename test skipped. Still open for him: Ticket Tool removal, credits/spend limits, HΔMSTΣʀ role, Fast Transfer, NAS fan,
+  lower `AI_DAILY_TOKEN_BUDGET` (400k now covers ~30 tickets instead of ~7), public chat yes/no.

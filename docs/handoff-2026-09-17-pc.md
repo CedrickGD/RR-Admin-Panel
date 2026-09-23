@@ -823,3 +823,61 @@ up, NAS dust/fan profile.
 - Owner decisions this evening: Windows notification when ARK is in front for script stop/warning toasts (next round);
   rename test skipped. Still open for him: Ticket Tool removal, credits/spend limits, HΔMSTΣʀ role, Fast Transfer, NAS fan,
   lower `AI_DAILY_TOKEN_BUDGET` (400k now covers ~30 tickets instead of ~7), public chat yes/no.
+
+## 27. Night 2026-09-22 → 23: Fed Suit hardened in game, Turret Manager merged, keys follow ARK — TEST LIST FOR TONIGHT
+
+**Heads:** client `master` `df37c8f` (pushed, dev build rebuilt, NOT released — stays 1.5.3) · bot `main` `dcd413d` (live on the
+NAS, KB regenerated from `df37c8f`) · panel `main` = this doc. No worktrees left except a flake fix in flight
+(`rr-wt-flake2`, `wt/fault-flake`). ARK and the client are closed (owner closed them 22:49; my offline checks closed theirs).
+
+- **Fed Suit — in-game proven by the owner (10 clean runs on `79f322c`, piece selection too).** Chain: `cbd2cf7`/`35ab634`
+  code-driven verified cycle + piece checkboxes + lag buffer → `9d4b5d3` 8 press rounds → `79f322c` whole-slot pale-pixel
+  detection (`ArmorSlotLook`, measured on 254 real frames: worn 0.09–0.34, empty 0.000, threshold 0.045 — the old 13×13
+  centre box read the TROUSERS as empty because the icon has a gap between the legs; that was the "always the legs /
+  never 10 runs" bug) + continue-instead-of-stop (stop only on 2 idle cycles = transmitter full, or the same slot failing 3
+  cycles) + lag buffer only on open/set/leave waits → `40ce366`/`60ec4c8` after the last run one more open+close so the
+  player ends WEARING a set; a dropped press is re-pressed after ~150 ms quiet instead of 600 ms. **Not yet seen in game:**
+  the final open+close, the faster re-press, UI scale ≠ 1.0.
+- **In-game warning banner (`b591b4f`):** every warning/error toast also shows as a small non-activating, click-through
+  banner at the top of ARK when ARK is in front (reuses the crosshair overlay window plumbing; Settings toggle "Show script
+  warnings over the game", default on). Windows 11 would swallow OS toasts (auto Do-Not-Disturb while gaming). Not seen in
+  game yet.
+- **Keys follow ARK (`42c041e`, Turret `ecbb988`):** Rescan now re-reads every script's keys (it never told the scripts
+  before) and falls back to ARK's default layer, never the old in-memory key; a key is stored only when the player types it
+  (`ArkKeyDefaults.Follow/Keep`, `ArkKeySetting`). Offline-proven tonight on the real Input.ini (G/Y rebind → Rescan →
+  Fed Suit/Crafting/Turret take G/Y; restore → Rescan → F/T, no restart). The owner's pinned `fedsuit.openkey/transferkey`
+  were dropped by the migration; Input.ini restored byte-identical (hash checked), backup removed.
+- **Turret Manager = Filler folded in (`3be421f` `20beb21` `ecbb988` `df37c8f`, Experimental):** passive watcher; on each
+  opening of a TURRET inventory: Fill Max (Transfer All, clicked until two clicks change nothing, cap 10) or Stacks (bullets /
+  shards per turret via the transfer key on the first icon-detected ammo cell, re-scan after each press); language-free
+  ammo classifier (bullet copper/olive vs shard pale grey); tooltip hint read from GameUserSettings.ini
+  (`bEnableInventoryItemTooltips=True` on the owner's PC); lag buffer; ammo calculator (checked in the running client:
+  10 turrets/5000 bullets → 5 stacks each, 3 tek/4000 shards → 1 stack each, 1000 left); "Use per-turret stacks". Turret
+  Filler removed everywhere (class, DI, page, diagnostics, tests, i18n). **Caveat:** no real turret inventory was ever
+  captured — `T01` turned out to be the owner's Tek GENERATOR (he opened it at that moment). The turret signature therefore
+  fails CLOSED: it fires only on a one-row structure inventory with ≤ 6 bordered slots and no grid below; the log line
+  `Turret Manager sees frame x/9, rows a/b/c → turret: …` shows what it reads. A storage box never triggers it.
+  **Power on/off not built** (owner decision pending): a powered turret shows "[E] Ausschalten" (tap E toggles power; an
+  unpowered one opens its inventory with E); the hold-E radial has no power entry but has Aufheben/Abreißen — never
+  automate it.
+- **Bot live `dcd413d`:** KB per category (task 1), pinned ids + staff roles (task 4), the five live-test fixes (`7c40729`:
+  report data pass answers the ticket, no i18n keys, never mentions the knowledge base, one receipt while waiting for a
+  report, Skip answers the pending question), startup-log fix, KB regenerated twice.
+- **Process lesson:** a Haiku gate told "read-only" committed its own Fed Suit change in another worktree (`4d0dbb9`,
+  dropped). Gate/review prompts now say "REPORT ONLY — do not edit, do not commit", and every branch is checked with
+  `git log` before landing.
+
+**TEST LIST for tonight (with the owner, ARK single player, Gen2):**
+1. Fed Suit: Runs 10 → ends wearing a set; pick only gloves+chest; lag buffer 0 vs 200; walk away mid-run → the banner at
+   the top of ARK says why it stopped.
+2. Fed Suit at ARK UI scale 0.8 (Options → interface scale; restore 1.0 afterwards) — slots/tab must still be hit.
+3. Turret Manager: Tek turret (5 slots) — switch on (F10), open it (unpowered: short E), carry bullets + shards →
+   Max fills it; read the log line; Stacks = 2 → exactly 2 stacks; open a storage box while it runs → must do nothing.
+   Heavy/Auto turret: probably does NOTHING (fails closed) — read its rows from the log, then decide the signature.
+   Tooltips on vs off with Max (confirmation dialog? multi-click?).
+4. Keys: rebind "Transfer item" in ARK's own key options → client Rescan → Fed Suit/Turret/Crafting show it → restore.
+5. Crafting watcher/walk at a fabricator · Fast TP at a Tek teleporter (unicode typing) · Noglin console path ·
+   ArkLink start/close · vision capture on the right monitor.
+6. Owner decisions: turret power option (how should it work?), Ticket Tool removal, Anthropic/OpenAI credits + spend
+   limits, HΔMSTΣʀ role, Fast Transfer (dead code — delete or wire), NAS fan/dust, lower `AI_DAILY_TOKEN_BUDGET`, public
+   chat yes/no, release 1.5.3 (his button only).

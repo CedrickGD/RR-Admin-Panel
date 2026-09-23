@@ -881,3 +881,6 @@ NAS, KB regenerated from `df37c8f`) · panel `main` = this doc. No worktrees lef
 6. Owner decisions: turret power option (how should it work?), Ticket Tool removal, Anthropic/OpenAI credits + spend
    limits, HΔMSTΣʀ role, Fast Transfer (dead code — delete or wire), NAS fan/dust, lower `AI_DAILY_TOKEN_BUDGET`, public
    chat yes/no, release 1.5.3 (his button only).
+- **Later that night:** second wall-clock flake fixed deterministically (`538e7d7`, BackgroundFaultTrackerTests now checks the
+  fault bucket stayed undescribed); client `master` = `538e7d7`, 3391 tests, 0 warnings, pushed, no worktrees left. The dev build
+  from `df37c8f` is current for tonight (the last commit is test-only).

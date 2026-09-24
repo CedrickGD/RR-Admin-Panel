@@ -915,3 +915,11 @@ NAS, KB regenerated from `df37c8f`) · panel `main` = this doc. No worktrees lef
 - **Announcement** "Where your money goes" posted with @everyone on the owner's OK.
 - **Owner-only, still open:** remove Ticket Tool (slash collisions), take Administrator off the top role "🤖 Bot" (the bot cannot
   edit its own top role), optional 2FA requirement for moderation, the empty roles "1"–"10", answer ticket-0007.
+- **Later the same day (bot `3848114`, 207 tests, live):** early-commits was a misunderstanding and is gone again — the push
+  webhook posts to the PUBLIC #changelog as before (owner: changelog + releases stay public). Perks he picked: **⭐ Priority
+  Support** (a ticket opened by an RR-Customer/Lifetime holder carries `prio=on` in its topic, shows ⭐ in the opening embed,
+  #ticket-log and /queue, and pings the Ticket-Ping holders at once while the AI still answers; "I need a human" unchanged) and a
+  customers-only preset forum `├│🎯・presets` 1552621733863755817 (tags, gallery, tag required, pinned RR guide post). The
+  lock placeholders (renamed by him to `├│🔒Premium・voice` / `├│🔒Exclusive・voice`) are real tier voice channels now: the
+  tier joins, everyone else sees a lock. The verify panel's "🎁 Discord perks" lists premium-chat, presets, priority support
+  and (Lifetime) exclusive-chat.

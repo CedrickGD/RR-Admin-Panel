@@ -923,3 +923,23 @@ NAS, KB regenerated from `df37c8f`) · panel `main` = this doc. No worktrees lef
   lock placeholders (renamed by him to `├│🔒Premium・voice` / `├│🔒Exclusive・voice`) are real tier voice channels now: the
   tier joins, everyone else sees a lock. The verify panel's "🎁 Discord perks" lists premium-chat, presets, priority support
   and (Lifetime) exclusive-chat.
+
+## 29. 2026-09-24 evening: 1.5.3 released, invite tracker / giveaways / contest, triage fixes
+
+**Heads:** client `master` `1a9d0d9` (**v1.5.3 published 18:11Z** at `c9d01f4`, update.xml → 1.5.3.0) · bot `main` `60b7e62` (live) ·
+panel `main` = this doc.
+
+- **Release 1.5.3 — done by the coordinator on the owner's explicit order, without the panel**, mirroring the panel's publish path
+  (build-installer.yml dispatch → draft asset → publish with the checked notes `RazorReaper/docs/release-notes/1.5.3.md` → update.xml
+  via the panel's exact template). Verified: worker, raw GitHub and dl.razorreaper.app manifests serve 1.5.3.0, downloads hand out the
+  new 77.3 MB asset (unsigned — signing secrets not set), Discord Notify posted. The panel's release tables did not record this
+  publish; it reads GitHub live. **In-game checks were NOT run before the release** (owner's call) — they are now post-release
+  checks (memory `rr-ingame-test-session-pending`); a failure means a fix on master and 1.5.4.
+- **Client since §28:** RR1 crosshair codes (game-code imports removed by owner decision), crosshair overlay stays above ARK +
+  re-centres on display change + fullscreen hint, native-height stretched presets, read-only GameUserSettings.ini writes (report #14),
+  FOV false success, diagnostics routes, writable backups.
+- **Bot since §28:** invite tracker (welcome line, /invites, /inviteleaderboard), giveaways (/giveaway …) and invite contest
+  (/invitecontest …; the first one runs in #announcements until 2026-10-01 17:23Z, prize a Lifetime licence the owner hands out by
+  hand), KB without raw placeholders and with a "known problems" block (Take All / Armor Swap unreliable), 1.5.3 as current release.
+- **Discord:** Ticket Tool kicked (owner), ticket channel renamed `├│・create-ticket`, slash commands allowed in rr-chat, ticket-0007
+  (ardek_, Desync) closed with "throttle mode not planned" — Desync is a lag switch and will not be improved.

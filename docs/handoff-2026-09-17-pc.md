@@ -884,3 +884,34 @@ NAS, KB regenerated from `df37c8f`) · panel `main` = this doc. No worktrees lef
 - **Later that night:** second wall-clock flake fixed deterministically (`538e7d7`, BackgroundFaultTrackerTests now checks the
   fault bucket stayed undescribed); client `master` = `538e7d7`, 3391 tests, 0 warnings, pushed, no worktrees left. The dev build
   from `df37c8f` is current for tonight (the last commit is test-only).
+
+## 28. 2026-09-24: Discord server + bot pass (the app itself untouched, on the owner's order)
+
+**Heads:** bot `main` `4e87b63` (live on the NAS, 205 tests) · client `master` `538e7d7` unchanged · keys `f1321a1`.
+
+- **AI:** the owner deleted the Gemini key by accident (401 since 06:42Z, `ticket-0007` of a real member went unanswered);
+  new key live and in `keys/`. He has and wants NO separate API billing at Anthropic/OpenAI (a subscription does not cover the
+  API; every OpenAI model incl. nano answers 429 `credit_balance_exhausted`) → both commented out in `bot.env`, Gemini only.
+  New: staff get one #ticket-log line when a provider is parked for an account error.
+- **Tier model (owner):** rr-chat = everyone · premium-chat + `├│🧪・early-commits` = every active licence · exclusive-chat =
+  Lifetime only. Roles are EXCLUSIVE now: RR-Customer = active non-lifetime, Lifetime = active lifetime (the first sweep took
+  RR-Customer from the 4 lifetime holders as intended; the Lifetime role sees everything RR-Customer sees). Channels by id
+  (`CUSTOMER_CHAT_ID`, `LIFETIME_CHAT_ID`, `EARLY_CHANNEL_ID`); the `generalChat` name-guess (it had pinned staff-chat) is gone.
+- **Permissions (applied through the bot token, dry run + simulation per member type first, backup in
+  `.local/discord/guild-perms-before-20260924.json`):** Member no @everyone/@here/TTS; #updates/#changelog read-only (still
+  public); Moderator gains message/thread/nick/voice moderation + audit log, loses Manage Server/Channels (owner: only he and
+  Admin manage the server); Support Staff loses Administrator, gets ticket-log/staff-chat/bot-commands; Lifetime hoisted;
+  rr-chat lost the Manage* denies that disabled mods there. Locked voice placeholders (🔒 Premium/Exclusive) make the paid
+  chats visible as "exists" without leaking content (a text channel cannot do that). Two public voice channels.
+- **#verify:** the OLD `└│🔗・verify` was deleted by the owner on 2026-09-13 (audit log) — /verify had answered "Wrong channel"
+  with a dead link since. New `└│🔗・verify` 1552605531137515540 with the RR panel ("🎁 Discord perks"); /verify only there
+  (anywhere if that channel vanishes again); member chat there is deleted (keys at once + hint). The panel text lives in
+  `buildVerifyPanelEmbed` — edit the code, the bot re-syncs the message on start.
+- **Commit feed:** the client's push notifications (`discord-release.yml`, webhook "rr-helper") moved from public #changelog to
+  early-commits; releases stay public in #updates.
+- **/buildembed [channel]** (new messages) and **/editembed message:** (bot messages) — Discohook-style builder in an ephemeral
+  message: text/author/footer/images/fields modals, colour presets + hex, RR logo/avatars as icons, RR style, timestamp, ≤5 link
+  buttons, JSON import/export. Not clicked through by anyone yet.
+- **Announcement** "Where your money goes" posted with @everyone on the owner's OK.
+- **Owner-only, still open:** remove Ticket Tool (slash collisions), take Administrator off the top role "🤖 Bot" (the bot cannot
+  edit its own top role), optional 2FA requirement for moderation, the empty roles "1"–"10", answer ticket-0007.

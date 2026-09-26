@@ -72,7 +72,8 @@ interface InstallClaimRow {
   operation_id: string;
 }
 
-const HWID_PATTERN = /^[^\s\p{Cc}]{1,64}$/u;
+// No comma: licenses.hwid is a comma-separated list, so one value with commas would be N seats.
+const HWID_PATTERN = /^[^\s\p{Cc},]{1,64}$/u;
 const REASON_MAX_LENGTH = 500;
 
 /** Shared implementation for the explicit admin activate and bind routes. */

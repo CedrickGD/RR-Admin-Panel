@@ -35,7 +35,9 @@ export async function onRequestGet(context: HandlerContext): Promise<Response> {
         s.client_ip,
         s.app_version,
         s.last_seen_at AS session_last_seen,
-        dl.discord_tag AS verified_discord
+        dl.discord_tag AS verified_discord,
+        (SELECT group_concat(d3.discord_id) FROM discord_links d3
+          WHERE d3.license_key = l.license_key AND d3.is_active = 1) AS verified_discord_ids
       FROM licenses l
       LEFT JOIN app_sessions s ON s.session_id = (
         SELECT session_id FROM app_sessions s2 WHERE s2.hwid = l.hwid ORDER BY s2.last_seen_at DESC LIMIT 1

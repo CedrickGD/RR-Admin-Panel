@@ -52,7 +52,7 @@ describe("customer order license workflow", () => {
   });
 
   it("manages a license's Discord accounts where the operator already edits the customer", () => {
-    // No new page and no fifth row action: the accounts sit in the Customer & order dialog, next
+    // No new page and no fifth row action: the accounts sit in the Manage license dialog, next
     // to the buyer's Discord handle it already showed.
     expect(api).toContain("/api/admin/licenses/${encodeURIComponent(licenseKey)}/discord");
     expect(page).toContain("linkLicenseDiscord(editCandidate.license_key");

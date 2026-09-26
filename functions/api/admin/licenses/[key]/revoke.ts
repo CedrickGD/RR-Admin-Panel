@@ -23,12 +23,13 @@ export async function onRequestPost(context: HandlerContext): Promise<Response> 
     if (!key) return error(400, "License key is required.");
 
     const license = await db
-      .prepare("SELECT hwid FROM licenses WHERE license_key = ?")
+      .prepare("SELECT hwid, activated_at FROM licenses WHERE license_key = ?")
       .bind(key)
       .first();
     if (!license) return error(404, "License not found.");
 
-    if (!license.hwid) {
+    // Never activated only: a key whose PC was released (hwid NULL) is still a paid, used licence.
+    if (!license.hwid && !license.activated_at) {
       // Unbound: Delete completely
       await db.prepare("DELETE FROM licenses WHERE license_key = ?").bind(key).run();
       return json({ ok: true, message: "Unbound license deleted successfully.", deleted: true });

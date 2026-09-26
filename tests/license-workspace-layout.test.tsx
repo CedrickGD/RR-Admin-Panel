@@ -116,7 +116,7 @@ describe("License workspace presentation", () => {
     const host = renderRow({ status: "revoked" });
     expect(host.querySelector<HTMLButtonElement>('[aria-label^="Activate "]')?.disabled).toBe(true);
     expect(host.querySelector<HTMLButtonElement>('[aria-label^="Bind "]')?.disabled).toBe(true);
-    expect(host.querySelector<HTMLButtonElement>('[aria-label^="Edit customer"]')?.disabled).toBe(
+    expect(host.querySelector<HTMLButtonElement>('[aria-label^="Manage "]')?.disabled).toBe(
       false,
     );
     expect(
@@ -124,7 +124,7 @@ describe("License workspace presentation", () => {
     ).toBe(false);
     expect(
       [...host.querySelectorAll(".license-action-label")].map((node) => node.textContent),
-    ).toEqual(["Activate", "Bind device", "Edit order", "Delete"]);
+    ).toEqual(["Activate", "Bind device", "Manage", "Delete"]);
   });
 
   it("preserves unlimited master seats and shows real live-session presence separately", () => {

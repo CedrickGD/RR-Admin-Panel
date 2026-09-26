@@ -8,13 +8,13 @@ import { Button } from "./ds/Button";
 
 /**
  * The archived Discord tickets of one customer, in the two places that show them: the Customer 360
- * commerce grid and the Licenses "Customer & order" dialog. One list, so a row reads the same in
+ * commerce grid and the Licenses "Manage license" dialog. One list, so a row reads the same in
  * both — each site only supplies its own heading. The rows are the shared `.record-row` the
  * Discord accounts list above it in that same dialog uses.
  *
  * Delete is the two-step in-row confirm InstallsPanel's Revoke already uses: the second press is a
  * different button with its own name, so it is also audibly the destructive one. A dialog would be
- * a second Modal inside the open "Customer & order" one.
+ * a second Modal inside the open "Manage license" one.
  *
  * The transcript is downloaded, never rendered: it is HTML a third party wrote.
  */

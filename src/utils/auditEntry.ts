@@ -38,6 +38,8 @@ export const MEMBER_AUDIT_LABELS: Record<string, string> = {
   "discord-link": "Discord account linked",
   "discord-rebind": "Discord account rebound",
   "discord-unlink": "Discord account unlinked",
+  // Licenses → PCs (functions/api/admin/licenses/[key]/release.ts): detail is the released HWID.
+  "license-release": "PC released from license",
   // Support → archived Discord tickets: target is the ticket's channel id.
   "discord-ticket-delete": "Discord ticket deleted",
 };

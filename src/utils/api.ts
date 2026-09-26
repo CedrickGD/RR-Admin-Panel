@@ -526,6 +526,25 @@ export function unlinkLicenseDiscord(licenseKey: string, discordId: string) {
   });
 }
 
+/** Free one PC's seat on a license; the customer then activates the key on the new PC. */
+export async function releaseLicenseHwid(
+  licenseKey: string,
+  input: { hwid: string; reason?: string },
+): Promise<{ ok: boolean; data?: { ok?: boolean; error?: string }; status: number }> {
+  const res = await fetchApi(
+    apiUrl(`/api/admin/licenses/${encodeURIComponent(licenseKey)}/release`),
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(input),
+      credentials: "include",
+    },
+    { retry: false },
+  );
+  const body = await parseJson<{ ok?: boolean; error?: string }>(res);
+  return { ok: res.ok && body.ok === true, data: body, status: res.status };
+}
+
 async function postLicenseOperation(
   licenseKey: string,
   action: "activate" | "bind",

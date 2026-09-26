@@ -12,6 +12,7 @@ import {
   Key,
   Link2,
   MessageSquareText,
+  Monitor,
   Pencil,
   PlayCircle,
   Plus,
@@ -48,6 +49,7 @@ import {
   fetchLicenseDiscordLinks,
   issueAdminLicense,
   linkLicenseDiscord,
+  releaseLicenseHwid,
   searchAdminLicenses,
   unlinkLicenseDiscord,
   type LicenseDiscordLink,
@@ -85,11 +87,20 @@ interface LicenseRecord {
   order_meta?: string | null; // sanitized storefront payload snapshot
   purchased_at?: string | null;
   verified_discord?: string | null; // Discord tag verified against this key
+  verified_discord_ids?: string | null; // every active linked Discord user id, comma-separated
 }
 
 /** Discord handles render as `@name` — strip a stored leading @ so it never doubles. */
 function discordHandle(value: string): string {
   return `@${value.trim().replace(/^@/, "")}`;
+}
+
+/** licenses.hwid is a comma-separated list, one entry per bound PC. */
+function splitHwids(value: string | null | undefined): string[] {
+  return (value ?? "")
+    .split(",")
+    .map((hwid) => hwid.trim())
+    .filter(Boolean);
 }
 
 /**
@@ -517,12 +528,12 @@ export function LicenseInventoryRow({
           <Button
             size="xs"
             permission="licenses.write"
-            title="Edit customer / order info"
+            title="Manage PCs, Discord accounts and order info"
             icon={<Pencil />}
-            aria-label={`Edit customer / order info for ${license.license_key}`}
+            aria-label={`Manage ${license.license_key}: PCs, Discord accounts and order`}
             onClick={() => onEdit(license)}
           >
-            <span className="license-action-label">Edit order</span>
+            <span className="license-action-label">Manage</span>
           </Button>
           <Button
             size="xs"
@@ -652,6 +663,16 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker }: LicensesP
   const [newDiscordId, setNewDiscordId] = useState("");
   const [newDiscordTag, setNewDiscordTag] = useState("");
   const [replaceDiscord, setReplaceDiscord] = useState(false);
+
+  // PCs (hardware IDs) bound to the license being managed. Release is written straight away like
+  // the Discord links; the first click only arms the confirmation for that one PC.
+  const [dialogHwids, setDialogHwids] = useState<string[]>([]);
+  const [releaseArmed, setReleaseArmed] = useState<string | null>(null);
+  const [releaseBusy, setReleaseBusy] = useState(false);
+  const [releaseError, setReleaseError] = useState<string | null>(null);
+  // Which license the dialog shows right now: a release still in flight must not write its result
+  // into the next license the operator opened meanwhile.
+  const openLicenseKey = useRef<string | null>(null);
 
   // Archived Discord support tickets of the same key, loaded by the same effect below.
   const [tickets, setTickets] = useState<DiscordTicketRecord[] | null>(null);
@@ -823,19 +844,10 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker }: LicensesP
   };
 
   const openLicenseAction = (license: LicenseRecord, mode: LicenseActionMode) => {
-    const linkedSession = [
-      ...(summary?.activeSessions ?? []),
-      ...(summary?.recentSessions ?? []),
-    ].find(
-      (session) =>
-        session.id === license.session_id || (license.hwid && session.hwid === license.hwid),
-    );
     setLicenseAction({ license, mode });
-    actionBaseline.current = {
-      installId: linkedSession?.installId ?? "",
-      hwid: license.hwid ?? linkedSession?.hwid ?? "",
-      reason: "",
-    };
+    // Empty on purpose: the only session this page could pre-fill is the PC already bound, and
+    // submitting that is a no-op — the target is always the customer's other (new) PC.
+    actionBaseline.current = { installId: "", hwid: "", reason: "" };
     setActionInstallId(actionBaseline.current.installId);
     setActionHwid(actionBaseline.current.hwid);
     setActionReason("");
@@ -1033,6 +1045,7 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker }: LicensesP
   // The dialog's Discord sections load themselves; every link write answers with the new list, so
   // this runs once per opened license.
   useEffect(() => {
+    openLicenseKey.current = editCandidate?.license_key ?? null;
     if (!editCandidate) return;
     let cancelled = false;
     setDiscordLinks(null);
@@ -1040,6 +1053,9 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker }: LicensesP
     setNewDiscordId("");
     setNewDiscordTag("");
     setReplaceDiscord(false);
+    setDialogHwids(splitHwids(editCandidate.hwid));
+    setReleaseArmed(null);
+    setReleaseError(null);
     setTickets(null);
     setTicketTotal(0);
     setTicketError(null);
@@ -1138,6 +1154,30 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker }: LicensesP
     );
   };
 
+  const releaseHwid = async (hwid: string) => {
+    if (!editCandidate || releaseBusy) return;
+    const key = editCandidate.license_key;
+    setReleaseBusy(true);
+    setReleaseError(null);
+    try {
+      const result = await releaseLicenseHwid(key, { hwid });
+      if (!result.ok) {
+        throw new Error(result.data?.error ?? `Could not release that PC (HTTP ${result.status}).`);
+      }
+      if (openLicenseKey.current === key) {
+        setDialogHwids((current) => current.filter((candidate) => candidate !== hwid));
+        setReleaseArmed(null);
+      }
+      await fetchLicenses(true);
+    } catch (err) {
+      if (openLicenseKey.current === key) {
+        setReleaseError(err instanceof Error ? err.message : "Could not release that PC.");
+      }
+    } finally {
+      setReleaseBusy(false);
+    }
+  };
+
   const saveEdit = async () => {
     if (!editCandidate || isSavingEdit) return;
     setIsSavingEdit(true);
@@ -1184,7 +1224,8 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker }: LicensesP
           lic.customer_name?.toLowerCase().includes(lowerQuery) ||
           lic.customer_email?.toLowerCase().includes(lowerQuery) ||
           lic.customer_discord?.toLowerCase().includes(lowerQuery) ||
-          lic.verified_discord?.toLowerCase().includes(lowerQuery)
+          lic.verified_discord?.toLowerCase().includes(lowerQuery) ||
+          lic.verified_discord_ids?.includes(searchQuery.trim())
         );
       }),
     ].sort((a, b) => {
@@ -1237,7 +1278,7 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker }: LicensesP
           aria-label="Search licenses"
           value={searchQuery}
           onChange={setSearchQuery}
-          placeholder="Search licenses, customers, orders…"
+          placeholder="Search key, customer, order, Discord name or ID, HWID…"
         />
       }
     />
@@ -2133,8 +2174,8 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker }: LicensesP
         onClose={() => (isSavingEdit ? null : setEditCandidate(null))}
         dismissOnScrim={false}
         isDirty={() => !!editCandidate && !formsEqual(editForm, orderFormFor(editCandidate))}
-        kicker="Order tracking"
-        title="Customer & order"
+        kicker="License"
+        title="Manage license"
         sub={editCandidate ? `License ${editCandidate.license_key}` : undefined}
       >
         {editCandidate ? (
@@ -2158,6 +2199,19 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker }: LicensesP
                     : formatDate(editCandidate.created_at)}
                 </strong>
               </span>
+              <span>
+                Status: <strong>{editCandidate.status}</strong>
+              </span>
+              <span>
+                Expires:{" "}
+                <strong>
+                  {editCandidate.expires_at
+                    ? formatDate(editCandidate.expires_at)
+                    : editCandidate.type === "lifetime"
+                      ? "No expiry"
+                      : "Not started"}
+                </strong>
+              </span>
               {editCandidate.verified_discord ? (
                 <span>
                   Verified Discord:{" "}
@@ -2168,47 +2222,80 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker }: LicensesP
               ) : null}
             </div>
 
-            <div className="license-edit-grid">
-              <Field label="Order ID" hint="optional">
-                <Input
-                  mono
-                  placeholder="e.g. ORD-1042 / invoice id"
-                  value={editForm.order_id}
-                  onChange={(e) => setEditForm((f) => ({ ...f, order_id: e.target.value }))}
-                />
-              </Field>
-              <Field label="Customer name" hint="optional">
-                <Input
-                  placeholder="Buyer name"
-                  value={editForm.customer_name}
-                  onChange={(e) => setEditForm((f) => ({ ...f, customer_name: e.target.value }))}
-                />
-              </Field>
-              <Field label="Customer email" hint="optional">
-                <Input
-                  type="email"
-                  placeholder="buyer@mail.com"
-                  value={editForm.customer_email}
-                  onChange={(e) => setEditForm((f) => ({ ...f, customer_email: e.target.value }))}
-                />
-              </Field>
-              <Field label="Discord" hint="optional">
-                <Input
-                  placeholder="@buyer"
-                  value={editForm.customer_discord}
-                  onChange={(e) => setEditForm((f) => ({ ...f, customer_discord: e.target.value }))}
-                />
-              </Field>
-            </div>
-
-            <Field label="Note" hint="optional">
-              <Textarea
-                rows={3}
-                placeholder="Anything worth remembering about this sale…"
-                value={editForm.order_note}
-                onChange={(e) => setEditForm((f) => ({ ...f, order_note: e.target.value }))}
-              />
-            </Field>
+            {/* PCs bound to this key. Released on click (after a confirm), not with Save. */}
+            <section className="license-discord" aria-label="PCs">
+              <h3 className="license-discord-title">
+                <Monitor size={14} aria-hidden="true" /> PCs ({dialogHwids.length} /{" "}
+                {editCandidate.max_uses === -1 ? "Unlimited" : editCandidate.max_uses})
+              </h3>
+              <p className="license-workflow-note">
+                Windows reinstalled on the same PC? Nothing to do here: the hardware ID stays the
+                same, the customer just enters the key again. Release a PC only for a new PC or
+                changed hardware (drive, motherboard, CPU); the customer then activates the key on
+                the new PC and the expiry date stays the same.
+              </p>
+              {dialogHwids.length === 0 ? (
+                <p className="record-row-meta">
+                  No PC is bound. The key binds to the first PC that activates it.
+                </p>
+              ) : (
+                <ul className="record-row-list">
+                  {dialogHwids.map((hwid) => (
+                    <li key={hwid} className="record-row">
+                      <div>
+                        <strong>
+                          {dialogHwids.length === 1 && editCandidate.user_label
+                            ? editCandidate.user_label
+                            : "Bound PC"}
+                        </strong>
+                        <span className="mono">{hwid}</span>
+                        {dialogHwids.length === 1 && editCandidate.session_last_seen ? (
+                          <span className="record-row-meta">
+                            last seen {formatDate(editCandidate.session_last_seen)}
+                          </span>
+                        ) : null}
+                      </div>
+                      {releaseArmed === hwid ? (
+                        <>
+                          <Button
+                            size="xs"
+                            variant="ghost"
+                            disabled={releaseBusy}
+                            onClick={() => setReleaseArmed(null)}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            size="xs"
+                            variant="danger"
+                            permission="licenses.write"
+                            icon={<X />}
+                            disabled={releaseBusy}
+                            aria-label={`Confirm release of PC ${hwid}`}
+                            onClick={() => void releaseHwid(hwid)}
+                          >
+                            {releaseBusy ? "Releasing…" : "Confirm release"}
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          size="xs"
+                          variant="danger"
+                          permission="licenses.write"
+                          icon={<X />}
+                          disabled={releaseBusy}
+                          aria-label={`Release PC ${hwid} from this license`}
+                          onClick={() => setReleaseArmed(hwid)}
+                        >
+                          Release PC
+                        </Button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <FormError message={releaseError} />
+            </section>
 
             {/* Verified Discord accounts. Saved on click, not with the dialog's Save button. */}
             <section className="license-discord" aria-label="Discord accounts">
@@ -2296,6 +2383,56 @@ export function LicensesPage({ summary, onOpenSession, onOpenWorker }: LicensesP
                 past the seat limit.
               </p>
               <FormError message={discordError} />
+            </section>
+
+            {/* Order attribution: the only part the dialog's Save button commits. */}
+            <section className="license-discord" aria-label="Order">
+              <h3 className="license-discord-title">
+                <Pencil size={14} aria-hidden="true" /> Order (saved with Save)
+              </h3>
+              <div className="license-edit-grid">
+                <Field label="Order ID" hint="optional">
+                  <Input
+                    mono
+                    placeholder="e.g. ORD-1042 / invoice id"
+                    value={editForm.order_id}
+                    onChange={(e) => setEditForm((f) => ({ ...f, order_id: e.target.value }))}
+                  />
+                </Field>
+                <Field label="Customer name" hint="optional">
+                  <Input
+                    placeholder="Buyer name"
+                    value={editForm.customer_name}
+                    onChange={(e) => setEditForm((f) => ({ ...f, customer_name: e.target.value }))}
+                  />
+                </Field>
+                <Field label="Customer email" hint="optional">
+                  <Input
+                    type="email"
+                    placeholder="buyer@mail.com"
+                    value={editForm.customer_email}
+                    onChange={(e) => setEditForm((f) => ({ ...f, customer_email: e.target.value }))}
+                  />
+                </Field>
+                <Field label="Discord" hint="optional">
+                  <Input
+                    placeholder="@buyer"
+                    value={editForm.customer_discord}
+                    onChange={(e) =>
+                      setEditForm((f) => ({ ...f, customer_discord: e.target.value }))
+                    }
+                  />
+                </Field>
+              </div>
+
+              <Field label="Note" hint="optional">
+                <Textarea
+                  rows={3}
+                  placeholder="Anything worth remembering about this sale…"
+                  value={editForm.order_note}
+                  onChange={(e) => setEditForm((f) => ({ ...f, order_note: e.target.value }))}
+                />
+              </Field>
             </section>
 
             {/* Archived support tickets of the same accounts. Read-only apart from Delete. */}
